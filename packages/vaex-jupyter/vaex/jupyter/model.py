@@ -121,7 +121,7 @@ class Axis(_HasState):
     bin_centers = traitlets.Any()
     shape = traitlets.CInt(None, allow_none=True)
     shape_default = traitlets.CInt(64)
-    calculation = traitlets.Any(None, allow_none=True)
+    _calculation = traitlets.Any(None, allow_none=True)
     exception = traitlets.Any(None, allow_none=True)
     _status_change_delay = traitlets.Float(0)
 
@@ -141,7 +141,7 @@ class Axis(_HasState):
             if isinstance(value, vaex.expression.Expression):
                 return str(value)
             return value
-        args = ', '.join('{}={}'.format(key, myrepr(getattr(self, key), key)) for key in self.traits().keys() if key != 'df')
+        args = ', '.join('{}={}'.format(key, myrepr(getattr(self, key), key)) for key in self.traits().keys() if key != 'df' and not key.startswith('_'))
         return '{}({})'.format(self.__class__.__name__, args)
 
     @property
@@ -153,7 +153,7 @@ class Axis(_HasState):
         self.min = None
         self.max = None
         self.status = Axis.Status.NO_LIMITS
-        if self.calculation is not None:
+        if self._calculation is not None:
             self._cancel_computation()
         self.computation()
 
@@ -183,7 +183,7 @@ class Axis(_HasState):
                 # this happens when a user change min/max
                 pass
         else:
-            if self.calculation is not None:
+            if self._calculation is not None:
                 self._cancel_computation()
                 if self.min is not None and self.max is not None:
                     self.status = Axis.Status.READY
@@ -207,7 +207,7 @@ class Axis(_HasState):
             try:
 
                 self._continue_calculation = True
-                self.calculation = self.df.minmax(self.expression, delay=True, progress=self._progress)
+                self._calculation = self.df.minmax(self.expression, delay=True, progress=self._progress)
                 self.df.widget.execute_debounced()
                 # keep a nearly reference to this, since awaits (which trigger the execution, AND reset of this future) may change it this
                 execute_prehook_future = self.df.widget.execute_debounced.pre_hook_future
@@ -216,9 +216,9 @@ class Axis(_HasState):
                 async with self._state_change_to(Axis.Status.CALCULATING_LIMITS):
                     await execute_prehook_future
                 async with self._state_change_to(Axis.Status.CALCULATED_LIMITS):
-                    vmin, vmax = await self.calculation
+                    vmin, vmax = await self._calculation
                 # indicate we are done with the calculation
-                self.calculation = None
+                self._calculation = None
                 if not self._continue_calculation:
                     assert self.status == Axis.Status.READY
                 async with self._state_change_to(Axis.Status.READY):
@@ -384,7 +384,7 @@ class GridCalculator(_HasState):
     status = traitlets.UseEnum(Status, Status.VOID)
     df = traitlets.Instance(vaex.dataframe.DataFrame)
     models = traitlets.List(traitlets.Instance(DataArray))
-    calculation = traitlets.Any(None, allow_none=True)
+    _calculation = traitlets.Any(None, allow_none=True)
     _debug = traitlets.Bool(False)
 
     def __init__(self, df, models):
@@ -405,13 +405,13 @@ class GridCalculator(_HasState):
     def model_add(self, model):
         self.models = self.models + [model]
         if model.status == DataArray.Status.NEEDS_CALCULATING_GRID:
-            if self.calculation is not None:
+            if self._calculation is not None:
                 self._cancel_computation()
             self.computation()
 
         def on_status_changed(change):
             if change.owner.status == DataArray.Status.NEEDS_CALCULATING_GRID:
-                if self.calculation is not None:
+                if self._calculation is not None:
                     self._cancel_computation()
                 self.computation()
         model.observe(on_status_changed, 'status')
@@ -509,7 +509,7 @@ class GridCalculator(_HasState):
 
             self._continue_calculation = True
             logger.debug('Setting up grid computation...')
-            self.calculation = self.df.count(binby=binby, shape=shapes, limits=limits, selection=selections, progress=self.progress, delay=True)
+            self._calculation = self.df.count(binby=binby, shape=shapes, limits=limits, selection=selections, progress=self.progress, delay=True)
 
             logger.debug('Setting up grid computation done tasks=%r', self.df.executor.tasks)
 
@@ -529,9 +529,9 @@ class GridCalculator(_HasState):
                 for model in self.models:
                     await stack.enter_async_context(model._state_change_to(DataArray.Status.CALCULATED_GRID))
                 # first assign to local
-                grid = await self.calculation
+                grid = await self._calculation
                 # indicate we are done with the calculation
-                self.calculation = None
+                self._calculation = None
                 # raise asyncio.CancelledError("User abort")
             async with contextlib.AsyncExitStack() as stack:
                 for model in self.models:
