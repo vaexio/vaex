@@ -24,28 +24,28 @@ def test_axis_basics(df, flush_guard):
     flush()
     assert x.min == df.x.min()
     assert x.max == df.x.max()
-    assert x.centers.shape[0] == x.shape_default
+    assert x.bin_centers.shape[0] == x.shape_default
 
-    center_last = x.centers[-1]
+    center_last = x.bin_centers[-1]
     x.max += 1
     flush()
-    assert x.centers[-1] > center_last
+    assert x.bin_centers[-1] > center_last
 
     x.shape = 5
     flush()
-    assert x.centers.shape[0] == 5
+    assert x.bin_centers.shape[0] == 5
 
     x.shape = 6
     flush()
-    assert x.centers.shape[0] == 6
+    assert x.bin_centers.shape[0] == 6
 
     x.shape_default = 7
     flush()
-    assert x.centers.shape[0] == 6
+    assert x.bin_centers.shape[0] == 6
 
     x.shape = None
     flush(all=True)
-    assert x.centers.shape[0] == 7
+    assert x.bin_centers.shape[0] == 7
 
 
 def test_data_array_attrs(df, flush_guard):
