@@ -1,5 +1,6 @@
 __author__ = 'maartenbreddels'
 import aplus
+import os
 
 """
 Mini library to make working with promises/futures a bit more Python like.
@@ -67,7 +68,8 @@ def delayed(f):
             return f(*args_real, **kwargs_real)
 
         def error(exc):
-            print("Error from delayed", exc)
+            if os.environ.get('VAEX_DEBUG', False):
+                print("Error from delayed", exc)
             # import vaex
             # vaex.utils.print_stack_trace()
             raise exc
