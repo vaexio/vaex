@@ -290,7 +290,7 @@ class Histogram(ViewBase):
 
         if self.normalize:
             ylist = [y / np.sum(y) for y in ylist]
-        x = self.model.x.centers
+        x = self.model.x.bin_centers
         self.plot.x_min = self.model.x.min
         self.plot.x_max = self.model.x.max
         self.plot.update_data(x, np.array(ylist), colors)

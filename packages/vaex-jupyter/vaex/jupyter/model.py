@@ -118,7 +118,7 @@ class Axis(_HasState):
     slice = traitlets.CInt(None, allow_none=True)
     min = traitlets.CFloat(None, allow_none=True)
     max = traitlets.CFloat(None, allow_none=True)
-    centers = traitlets.Any()
+    bin_centers = traitlets.Any()
     shape = traitlets.CInt(None, allow_none=True)
     shape_default = traitlets.CInt(64)
     calculation = traitlets.Any(None, allow_none=True)
@@ -242,7 +242,7 @@ class Axis(_HasState):
             self.shape = N
         else:
             centers = self.df.bin_centers(self.expression, [self.min, self.max], shape=self.shape or self.shape_default)
-        self.centers = centers
+        self.bin_centers = centers
 
 
 @signature_has_traits
@@ -447,7 +447,7 @@ class GridCalculator(_HasState):
                     for axis in other_model.axes:
                         axis_index += 1
                         dims.append(str(axis.expression))
-                        coords.append(axis.centers)
+                        coords.append(axis.bin_centers)
                         mins.append(axis.min)
                         maxs.append(axis.max)
                 else:
