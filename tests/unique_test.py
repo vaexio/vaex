@@ -1,5 +1,6 @@
 from common import *
 
+
 def test_unique_arrow():
     ds = vaex.from_arrays(x=vaex.string_column(['a', 'b', 'a', 'a', 'a', 'b', 'b', 'b', 'b', 'a']))
     with small_buffer(ds, 2):
@@ -21,6 +22,7 @@ def test_unique():
         values, index = ds.unique(ds.x, return_inverse=True)
         assert values[index].tolist() == ds.x.values.tolist()
 
+
 def test_unique_f4():
     x = np.array([np.nan, 0, 1, np.nan, 2, np.nan], dtype='f4')
     df = vaex.from_arrays(x=x)
@@ -38,12 +40,14 @@ def test_unique_nan():
         assert values[~mask].tolist() == df.x.values[~mask].tolist()
         # assert indices.tolist() == [0, 1, 2, 0, 3, 0]
 
+
 def test_unique_missing():
     # Create test databn
-    x = np.array([None, 'A', 'B', -1, 0, 2, '', '', None, None, None, np.nan, np.nan, np.nan, np.nan,])
+    x = np.array([None, 'A', 'B', -1, 0, 2, '', '', None, None, None, np.nan, np.nan, np.nan, np.nan])
     df = vaex.from_arrays(x=x)
     uniques = df.x.unique(dropnan=True).tolist()
     assert set(uniques) == set(['', 'A', 'B', -1, 0, 2, None])
+
 
 def test_unique_datetime():
     x = np.arange('2015-07-07', '2015-07-11', dtype=np.datetime64)
