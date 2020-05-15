@@ -44,3 +44,14 @@ def test_unique_missing():
     df = vaex.from_arrays(x=x)
     uniques = df.x.unique(dropnan=True).tolist()
     assert set(uniques) == set(['', 'A', 'B', -1, 0, 2, None])
+
+def test_unique_datetime():
+    x = np.arange('2015-07-07', '2015-07-11', dtype=np.datetime64)
+    y = np.ma.MaskedArray(data=['2015-07-07', '2015-07-07', '2015-07-08', '2015-07-08'],
+                          mask=[True, False, False, True], dtype=np.datetime64)
+
+    df = vaex.from_arrays(x=x, y=y)
+
+    assert df.x.unique().tolist() == x.tolist()
+    assert len(df.y.unique()) == 3
+    assert len(df.y.nunique(dropna=True)) == 2
