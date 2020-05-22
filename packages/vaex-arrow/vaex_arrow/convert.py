@@ -53,6 +53,7 @@ def numpy_array_from_arrow_array(arrow_array):
     buffers = arrow_array.buffers()
     assert len(buffers) == 2
     bitmap_buffer, data_buffer = buffers
+    offset = arrow_array.offset
     if isinstance(arrow_type, type(pyarrow.binary(1))):  # todo, is there a better way to typecheck?
         # mimics python/pyarrow/array.pxi::Array::to_numpy
         assert len(buffers) == 2
@@ -68,13 +69,13 @@ def numpy_array_from_arrow_array(arrow_array):
     if np.bool_ == dtype:
         # TODO: this will also be a copy, we probably want to support bitmasks as well
         bitmap = np.frombuffer(data_buffer, np.uint8, len(data_buffer))
-        array = numpy_mask_from_arrow_mask(bitmap, len(arrow_array))
+        array = numpy_bool_from_arrow_bitmap(bitmap, len(arrow_array) + offset)[offset:]
     else:
-        array = np.frombuffer(data_buffer, dtype, len(arrow_array))
+        array = np.frombuffer(data_buffer, dtype, len(arrow_array) + offset)[offset:]
 
     if bitmap_buffer is not None:
         bitmap = np.frombuffer(bitmap_buffer, np.uint8, len(bitmap_buffer))
-        mask = numpy_mask_from_arrow_mask(bitmap, len(arrow_array))
+        mask = numpy_mask_from_arrow_mask(bitmap, len(arrow_array) + offset)[offset:]
         array = np.ma.MaskedArray(array, mask=mask)
     return array
 
@@ -83,7 +84,10 @@ def numpy_mask_from_arrow_mask(bitmap, length):
     # we do have to change the ordering of the bits
     return 1-np.unpackbits(bitmap).reshape((len(bitmap),8))[:,::-1].reshape(-1)[:length]
 
-
+def numpy_bool_from_arrow_bitmap(bitmap, length):
+    # arrow uses a bitmap https://github.com/apache/arrow/blob/master/format/Layout.md
+    # we do have to change the ordering of the bits
+    return np.unpackbits(bitmap).reshape((len(bitmap),8))[:,::-1].reshape(-1)[:length].view(np.bool_)
 
 def arrow_table_from_vaex_df(ds, column_names=None, selection=None, strings=True, virtual=False):
     """Implementation of Dataset.to_arrow_table"""

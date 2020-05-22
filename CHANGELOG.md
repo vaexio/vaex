@@ -10,6 +10,7 @@
      * df.dtype is a property, to get data types for expressions, use df.data_type(), df.expr.dtype is still behaving the same
      * df.categorize takes min_value and max_value, and no longer needs the check argument, also the labels do not have to be strings.
      * vaex.open/from_csv etc does not copy the pandas index by default [#756](https://github.com/vaexio/vaex/pull/756)
+     * df.categorize takes an inplace argument, similar to most methods, and returns the dataframe affected.
 
 # vaex-core 2.0.0-dev
    * Performance
@@ -75,6 +76,8 @@
 
 # vaex-arrow 0.5.0-dev
    * Requirement of vaex-core >=2,<3
+   * Fixes
+      * Booleans were negated, and didn't respect offsets.
 
 # vaex-jupyter 0.5.0-dev
    * Requirement of vaex-core >=2,<3
