@@ -132,7 +132,7 @@ def test_widget_heatmap(flush_guard):
 # def test_widget_pie(flush_guard):
 #     df = vaex.example()
 #     df['s'] = df.x < 0
-#     df.categorize('s', labels=['neg', 'pos'], check=False)
+#     df.categorize('s', labels=['neg', 'pos'], check=False, inplace=True)
 #     hw = df.widget.pie('s')
 #     flush()
 
