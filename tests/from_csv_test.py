@@ -14,15 +14,15 @@ if sys.platform.startswith("win"):
 
 def test_from_csv():
     # can read with default options
-    df = vaex.from_csv(csv_path)
+    df = vaex.from_csv(csv_path, copy_index=True)
     _assert_csv_content(df, with_index=True)
 
     # can read an empty CSV
-    df = vaex.from_csv(os.path.join(path, 'data', 'empty.csv'), copy_index=False)
+    df = vaex.from_csv(os.path.join(path, 'data', 'empty.csv'))
     assert len(df) == 0
 
     # can read as chunks iterator
-    df_iterator = vaex.from_csv(csv_path, chunk_size=1, copy_index=False)
+    df_iterator = vaex.from_csv(csv_path, chunk_size=1)
     df1 = next(df_iterator)
     assert len(df1) == 1
     df2, df3 = next(df_iterator), next(df_iterator)
@@ -33,7 +33,7 @@ def test_from_csv():
 
 def test_from_csv_converting_in_chunks():
     # can read several chunks with converting, intermediate files are deleted
-    df = vaex.from_csv(csv_path, copy_index=False, chunk_size=1, convert=True)
+    df = vaex.from_csv(csv_path, chunk_size=1, convert=True)
     _assert_csv_content(df)
     for filename in ['small3.csv_chunk0.hdf5', 'small3.csv_chunk1.hdf5', 'small3.csv_chunk2.hdf5']:
         assert not os.path.exists(os.path.join(path, 'data', filename))
@@ -47,17 +47,17 @@ def test_from_csv_converting_in_chunks():
             vaex.from_csv(f, convert=True)
     with open(csv_path) as f:
         converted_path = os.path.join(path, 'data', 'small3.my.csv.hdf5')
-        df = vaex.from_csv(f, convert=converted_path, copy_index=False)
+        df = vaex.from_csv(f, convert=converted_path)
     _assert_csv_content(df)
     assert os.path.exists(converted_path)
     _cleanup_generated_files(df)
 
     # reuses converted HDF5 file
-    vaex.from_csv(csv_path, copy_index=False, convert=True)
+    vaex.from_csv(csv_path, convert=True)
     assert os.path.exists(os.path.join(path, 'data', 'small3.csv.hdf5'))
     try:
         os.rename(csv_path, csv_path + '_')
-        df = vaex.from_csv(csv_path, copy_index=False, convert=True)
+        df = vaex.from_csv(csv_path, convert=True)
         _assert_csv_content(df)
         _cleanup_generated_files(df)
     except FileNotFoundError as e:

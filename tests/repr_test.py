@@ -87,7 +87,7 @@ def test_repr_from_pandas():
     # Get pandas dataframe
     dd = pd.DataFrame(dd_dict)
     dd['datetime_7'] = pd.to_timedelta(dd['datetime_2'] - dd['datetime_1'])
-    ds = vaex.from_pandas(dd, copy_index=False)
+    ds = vaex.from_pandas(dd)
     repr_value = repr(ds)
     str_value = str(ds)
     assert 'NaT' in repr_value

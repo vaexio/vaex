@@ -106,7 +106,7 @@ def _convert_name(filenames, shuffle=False, suffix=None):
         return base + ".hdf5"
 
 
-def open(path, convert=False, shuffle=False, copy_index=True, *args, **kwargs):
+def open(path, convert=False, shuffle=False, copy_index=False, *args, **kwargs):
     """Open a DataFrame from file given by path.
 
     Example:
@@ -367,7 +367,7 @@ def from_scalars(**kwargs):
     return from_arrays(**{k: np.array([v]) for k, v in kwargs.items()})
 
 
-def from_pandas(df, name="pandas", copy_index=True, index_name="index"):
+def from_pandas(df, name="pandas", copy_index=False, index_name="index"):
     """Create an in memory DataFrame from a pandas DataFrame.
 
     :param: pandas.DataFrame df: Pandas DataFrame
@@ -437,7 +437,7 @@ def from_ascii(path, seperator=None, names=True, skip_lines=0, skip_after=0, **k
     return ds
 
 
-def from_json(path_or_buffer, orient=None, precise_float=False, lines=False, copy_index=True, **kwargs):
+def from_json(path_or_buffer, orient=None, precise_float=False, lines=False, copy_index=False, **kwargs):
     """ A method to read a JSON file using pandas, and convert to a DataFrame directly.
 
     :param str path_or_buffer: a valid JSON string or file-like, default: None
@@ -465,7 +465,7 @@ def from_json(path_or_buffer, orient=None, precise_float=False, lines=False, cop
                        copy_index=copy_index)
 
 
-def from_csv(filename_or_buffer, copy_index=True, chunk_size=None, convert=False, **kwargs):
+def from_csv(filename_or_buffer, copy_index=False, chunk_size=None, convert=False, **kwargs):
     """
     Read a CSV file as a DataFrame, and optionally convert to an hdf5 file.
 
@@ -566,7 +566,7 @@ def read_csv(filepath_or_buffer, **kwargs):
     return from_csv(filepath_or_buffer, **kwargs)
 
 
-def read_csv_and_convert(path, shuffle=False, copy_index=True, **kwargs):
+def read_csv_and_convert(path, shuffle=False, copy_index=False, **kwargs):
     '''Convert a path (or glob pattern) to a single hdf5 file, will open the hdf5 file if exists.
 
     Example:
@@ -575,7 +575,7 @@ def read_csv_and_convert(path, shuffle=False, copy_index=True, **kwargs):
 
     :param str path: path of file or glob pattern for multiple files
     :param bool shuffle: shuffle DataFrame when converting to hdf5
-    :param bool copy_index: by default pandas will create an index (row number), set to false if you want to drop that
+    :param bool copy_index: by default pandas will create an index (row number), set to true if you want to include this as a column.
     :param kwargs: parameters passed to pandas' read_cvs
 
     '''
