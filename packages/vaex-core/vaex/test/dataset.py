@@ -334,10 +334,10 @@ class TestDataset(unittest.TestCase):
 		test_equal(self.dataset, ds2, ucds=False, units=False, description=False, descriptions=False, skip=['m', 'mi'])
 
 		df = self.dataset.to_pandas_df(index_name="name")
-		ds2 = vx.from_pandas(df, index_name="name")
+		ds2 = vx.from_pandas(df, index_name="name", copy_index=True)
 		test_equal(self.dataset, ds2, ucds=False, units=False, description=False, descriptions=False, skip=['m', 'mi'])
 
-		ds2 = vx.from_pandas(self.dataset.to_pandas_df(index_name="name"), copy_index=False)
+		ds2 = vx.from_pandas(self.dataset.to_pandas_df(index_name="name"))
 		assert "name" not in ds2.get_column_names()
 
 		# as astropy table
@@ -387,7 +387,7 @@ class TestDataset(unittest.TestCase):
 			values = [self.dataset.evaluate(k) for k in 'x y m mi name name_arrow ints f'.split()]
 			for x, y, m, mi, name, name_arrow, i, f_ in zip(*values):#zip(self.x, self.y, self.dataset.data.m, self.dataset.data.mi, self.dataset.data.name, self.dataset.data.ints, self.dataset.data.f):
 				print(separator.join(map(str, [x, y, m, mi, name, name_arrow, i, f_])), file=f)
-		ds = vx.from_csv(fn, index_col=False)
+		ds = vx.from_csv(fn, index_col=False, copy_index=True)
 		changes = self.dataset.compare(ds, report_difference=True)
 		diff = changes[0]
 		#print(diff)

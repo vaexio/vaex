@@ -44,7 +44,7 @@ def test_export_open_csv(ds_local, tmpdir):
     df = ds_local
     path = str(tmpdir.join('test.csv'))
     df.export_csv(path, chunk_size=3, virtual=True)
-    df_opened = vaex.from_csv(path, copy_index=False)
+    df_opened = vaex.from_csv(path)
     assert list(df) == list(df_opened)
     assert df.shape == df_opened.shape
 
@@ -97,8 +97,8 @@ def test_multi_file_naive_read_convert_export(tmpdir, dtypes):
     pdf1 = pd.read_csv(current_dir + path1, dtype=dtypes)
     pdf2 = pd.read_csv(current_dir + path2, dtype=dtypes)
 
-    vdf1 = vaex.from_pandas(pdf1, copy_index=False)
-    vdf2 = vaex.from_pandas(pdf2, copy_index=False)
+    vdf1 = vaex.from_pandas(pdf1)
+    vdf2 = vaex.from_pandas(pdf2)
 
     magic_value = 1234
     # Verify the Int64 type from pandas is read in vaex correctly
