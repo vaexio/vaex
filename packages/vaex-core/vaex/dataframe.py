@@ -4839,7 +4839,8 @@ class DataFrameLocal(DataFrame):
                 ar.flags['WRITEABLE'] = False
         return df
 
-    def categorize(self, column, min_value=0, max_value=None, labels=None):
+    @docsubst
+    def categorize(self, column, min_value=0, max_value=None, labels=None, inplace=False):
         """Mark column as categorical.
 
         This may help speed up calculations using integer columns between a range of [min_value, max_value].
@@ -4858,13 +4859,15 @@ class DataFrameLocal(DataFrame):
         :param min_value: minimum integer value (if max_value is not given, this is calculated)
         :param max_value: maximum integer value (if max_value is not given, this is calculated)
         :param labels: Labels to associate to each value, list(range(min_value, max_value+1)) by default
+        :param inplace: {inplace}
         """
+        df = self if inplace else self.copy()
         column = _ensure_string_from_expression(column)
         if max_value is not None:
             labels = list(range(min_value, max_value+1))
             N = len(labels)
         else:
-            vmin, vmax = self.minmax(column)
+            vmin, vmax = df.minmax(column)
             if labels is None:
                 N = int(vmax + 1)
                 labels = list(range(vmin, vmax+1))
@@ -4873,7 +4876,8 @@ class DataFrameLocal(DataFrame):
                 min_value = vmin
             if (vmax - vmin) >= len(labels):
                 raise ValueError('value of {} found, which is larger than number of labels {}'.format(vmax, len(labels)))
-        self._categories[column] = dict(labels=labels, N=len(labels), min_value=min_value)
+        df._categories[column] = dict(labels=labels, N=len(labels), min_value=min_value)
+        return df
 
     def ordinal_encode(self, column, values=None, inplace=False):
         """Encode column as ordinal values and mark it as categorical.

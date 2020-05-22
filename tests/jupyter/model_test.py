@@ -14,8 +14,8 @@ def df():
     g1 = np.array([0, 1, 1, 2, 2, 2])
     g2 = np.array([0, 0, 1, 1, 2, 3])
     ds = vaex.from_arrays(x=x, y=y, g1=g1, g2=g2)
-    ds.categorize(ds.g1)
-    ds.categorize(ds.g2)
+    ds.categorize(ds.g1, inplace=True)
+    ds.categorize(ds.g2, inplace=True)
     return ds
 
 
