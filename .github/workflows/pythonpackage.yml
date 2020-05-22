@@ -46,7 +46,7 @@ jobs:
     - name: Create env
       # if: steps.cache-conda-env.outputs.cache-hit != 'true'
       run: |
-        conda create -q -n vaex -c conda-forge python=${{ matrix.python-version }} numpy scipy xarray pyqt matplotlib pyopengl h5py astropy tornado cython pandas pytest numba pyarrow graphviz python-graphviz pcre catboost plotly notebook scikit-learn lightgbm py-xgboost
+        conda create -q -n vaex -c conda-forge python=${{ matrix.python-version }} numpy scipy xarray pyqt matplotlib pyopengl h5py astropy tornado cython pandas pytest numba graphviz python-graphviz pcre catboost plotly notebook scikit-learn lightgbm py-xgboost
     # - name: Restoring cached env
     #   if: steps.cache-conda-env.outputs.cache-hit == 'true'
     #   run: |
@@ -65,6 +65,10 @@ jobs:
       run: |
         conda init --all
         echo ::add-path::$CONDA/envs/vaex/bin
+    - name: Install OpenMP runtime (Mac-only)
+      if: matrix.os == 'macOS-latest'
+      run: |
+        brew install libomp
     - name: Fix python-dateutil/botocore version conflict
       if: matrix.os != 'windows-latest'
       run: |
