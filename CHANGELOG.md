@@ -74,6 +74,8 @@
 
 # vaex-arrow 0.5.0-dev
    * Requirement of vaex-core >=2,<3
+   * Fixes
+      * Booleans were negated, and didn't respect offsets.
 
 # vaex-jupyter 0.5.0-dev
    * Requirement of vaex-core >=2,<3
