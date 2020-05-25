@@ -3,6 +3,7 @@ name: Build universal wheel
 on:
   push:
     tags:
+      - meta-*
       - arrow-*
       - astro-*
       - graphql-*
@@ -38,6 +39,19 @@ jobs:
     - name: chores
       run: |
         mkdir dist
+
+    - name: Build vaex (meta)
+      if: startsWith(github.ref, 'refs/tags/meta')
+      run: |
+        (cp README.md packages/vaex-meta/ && cd packages/vaex-meta && python setup.py sdist bdist_wheel); cp packages/vaex-meta/dist/* dist
+
+    - name: Publish a Python distribution to PyPI
+      if: startsWith(github.ref, 'refs/tags/meta')
+      env:
+        TWINE_USERNAME: __token__
+        TWINE_PASSWORD: ${{ secrets.pypi_password_vaex }}
+      run: |
+        twine upload dist/vaex* dist/vaex*
 
     - name: Build vaex-arrow
       if: startsWith(github.ref, 'refs/tags/arrow')
