@@ -146,7 +146,8 @@ def open(path, convert=False, shuffle=False, copy_index=False, *args, **kwargs):
     try:
         if path in aliases:
             path = aliases[path]
-        if path.startswith("http://") or path.startswith("ws://"):  # TODO: think about https and wss
+        if path.startswith("http://") or path.startswith("ws://") or \
+           path.startswith("vaex+http://") or path.startswith("vaex+ws://"):  # TODO: think about https and wss
             server, name = path.rsplit("/", 1)
             url = urlparse(path)
             if '?' in name:
