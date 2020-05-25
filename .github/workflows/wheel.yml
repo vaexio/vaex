@@ -17,6 +17,13 @@ jobs:
       with:
         submodules: true
 
+    - name: debug
+      if: (matrix.os == 'windows-latest')
+      shell: bash
+      run: |
+        ls $VCToolsRedistDir
+        cp VCToolsRedistDir/vcruntime140_1.dll packages/vaex-core/vaex/
+
     - uses: actions/setup-python@v2
       name: Install Python
       with:
