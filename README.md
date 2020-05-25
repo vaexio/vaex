@@ -16,7 +16,18 @@ computations for best performance (no memory wasted).
 ## Instant opening of Huge data files (memory mapping)
 Hdf5 and [Apache Arrow](https://arrow.apache.org/) supported. 
 
-![opening2](https://user-images.githubusercontent.com/1765949/82818635-4d2ced00-9e9f-11ea-8ada-e4fb007c5e65.png)
+![opening1a](https://user-images.githubusercontent.com/1765949/82818563-31c1e200-9e9f-11ea-9ee0-0a8c1994cdc9.png)
+
+
+![opening1b](https://user-images.githubusercontent.com/1765949/82820352-49e73080-9ea2-11ea-9153-d73aa399d329.png)
+
+[Read the documentation on how to efficiently convert your data](https://docs.vaex.io/en/latest/example_io.html) from csv's, Pandas Dataframes, or other sources.
+
+
+Lazy streaming from s3 supported in combination with memory mapping.
+
+![opening1c](https://user-images.githubusercontent.com/1765949/82820516-a21e3280-9ea2-11ea-948b-07df26c4b5d3.png)
+
 
 ## Expression system
 Don't waste memory or time with feature engineering, we (lazily) transform your data when needed.
