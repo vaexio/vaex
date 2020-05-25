@@ -48,4 +48,13 @@ We don't copy/materialize the 'right' table when joining, saving gigabytes of me
 
  * Remote dataframes (documentation coming soon)
  * Integration into [Jupyter and Voila for interactive notebooks and dashboards](https://vaex.readthedocs.io/en/latest/tutorial_jupyter.html)
- * [Machine Learning without (explicit) pipelines](https://vaex.readthedocs.io/en/latest/tutorial_ml.html) 
+ * [Machine Learning without (explicit) pipelines](https://vaex.readthedocs.io/en/latest/tutorial_ml.html)
+
+
+# Learn how to use Vaex efficiently
+ * [Follow our tutorials](https://docs.vaex.io/en/latest/tutorials.html)
+ * Watch our more recent talks:
+   * [PyData London 2019](https://www.youtube.com/watch?v=2Tt0i823-ec)
+   * [SciPy 2020](https://www.youtube.com/watch?v=ELtjRdPT8is)
+ * Contact us for training at https://vaex.io/
+ * Contact us for enterprise support at https://vaex.io/
