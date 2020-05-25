@@ -19,7 +19,7 @@ class Client(client.Client):
                  token_trusted=None):
         super().__init__()
         self.hostname = hostname
-        self.port = port
+        self.port = port or 80
         self.base_path = base_path if base_path.endswith("/") else (base_path + "/")
         self.token = token
         self.token_trusted = token_trusted
