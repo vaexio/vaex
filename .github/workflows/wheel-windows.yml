@@ -54,7 +54,16 @@ jobs:
       # if: startsWith(github.ref, 'refs/tags/core')
       run: |
         python -m cibuildwheel --output-dir dist packages/vaex-core
-        (cd packages/vaex-core && python setup.py sdist); cp packages/vaex-core/dist/* dist/
+
+    - name: Make source distribution
+      shell: bash
+      run: |
+          cd packages/vaex-core && python setup.py sdist
+
+    - name: Copy build artifacts
+      shell: bash
+      run: |
+          cp packages/vaex-core/dist/* dist/
 
     - uses: actions/upload-artifact@v1
       with:
