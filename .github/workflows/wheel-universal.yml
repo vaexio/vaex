@@ -7,6 +7,7 @@ on:
       - jupyter-*
       - hdf5-*
       - server-*
+      - astro-*
 
 jobs:
   build_wheels:
@@ -60,6 +61,19 @@ jobs:
         TWINE_PASSWORD: ${{ secrets.pypi_password_vaex_jupyter }}
       run: |
         twine upload dist/vaex-jupyter* dist/vaex_jupyter*
+
+    - name: Build vaex-astro
+      if: startsWith(github.ref, 'refs/tags/astro')
+      run: |
+        (cd packages/vaex-astro && python setup.py sdist bdist_wheel); cp packages/vaex-astro/dist/* dist
+
+    - name: Publish a Python distribution to PyPI
+      if: startsWith(github.ref, 'refs/tags/astro')
+      env:
+        TWINE_USERNAME: __token__
+        TWINE_PASSWORD: ${{ secrets.pypi_password_vaex_astro }}
+      run: |
+        twine upload dist/vaex-astro* dist/vaex_astro*
 
     - name: Build vaex-hdf5
       if: startsWith(github.ref, 'refs/tags/hdf5')
