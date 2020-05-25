@@ -1,5 +1,6 @@
 import numpy as np
 import uuid
+import warnings
 
 import vaex
 from .dataframe import DataFrameRemote
@@ -27,8 +28,8 @@ class Client:
         import vaex.server._version
         local_version = vaex.server._version.__version_tuple__
         remote_version = tuple(versions['vaex.server'])
-        if local_version != remote_version:
-            raise ValueError(f'Version mismatch: server {remote_version}, while we have {local_version}')
+        if (local_version[0] != remote_version[0]) or (local_version[1] < remote_version[1]):
+            warnings.warn(f'Version mismatch: server {remote_version}, while we have {local_version}')
 
     def get_versions(self):
         reply, encoding = self._send({'command': 'versions'})
