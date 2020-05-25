@@ -71,7 +71,11 @@ jobs:
         CIBW_ENVIRONMENT_LINUX: "CFLAGS='-Wl,-strip-all' CXXFLAGS='-Wl,-strip-all'"
       run: |
         python -m cibuildwheel --output-dir dist packages/vaex-core
-        (cd packages/vaex-core && python setup.py sdist);
+
+    - name: Make source distribution
+      shell: bash
+      run: |
+          cd packages/vaex-core && python setup.py sdist
 
     - name: Copy build artifacts
       shell: bash
