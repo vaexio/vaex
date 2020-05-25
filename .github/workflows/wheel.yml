@@ -1,7 +1,9 @@
 name: Build binary wheel
 
-on: [push]
-
+on:
+  push:
+    tags:
+      - core-*
 jobs:
   build_wheels:
     name: Build wheel on ${{ matrix.os }}
