@@ -12,7 +12,7 @@ author_email= 'maartenbreddels@gmail.com'
 license     = 'MIT'
 version     = version.__version__
 url         = 'https://www.github.com/vaexio/vaex'
-install_requires_graphql = ['vaex-core>=2.0.0-alpha.6,<3', 'graphene>=2.1.8,<3', 'graphene>=2.1.8,<3', 'graphene-tornado>=2.5.1,<3']
+install_requires_graphql = ['vaex-core>=2.0.0-alpha.7,<3', 'graphene>=2.1.8,<3', 'graphene>=2.1.8,<3', 'graphene-tornado>=2.5.1,<3']
 
 setup(
     name=name + '-graphql',
