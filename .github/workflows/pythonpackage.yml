@@ -130,7 +130,6 @@ jobs:
         python -m nbconvert --TagRemovePreprocessor.remove_cell_tags="('skip-ci',)" --execute tutorial_ml.ipynb --ExecutePreprocessor.timeout=240
         # we cannot run the arrow example, maybe with a remote dataframe?
         # python -m nbconvert --TagRemovePreprocessor.remove_cell_tags="('skip-ci',)" --execute example_arrow.ipynb
-        python -m nbconvert --TagRemovePreprocessor.remove_cell_tags="('skip-ci',)" --execute example_dask.ipynb --ExecutePreprocessor.timeout=240
         python -m nbconvert --TagRemovePreprocessor.remove_cell_tags="('skip-ci',)" --execute example_graphql.ipynb --ExecutePreprocessor.timeout=240
         python -m nbconvert --TagRemovePreprocessor.remove_cell_tags="('skip-ci',)" --execute example_io.ipynb --ExecutePreprocessor.timeout=240
         python -m nbconvert --TagRemovePreprocessor.remove_cell_tags="('skip-ci',)" --execute example_dask.ipynb --ExecutePreprocessor.timeout=240
