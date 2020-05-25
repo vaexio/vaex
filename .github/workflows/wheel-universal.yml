@@ -3,11 +3,12 @@ name: Build universal wheel
 on:
   push:
     tags:
+      - arrow-*
+      - astro-*
       - viz-*
       - jupyter-*
       - hdf5-*
       - server-*
-      - astro-*
 
 jobs:
   build_wheels:
@@ -35,6 +36,20 @@ jobs:
     - name: chores
       run: |
         mkdir dist
+
+    - name: Build vaex-arrow
+      if: startsWith(github.ref, 'refs/tags/arrow')
+      run: |
+        (cd packages/vaex-arrow && python setup.py sdist bdist_wheel); cp packages/vaex-arrow/dist/* dist
+
+    - name: Publish a Python distribution to PyPI
+      if: startsWith(github.ref, 'refs/tags/arrow')
+      env:
+        TWINE_USERNAME: __token__
+        TWINE_PASSWORD: ${{ secrets.pypi_password_vaex_arrow }}
+      run: |
+        twine upload dist/vaex-arrow* dist/vaex_arrow*
+
 
     - name: Build vaex-viz
       if: startsWith(github.ref, 'refs/tags/viz')
