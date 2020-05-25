@@ -4,6 +4,7 @@
 import pkg_resources
 import vaex.meta._version
 import re
+import shutil
 
 
 def task_mybinder():
@@ -23,4 +24,17 @@ def task_mybinder():
         'actions': [action],
         'targets': ["binder/requirements.txt"],
         'file_dep': ['packages/vaex-meta/vaex/meta/_version.py']
+        }
+
+
+def task_sync_readme():
+    """Make the README for veax-meta up to date"""
+
+    def action(targets):
+        shutil.copy('README.md', targets[0])
+
+    return {
+        'actions': [action],
+        'targets': ["packages/vaex-meta/README.md"],
+        'file_dep': ['README.md']
         }
