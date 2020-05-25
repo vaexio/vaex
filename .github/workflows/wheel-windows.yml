@@ -38,6 +38,7 @@ jobs:
     - name: chores
       shell: bash
       run: |
+        mkdir dist
         mkdir packages/vaex-core/vendor/pcre
         cd packages/vaex-core/vendor/pcre
         curl https://anaconda.org/conda-forge/pcre/8.44/download/win-64/pcre-8.44-h6538335_0.tar.bz2 -Lo pcre.tar.bz2
