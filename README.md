@@ -13,7 +13,7 @@ big data. Vaex uses memory mapping, zero memory copy policy and lazy
 computations for best performance (no memory wasted).
 
 # Key features
-## Instant opening of Huge data files (memory mapping) ⚡
+## Instant opening of Huge data files (memory mapping)
 Hdf5 and [Apache Arrow](https://arrow.apache.org/) supported. 
 
 ![opening2](https://user-images.githubusercontent.com/1765949/82818635-4d2ced00-9e9f-11ea-8ada-e4fb007c5e65.png)
@@ -56,5 +56,4 @@ We don't copy/materialize the 'right' table when joining, saving gigabytes of me
  * Watch our more recent talks:
    * [PyData London 2019](https://www.youtube.com/watch?v=2Tt0i823-ec)
    * [SciPy 2020](https://www.youtube.com/watch?v=ELtjRdPT8is)
- * Contact us for training at https://vaex.io/
- * Contact us for enterprise support at https://vaex.io/
+ * Contact us for training or enterprise support at https://vaex.io/
