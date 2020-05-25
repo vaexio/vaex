@@ -60,8 +60,11 @@ class get_pybind_include(object):
         # return pybind11.get_include(self.user)
         return 'vendor/pybind11/include'
 
+
+data_files = []
 if platform.system().lower() == 'windows':
     extra_compile_args = ["/EHsc"]
+    data_files = ['vaex/pcre.dll', 'vaex/pcrecpp.dll']
 else:
     # TODO: maybe enable these flags for non-wheel/conda builds? ["-mtune=native", "-march=native"]
     extra_compile_args = ["-std=c++11", "-mfpmath=sse", "-O3", "-funroll-loops"]
@@ -81,11 +84,13 @@ extension_strings = Extension("vaex.superstrings", [os.path.relpath(os.path.join
                                    'vendor/string-view-lite/include',
                                    'vendor/boost',
                                    os.path.join(sys.prefix, 'include'),
-                                   os.path.join(sys.prefix, 'Library', 'include') # windows
+                                   os.path.join(sys.prefix, 'Library', 'include'), # windows
+                                   os.path.join(dirname, 'vendor', 'pcre', 'Library', 'include') # windows pcre from conda-forge
                                ],
                                library_dirs=[
                                    os.path.join(sys.prefix, 'lib'),
-                                   os.path.join(sys.prefix, 'Library', 'lib') # windows
+                                   os.path.join(sys.prefix, 'Library', 'lib'), # windows
+                                   os.path.join(dirname, 'vendor', 'pcre', 'Library', 'lib') # windows pcre from conda-forge
                                ],
                                extra_compile_args=extra_compile_args,
                                libraries=['pcre', 'pcrecpp']
@@ -133,6 +138,7 @@ setup(name=name + '-core',
       package_data={'vaex': ['test/files/*.fits', 'test/files/*.vot', 'test/files/*.hdf5']},
       packages=['vaex', 'vaex.core', 'vaex.file', 'vaex.test', 'vaex.ext', 'vaex.misc'],
       ext_modules=[extension_vaexfast] if on_rtd else [extension_vaexfast, extension_strings, extension_superutils, extension_superagg],
+      data_files=data_files,
       zip_safe=False,
       entry_points={
           'console_scripts': ['vaex = vaex.__main__:main'],
