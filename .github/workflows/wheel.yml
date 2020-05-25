@@ -21,10 +21,10 @@ jobs:
       if: (matrix.os == 'windows-latest')
       shell: bash
       run: |
-        ls /c/Program\ Files\ \(x86\)/Microsoft\ Visual\ Studio/
-        ls /c/Program\ Files\ \(x86\)/Microsoft\ Visual\ Studio/2019
-        ls /c/Program\ Files\ \(x86\)/Microsoft\ Visual\ Studio/2019/Enterprise
-        cp /c/Program\ Files\ \(x86\)/Microsoft\ Visual\ Studio/2019/vcruntime140_1.dll packages/vaex-core/vaex/
+        ls /c/Program\ Files\ \(x86\)/Microsoft\ Visual\ Studio/2019/Enterprise/VC/Redist/
+        ls /c/Program\ Files\ \(x86\)/Microsoft\ Visual\ Studio/2019/Enterprise/VC/Redist/MSVC/
+        ls /c/Program\ Files\ \(x86\)/Microsoft\ Visual\ Studio/2019/Enterprise/VC/Redist/MSVC/14.24.28127/
+        cp /c/Program\ Files\ \(x86\)/Microsoft\ Visual\ Studio/2019/Enterprise/VC/Redist/MSVC/14.24.28127/vcruntime140_1.dll packages/vaex-core/vaex/
 
     - uses: actions/setup-python@v2
       name: Install Python
