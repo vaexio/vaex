@@ -56,21 +56,19 @@ jobs:
         cd ../../
 
     - name: Build vaex-core (windows)
-      if: matrix.os == 'windows-latest'
+      if: (matrix.os == 'windows-latest') && startsWith(github.ref, 'refs/tags/core')
       env:
         CIBW_BUILD: cp${{ matrix.python-version }}*64
         CIBW_ENVIRONMENT_LINUX: "CFLAGS='-Wl,-strip-all' CXXFLAGS='-Wl,-strip-all'"
-      if: startsWith(github.ref, 'refs/tags/core')
       run: |
         python -m cibuildwheel --output-dir dist packages/vaex-core
 
     - name: Build vaex-core (linux, osx)
-      if: matrix.os != 'windows-latest'
+      if: (matrix.os != 'windows-latest') && startsWith(github.ref, 'refs/tags/core')
       env:
         CIBW_BEFORE_BUILD: bin/install_pcre.sh
         CIBW_BUILD: cp${{ matrix.python-version }}*64
         CIBW_ENVIRONMENT_LINUX: "CFLAGS='-Wl,-strip-all' CXXFLAGS='-Wl,-strip-all'"
-      if: startsWith(github.ref, 'refs/tags/core')
       run: |
         python -m cibuildwheel --output-dir dist packages/vaex-core
         (cd packages/vaex-core && python setup.py sdist);
