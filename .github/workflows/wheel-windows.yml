@@ -40,7 +40,7 @@ jobs:
       run: |
         mkdir packages/vaex-core/vendor/pcre
         cd packages/vaex-core/vendor/pcre
-        wget https://anaconda.org/conda-forge/pcre/8.44/download/win-64/pcre-8.44-h6538335_0.tar.bz2 -O pcre.tar.bz2
+        curl https://anaconda.org/conda-forge/pcre/8.44/download/win-64/pcre-8.44-h6538335_0.tar.bz2 -Lo pcre.tar.bz2
         tar jxfv pcre.tar.bz2
         cd ../../
         cp vendor/pcre/Library/bin/*.dll vaex/
