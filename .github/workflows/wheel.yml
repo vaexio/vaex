@@ -4,7 +4,6 @@ on:
   push:
     tags:
       - core-*
-
 jobs:
   build_wheels:
     name: Build wheel on ${{ matrix.os }}
@@ -12,13 +11,23 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-18.04, macOS-latest]
+        os: [ubuntu-18.04, macOS-latest, windows-latest]
         python-version: [36, 37, 38]
 
     steps:
     - uses: actions/checkout@v1
       with:
         submodules: true
+
+    - name: debug
+      if: (matrix.os == 'windows-latest')
+      shell: bash
+      run: |
+        ls /c/Program\ Files\ \(x86\)/Microsoft\ Visual\ Studio/2019/Enterprise/VC/Redist/
+        ls /c/Program\ Files\ \(x86\)/Microsoft\ Visual\ Studio/2019/Enterprise/VC/Redist/MSVC/
+        ls /c/Program\ Files\ \(x86\)/Microsoft\ Visual\ Studio/2019/Enterprise/VC/Redist/MSVC/14.25.28508/
+        ls /c/Program\ Files\ \(x86\)/Microsoft\ Visual\ Studio/2019/Enterprise/VC/Redist/MSVC/14.25.28508/x64/Microsoft.VC142.CRT
+        cp /c/Program\ Files\ \(x86\)/Microsoft\ Visual\ Studio/2019/Enterprise/VC/Redist/MSVC/14.25.28508/x64/Microsoft.VC142.CRT/vcruntime140_1.dll packages/vaex-core/vaex/
 
     - uses: actions/setup-python@v2
       name: Install Python
@@ -39,20 +48,51 @@ jobs:
         choco install vcpython27 -f -y
 
     - name: chores
+      if: matrix.os != 'windows-latest'
       run: |
         mkdir dist
         mkdir packages/vaex-core/bin
         cp bin/install_pcre.sh packages/vaex-core/bin/
 
-    - name: Build vaex-core
+    - name: chores
+      if: matrix.os == 'windows-latest'
+      shell: bash
+      run: |
+        mkdir dist
+        mkdir packages/vaex-core/vendor/pcre
+        cd packages/vaex-core/vendor/pcre
+        curl https://anaconda.org/conda-forge/pcre/8.44/download/win-64/pcre-8.44-h6538335_0.tar.bz2 -Lo pcre.tar.bz2
+        tar jxfv pcre.tar.bz2
+        cd ../../
+        cp vendor/pcre/Library/bin/*.dll vaex/
+        cd ../../
+
+    - name: Build vaex-core (windows)
+      if: (matrix.os == 'windows-latest')
+      env:
+        CIBW_BUILD: cp${{ matrix.python-version }}*64
+        CIBW_ENVIRONMENT_LINUX: "CFLAGS='-Wl,-strip-all' CXXFLAGS='-Wl,-strip-all'"
+      run: |
+        python -m cibuildwheel --output-dir dist packages/vaex-core
+
+    - name: Build vaex-core (linux, osx)
+      if: (matrix.os != 'windows-latest')
       env:
         CIBW_BEFORE_BUILD: bin/install_pcre.sh
         CIBW_BUILD: cp${{ matrix.python-version }}*64
         CIBW_ENVIRONMENT_LINUX: "CFLAGS='-Wl,-strip-all' CXXFLAGS='-Wl,-strip-all'"
-      if: startsWith(github.ref, 'refs/tags/core')
       run: |
         python -m cibuildwheel --output-dir dist packages/vaex-core
-        (cd packages/vaex-core && python setup.py sdist); cp packages/vaex-core/dist/* dist/
+
+    - name: Make source distribution
+      shell: bash
+      run: |
+          cd packages/vaex-core && python setup.py sdist
+
+    - name: Copy build artifacts
+      shell: bash
+      run: |
+          cp packages/vaex-core/dist/* dist/
 
     - uses: actions/upload-artifact@v1
       with:
