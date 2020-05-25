@@ -5,8 +5,9 @@ on:
     tags:
       - arrow-*
       - astro-*
-      - viz-*
       - jupyter-*
+      - ml-*
+      - viz-*
       - hdf5-*
       - server-*
 
@@ -50,6 +51,32 @@ jobs:
       run: |
         twine upload dist/vaex-arrow* dist/vaex_arrow*
 
+    - name: Build vaex-jupyter
+      if: startsWith(github.ref, 'refs/tags/jupyter')
+      run: |
+        (cd packages/vaex-jupyter && python setup.py sdist bdist_wheel); cp packages/vaex-jupyter/dist/* dist
+
+    - name: Publish a Python distribution to PyPI
+      if: startsWith(github.ref, 'refs/tags/jupyter')
+      env:
+        TWINE_USERNAME: __token__
+        TWINE_PASSWORD: ${{ secrets.pypi_password_vaex_jupyter }}
+      run: |
+        twine upload dist/vaex-jupyter* dist/vaex_jupyter*
+
+    - name: Build vaex-ml
+      if: startsWith(github.ref, 'refs/tags/ml')
+      run: |
+        (cd packages/vaex-ml && python setup.py sdist bdist_wheel); cp packages/vaex-ml/dist/* dist
+
+    - name: Publish a Python distribution to PyPI
+      if: startsWith(github.ref, 'refs/tags/ml')
+      env:
+        TWINE_USERNAME: __token__
+        TWINE_PASSWORD: ${{ secrets.pypi_password_vaex_ml }}
+      run: |
+        twine upload dist/vaex-ml* dist/vaex_ml*
+
 
     - name: Build vaex-viz
       if: startsWith(github.ref, 'refs/tags/viz')
@@ -63,19 +90,6 @@ jobs:
         TWINE_PASSWORD: ${{ secrets.pypi_password_vaex_viz }}
       run: |
         twine upload dist/vaex-viz* dist/vaex_viz*
-
-    - name: Build vaex-jupyter
-      if: startsWith(github.ref, 'refs/tags/jupyter')
-      run: |
-        (cd packages/vaex-jupyter && python setup.py sdist bdist_wheel); cp packages/vaex-jupyter/dist/* dist
-
-    - name: Publish a Python distribution to PyPI
-      if: startsWith(github.ref, 'refs/tags/jupyter')
-      env:
-        TWINE_USERNAME: __token__
-        TWINE_PASSWORD: ${{ secrets.pypi_password_vaex_jupyter }}
-      run: |
-        twine upload dist/vaex-jupyter* dist/vaex_jupyter*
 
     - name: Build vaex-astro
       if: startsWith(github.ref, 'refs/tags/astro')
