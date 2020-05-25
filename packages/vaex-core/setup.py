@@ -61,10 +61,10 @@ class get_pybind_include(object):
         return 'vendor/pybind11/include'
 
 
-data_files = []
+dll_files = []
 if platform.system().lower() == 'windows':
     extra_compile_args = ["/EHsc"]
-    data_files = ['vaex/pcre.dll', 'vaex/pcrecpp.dll']
+    dll_files = ['pcre.dll', 'pcrecpp.dll']
 else:
     # TODO: maybe enable these flags for non-wheel/conda builds? ["-mtune=native", "-march=native"]
     extra_compile_args = ["-std=c++11", "-mfpmath=sse", "-O3", "-funroll-loops"]
@@ -135,10 +135,9 @@ setup(name=name + '-core',
       setup_requires=['numpy'],
       install_requires=install_requires_core,
       license=license,
-      package_data={'vaex': ['test/files/*.fits', 'test/files/*.vot', 'test/files/*.hdf5']},
+      package_data={'vaex': dll_files + ['test/files/*.fits', 'test/files/*.vot', 'test/files/*.hdf5']},
       packages=['vaex', 'vaex.core', 'vaex.file', 'vaex.test', 'vaex.ext', 'vaex.misc'],
       ext_modules=[extension_vaexfast] if on_rtd else [extension_vaexfast, extension_strings, extension_superutils, extension_superagg],
-      data_files=['', data_files],
       zip_safe=False,
       entry_points={
           'console_scripts': ['vaex = vaex.__main__:main'],
