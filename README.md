@@ -38,10 +38,10 @@ Don't waste memory or time with feature engineering, we (lazily) transform your 
 
 
 ## Out of core DataFrame
-Filtering and computing will be waste memory by making copies, the data is kept untouched on disk, and will be streamed over when needed.
+Filtering and computing will be waste memory by making copies, the data is kept untouched on disk, and will be streamed over when needed. Delay the time before you need a cluster.
 
 
-![ooc](https://user-images.githubusercontent.com/1765949/82818769-7f3e4f00-9e9f-11ea-8be9-890f941f855d.png)
+![occ-animated](https://user-images.githubusercontent.com/1765949/82821111-c6c6da00-9ea3-11ea-9f9e-498de8133cc2.gif)
 
 ## Fast groupby / aggregations
 Parallel groupby, *very* fast, especially when using categories (>1 billion/second).
