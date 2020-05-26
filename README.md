@@ -12,6 +12,18 @@ volume rendering**, allowing interactive exploration of big data. Vaex uses
 memory mapping, zero memory copy policy and lazy computations for best
 performance (no memory wasted).
 
+# Installing
+With pip:
+```
+$ pip install vaex
+```
+Or conda:
+```
+$ conda install -c conda-forge vaex
+```
+
+[For more details, see the documentation](https://docs.vaex.io/en/latest/installing.html)
+
 # Key features
 ## Instant opening of Huge data files (memory mapping)
 [HDF5](https://en.wikipedia.org/wiki/Hierarchical_Data_Format) and [Apache Arrow](https://arrow.apache.org/) supported.
