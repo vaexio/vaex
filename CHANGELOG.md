@@ -1,4 +1,4 @@
-# vaex 3.0.0-dev (unreleased)
+# vaex 3.0.0 (2020-5-24)
    * Breaking changes:
      * Python 2 is not supported anymore
      * Variables don't have access to pi and e anymore
@@ -12,14 +12,16 @@
      * vaex.open/from_csv etc does not copy the pandas index by default [#756](https://github.com/vaexio/vaex/pull/756)
      * df.categorize takes an inplace argument, similar to most methods, and returns the dataframe affected.
 
-# vaex-core 2.0.0-dev
+# vaex-core 2.0.0 (2020-5-24)
    * Performance
        * Printing out of dataframes done in 1 evaluate call, making remote dataframe printing faster. [#571](https://github.com/vaexio/vaex/pull/557)
        * Joining is faster and uses less memory (2x speedup measured) [#586](https://github.com/vaexio/vaex/pull/586)
        * Faster typechecks when adding columns of dtype=object (as often happens when coming from pandas) [#612](https://github.com/vaexio/vaex/pull/612)
+       * Groupby 2x to 4x faster [#730](https://github.com/vaexio/vaex/pull/730)
    * Refactor
       * Task system is refactored, with task execution on CPU being default, and makes (de)serialization easier. [#571](https://github.com/vaexio/vaex/pull/557)
       * Serialization/encoding of data structures is more flexible, allowing binary blobs and json over the wire. [#571](https://github.com/vaexio/vaex/pull/557)
+      * Execution and tasks support async await [#654](https://github.com/vaexio/vaex/pull/654)
    * Fixes
       * Renaming columns fixes [#571](https://github.com/vaexio/vaex/pull/571)
       * Joining with virtual columns but different data, and name collision fixes [#570](https://github.com/vaexio/vaex/pull/570)
@@ -56,30 +58,30 @@
       * Polygon testing, useful in combinations with geo/geojson data [#685](https://github.com/vaexio/vaex/pull/685)
       * Added dt.quarter property and dt.strftime method to expression (by Juho Lauri) [#682](https://github.com/vaexio/vaex/pull/682)
 
-# vaex-server 0.3.0-dev
+# vaex-server 0.3.0 (2020-5-24)
    * Refactored server, can return multiple binary blobs, execute multiple tasks, cancel tasks, encoding/serialization is more flexible (like returning masked arrays). [#571](https://github.com/vaexio/vaex/pull/557)
 
-# vaex-viz 0.4.0-dev
+# vaex-viz 0.4.0 (2020-5-24)
    * Requirement of vaex-core >=2,<3
 
-# vaex-graphql 0.1.0-dev
+# vaex-graphql 0.1.0 (2020-5-24)
    * Requirement of vaex-core >=2,<3
 
-# vaex-astro 0.7.0-dev
+# vaex-astro 0.7.0 (2020-5-24)
    * Requirement of vaex-core >=2,<3
 
-# vaex-hdf5 0.6.0-dev
+# vaex-hdf5 0.6.0 (2020-5-24)
    * Requirement of vaex-core >=2,<3
 
-# vaex-ml 0.9.0-dev
+# vaex-ml 0.9.0 (2020-5-24)
    * Requirement of vaex-core >=2,<3
 
-# vaex-arrow 0.5.0-dev
+# vaex-arrow 0.5.0 (2020-5-24)
    * Requirement of vaex-core >=2,<3
    * Fixes
       * Booleans were negated, and didn't respect offsets.
 
-# vaex-jupyter 0.5.0-dev
+# vaex-jupyter 0.5.0 (2020-5-24)
    * Requirement of vaex-core >=2,<3
    * Breaking changes
      * vaex-jupyter is refactored [#654](https://github.com/vaexio/vaex/pull/654)
