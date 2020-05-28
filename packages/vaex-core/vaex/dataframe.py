@@ -5590,24 +5590,28 @@ class DataFrameLocal(DataFrame):
             # our max value for the lookup table is the row index number, so if we join a small
             # df with say 100 rows, we can do it with a int8
             lookup_dtype = vaex.utils.required_dtype_for_max(len(right))
-            lookup = np.zeros(left._length_original, dtype=lookup_dtype)
-            lookup_masked = False  # does the lookup contain masked/-1 values?
+            # we put in the max value to maximize triggering failures in the case of a bug (we don't want
+            # to point to row 0 in case we do, we'd rather crash)
+            lookup = np.full(left._length_original, np.iinfo(lookup_dtype).max, dtype=lookup_dtype)
+            nthreads = self.executor.thread_pool.nthreads
+            lookup_masked = [False] * nthreads  # does the lookup contain masked/-1 values?
             lookup_extra_chunks = []
 
             from vaex.column import _to_string_sequence
             def map(thread_index, i1, i2, ar):
-                nonlocal lookup_masked
                 if dtype == str_type:
                     previous_ar = ar
                     ar = _to_string_sequence(ar)
                 if np.ma.isMaskedArray(ar):
                     mask = np.ma.getmaskarray(ar)
-                    lookup_masked = lookup_masked or index.map_index_masked(ar.data, mask, lookup[i1:i2])
+                    found_masked = index.map_index_masked(ar.data, mask, lookup[i1:i2])
+                    lookup_masked[thread_index] = lookup_masked[thread_index] or found_masked
                     if duplicates_right:
                         extra = index.map_index_duplicates(ar.data, mask, i1)
                         lookup_extra_chunks.append(extra)
                 else:
-                    lookup_masked = lookup_masked or index.map_index(ar, lookup[i1:i2])
+                    found_masked = index.map_index(ar, lookup[i1:i2])
+                    lookup_masked[thread_index] = lookup_masked[thread_index] or found_masked
                     if duplicates_right:
                         extra = index.map_index_duplicates(ar, i1)
                         lookup_extra_chunks.append(extra)
@@ -5674,7 +5678,7 @@ class DataFrameLocal(DataFrame):
                 left.add_virtual_column(name, right.virtual_columns[name])
             else:
                 if lookup is not None:
-                    column = ColumnIndexed.index(right, right.columns[name], name, lookup, direct_indices_map, lookup_masked)
+                    column = ColumnIndexed.index(right, right.columns[name], name, lookup, direct_indices_map, any(lookup_masked))
                 else:
                     column = right.columns[name]
                 left.add_column(name, column)

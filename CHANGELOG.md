@@ -12,6 +12,10 @@
      * vaex.open/from_csv etc does not copy the pandas index by default [#756](https://github.com/vaexio/vaex/pull/756)
      * df.categorize takes an inplace argument, similar to most methods, and returns the dataframe affected.
 
+# vaex-core 2.0.1 (unreleased)
+   * Fixes
+      * Join could in rare cases point to row 0, when there were values in the left, not present in the right [#765](https://github.com/vaexio/vaex/pull/765)
+
 # vaex-core 2.0.0 (2020-5-24)
    * Performance
        * Printing out of dataframes done in 1 evaluate call, making remote dataframe printing faster. [#571](https://github.com/vaexio/vaex/pull/557)
