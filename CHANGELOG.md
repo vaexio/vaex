@@ -15,6 +15,7 @@
 # vaex-core 2.0.1 (unreleased)
    * Fixes
       * Join could in rare cases point to row 0, when there were values in the left, not present in the right [#765](https://github.com/vaexio/vaex/pull/765)
+      * Tabulate 0.8.7 escaped html, undo this to print dataframes nicely.
 
 # vaex-core 2.0.0 (2020-5-24)
    * Performance

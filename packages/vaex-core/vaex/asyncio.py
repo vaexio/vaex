@@ -10,7 +10,7 @@ def check_ipython():
             raise RuntimeError(f'You are using IPython {IPython.__version__} while we require 7.0.0, please update IPython')
 
 def check_patch_tornado():
-    '''If tornado is important, add the patched asyncio.Future to its tuple of acceptable Futures'''
+    '''If tornado is imported, add the patched asyncio.Future to its tuple of acceptable Futures'''
     if 'tornado' in sys.modules:
         import tornado.concurrent
         if asyncio.Future not in tornado.concurrent.FUTURES:
@@ -23,7 +23,6 @@ def just_run(coro):
         loop = asyncio.get_event_loop()
         had_loop = True
     except RuntimeError:
-        loop = None
         had_loop = False
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
