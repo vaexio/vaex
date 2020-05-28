@@ -101,3 +101,5 @@ def test_column_indexed(df_local):
 
     column_masked = vaex.column.ColumnIndexed.index(dff, dff.columns['x'], 'x', np.array([0, -1, 2, 3, 4]), {}, True)
     assert column_masked[:].tolist() == [1, None, 5, 7, 9]
+    assert column_masked.masked
+    assert column_masked.trim(0, 1).masked

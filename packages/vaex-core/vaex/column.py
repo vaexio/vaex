@@ -110,7 +110,7 @@ class ColumnIndexed(Column):
         return len(self.indices)
 
     def trim(self, i1, i2):
-        return ColumnIndexed(self.df, self.indices[i1:i2], self.name)
+        return ColumnIndexed(self.df, self.indices[i1:i2], self.name, masked=self.masked)
 
     def __getitem__(self, slice):
         start, stop, step = slice.start, slice.stop, slice.step
