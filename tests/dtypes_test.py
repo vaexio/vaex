@@ -12,9 +12,9 @@ def test_dtype(ds_local):
       assert ds[name].values.dtype == ds.data_type(ds[name])
 
 
-def test_dtypes(ds_local):
-    ds = ds_local
-    assert [ds.dtypes[name] for name in ds.column_names] == [ds[name].dtype for name in ds.column_names]
+def test_dtypes(df_local):
+    df = df_local
+    assert [df.dtypes[name] for name in df.get_column_names()] == [df[name].dtype for name in df.get_column_names()]
 
 
 def test_dtype_str():
