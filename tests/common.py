@@ -241,6 +241,7 @@ def create_base_ds():
     timedelta = datetime - np.datetime64('1996-05-17T16:45:00.00')
     dataset.add_column("datetime", datetime)
     dataset.add_column("timedelta", timedelta)
+    dataset.add_column("123456", x)  # a column that will have an alias
 
     dataset.add_virtual_column("z", "x+t*y")
     dataset.set_variable("t", 1.)

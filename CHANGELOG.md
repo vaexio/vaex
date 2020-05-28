@@ -3,6 +3,7 @@
 # vaex-hdf5 0.6.1 (2020-6-2)
    * Fixes
       * Masked arrays supported in hdf5 files on s3 [#781](https://github.com/vaexio/vaex/pull/781)
+      * Various fixes for aliased columns (column names with invalid identifiers) [#768](https://github.com/vaexio/vaex/pull/768)
 
 # vaex-core 2.0.2 (2020-6-2)
    * Fixes
