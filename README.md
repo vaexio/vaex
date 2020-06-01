@@ -89,4 +89,4 @@ Vaex doesn't copy/materialize the 'right' table when joining, saving gigabytes o
  * Watch our more recent talks:
    * [PyData London 2019](https://www.youtube.com/watch?v=2Tt0i823-ec)
    * [SciPy 2019](https://www.youtube.com/watch?v=ELtjRdPT8is)
- * Contact us for training or enterprise support at https://vaex.io/
+ * Contact us for data science solutions, training, or enterprise support at https://vaex.io/
