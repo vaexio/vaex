@@ -12,6 +12,18 @@ volume rendering**, allowing interactive exploration of big data. Vaex uses
 memory mapping, zero memory copy policy and lazy computations for best
 performance (no memory wasted).
 
+# Installing
+With pip:
+```
+$ pip install vaex
+```
+Or conda:
+```
+$ conda install -c conda-forge vaex
+```
+
+[For more details, see the documentation](https://docs.vaex.io/en/latest/installing.html)
+
 # Key features
 ## Instant opening of Huge data files (memory mapping)
 [HDF5](https://en.wikipedia.org/wiki/Hierarchical_Data_Format) and [Apache Arrow](https://arrow.apache.org/) supported.
@@ -62,9 +74,19 @@ Vaex doesn't copy/materialize the 'right' table when joining, saving gigabytes o
  * [Machine Learning without (explicit) pipelines](https://vaex.readthedocs.io/en/latest/tutorial_ml.html)
 
 
-# Learn how to use Vaex efficiently
+# Learn more about Vaex
+ * Articles
+   * [Beyond Pandas: Spark, Dask, Vaex and other big data technologies battling head to head](https://towardsdatascience.com/beyond-pandas-spark-dask-vaex-and-other-big-data-technologies-battling-head-to-head-a453a1f8cc13) (includes benchmarks)
+   * [7 reasons why I love Vaex for data science](https://towardsdatascience.com/7-reasons-why-i-love-vaex-for-data-science-99008bc8044b) (tips and trics)
+   * [ML impossible: Train 1 billion samples in 5 minutes on your laptop using Vaex and Scikit-Learn](https://towardsdatascience.com/ml-impossible-train-a-1-billion-sample-model-in-20-minutes-with-vaex-and-scikit-learn-on-your-9e2968e6f385)
+   * [How to analyse 100 GB of data on your laptop with Python](https://towardsdatascience.com/ml-impossible-train-a-1-billion-sample-model-in-20-minutes-with-vaex-and-scikit-learn-on-your-9e2968e6f385)
+   * [Flying high with Vaex: analysis of over 30 years of flight data in Python](https://towardsdatascience.com/https-medium-com-jovan-veljanoski-flying-high-with-vaex-analysis-of-over-30-years-of-flight-data-in-python-b224825a6d56)
+   * [Vaex: A DataFrame with super strings - Speed up your text processing up to a 1000x
+](https://towardsdatascience.com/vaex-a-dataframe-with-super-strings-789b92e8d861)
+   * [Vaex: Out of Core Dataframes for Python and Fast Visualization - 1 billion row datasets on your laptop](https://towardsdatascience.com/vaex-out-of-core-dataframes-for-python-and-fast-visualization-12c102db044a)
+
  * [Follow our tutorials](https://docs.vaex.io/en/latest/tutorials.html)
  * Watch our more recent talks:
    * [PyData London 2019](https://www.youtube.com/watch?v=2Tt0i823-ec)
    * [SciPy 2019](https://www.youtube.com/watch?v=ELtjRdPT8is)
- * Contact us for training or enterprise support at https://vaex.io/
+ * Contact us for data science solutions, training, or enterprise support at https://vaex.io/

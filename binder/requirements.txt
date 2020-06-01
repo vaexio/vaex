@@ -1,3 +1,3 @@
-vaex==2.6.1
+vaex==3.0.0
 scipy
 healpy
