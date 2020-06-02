@@ -1,3 +1,19 @@
+# vaex 3.0.x (unreleased)
+
+# vaex-hdf5 0.6.1 (2020-6-2)
+   * Fixes
+      * Masked arrays supported in hdf5 files on s3 [#781](https://github.com/vaexio/vaex/pull/781)
+
+# vaex-core 2.0.2 (2020-6-2)
+   * Fixes
+      * Masked arrays supported in hdf5 files on s3
+
+# vaex-core 2.0.1 (2020-5-28)
+   * Fixes
+      * Join could in rare cases point to row 0, when there were values in the left, not present in the right [#765](https://github.com/vaexio/vaex/pull/765)
+      * Tabulate 0.8.7 escaped html, undo this to print dataframes nicely.
+
+
 # vaex 3.0.0 (2020-5-24)
    * Breaking changes:
      * Python 2 is not supported anymore
@@ -12,10 +28,6 @@
      * vaex.open/from_csv etc does not copy the pandas index by default [#756](https://github.com/vaexio/vaex/pull/756)
      * df.categorize takes an inplace argument, similar to most methods, and returns the dataframe affected.
 
-# vaex-core 2.0.1 (unreleased)
-   * Fixes
-      * Join could in rare cases point to row 0, when there were values in the left, not present in the right [#765](https://github.com/vaexio/vaex/pull/765)
-      * Tabulate 0.8.7 escaped html, undo this to print dataframes nicely.
 
 # vaex-core 2.0.0 (2020-5-24)
    * Performance
