@@ -248,8 +248,12 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
             array = self._map_array(offset, dtype=dtype, length=len(data))
             if mask is not None:
                 mask_array = self._map_hdf5_array(mask)
-                return np.ma.array(array, mask=mask_array, shrink=False)
-                assert ar.mask is mask_array, "masked array was copied"
+                if isinstance(array, np.ndarray):
+                    ar = np.ma.array(array, mask=mask_array, shrink=False)
+                    # assert ar.mask is mask_array, "masked array was copied"
+                else:
+                    ar = vaex.column.ColumnMaskedNumpy(array, mask_array)
+                return ar
             else:
                 return array
 

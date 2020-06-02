@@ -36,6 +36,24 @@ class ColumnVirtualRange(Column):
         return ColumnVirtualRange(self.start + i1 * self.step, self.start + i2 * self.step, self.step, self.dtype)
 
 
+class ColumnMaskedNumpy(Column):
+    def __init__(self, data, mask):
+        self.data = data
+        self.mask = mask
+        assert len(data) == len(mask)
+
+    def __len__(self):
+        return len(self.data)
+
+    def __getitem__(self,  slice):
+        data = self.data[slice]
+        mask = self.mask[slice]
+        return np.ma.array(data, mask=mask, shrink=False)
+
+    def trim(self, i1, i2):
+        return ColumnMaskedNumpy(self.data.trim(i1, i2), self.mask.trim(i1, i2))
+
+
 class ColumnSparse(Column):
     def __init__(self, matrix, column_index):
         self.matrix = matrix
@@ -49,6 +67,7 @@ class ColumnSparse(Column):
     def __getitem__(self, slice):
         # not sure if this is the fastest
         return self.matrix[slice, self.column_index].A[:,0]
+
 
 class ColumnNumpyLike(Column):
     """Wraps a numpy like object (like hdf5 dataset) into a column vaex understands"""
