@@ -4279,13 +4279,18 @@ class DataFrame(object):
             return selections.SelectionDropNa(drop_nan, drop_masked, column_names, current, mode)
         self._selection(create, name)
 
-    def dropmissing(self, column_names=None):
+    def dropmissing(self, column_names=None, dropmask=True):
         """Create a shallow copy of a DataFrame, with filtering set using ismissing.
 
         :param column_names: The columns to consider, default: all (real, non-virtual) columns
+        :param dropmask: Remove the mask for the used columns (since the masks are all False)
         :rtype: DataFrame
         """
-        return self._filter_all(self.func.ismissing, column_names)
+        df = self._filter_all(self.func.ismissing, column_names)
+        if dropmask:
+            for column_name in self.get_column_names(virtual=False):
+                df[column_name] = df[column_name].dropmask()
+        return df
 
     def dropnan(self, column_names=None):
         """Create a shallow copy of a DataFrame, with filtering set using isnan.
@@ -4295,13 +4300,18 @@ class DataFrame(object):
         """
         return self._filter_all(self.func.isnan, column_names)
 
-    def dropna(self, column_names=None):
+    def dropna(self, column_names=None, dropmask=True):
         """Create a shallow copy of a DataFrame, with filtering set using isna.
 
         :param column_names: The columns to consider, default: all (real, non-virtual) columns
+        :param dropmask: Remove the mask for the used columns (since the masks are all False)
         :rtype: DataFrame
         """
-        return self._filter_all(self.func.isna, column_names)
+        df = self._filter_all(self.func.isna, column_names)
+        if dropmask:
+            for column_name in self.get_column_names(virtual=False):
+                df[column_name] = df[column_name].dropmask()
+        return df
 
     def _filter_all(self, f, column_names=None):
         copy = self.copy()

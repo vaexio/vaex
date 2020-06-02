@@ -140,6 +140,15 @@ for name, numpy_name in numpy_function_mapping:
 
 
 @register_function()
+def dropmask(ar):
+    '''Returns an array any masks is droppped (which assumes the data does not contain masked values)
+    '''
+    if np.ma.isMaskedArray(ar):
+        ar = ar.data
+    return ar
+
+
+@register_function()
 def fillmissing(ar, value):
     '''Returns an array where missing values are replaced by value.
     See :`ismissing` for the definition of missing values.
