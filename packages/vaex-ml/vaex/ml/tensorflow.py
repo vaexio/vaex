@@ -8,7 +8,14 @@ import tensorflow as tf
 import tensorflow_io.arrow as arrow_io
 from tensorflow_io.arrow.python.ops.arrow_dataset_ops import arrow_schema_to_tensor_types
 
+import traitlets
+import pyarrow as pa
+
 import vaex
+import vaex.serialize
+from vaex.ml import generate
+from vaex.ml import state
+from vaex.ml.state import serialize_pickle
 
 
 class DataFrameAccessorTensorflow(object):
@@ -16,7 +23,7 @@ class DataFrameAccessorTensorflow(object):
         self.ml = ml
         self.df = self.ml.df
 
-    def arrow_batch_generator(self, column_names, chunk_size=1024, parallel=True):
+    def arrow_batch_generator(self, column_names=None, chunk_size=1024, parallel=True):
         """Create a generator which yields arrow table batches, to use as datasoure for creating Tensorflow datasets.
 
         :param features: A list of column names.
@@ -30,11 +37,12 @@ class DataFrameAccessorTensorflow(object):
         for i1, i2, table in self.df.to_arrow_table(column_names=column_names, chunk_size=chunk_size, parallel=parallel):
             yield table.to_batches(chunk_size)[0]
 
-    @staticmethod
-    def _get_batch_arrow_schema(arrow_batch):
-        """Get the schema from a arrow batch table."""
-        output_types, output_shapes = arrow_schema_to_tensor_types(arrow_batch.schema)
-        return output_types, output_shapes
+    def arrow_schema(self, column_names=None):
+        return self.df[0:1].to_arrow_table(column_names=column_names, parallel=False).schema
+
+    def tensor_types(self, column_names=None):
+        """Returns the output_types, output_shapes tuple"""
+        return arrow_schema_to_tensor_types(self.arrow_schema(column_names=column_names))
 
     def to_dataset(self, features=None, target=None, chunk_size=1024, as_dict=True, parallel=True):
         """Create a tensorflow Dataset object from a DataFrame, via Arrow.
@@ -68,7 +76,7 @@ class DataFrameAccessorTensorflow(object):
                                                                    'chunk_size': chunk_size,
                                                                    'parallel': parallel})
         # get the arrow schema
-        output_types, output_shapes = self._get_batch_arrow_schema(next(iterator_factory()))
+        output_types, output_shapes = self.tensor_types(column_names)
 
         # Define the TF dataset
         ds = arrow_io.ArrowStreamDataset.from_record_batches(record_batch_iter=iterator_factory(),
@@ -170,3 +178,53 @@ class DataFrameAccessorTensorflow(object):
                         yield (X, )
 
         return _generator(features, target, chunk_size, parallel)
+
+
+@vaex.serialize.register
+@generate.register
+class Model(state.HasState):
+    model = traitlets.Any(default_value=None, allow_none=True, help='A tensorflow estimator with a `.fit_predict` method.').tag()
+    features = traitlets.List(traitlets.Unicode(), help='List of features to use.')
+    # Maybe should look at https://github.com/vaexio/vaex/pull/553
+    features_ = traitlets.List(traitlets.Unicode(), help='List of output feature names').tag(output=True)
+    target = traitlets.Unicode(allow_none=False, help='The name of the target column.')
+    output_types = traitlets.Any()
+    output_shapes = traitlets.Any()
+
+    def fit(self, df, repeat=10, shuffle=True):
+        raise RuntimeError("Fit not implemented, for flexibility reasons it is better you manually run it")
+
+    def init(self, df):
+        '''This will set the output features, types and shapes based on sample data from df'''
+        # we need 1 sample
+        sample_fn = df[0:1].ml.tensorflow.make_input_function(features=self.features)
+        sample_pred_result = list(self.model.predict(sample_fn, yield_single_examples=False))[0]
+        self.features_ = list(sample_pred_result.keys())
+        self.output_types, self.output_shapes = df.ml.tensorflow.tensor_types(self.features)
+
+    def transform(self, df):
+        df = df.copy()
+        lazy_function = df.add_function('df_estimator_function', self, unique=True)
+        # TODO: this causes an evaluation of the tensorflow model multiple times
+        # if we support arrow, we can return a struct
+        for feature_output in self.features_:
+            expression = lazy_function(str(repr(feature_output)), *self.features)
+            df.add_virtual_column(feature_output, expression, unique=False)
+        return df
+
+    def __call__(self, feature_output_name, *args):
+        arrow_table = pa.Table.from_arrays(args, self.features)
+        batches = arrow_table.to_batches(len(arrow_table))
+
+        def tf_input_function():
+            def iterator_factory():
+                yield batches[0]
+            ds = arrow_io.ArrowStreamDataset.from_record_batches(record_batch_iter=iterator_factory(),
+                                                                output_types=self.output_types,
+                                                                output_shapes=self.output_shapes,
+                                                                batch_mode='auto',
+                                                                record_batch_iter_factory=iterator_factory)
+            ds = ds.map(lambda *tensors: (dict(zip(self.features, tensors))))
+            return ds
+        prediction = list(self.model.predict(tf_input_function, yield_single_examples=False))[0]
+        return prediction[feature_output_name]

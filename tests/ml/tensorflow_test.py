@@ -131,7 +131,7 @@ def test_to_keras_generator(parallel):
             assert batch_1[1].tolist() == batch_2[1].tolist()
 
 
-def test_tf_estimator_binary_classification_booster_trees():
+def test_tf_estimator_binary_classification_booster_trees(tmpdir):
     df_train, df_val, df_test, features, target = make_binary_classification_data()
 
     feature_colums = []
@@ -158,6 +158,25 @@ def test_tf_estimator_binary_classification_booster_trees():
     assert pred_result['probabilities'].shape == (100, 2)
     acc = accuracy_score(df_test.target.values, pred_result['class_ids'].flatten())
     assert acc > 0.8
+
+    model = vaex.ml.tensorflow.Model(model=est, features=features, target=target)
+    model.init(df_test)
+    df = model.transform(df_test)
+    # for debugging purposes, single threaded evaluate:
+    # values = [df[k].values for k in features]
+    # probabilities = model('probabilities', *values)
+    # assert probabilities.tolist() == pred_result['probabilities'].tolist()
+    assert df['probabilities'].tolist() == pred_result['probabilities'].tolist()
+
+    # seems impossible to serialize a tensorflow model
+    # state_path = str(tmpdir.join('state.json'))
+    # df.state_write(state_path)
+    # df_test.state_load(state_path)
+    # so we only test state transfer (in memory)
+    state = df.state_get()
+    df_test.state_set(state)
+    assert df_test['probabilities'].tolist() == pred_result['probabilities'].tolist()
+
 
 
 def test_keras_binary_classification():
