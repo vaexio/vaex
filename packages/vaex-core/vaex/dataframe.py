@@ -5817,14 +5817,15 @@ class DataFrameLocal(DataFrame):
         """
         import pandas as pd
 
-        expressions = self.get_column_names(virtual=virtual)
+        column_names = self.get_column_names(virtual=virtual, alias=True)
+        expressions = self.get_column_names(virtual=virtual, alias=False)
         progressbar = vaex.utils.progressbars(progress)
         dtypes = self[expressions].dtypes
         n_samples = len(self)
 
         for i1, i2, chunks in self.evaluate_iterator(expressions, chunk_size=chunk_size, selection=selection):
             progressbar( i1 / n_samples)
-            chunk_dict = {col: values for col, values in zip(expressions, chunks)}
+            chunk_dict = {col: values for col, values in zip(column_names, chunks)}
             chunk_pdf = pd.DataFrame(chunk_dict)
 
             if i1 == 0:  # Only the 1st chunk should have a header and the rest will be appended

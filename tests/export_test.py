@@ -120,3 +120,18 @@ def test_multi_file_naive_read_convert_export(tmpdir, dtypes):
     assert len(df) == len(df_verify)
     assert df['name'].tolist() == df_verify['name'].tolist()
     assert df['age'].fillnan(magic_value).tolist() == df_verify['age'].fillnan(magic_value).tolist()
+
+
+def test_import_pandas_export_csv(tmpdir):
+    # Create a dataframe with column names that need aliases
+    d = {'player-name': ['Reggie', 'Michael', 'Kobe'],
+         'player-last-name': ['Miller', 'Jordan', 'Bryant']}
+    pandas_df = pd.DataFrame(d)
+    df = vaex.from_pandas(pandas_df)
+    assert list(pandas_df.columns) == df.get_column_names()
+
+    path = str(tmpdir.join('test.csv'))
+    df.export_csv(path)
+    df_opened = vaex.from_csv(path)
+    assert df_opened.shape == df.shape
+    assert df_opened.get_column_names() == df.get_column_names()
