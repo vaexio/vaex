@@ -330,7 +330,6 @@ class TaskAggregations(Task):
 
     def add_aggregation_operation(self, aggregator_descriptor):
         task = Task(self.df, [], "--")
-
         def chain_reject(x):
             task.reject(x)
             return x

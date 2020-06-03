@@ -230,3 +230,64 @@ from .transformations import LabelEncoder, OneHotEncoder, FrequencyEncoder
 from .transformations import CycleTransformer
 from .transformations import BayesianTargetEncoder
 from .transformations import WeightOfEvidenceEncoder
+
+import contextlib
+@contextlib.contextmanager
+def sklearn_patch():
+    """Context manager that patches scikit-learn at runtime to allow it to work with vaex natively
+    
+    Currently working/tested
+
+     * StandardScaler
+     * MinMaxScaler     
+     * PowerTransformer
+     * PCA
+
+    Example: TODO
+    """
+    import sklearn.decomposition.pca
+    import numpy as np
+    import sys
+    import inspect
+    # version = tuple(map(int, sklearn.__version__.split('.')[:2]))
+
+    pca_linalg = sklearn.decomposition._pca.linalg
+    sklearn.decomposition._pca.linalg = np.linalg
+    from vaex.ml.vendor import patchy
+    from sklearn.preprocessing import PolynomialFeatures
+    import textwrap
+
+    methods = [PolynomialFeatures.transform]
+    def patch(f, replacements):
+        source = inspect.getsource(f)
+        for old, new in replacements:
+            if old not in source:
+                raise ValueError(f'Cannot find code snippet: {old}')
+            else:
+                source = source.replace(old, new)
+        patchy.api._set_source(f, textwrap.dedent(source))
+    replacements = [
+        ("np.empty((n_samples,", " np.empty_like(X, shape=(n_samples,"),
+    ]
+    for method in methods:
+        method._old_code = PolynomialFeatures.transform.__code__
+        patch(PolynomialFeatures.transform, replacements)
+
+
+    sklearn_modules = [mod for name, mod in sys.modules.items() if name.startswith("sklearn")]
+    previous_check_arrays = {}
+    def dummy(X, *args, **kwargs):
+        return X
+    for module in sklearn_modules:
+        if hasattr(module, 'check_array'):
+            previous_check_arrays[module] = module.check_array
+            module.check_array = dummy
+    try:
+        yield
+    finally:
+        for method in methods:
+            method.__code__ = method._old_code
+            delattr(method, '_old_code')
+        sklearn.decomposition._pca.linalg = pca_linalg
+        for module, check_array in previous_check_arrays.items():
+            module.check_array = previous_check_arrays[module]
