@@ -18,8 +18,6 @@ def arc_distance(theta_1, phi_1, theta_2, phi_2):
     distance_matrix = 2 * np.arctan2(np.sqrt(temp), np.sqrt(1-temp))
     return distance_matrix
 
-@pytest.mark.skipif(sys.version_info < (3,6) and sys.version_info[0] != 2,
-                    reason="no support for python3.5 (numba segfaults)")
 def test_numba(ds):
     ds_original = ds.copy()
     #ds.columns['x'] = (ds.columns['x']*1).copy()  # convert non non-big endian for now
@@ -27,15 +25,13 @@ def test_numba(ds):
     ds['arc_distance'] = expr
     #assert ds.arc_distance.expression == expr.expression
     ds['arc_distance_jit'] = ds['arc_distance'].jit_numba()
-    assert ds.arc_distance.tolist() == ds.arc_distance_jit.tolist()
+    np.testing.assert_array_almost_equal(ds.arc_distance.tolist(), ds.arc_distance_jit.tolist())
     # TODO: make it such that they can be pickled
     ds_original.state_set(ds.state_get())
     ds = ds_original
-    assert ds.arc_distance.tolist() == ds.arc_distance_jit.tolist()
+    np.testing.assert_array_almost_equal(ds.arc_distance.tolist(), ds.arc_distance_jit.tolist())
 
 
-@pytest.mark.skipif(sys.version_info < (3,6) and sys.version_info[0] != 2,
-                    reason="no support for python3.5 (numba segfaults)")
 def test_jit_overwrite(ds_local):
     ds = ds_local # TODO: remote overwriting of functions does not work
     ds_original = ds.copy()
@@ -43,7 +39,7 @@ def test_jit_overwrite(ds_local):
     ds['arc_distance'] = expr
     ds['arc_distance_jit'] = ds['arc_distance'].jit_numba()
     ds['arc_distance_jit'] = ds['arc_distance * 2'].jit_numba()
-    assert (ds.arc_distance*2).tolist() == ds.arc_distance_jit.tolist()
+    np.testing.assert_array_almost_equal((ds.arc_distance*2).tolist(), ds.arc_distance_jit.tolist())
 
 
 @pytest.mark.skipif(cupy is None,
