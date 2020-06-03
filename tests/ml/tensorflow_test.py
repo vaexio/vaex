@@ -238,14 +238,14 @@ def test_tf_estimator_multiclass_classification_deep_neural_network():
     est = tf.estimator.DNNClassifier(feature_columns=feature_colums, hidden_units=[32, 64, 32], n_classes=4, optimizer='RMSProp')
     est.train(train_fn)
     val_result = est.evaluate(val_fn)
-    assert val_result['accuracy'] > 0.80
+    assert val_result['accuracy'] > 0.65
     assert list(val_result.keys()) == ['accuracy', 'average_loss', 'loss', 'global_step']
     pred_result = list(est.predict(test_fn, yield_single_examples=False))[0]
     assert list(pred_result.keys()) == ['logits', 'probabilities', 'class_ids', 'classes', 'all_class_ids', 'all_classes']
     assert pred_result['class_ids'].shape == (100, 1)
     assert pred_result['probabilities'].shape == (100, 4)
     acc = accuracy_score(df_test.target.values, pred_result['class_ids'].flatten())
-    assert acc > 0.75
+    assert acc > 0.65
 
 
 def test_keras_multiclass_classification():
@@ -274,7 +274,7 @@ def test_keras_multiclass_classification():
     pred = model.predict(test_gen, steps=1)
     assert pred.shape == (100, 4)  # Returns probabilities per class
     acc = accuracy_score(df_test.target.values, pred.argmax(axis=1))
-    assert acc > 0.75
+    assert acc > 0.65
 
 
 @pytest.mark.parametrize("as_dict", [True, False])
