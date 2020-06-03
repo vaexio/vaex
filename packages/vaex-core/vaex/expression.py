@@ -916,6 +916,8 @@ def f({0}):
         use_masked_array = False
         if default_value is not None:
             allow_missing = True
+        if allow_missing:
+            use_masked_array = True
         if not set(mapper_keys).issuperset(found_keys):
             missing = set(found_keys).difference(mapper_keys)
             missing0 = list(missing)[0]
@@ -924,8 +926,6 @@ def f({0}):
                 if default_value is not None:
                     value0 = list(mapper.values())[0]
                     assert np.issubdtype(type(default_value), np.array(value0).dtype), "default value has to be of similar type"
-                else:
-                    use_masked_array = True
             else:
                 if only_has_nan:
                     pass  # we're good, the hash mapper deals with nan

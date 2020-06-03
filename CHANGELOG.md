@@ -12,6 +12,7 @@
 # vaex-core 2.0.2 (2020-6-2)
    * Fixes
       * Masked arrays supported in hdf5 files on s3
+      * Expression.map always uses masked arrays to be state transferrable (a new dataset might have missing values) [#479](https://github.com/vaexio/vaex/pull/479)
 
 # vaex-core 2.0.1 (2020-5-28)
    * Fixes
