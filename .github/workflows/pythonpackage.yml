@@ -125,18 +125,18 @@ jobs:
       run: |
         python -m pip install healpy ipyvolume==0.6.0a4
         cd docs/source
-        python -m nbconvert --TagRemovePreprocessor.remove_cell_tags="('skip-ci',)" --execute tutorial_jupyter.ipynb
-        python -m nbconvert --TagRemovePreprocessor.remove_cell_tags="('skip-ci',)" --execute tutorial.ipynb
-        python -m nbconvert --TagRemovePreprocessor.remove_cell_tags="('skip-ci',)" --execute tutorial_ml.ipynb
+        python -m nbconvert --TagRemovePreprocessor.remove_cell_tags="('skip-ci',)" --execute tutorial_jupyter.ipynb --ExecutePreprocessor.timeout=240
+        python -m nbconvert --TagRemovePreprocessor.remove_cell_tags="('skip-ci',)" --execute tutorial.ipynb --ExecutePreprocessor.timeout=240
+        python -m nbconvert --TagRemovePreprocessor.remove_cell_tags="('skip-ci',)" --execute tutorial_ml.ipynb --ExecutePreprocessor.timeout=240
         # we cannot run the arrow example, maybe with a remote dataframe?
         # python -m nbconvert --TagRemovePreprocessor.remove_cell_tags="('skip-ci',)" --execute example_arrow.ipynb
-        python -m nbconvert --TagRemovePreprocessor.remove_cell_tags="('skip-ci',)" --execute example_dask.ipynb
-        python -m nbconvert --TagRemovePreprocessor.remove_cell_tags="('skip-ci',)" --execute example_graphql.ipynb
-        python -m nbconvert --TagRemovePreprocessor.remove_cell_tags="('skip-ci',)" --execute example_io.ipynb
-        python -m nbconvert --TagRemovePreprocessor.remove_cell_tags="('skip-ci',)" --execute example_dask.ipynb
-        python -m nbconvert --TagRemovePreprocessor.remove_cell_tags="('skip-ci',)" --execute example_ml_iris.ipynb
-        python -m nbconvert --TagRemovePreprocessor.remove_cell_tags="('skip-ci',)" --execute example_jupyter_ipyvolume.ipynb
-        python -m nbconvert --TagRemovePreprocessor.remove_cell_tags="('skip-ci',)" --execute example_jupyter_plotly.ipynb
+        python -m nbconvert --TagRemovePreprocessor.remove_cell_tags="('skip-ci',)" --execute example_dask.ipynb --ExecutePreprocessor.timeout=240
+        python -m nbconvert --TagRemovePreprocessor.remove_cell_tags="('skip-ci',)" --execute example_graphql.ipynb --ExecutePreprocessor.timeout=240
+        python -m nbconvert --TagRemovePreprocessor.remove_cell_tags="('skip-ci',)" --execute example_io.ipynb --ExecutePreprocessor.timeout=240
+        python -m nbconvert --TagRemovePreprocessor.remove_cell_tags="('skip-ci',)" --execute example_dask.ipynb --ExecutePreprocessor.timeout=240
+        python -m nbconvert --TagRemovePreprocessor.remove_cell_tags="('skip-ci',)" --execute example_ml_iris.ipynb --ExecutePreprocessor.timeout=240
+        python -m nbconvert --TagRemovePreprocessor.remove_cell_tags="('skip-ci',)" --execute example_jupyter_ipyvolume.ipynb --ExecutePreprocessor.timeout=240
+        python -m nbconvert --TagRemovePreprocessor.remove_cell_tags="('skip-ci',)" --execute example_jupyter_plotly.ipynb --ExecutePreprocessor.timeout=240
         # this fails to run currently
         # python -m nbconvert --TagRemovePreprocessor.remove_cell_tags="('skip-ci',)" --execute example_ml_titanic.ipynb
     # - name: Make env smaller for caching
