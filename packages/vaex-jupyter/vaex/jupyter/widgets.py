@@ -390,6 +390,7 @@ class VirtualColumnEditor(v.VuetifyTemplate):
 
 
 class ColumnList(v.VuetifyTemplate, vt.ColumnsMixin):
+    _metadata = traitlets.Dict(default_value=None, allow_none=True).tag(sync=True)
     column_filter = traitlets.Unicode('').tag(sync=True)
     valid_expression = traitlets.Bool(False).tag(sync=True)
     dialog_open = traitlets.Bool(False).tag(sync=True)
@@ -435,7 +436,7 @@ class ColumnList(v.VuetifyTemplate, vt.ColumnsMixin):
 class ColumnPicker(v.VuetifyTemplate, vt.ColumnsMixin):
     template = traitlets.Unicode(load_template('vue/column-select.vue')).tag(sync=True)
     label = traitlets.Unicode('Column').tag(sync=True)
-    value = traitlets.Unicode(None, allow_none=True).tag(sync=True)
+    value = vt.Expression(None, allow_none=True).tag(sync=True)
 
 
 tools_items_default = [
