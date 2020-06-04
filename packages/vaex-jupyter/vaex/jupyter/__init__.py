@@ -135,9 +135,17 @@ class DataFrameAccessorWidget(object):
             traitlets.link((value, 'expression'), (expression_widget, 'value'))
         return expression_widget
 
-    def column(self, initial_value=None):
+    def column(self, value=None, label='Choose a column'):
         from .widgets import ColumnPicker
-        return ColumnPicker(df=self.df, value=str(initial_value) if initial_value is not None else None)
+        if isinstance(value, vaex.jupyter.model.Axis):
+            expression_value = str(value.expression)
+        else:
+            expression_value = str(value) if value is not None else None
+        column_widget = ColumnPicker(df=self.df, value=expression_value, label=label)
+        if isinstance(value, vaex.jupyter.model.Axis):
+            import traitlets
+            traitlets.link((value, 'expression'), (column_widget, 'value'))
+        return column_widget
 
     def selection_expression(self, initial_value=None, name='default'):
         from .widgets import ExpressionSelectionTextArea

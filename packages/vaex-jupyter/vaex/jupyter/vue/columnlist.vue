@@ -1,5 +1,5 @@
 <template>
-  <v-layout column style="max-height: 100%">
+  <v-layout column>
     <v-dialog v-model="dialog_open" width="500" @keydown.stop>
       <v-card>
         <v-card-title class="headline grey lighten-2" primary-title>Add a virtual column</v-card-title>

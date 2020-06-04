@@ -51,3 +51,9 @@ def test_column():
     assert column.value is None
     column = df.widget.column(df.y)
     assert column.value == 'y'
+
+    axis = vaex.jupyter.model.Axis(df=df, expression=df.x)
+    column_widget = df.widget.column(axis)
+    assert str(column_widget.value) == 'x'
+    axis.expression = df.y
+    assert str(column_widget.value) == 'y'
