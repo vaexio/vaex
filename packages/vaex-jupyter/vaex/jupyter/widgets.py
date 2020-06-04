@@ -353,6 +353,36 @@ class Selection(v.VuetifyTemplate):
         return vaex_components
 
 
+class SelectionToggleList(v.VuetifyTemplate):
+    df = traitlets.Any().tag(sync_ref=True)
+    title = traitlets.Unicode('Choose selections').tag(sync=True)
+    selection_names = traitlets.List(traitlets.Unicode()).tag(sync=True)
+    value = traitlets.List(traitlets.Unicode()).tag(sync=True)
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.df.signal_selection_changed.connect(self._on_change_selection)
+
+    def _on_change_selection(self, df, name):
+        new_names = [name for name in self.df.selection_histories.keys() if not name.startswith('__') and df.has_selection(name)]
+        self.selection_names = new_names
+        self.value = [v for v in self.value if v in self.selection_names]
+
+    @traitlets.default('selection_names')
+    def _selection_names(self):
+        return [name for name in self.df.selection_histories.keys() if not name.startswith('__')]
+
+    @traitlets.default('template')
+    def _template(self):
+        return load_template('vue/selection_toggle_list.vue')
+
+    @traitlets.default('components')
+    def _components(self):
+        return vaex_components
+
+
+
+
 class VirtualColumnEditor(v.VuetifyTemplate):
     df = traitlets.Any()
     editor = traitlets.Any()

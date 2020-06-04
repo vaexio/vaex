@@ -22,7 +22,7 @@ install_requires = [
       'vaex-hdf5>=0.6.0,<0.7',
       'vaex-astro>=0.7.0,<0.8',
       'vaex-arrow>=0.5.0,<0.6',
-      'vaex-jupyter>=0.5.0,<0.6',
+      'vaex-jupyter>=0.5.1-dev.0,<0.6',
       'vaex-ml>=0.10.0-dev.0,<0.11',
       # vaex-graphql it not on conda-forge yet
 ]
