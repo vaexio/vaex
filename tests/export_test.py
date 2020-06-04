@@ -120,3 +120,10 @@ def test_multi_file_naive_read_convert_export(tmpdir, dtypes):
     assert len(df) == len(df_verify)
     assert df['name'].tolist() == df_verify['name'].tolist()
     assert df['age'].fillnan(magic_value).tolist() == df_verify['age'].fillnan(magic_value).tolist()
+
+def test_export_csv(df_local, tmpdir):
+    df = df_local
+    path = str(tmpdir.join('test.csv'))
+    df.export_csv(path)
+
+    assert '123456' in vaex.open(path)

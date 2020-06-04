@@ -65,6 +65,19 @@ def test_left_a_b():
     assert df.evaluate('y').tolist() == [0, None, 2]
     assert df.evaluate('y_r').tolist() == [None, 1, None]
 
+def test_left_a_b_as_alias():
+    df_ac = df_a.copy()
+    df_bc = df_b.copy()
+    df_ac['1'] = df_ac['a']
+    df_bc['2'] = df_bc['b']
+    df = df_ac.join(other=df_bc, left_on='1', right_on='2', rsuffix='_r')
+    assert df.evaluate('a').tolist() == ['A', 'B', 'C']
+    assert df.evaluate('b').tolist() == ['A', 'B', None]
+    assert df.evaluate('x').tolist() == [0, 1, 2]
+    assert df.evaluate('x_r').tolist() == [2, 1, None]
+    assert df.evaluate('y').tolist() == [0, None, 2]
+    assert df.evaluate('y_r').tolist() == [None, 1, None]
+
 
 def test_join_indexed():
     df = df_a.join(other=df_b, left_on='a', right_on='b', rsuffix='_r')

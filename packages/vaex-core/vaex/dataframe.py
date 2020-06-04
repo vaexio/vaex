@@ -417,14 +417,15 @@ class DataFrame(object):
 
     def _index(self, expression, progress=False, delay=False):
         column = _ensure_string_from_expression(expression)
+        column = self._column_aliases.get(column, column)
         columns = [column]
         from .hash import index_type_from_dtype
         from vaex.column import _to_string_sequence
 
-        transient = self[str(expression)].transient or self.filtered or self.is_masked(expression)
+        transient = self[column].transient or self.filtered or self.is_masked(column)
         if self.data_type(expression) == str_type and not transient:
             # string is a special case, only ColumnString are not transient
-            ar = self.columns[str(expression)]
+            ar = self.columns[str(self[column].expand())]
             if not isinstance(ar, ColumnString):
                 transient = True
 
@@ -3264,11 +3265,12 @@ class DataFrame(object):
                 expression = expression.copy(self)
         column_position = len(self.column_names)
         # if the current name is an existing column name....
+        real_name = self._column_aliases.get(name, name)
         if name in self.get_column_names(hidden=True):
-            column_position = self.column_names.index(name)
+            column_position = self.column_names.index(real_name)
             renamed = vaex.utils.find_valid_name('__' +name, used=self.get_column_names(hidden=True))
             # we rewrite all existing expressions (including the passed down expression argument)
-            self._rename(name, renamed)
+            self._rename(real_name, renamed)
         expression = _ensure_string_from_expression(expression)
 
         if vaex.utils.find_valid_name(name) != name:
@@ -3289,6 +3291,10 @@ class DataFrame(object):
     def rename(self, name, new_name, unique=False):
         """Renames a column or variable, and rewrite expressions such that they refer to the new name"""
         if name == new_name:
+            return
+        if name in self._column_aliases:
+            # nobody should refer to an alias, so we can just rename it
+            self._column_aliases[new_name] = self._column_aliases.pop(name)
             return
         new_name = vaex.utils.find_valid_name(new_name, used=[] if not unique else self.get_column_names(hidden=True))
         self._rename(name, new_name, rename_meta_data=True)
@@ -4295,9 +4301,9 @@ class DataFrame(object):
     def _filter_all(self, f, column_names=None):
         copy = self.copy()
         column_names = column_names or self.get_column_names(virtual=False)
-        expression = f(self._expr(column_names[0]))
+        expression = f(self[column_names[0]])
         for column in column_names[1:]:
-            expression = expression | f(self._expr(column))
+            expression = expression | f(self[column])
         copy.select(~expression, name=FILTER_SELECTION_NAME, mode='and')
         return copy
 
@@ -4975,12 +4981,15 @@ class DataFrameLocal(DataFrame):
         df._index_start = self._index_start
         df._active_fraction = self._active_fraction
         df._renamed_columns = list(self._renamed_columns)
-        df._column_aliases = dict(self._column_aliases)
         df.units.update(self.units)
         df.variables.update(self.variables)  # we add all, could maybe only copy used
         df._categories.update(self._categories)
         if column_names is None:
             column_names = self.get_column_names(hidden=True, alias=False)
+            df._column_aliases = dict(self._column_aliases)
+        else:
+            df._column_aliases = {alias: real_name for alias, real_name in self._column_aliases.items()}
+            column_names = [self._column_aliases.get(k, k) for k in column_names]
         all_column_names = self.get_column_names(hidden=True, alias=False)
 
         # put in the selections (thus filters) in place
@@ -5296,6 +5305,7 @@ class DataFrameLocal(DataFrame):
         # expression = _ensure_string_from_expression(expression)
         was_list, [expressions] = vaex.utils.listify(expression)
         expressions = vaex.utils._ensure_strings_from_expressions(expressions)
+        expressions = [self._column_aliases.get(k, k) for k in expressions]
 
         selection = _ensure_strings_from_expressions(selection)
         max_stop = (len(self) if (self.filtered and filtered) else self.length_unfiltered())
@@ -5579,6 +5589,8 @@ class DataFrameLocal(DataFrame):
         right_on = _ensure_string_from_expression(right_on)
         left_on = left_on or on
         right_on = right_on or on
+        left_on = self._column_aliases.get(left_on, left_on)
+        right_on = self._column_aliases.get(right_on, right_on)
         for name in right:
             if left_on and (rprefix + name + rsuffix == lprefix + left_on + lsuffix):
                 continue  # it's ok when we join on the same column name
@@ -5684,16 +5696,17 @@ class DataFrameLocal(DataFrame):
         right_names = right.get_names(hidden=True)
         left_names = left.get_names(hidden=True)
         for name in right_names:
+            column_name = right._column_aliases.get(name, name)
             if name == left_on and name in left_names:
                 continue  # skip when it's the join column
             assert name not in left_names
             if name in right.variables:
                 left.set_variable(name, right.variables[name])
-            elif name in right.virtual_columns:
-                left.add_virtual_column(name, right.virtual_columns[name])
+            elif column_name in right.virtual_columns:
+                left.add_virtual_column(name, right.virtual_columns[column_name])
             else:
                 if lookup is not None:
-                    column = ColumnIndexed.index(right, right.columns[name], name, lookup, direct_indices_map, any(lookup_masked))
+                    column = ColumnIndexed.index(right, right.columns[column_name], name, lookup, direct_indices_map, any(lookup_masked))
                 else:
                     column = right.columns[name]
                 left.add_column(name, column)

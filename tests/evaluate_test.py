@@ -79,3 +79,8 @@ def test_bool(df_trimmed):
     assert not bool(expr != expr)
     assert bool(expr != expr + 1)
     assert not bool(expr == None)
+
+
+def test_aliased():
+    df = vaex.from_dict({'1': [1, 2], '#': [2,3]})
+    assert df.evaluate('#').tolist() == [2, 3]
