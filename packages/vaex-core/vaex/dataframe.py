@@ -617,12 +617,17 @@ class DataFrame(object):
             extra_expressions = _ensure_strings_from_expressions(extra_expressions)
         expression_waslist, [expressions, ] = vaex.utils.listify(expression)
         expressions = [self._column_aliases.get(k, k) for k in expressions]
+        import traceback
+        trace = ''.join(traceback.format_stack())
         for expression in expressions:
             if expression and expression != "*":
                 self.validate_expression(expression)
         if not hasattr(self.local, '_aggregator_nest_count'):
             self.local._aggregator_nest_count = 0
-        assert self.local._aggregator_nest_count == 0, "detected nested aggregator call"
+        if self.local._aggregator_nest_count != 0:
+            raise RuntimeError("nested aggregator call: \nlast trace:\n%s\ncurrent trace:\n%s" % (self.local.last_trace, trace))
+        else:
+            self.local.last_trace = trace
         # Instead of 'expression is not None', we would like to have 'not virtual'
         # but in agg.py we do some casting, which results in calling .dtype(..) with a non-column
         # expression even though all expressions passed here are column references
