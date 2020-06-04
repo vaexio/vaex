@@ -387,7 +387,8 @@ def from_pandas(df, name="pandas", copy_index=False, index_name="index"):
 
     def add(name, column):
         values = column.values
-        if isinstance(values, pd.core.arrays.integer.IntegerArray):
+        # the first test is to support (partially) pandas 0.23
+        if hasattr(pd.core.arrays, 'integer') and isinstance(values, pd.core.arrays.integer.IntegerArray):
             values = np.ma.array(values._data, mask=values._mask)
         try:
             vaex_df.add_column(name, values)
