@@ -1,6 +1,33 @@
 import vaex.jupyter.traitlets as vt
 import vaex
 from vaex.jupyter.utils import _debounced_flush as flush
+import vaex.jupyter.widgets
+
+
+def test_selection_toggle_list():
+    df = vaex.from_scalars(x=1)
+    widget = vaex.jupyter.widgets.SelectionToggleList(df=df)
+    assert widget.selection_names == []
+    assert widget.value == []
+    df.select('x > 0')
+    assert widget.selection_names == ['default']
+    assert widget.value == []
+    widget.value = ['default']
+    df.select('x < 0', name='neg')
+    assert widget.selection_names == ['default', 'neg']
+    assert widget.value == ['default']
+    df.select_nothing('default')
+    assert widget.selection_names == ['neg']
+    assert widget.value == []
+    df.select('x > 0')
+    assert widget.selection_names == ['default', 'neg']
+    assert widget.value == []
+
+    widget.value = ['default', 'neg']
+    df.select_nothing('default')
+    assert widget.value == ['neg']
+    df.select_nothing('neg')
+    assert widget.value == []
 
 
 def test_column_list_traitlets():

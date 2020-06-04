@@ -1,23 +1,28 @@
 # vaex 3.1.0 (unreleased)
 
-# vaex-server 0.3.1 (unreleased)
-   * Remote dataframe was still using dtype, not data_type. [#797](https://github.com/vaexio/vaex/pull/797)
+## vaex-jupyter 0.3.1 (unreleased)
+   * Features
+      * Selection toggle list. [#797](https://github.com/vaexio/vaex/pull/797)
+
+## vaex-server 0.3.1 (unreleased)
+   * Fixes
+      * Remote dataframe was still using dtype, not data_type. [#797](https://github.com/vaexio/vaex/pull/797)
 
 ## vaex-ml 0.10.0
    * Features
       * Implementation of `GroupbyTransformer` [#479](https://github.com/vaexio/vaex/pull/479)
 
-# vaex-hdf5 0.6.1 (2020-6-2)
+## vaex-hdf5 0.6.1 (2020-6-2)
    * Fixes
       * Masked arrays supported in hdf5 files on s3 [#781](https://github.com/vaexio/vaex/pull/781)
       * Various fixes for aliased columns (column names with invalid identifiers) [#768](https://github.com/vaexio/vaex/pull/768)
 
-# vaex-core 2.0.2 (2020-6-2)
+## vaex-core 2.0.2 (2020-6-2)
    * Fixes
       * Masked arrays supported in hdf5 files on s3
       * Expression.map always uses masked arrays to be state transferrable (a new dataset might have missing values) [#479](https://github.com/vaexio/vaex/pull/479)
 
-# vaex-core 2.0.1 (2020-5-28)
+## vaex-core 2.0.1 (2020-5-28)
    * Fixes
       * Join could in rare cases point to row 0, when there were values in the left, not present in the right [#765](https://github.com/vaexio/vaex/pull/765)
       * Tabulate 0.8.7 escaped html, undo this to print dataframes nicely.
