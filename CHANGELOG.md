@@ -1,6 +1,6 @@
 # vaex 3.1.0 (unreleased)
 
-## vaex-jupyter 0.3.1 (unreleased)
+## vaex-jupyter 0.6.1 (unreleased)
    * Features
       * Selection toggle list. [#797](https://github.com/vaexio/vaex/pull/797)
 
@@ -8,19 +8,25 @@
    * Fixes
       * Remote dataframe was still using dtype, not data_type. [#797](https://github.com/vaexio/vaex/pull/797)
 
-## vaex-ml 0.10.0
+## vaex-ml 0.10.0 (unreleased)
    * Features
       * Implementation of `GroupbyTransformer` [#479](https://github.com/vaexio/vaex/pull/479)
 
-## vaex-hdf5 0.6.1 (2020-6-2)
+# vaex-arrow 0.6.1 (unreleased)
+   * Fixes
+      * Various fixes for aliased columns (column names with invalid identifiers) [#768](https://github.com/vaexio/vaex/pull/768)
+
+# vaex-hdf5 0.6.1 (unreleased)
    * Fixes
       * Masked arrays supported in hdf5 files on s3 [#781](https://github.com/vaexio/vaex/pull/781)
       * Various fixes for aliased columns (column names with invalid identifiers) [#768](https://github.com/vaexio/vaex/pull/768)
 
-## vaex-core 2.0.2 (2020-6-2)
+# vaex-core 2.0.2 (unreleased)
    * Fixes
-      * Masked arrays supported in hdf5 files on s3
+      * Masked arrays supported in hdf5 files on s3 [#781](https://github.com/vaexio/vaex/pull/781)
       * Expression.map always uses masked arrays to be state transferrable (a new dataset might have missing values) [#479](https://github.com/vaexio/vaex/pull/479)
+      * Support importing Pandas dataframes with version 0.23 [#794](https://github.com/vaexio/vaex/pull/794)
+      * Various fixes for aliased columns (column names with invalid identifiers) [#768](https://github.com/vaexio/vaex/pull/768) [#793](https://github.com/vaexio/vaex/pull/793)
 
 ## vaex-core 2.0.1 (2020-5-28)
    * Fixes
