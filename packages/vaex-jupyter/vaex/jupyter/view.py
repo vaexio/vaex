@@ -1,6 +1,6 @@
 from __future__ import absolute_import
 import sys
-import vaex.ml
+import vaex
 import traitlets
 import ipywidgets as widgets
 import ipyvuetify as v
