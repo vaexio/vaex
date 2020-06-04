@@ -53,6 +53,7 @@ def test_rename_state_transfer():
     assert ds2.r.tolist() == [5]
     assert ds2.q.tolist() == [14]
 
+
 def test_rename_access(ds_local):
     df = ds_local
     df.rename(name='x', new_name='x2')
@@ -68,8 +69,23 @@ def test_rename_twice(ds_local):
     df.rename('xx', 'xxx')
     assert zvalues.tolist() == df.z.tolist()
 
+
 def test_rename_order(ds_local):
     df = ds_local[['x', 'y']]
     assert df.get_column_names() == ['x', 'y']
     df.rename('x', 'xx')
     assert df.get_column_names() == ['xx', 'y']
+
+
+def test_rename_aliased():
+    df = vaex.from_dict({'1': [1, 2], '#': [2,3]})
+    df['x'] = df['1'] + df['#']
+    assert df.x.tolist() == [3, 5]
+    df.rename('#', '$')
+    df['x'] = df['1'] + df['$']
+    assert df.x.tolist() == [3, 5]
+
+    df['$'] = df['$'] * 2
+    assert df.x.tolist() == [3, 5]
+    df['x'] = df['1'] + df['$']
+    assert df.x.tolist() == [5, 8]

@@ -97,3 +97,9 @@ def test_non_existing_column(df_local):
     df = df_local
     with pytest.raises(NameError, match='.*Did you.*'):
         df['x_']
+
+
+def test_alias(df_local):
+    df = df_local
+    df2 = df[['123456']]
+    assert '123456' in df2
