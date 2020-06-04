@@ -1,5 +1,8 @@
 # vaex 3.1.0 (unreleased)
 
+# vaex-server 0.3.1 (unreleased)
+   * Remote dataframe was still using dtype, not data_type. [#797](https://github.com/vaexio/vaex/pull/797)
+
 ## vaex-ml 0.10.0
    * Features
       * Implementation of `GroupbyTransformer` [#479](https://github.com/vaexio/vaex/pull/479)

@@ -41,7 +41,7 @@ class DataFrameRemote(DataFrame):
         return False
 
     def copy(self, column_names=None, virtual=True):
-        dtypes = {name: self.dtype(name) for name in self.get_column_names(strings=True, virtual=False)}
+        dtypes = {name: self.data_type(name) for name in self.get_column_names(strings=True, virtual=False)}
         df = DataFrameRemote(self.name, self.column_names, dtypes=dtypes, length_original=self._length_original)
         df.executor = self.executor
         state = self.state_get()
@@ -74,12 +74,12 @@ class DataFrameRemote(DataFrame):
         return (rows,)
         # return (rows,) + sample.shape[1:]
 
-    def dtype(self, expression, internal=False):
+    def data_type(self, expression, internal=False):
         if str(expression) in self._dtypes:
             return self._dtypes[str(expression)]
         else:
             if str(expression) not in self._dtype_cache:
-                self._dtype_cache[str(expression)] = super().dtype(expression)
+                self._dtype_cache[str(expression)] = super().data_type(expression)
             # TODO: invalidate cache
             return self._dtype_cache[str(expression)]
 
