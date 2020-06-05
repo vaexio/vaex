@@ -437,7 +437,7 @@ def test_join_on_null_string():
 
 
 def test_join_f_c_left_none():
-    df = df_f.join(df_c, left_on="f", right_on="c", how="inner")
+    df = df_f.join(df_c, left_on="f", right_on="c", how="left")
     assert df.shape == (3, 6)
     assert df.f.tolist() == ["B", "C", None]
     assert df.c.tolist() == ["B", "C", None]
