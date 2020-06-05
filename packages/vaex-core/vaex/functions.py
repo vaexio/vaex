@@ -668,7 +668,7 @@ def dt_strftime(x, date_format):
     2  2015-11
     """
     import pandas as pd
-    return pd.Series(_pandas_dt_fix(x)).dt.strftime(date_format)
+    return pd.Series(_pandas_dt_fix(x)).dt.strftime(date_format).values
 
 @register_function(scope='dt')
 def dt_floor(x, freq, *args):
