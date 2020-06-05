@@ -964,6 +964,14 @@ def f({0}):
     def is_masked(self):
         return self.ds.is_masked(self.expression)
 
+    def cardinality(self):
+        """
+        :return the unique count divided by size
+        :param kwargs:
+        :return:
+        """
+        return len(self.unique()) / len(self.ds)
+
 
 class FunctionSerializable(object):
     pass
