@@ -3738,7 +3738,7 @@ class DataFrame(object):
         names = self.get_column_names(hidden=hidden, alias=alias)
         return names + [k for k in self.variables.keys() if not hidden or not k.startswith('__')]
 
-    def get_column_names(self, virtual=True, strings=True, hidden=False, regex=None, alias=True):
+    def get_column_names(self, virtual=True, strings=True, hidden=False, regex=None, alias=True, dtypes=None):
         """Return a list of column names
 
         Example:
@@ -3761,6 +3761,20 @@ class DataFrame(object):
         :rtype: list of str
         """
         aliases_reverse = {value: key for key, value in self._column_aliases.items()} if alias else {}
+        dtypes_map = None
+        if dtypes is not None:
+            dtypes_map = {column_name:self.data_type(column_name) for column_name in self.get_column_names()}
+            if isinstance(dtypes, tuple):
+                dtypes = list(dtypes)
+            if not isinstance(dtypes, list):
+                dtypes = [dtypes]
+            # str and object are equivalent in essence
+            if str in dtypes:
+                dtypes.append(object)
+            if object in dtypes:
+                dtypes.append(str)
+            ## TODO datetime
+
         def column_filter(name):
             '''Return True if column with specified name should be returned'''
             if regex and not re.match(regex, name):
@@ -3776,7 +3790,10 @@ class DataFrame(object):
             return list(self.column_names)  # quick path
         if not hidden and virtual and regex is None and not alias:
             return [k for k in self.column_names if not k.startswith('__')]  # also a quick path
-        return [aliases_reverse.get(name, name) for name in self.column_names if column_filter(name)]
+        ret = [aliases_reverse.get(name, name) for name in self.column_names if column_filter(name)]
+        if dtypes_map is not None:
+            ret = [name for name in ret if dtypes_map.get(name) in dtypes]
+        return ret
 
     def __bool__(self):
         return True  # we are always true :) otherwise Python might call __len__, which can be expensive
@@ -4590,6 +4607,8 @@ class DataFrame(object):
             expression = item.expression
             return self.filter(expression)
         elif isinstance(item, (tuple, list)):
+            if all(map(lambda x: isinstance(x, type), item)):
+                return self[self.get_column_names(dtypes=item)]
             df = self
             if isinstance(item[0], slice):
                 df = df[item[0]]
@@ -4626,6 +4645,9 @@ class DataFrame(object):
             df = self.trim()
             df.set_active_range(start, stop)
             return df.trim()
+        elif isinstance(item, type):
+            columns = self.get_column_names(dtypes=[item])
+            return self[columns]
 
     def __delitem__(self, item):
         '''Removes a (virtual) column from the DataFrame.
