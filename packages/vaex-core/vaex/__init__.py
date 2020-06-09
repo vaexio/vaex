@@ -346,13 +346,15 @@ def from_arrays(**arrays):
             df.add_column(name, array)
     return df
 
-def from_arrow_table(table):
+def from_arrow_table(table, as_numpy=True):
     """Creates a vaex DataFrame from an arrow Table.
 
+    :param as_numpy: Will lazily cast columns to a NumPy ndarray.
     :rtype: DataFrame
     """
     from vaex.arrow.dataset import from_table
-    return from_table(table=table)
+    return from_table(table=table, as_numpy=as_numpy)
+
 
 def from_scalars(**kwargs):
     """Similar to from_arrays, but convenient for a DataFrame of length 1.

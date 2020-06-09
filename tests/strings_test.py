@@ -32,7 +32,7 @@ def test_dtype_object_string(tmpdir):
     assert df.columns['s'].dtype.kind == 'O'
     path = str(tmpdir.join('test.arrow'))
     df.export(path)
-    df_read = vaex.open(path)
+    df_read = vaex.open(path, as_numpy=False)
     # the data type of s can be different
     assert df_read.compare(df) == ([], [], [], [])
 
@@ -41,7 +41,7 @@ def test_export_arrow_strings_to_hdf5(tmpdir):
     df = vaex.from_arrays(names=np.array(['hi', 'is', 'l2', np.nan], dtype='O'))
     path = str(tmpdir.join('test.arrow'))
     df.export(path)
-    df_read_arrow = vaex.open(path)
+    df_read_arrow = vaex.open(path, as_numpy=False)
     path = str(tmpdir.join('test.hdf5'))
     df.export(path)
     df_read_hdf5 = vaex.open(path)
@@ -52,7 +52,7 @@ def test_arrow_strings_concat(tmpdir):
     df = vaex.from_arrays(names=['hi', 'is', 'l2'])
     path = str(tmpdir.join('test.arrow'))
     df.export(path)
-    df_read_arrow = vaex.open(path)
+    df_read_arrow = vaex.open(path, as_numpy=False)
     path = str(tmpdir.join('test.hdf5'))
     df_read_arrow.export(path)
     df_read_hdf5 = vaex.open(path)
