@@ -765,7 +765,7 @@ def f({0}):
         return expression
 
     def astype(self, data_type):
-        if vaex.array_types.is_string_type(data_type):
+        if vaex.array_types.is_string_type(data_type) or data_type == str:
             return self.ds.func.astype(self, 'str')
         else:
             return self.ds.func.astype(self, str(data_type))

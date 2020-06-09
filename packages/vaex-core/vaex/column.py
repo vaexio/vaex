@@ -7,7 +7,7 @@ import numpy as np
 import pyarrow as pa
 
 import vaex
-from .array_types import supported_arrow_array_types, string_types, is_string_type
+from .array_types import supported_array_types, supported_arrow_array_types, string_types, is_string_type
 
 on_rtd = os.environ.get('READTHEDOCS', None) == 'True'
 if not on_rtd:
@@ -24,7 +24,7 @@ class Column(object):
         return pa.array(self, type=type)
 
 
-supported_column_types = (np.ndarray, Column) + supported_arrow_array_types
+supported_column_types = (Column, ) + supported_array_types
 
 
 class ColumnVirtualRange(Column):

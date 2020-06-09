@@ -5,7 +5,10 @@ import vaex.utils
 
 
 supported_arrow_array_types = (pa.Array, pa.ChunkedArray)
+supported_array_types = (np.ndarray, ) + supported_arrow_array_types
+
 string_types = [pa.string(), pa.large_string()]
+
 
 
 def is_string_type(data_type):

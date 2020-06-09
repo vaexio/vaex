@@ -3926,7 +3926,7 @@ class DataFrame(object):
                 if self._index_start == 0 and len(column) == self._index_end:
                     pass  # we already assigned it in .copy
                 else:
-                    if isinstance(column, supported_column_types):  # real array
+                    if isinstance(column, array_types.supported_array_types):  # real array
                         df.columns[name] = column[self._index_start:self._index_end]
                     else:
                         df.columns[name] = column.trim(self._index_start, self._index_end)
