@@ -3,7 +3,7 @@ import numpy as np
 import vaex
 
 
-def correlation_test():
+def test_correlation():
     df = vaex.example()
 
     # A single column pair
