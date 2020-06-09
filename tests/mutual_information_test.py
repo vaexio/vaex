@@ -3,7 +3,7 @@ import numpy as np
 import vaex
 
 
-def mutual_information_test():
+def test_mutual_information():
     df = vaex.example()
 
     # A single pair
