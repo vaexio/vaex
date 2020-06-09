@@ -18,8 +18,8 @@ def test_percentile_approx():
     np.testing.assert_almost_equal(percentile, expected_result, decimal=1)
 
     # Test for multiple percentages
-    percentiles = df.percentile_approx('x', percentage=[25, 50, 75], percentile_shape=65536)
-    expected_result = [-3.5992, -0.0367, 3.4684]
+    percentiles = df.percentile_approx('x', percentage=[0, 25, 50, 75, 100], percentile_shape=65536)
+    expected_result = [-78.133026, -3.5992, -0.0367, 3.4684, 130.49751]
     np.testing.assert_array_almost_equal(percentiles, expected_result, decimal=1)
 
     # Test for multiple expressions
