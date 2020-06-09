@@ -283,6 +283,15 @@ class Expression(with_metaclass(Meta)):
     def shape(self):
         return self.df._shape_of(self)
 
+    def to_arrow(self, convert_to_native=False):
+        '''Convert to Apache Arrow array (will byteswap/copy if convert_to_native=True).'''
+        values = self.values
+        return vaex.array_types.to_arrow(values, convert_to_native=convert_to_native)
+
+    def __arrow_array__(self, type=None):
+        values = self.to_arrow()
+        return pa.array(values, type=type)
+
     def to_numpy(self, strict=True):
         """Return a numpy representation of the data"""
         values = self.values
