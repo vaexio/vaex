@@ -226,7 +226,7 @@ def _export_column(dataset_input, dataset_output, column_name, shuffle, sort, se
                 else:
                     to_column.indices[count] = string_byte_offset
             if shuffle or sort:  # write to disk in one go
-                if dtype == str_type:  # strings are sorted afterwards
+                if is_string:  # strings are sorted afterwards
                     view = to_array.string_sequence.lazy_index(order_array_inverse)
                     to_array_disk.string_sequence.fill_from(view)
                 else:
@@ -266,7 +266,7 @@ def export_fits(dataset, path, column_names=None, shuffle=False, selection=False
             column = dataset.columns[column_name]
             shape = (N,) + column.shape[1:]
             dtype = column.dtype
-            if dataset.data_type(column_name) == str_type:
+            if dataset.is_string(column_name):
                 max_length = dataset[column_name].apply(lambda x: len(x)).max(selection=selection)
                 dtype = np.dtype('S'+str(int(max_length)))
         else:

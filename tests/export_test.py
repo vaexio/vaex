@@ -31,6 +31,7 @@ def test_export(ds_local, tmpdir):
 
     if platform.system().lower() != 'windows':
         path = str(tmpdir.join('sample.parquet'))
+        ds['datetime'] = ds.datetime.astype('datetime64[ms]')
         ds.export(path)
         df = vaex.open(path)
 

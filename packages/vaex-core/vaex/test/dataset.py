@@ -1300,23 +1300,23 @@ class TestDataset(unittest.TestCase):
 											#values = dataset.columns[column_name][dataset._index_start:dataset._index_end] if column_name in dataset.get_column_names(virtual=False) else dataset.evaluate(column_name)
 											values = dataset.evaluate(column_name, filtered=False)
 											if selection:
-												values = dataset.evaluate(column_name, type="numpy")
+												values = dataset.evaluate(column_name, array_type="numpy")
 												mask = dataset.evaluate_selection_mask(selection)#, 0, len(dataset))
 												if len(values[::]) != len(mask):
 													import pdb
 													pdb.set_trace()
 												# for concatenated columns, we get a plain numpy array copy using [::]
-												a = np.ma.compressed(make_masked(compare.evaluate(column_name, type="numpy")))
+												a = np.ma.compressed(make_masked(compare.evaluate(column_name, array_type="numpy")))
 												b = np.ma.compressed(make_masked(values[::][mask]))
 												if len(a) != len(b):
 													import pdb
 													pdb.set_trace()
 												self.assertEqual(sorted(a), sorted(b))
 											else:
-												values = dataset.evaluate(column_name, type="numpy")
+												values = dataset.evaluate(column_name, array_type="numpy")
 												if shuffle:
 													indices = compare.columns["random_index"]
-													a = np.ma.compressed(make_masked(compare.evaluate(column_name, type="numpy")))
+													a = np.ma.compressed(make_masked(compare.evaluate(column_name, array_type="numpy")))
 													b = np.ma.compressed(make_masked(values[::][indices]))
 													self.assertEqual(sorted(a), sorted(b))
 												else:

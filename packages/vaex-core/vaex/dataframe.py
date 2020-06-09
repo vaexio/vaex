@@ -5580,7 +5580,7 @@ class DataFrameLocal(DataFrame):
                 type1 = self.data_type(column_name)
                 type2 = other.data_type(column_name)
                 if not vaex.array_types.same_type(type1, type2):
-                    print("different dtypes: %s vs %s for %s" % (self.dtype(column_name), other.dtype(column_name), column_name))
+                    print("different data types: %s vs %s for %s" % (self.data_type(column_name), other.data_type(column_name), column_name))
                     type_mismatch.append(column_name)
                 else:
                     # a = self.columns[column_name]
@@ -5850,8 +5850,26 @@ class DataFrameLocal(DataFrame):
         else:
             raise ValueError('''Unrecognized file extension. Please use .arrow, .hdf5, .parquet, .fits, or .csv to export to the particular file format.''')
 
-    def export_arrow(self, path_or_writer, progress=None, chunk_size=default_chunk_size):
+    def export_arrow(self, path, column_names=None, byteorder="=", shuffle=False, selection=False, progress=None, virtual=True, sort=None, ascending=True):
         """Exports the DataFrame to a file written with arrow
+        :param DataFrameLocal df: DataFrame to export
+        :param str path: path for file
+        :param lis[str] column_names: list of column names to export or None for all columns
+        :param str byteorder: = for native, < for little endian and > for big endian
+        :param bool shuffle: export rows in random order
+        :param bool selection: export selection or not
+        :param progress: progress callback that gets a progress fraction as argument and should return True to continue,
+                or a default progress bar when progress=True
+        :param: bool virtual: When True, export virtual columns
+        :param str sort: expression used for sorting the output
+        :param bool ascending: sort ascending (True) or descending
+        :return:
+        """
+        import vaex.arrow.export
+        vaex.arrow.export.export(self, path, column_names, byteorder, shuffle, selection, progress=progress, virtual=virtual, sort=sort, ascending=ascending)
+
+    def export_arrow_stream(self, path_or_writer, progress=None, chunk_size=default_chunk_size):
+        """Exports the DataFrame as Arrow stream
 
         :param path_or_writer path: path for file or :py:data:`pyarrow.RecordBatchStreamWriter`
         :param progress: progress callback that gets a progress fraction as argument and should return True to continue,
