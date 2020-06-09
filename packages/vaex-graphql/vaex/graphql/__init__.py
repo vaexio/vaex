@@ -52,7 +52,7 @@ class DataFrameAccessorGraphQLPandas(DataFrameAccessorGraphQL):
 
 
 def map_to_field(df, name):
-    dtype = df[name].dtype
+    dtype = df[name].data_type()
     if vaex.array_types.is_string_type(dtype):
         return graphene.String
     elif dtype.kind == "f":
@@ -121,7 +121,7 @@ class DateTimeCompare(Compare):
     _neq = graphene.Field(graphene.String)
 
 def map_to_comparison(df, name):
-    dtype = df[name].dtype
+    dtype = df[name].data_type()
     if vaex.array_types.is_string_type(dtype):
         return StringCompare
     elif dtype.kind == "f":

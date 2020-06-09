@@ -764,11 +764,11 @@ def f({0}):
             expression._expression = None  # resets the cached string representation
         return expression
 
-    def astype(self, dtype):
-        if dtype == str:
+    def astype(self, data_type):
+        if vaex.array_types.is_string_type(data_type):
             return self.ds.func.astype(self, 'str')
         else:
-            return self.ds.func.astype(self, str(dtype))
+            return self.ds.func.astype(self, str(data_type))
 
     def isin(self, values, use_hashmap=True):
         """Lazily tests if each value in the expression is present in values.

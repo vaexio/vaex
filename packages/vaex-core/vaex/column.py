@@ -173,11 +173,13 @@ class ColumnIndexed(Column):
                 indices = indices - i1
             else:
                 indices = indices - i1
-        if self.masked:
-            # arrow does not like the -1 index, so we set them to 0
-            indices[mask] = 0
         if isinstance(ar_unfiltered, supported_arrow_array_types):
-            ar = ar_unfiltered.take(vaex.array_types.to_arrow(indices))
+            take_indices = indices
+            if self.masked:
+                # arrow does not like the -1 index, so we set them to 0
+                take_indices = indices.copy()
+                take_indices[mask] = 0
+            ar = ar_unfiltered.take(vaex.array_types.to_arrow(take_indices))
         else:
             ar = ar_unfiltered[indices]
         assert not np.ma.isMaskedArray(indices)

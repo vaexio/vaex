@@ -12,7 +12,7 @@ def test_dtype_basics(df):
 
 def test_dtypes(df_local):
     df = df_local
-    assert [df.dtypes[name] for name in df.get_column_names()] == [df[name].dtype for name in df.get_column_names()]
+    assert [df.dtypes[name] for name in df.get_column_names()] == [df[name].data_type() for name in df.get_column_names()]
 
 
 def test_dtype_str():
@@ -27,7 +27,7 @@ def test_dtype_str():
 
     assert df.data_type(df.x.as_arrow(), array_type=None) == pa.string()
     assert df.data_type(df.x.as_arrow(), array_type='arrow') == pa.string()
-    assert df.data_type(df.x.as_arrow(), array_type='numpy') == pa.string()
+    assert df.data_type(df.x.as_arrow(), array_type='numpy') == object
 
     n = np.array(['aap', 'noot'])
     assert vaex.from_arrays(n=n).n.dtype == pa.string()

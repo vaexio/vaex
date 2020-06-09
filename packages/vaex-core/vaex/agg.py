@@ -88,7 +88,7 @@ class AggregatorDescriptorBasic(AggregatorDescriptor):
             self.dtype_in = np.dtype('int64')
             self.dtype_out = np.dtype('int64')
         else:
-            self.dtype_in = df[str(self.expressions[0])].dtype
+            self.dtype_in = df[str(self.expressions[0])].data_type()
             self.dtype_out = self.dtype_in
             if self.short_name == "count":
                 self.dtype_out = np.dtype('int64')
