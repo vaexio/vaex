@@ -63,6 +63,9 @@ class CatBoostModel(state.HasState):
     prediction_name = traitlets.Unicode(default_value='catboost_prediction', help='The name of the virtual column housing the predictions.')
     prediction_type = traitlets.Enum(values=['Probability', 'Class', 'RawFormulaVal'], default_value='Probability',
                                      help='The form of the predictions. Can be "RawFormulaVal", "Probability" or "Class".')
+    batch_size = traitlets.CInt(default_value=None, allow_none=True, help='If provided, will train in batches of this size')
+    batch_weights = traitlets.List(traitlets.Float(), default_value=None, allow_none=True, help="Weights to sum models at the end of training in batches")
+    evals_result_ = traitlets.List(traitlets.Dict(), default_value=[], help="Evaluation results")
 
     def __call__(self, *args):
         data2d = np.vstack([arg.astype(np.float64) for arg in args]).T.copy()
@@ -83,6 +86,13 @@ class CatBoostModel(state.HasState):
         copy.add_virtual_column(self.prediction_name, expression, unique=False)
         return copy
 
+    def get_feature_importance(self, data=None, type=catboost.EFstrType.FeatureImportance, prettified=False,
+                               thread_count=-1, verbose=False):
+        if self.booster is None:
+            raise RuntimeError("Model was not trained, feature importance is not available")
+        return self.booster.get_feature_importance(data=data, type=type,prettified=prettified,
+                                                   thread_count=thread_count, verbose=verbose)
+
     def fit(self, df, evals=None, early_stopping_rounds=None, verbose_eval=None, plot=False, **kwargs):
         '''Fit the CatBoostModel model given a DataFrame.
         This method accepts all key word arguments for the catboost.train method.
@@ -96,10 +106,7 @@ class CatBoostModel(state.HasState):
         :param bool plot: if True, display an interactive widget in the Jupyter
             notebook of how the train and validation sets score on each boosting iteration.
         '''
-
-        data = df[self.features].values
-        target_data = df[self.target].values
-        dtrain = catboost.Pool(data=data, label=target_data, **self.pool_params)
+        self.pool_params['feature_names'] = self.features
         if evals is not None:
             for i, item in enumerate(evals):
                 data = item[self.features].values
@@ -107,14 +114,49 @@ class CatBoostModel(state.HasState):
                 evals[i] = catboost.Pool(data=data, label=target_data, **self.pool_params)
 
         # This does the actual training/fitting of the catboost model
-        self.booster = catboost.train(params=self.params,
-                                      dtrain=dtrain,
-                                      num_boost_round=self.num_boost_round,
-                                      evals=evals,
-                                      early_stopping_rounds=early_stopping_rounds,
-                                      verbose_eval=verbose_eval,
-                                      plot=plot,
-                                      **kwargs)
+        if self.batch_size is None:
+            data = df[self.features].values
+            target_data = df[self.target].values
+            dtrain = catboost.Pool(data=data, label=target_data, **self.pool_params)
+            model = catboost.train(params=self.params,
+                                          dtrain=dtrain,
+                                          num_boost_round=self.num_boost_round,
+                                          evals=evals,
+                                          early_stopping_rounds=early_stopping_rounds,
+                                          verbose_eval=verbose_eval,
+                                          plot=plot,
+                                          **kwargs)
+            self.booster = model
+            self.evals_result_ = [model.evals_result_]
+            self.feature_importances_ = list(model.feature_importances_)
+        else:
+            models = []
+            batch_weights = self.batch_weights if 0 < len(self.batch_weights) else None
+
+            def iterator(df, n):
+                l = len(df)
+                for ndx in range(0, l, n):
+                    yield df[ndx:min(ndx + n, l)]
+
+            for chunk in iterator(df, self.batch_size):
+                data = chunk[self.features].values
+                target_data = chunk[self.target].values
+                dtrain = catboost.Pool(data=data, label=target_data, **self.pool_params)
+                model = catboost.train(params=self.params,
+                                          dtrain=dtrain,
+                                          num_boost_round=self.num_boost_round,
+                                          evals=evals,
+                                          early_stopping_rounds=early_stopping_rounds,
+                                          verbose_eval=verbose_eval,
+                                          plot=plot,
+                                          **kwargs)
+                self.evals_result_.append(model.evals_result_)
+                models.append(model)
+            if batch_weights is not None and len(batch_weights) != len(models):
+                print("Warning, 'batch_weights' is not the same length as the number of models, ignore.")
+                batch_weights = None
+            self.booster = catboost.sum_models(models, weights=batch_weights)
+
 
     def predict(self, df, **kwargs):
         '''Provided a vaex DataFrame, get an in-memory numpy array with the predictions from the CatBoostModel model.
