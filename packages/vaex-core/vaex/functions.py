@@ -2199,6 +2199,22 @@ def _isin(x, values):
             return np.isin(x, values)
 
 
+@register_function(name='isin_set', on_expression=False)
+def _isin_set(x, set):
+    if vaex.column._is_stringy(x) or isinstance(set, vaex.superutils.ordered_set_string):
+        x = vaex.column._to_string_column(x)
+        x = _to_string_sequence(x)
+        # return x.string_sequence.isin(values)
+        return set.isin(x)
+    else:
+        if np.ma.isMaskedArray(x):
+            isin = set.isin(x.data)
+            isin[x.mask] = False
+            return isin
+        else:
+            return set.isin(x)
+
+
 def add_geo_json(ds, json_or_file, column_name, longitude_expression, latitude_expresion, label=None, persist=True, overwrite=False, inplace=False, mapping=None):
     ds = ds if inplace else ds.copy()
     if not isinstance(json_or_file, (list, tuple)):

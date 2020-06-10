@@ -24,6 +24,7 @@ void init_hash(M m, std::string name) {
         py::class_<Type>(m, ordered_setname.c_str())
             .def(py::init<>())
             .def(py::init(&Type::create))
+            .def("isin", &Type::isin)
             .def("update", &Type::update, "add values", py::arg("values"), py::arg("start_index") = 0)
             .def("update", &Type::update_with_mask, "add masked values", py::arg("values"), py::arg("masks"), py::arg("start_index") = 0)
             .def("merge", &Type::merge)

@@ -144,7 +144,28 @@ public:
         set->null_count = null_count;
         return set;
     }
-
+    py::object isin(py::array_t<value_type>& values) {
+        int64_t size = values.size();
+        py::array_t<bool> result(size);
+        auto input = values.template unchecked<1>();
+        auto output = result.template mutable_unchecked<1>();
+        py::gil_scoped_release gil;
+        for(int64_t i = 0; i < size; i++) {
+            const value_type& value = input(i);
+            if(custom_isnan(value)) {
+                output(i) = this->nan_count > 0;
+            } else {
+                auto search = this->map.find(value);
+                auto end = this->map.end();
+                if(search == end) {
+                    output(i) = false;
+                } else {
+                    output(i) = true;
+                }
+            }
+        }
+        return result;
+    }
     py::object map_ordinal(py::array_t<value_type>& values) {
         size_t size = this->map.size() + (this->null_count > 0 ? 1 : 0) + (this->nan_count > 0 ? 1 : 0);
         // TODO: apply this pattern of various return types to the other set types
