@@ -4303,6 +4303,13 @@ class DataFrame(object):
         """
         return self._filter_all(self.func.isna, column_names)
 
+    def dropinf(self, column_names=None):
+        """ Create a shallow copy of a DataFrame, with filtering set using isinf.
+        :param column_names: The columns to consider, default: all (real, non-virtual) columns
+        :rtype: DataFrame
+        """
+        return self._filter_all(self.func.isinf, column_names)
+
     def _filter_all(self, f, column_names=None):
         copy = self.copy()
         column_names = column_names or self.get_column_names(virtual=False)
