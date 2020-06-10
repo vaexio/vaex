@@ -120,6 +120,7 @@ minimum
 maximum
 clip
 searchsorted
+isinf
 isfinite
 digitize
 searchsorted
