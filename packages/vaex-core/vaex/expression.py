@@ -771,18 +771,26 @@ def f({0}):
         else:
             return self.ds.func.astype(self, str(dtype))
 
-    def isin(self, values):
+    def isin(self, values, use_hashmap=True):
         """Lazily tests if each value in the expression is present in values.
 
         :param values: List/array of values to check
+        :param use_hashmap: use a hashmap or not (especially faster when values contains many elements)
         :return: :class:`Expression` with the lazy expression.
         """
-        if self.dtype == str_type:
-            values = vaex.column._to_string_sequence(values)
+        if use_hashmap:
+            # easiest way to create a set is using the vaex dataframe
+            df_values = vaex.from_arrays(x=values)
+            ordered_set = df_values._set(df_values.x)
+            var = self.df.add_variable('var_isin_ordered_set', ordered_set, unique=True)
+            return self.df['isin_set(%s, %s)' % (self, var)]
         else:
-            values = np.array(values, dtype=self.dtype)
-        var = self.df.add_variable('isin_values', values, unique=True)
-        return self.df['isin(%s, %s)' % (self, var)]
+            if self.dtype == str_type:
+                values = vaex.column._to_string_sequence(values)
+            else:
+                values = np.array(values, dtype=self.dtype)
+            var = self.df.add_variable('isin_values', values, unique=True)
+            return self.df['isin(%s, %s)' % (self, var)]
 
     def apply(self, f):
         """Apply a function along all values of an Expression.
