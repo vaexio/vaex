@@ -133,12 +133,9 @@ class CatBoostModel(state.HasState):
             models = []
             batch_weights = self.batch_weights if 0 < len(self.batch_weights) else None
 
-            def iterator(df, n):
-                l = len(df)
-                for ndx in range(0, l, n):
-                    yield df[ndx:min(ndx + n, l)]
-
-            for chunk in iterator(df, self.batch_size):
+            column_names = self.features + [self.target]
+            iterator = df[column_names].to_pandas_df(chunk_size=self.batch_size)
+            for i1, i2, chunk in iterator:
                 data = chunk[self.features].values
                 target_data = chunk[self.target].values
                 dtrain = catboost.Pool(data=data, label=target_data, **self.pool_params)
