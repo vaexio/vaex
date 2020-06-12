@@ -1,10 +1,14 @@
 # vaex 3.1.0 (unreleased)
 
+## vaex-jupyter 0.5.2 (2020-6-12)
+   * Features
+      * Normalize histogram and change selection mode. [#826](https://github.com/vaexio/vaex/pull/826)
+
 # vaex-core 2.0.3 (unreleased)
    * Performance
       * isin uses hashmaps, leading to a 2x-4x performance increase for primitives, 200x for strings in some cases [#822](https://github.com/vaexio/vaex/pull/822)
 
-## vaex-jupyter 0.6.1 (2020-6-4)
+## vaex-jupyter 0.5.1 (2020-6-4)
    * Features
       * Selection toggle list. [#797](https://github.com/vaexio/vaex/pull/797)
 

@@ -41,6 +41,7 @@ def _translate_selection(selection):
 @traitlet_fixes
 class ViewBase(v.Container):
     selection_interact = traitlets.Unicode('default', allow_none=True)
+    selection_mode =  traitlets.Unicode('replace', allow_none=True)
     tool = traitlets.Unicode(None, allow_none=True)
 
     def __init__(self, **kwargs):
@@ -78,15 +79,15 @@ class ViewBase(v.Container):
             name = _translate_selection(self.selection_interact)
             self.df.select_nothing(name=name)
 
-    def select_rectangle(self, x1, x2, y1, y2, mode='replace'):
+    def select_rectangle(self, x1, x2, y1, y2):
         with self.output:
             name = _translate_selection(self.selection_interact)
-            self.df.select_rectangle(self.model.x.expression, self.model.y.expression, limits=[[x1, x2], [y1, y2]], mode=mode, name=name)
+            self.df.select_rectangle(self.model.x.expression, self.model.y.expression, limits=[[x1, x2], [y1, y2]], mode=self.selection_mode, name=name)
 
-    def select_x_range(self, x1, x2, mode='replace'):
+    def select_x_range(self, x1, x2):
         with self.output:
             name = _translate_selection(self.selection_interact)
-            self.df.select_box([self.model.x.expression], [[x1, x2]], mode=mode, name=name)
+            self.df.select_box([self.model.x.expression], [[x1, x2]], mode=self.selection_mode, name=name)
 
 
 @traitlet_fixes
