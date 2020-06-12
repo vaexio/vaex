@@ -70,8 +70,7 @@ class _BqplotMixin(traitlets.HasTraits):
                     y1, y2 = self._brush.selected_y
                     # (x1, y1), (x2, y2) = self._brush.selected
                     # mode = self.modes_names[self.modes_labels.index(self.button_selection_mode.value)]
-                    mode = 'replace'
-                    self.presenter.select_rectangle(x1, x2, y1, y2, mode=mode)
+                    self.presenter.select_rectangle(x1, x2, y1, y2)
                 else:
                     self.presenter.select_nothing()
                 if not self._brush.brushing:  # but then put it back again so the rectangle is gone,
@@ -86,8 +85,7 @@ class _BqplotMixin(traitlets.HasTraits):
                     self.figure.interaction = None
                 if self._brush_interval.selected is not None and len(self._brush_interval.selected):
                     x1, x2 = self._brush_interval.selected
-                    mode = 'replace'
-                    self.presenter.select_x_range(x1, x2, mode=mode)
+                    self.presenter.select_x_range(x1, x2)
                 else:
                     self.presenter.select_nothing()
                 if not self._brush_interval.brushing:  # but then put it back again so the rectangle is gone,

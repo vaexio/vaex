@@ -295,7 +295,15 @@ class DataArray(_HasState):
 
     def _on_change_selection(self, df, name):
         # TODO: check if the selection applies to us
-        self.status = DataArray.Status.NEEDS_CALCULATING_GRID
+        def _translate_selection(selection):
+            if selection in [None, False]:
+                return None
+            if selection is True:
+                return 'default'
+            else:
+                return selection
+        if name == _translate_selection(self.selection) or (isinstance(self.selection, (list, tuple)) and name in [_translate_selection(k) for k in self.selection]):
+            self.status = DataArray.Status.NEEDS_CALCULATING_GRID
 
     async def _allow_state_change_cancel(self):
         self._allow_state_change.release()
