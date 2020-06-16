@@ -3,10 +3,17 @@ from common import *
 
 def test_dropna_objects(ds_local):
     ds = ds_local
-    ds_dropped = ds.dropna(column_names=['obj'])
+    ds_dropped = ds.dropna(column_names=['obj'], dropmask=False)
     assert ds_dropped['obj'].values.mask.any() == False
     float_elements = np.array([element for element in ds_dropped['obj'].values.data if isinstance(element, float)])
     assert np.isnan(float_elements).any() == False, 'np.nan still exists in column'
+
+def test_dropna_no_mask(df_local):
+    df = df_local
+    df_dropped = df.dropna()
+    assert not np.ma.isMaskedArray(df_dropped['n'].values)
+    assert not np.ma.isMaskedArray(df_dropped['nm'].values)
+    assert not np.ma.isMaskedArray(df_dropped['obj'].values)
 
 
 def test_dropna(ds_local):
@@ -16,30 +23,30 @@ def test_dropna(ds_local):
     ds_dropped = ds.dropna()
     assert len(ds_dropped) == 6
 
-    ds_dropped = ds.dropna(drop_masked=False)
+    ds_dropped = ds.dropna(['n', 'nm'], dropmask=False)
     assert len(ds_dropped) == 8
     assert np.isnan(ds_dropped['n'].values).any() == False
     assert np.isnan(ds_dropped['nm'].values).any() == False
 
-    ds_dropped = ds.dropna(drop_nan=False)
+    ds_dropped = ds.dropmissing(dropmask=False)
     assert len(ds_dropped) == 8
     assert ds_dropped['m'].values.mask.any() == False
     assert ds_dropped['nm'].values.mask.any() == False
     assert ds_dropped['mi'].values.mask.any() == False
     assert ds_dropped['obj'].values.mask.any() == False
 
-    ds_dropped = ds.dropna(column_names=['nm', 'mi'])
-    assert len(ds_dropped) == 8
+    ds_dropped = ds.dropna(column_names=['nm', 'mi'], dropmask=False)
+    assert len(ds_dropped) == 7
     assert ds_dropped['nm'].values.mask.any() == False
     assert np.isnan(ds_dropped['nm'].values).any() == False
 
-    ds_dropped = ds.dropna(column_names=['obj'])
+    ds_dropped = ds.dropna(column_names=['obj'], dropmask=False)
     assert len(ds_dropped) == 8
     assert ds_dropped['obj'].values.mask.any() == False
     float_elements = np.array([element for element in ds_dropped['obj'].values.data if isinstance(element, float)])
     assert np.isnan(float_elements).any() == False, 'np.nan still exists in column'
 
-    ds_dropped = ds.dropna(column_names=['nm', 'mi', 'obj'])
+    ds_dropped = ds.dropna(column_names=['nm', 'mi', 'obj'], dropmask=False)
     state = ds_dropped.state_get()
     ds_copy.state_set(state)
     assert len(ds_copy) == len(ds_dropped)
@@ -80,7 +87,7 @@ def test_dropnan():
     assert (df.s.dropnan().tolist() == ["aap", None, "noot", "mies"])
     assert (df.o.dropnan().tolist() == ["aap", None, "noot"])
 
-def test_dropna():
+def test_dropna_string():
     s = vaex.string_column(["aap", None, "noot", "mies"])
     o = ["aap", None, "noot", np.nan]
     x = np.arange(4, dtype=np.float64)
