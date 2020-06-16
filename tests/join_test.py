@@ -305,3 +305,18 @@ def test_with_masked_no_short_circuit():
     assert dfj[:10].columns['j'].masked
     assert dfj['j'][:10].tolist() == [0, 1, 2, 3, 4, 5, 6, 7, 8, None]
     dfj['j'].tolist()  # make sure we can evaluate the whole column
+
+
+def test_join_head_print():
+    df1 = vaex.from_arrays(a=['a1', 'a2', 'a3', 'a4', 'a5'],
+                           b=[2, 1, 3, 5, 6])
+
+    df2 = vaex.from_arrays(a=['a1', 'a2', 'a2', 'a1', 'a2'],
+                           c=[3, 4, 6, None, 6])
+
+    df = df1.join(df2, on='a', how='left', allow_duplication=True)
+    head_df = df.head(3)
+    head_df.__repr__()
+    assert head_df.a.tolist() == ['a1', 'a2', 'a3']
+    assert head_df.b.tolist() == [2, 1, 3]
+    assert head_df.c.tolist() == [3, 4, None]
