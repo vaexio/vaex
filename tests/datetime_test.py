@@ -27,6 +27,7 @@ def test_datetime_operations():
     assert df.date.dt.weekofyear.values.tolist() == pandas_df.date.dt.weekofyear.values.tolist()
     assert df.date.dt.dayofyear.values.tolist() == pandas_df.date.dt.dayofyear.values.tolist()
     assert df.date.dt.dayofweek.values.tolist() == pandas_df.date.dt.dayofweek.values.tolist()
+    assert df.date.dt.floor('H').values.tolist() == pandas_df.date.dt.floor('H').values.tolist()
 
 
 def test_datetime_agg():
@@ -127,7 +128,7 @@ def test_create_datetime64_column_from_str():
     expr = df.year + '-' + df.month + '-' + df.day + 'T' + df.hour + ':' + df.minute
     assert expr.values.astype(np.datetime64).tolist() == expr.astype('datetime64').tolist()
     assert expr.values.astype('datetime64[ns]').tolist() == expr.astype('datetime64[ns]').tolist()
-    
+
 def test_create_str_column_from_datetime64():
     date = np.array([np.datetime64('2009-10-12T03:31:00'),
                 np.datetime64('2016-02-11T10:17:34'),
@@ -135,10 +136,10 @@ def test_create_str_column_from_datetime64():
                 np.datetime64('2003-03-03T00:33:15'),
                 np.datetime64('2014-07-23T15:08:05'),
                 np.datetime64('2011-01-01T07:02:01')], dtype='<M8[ns]')
-                
+
     df = vaex.from_arrays(date=date)
     pandas_df = df.to_pandas_df()
-    
+
     date_format = "%Y/%m/%d"
 
     assert df.date.dt.strftime(date_format).values.tolist() == pandas_df.date.dt.strftime(date_format).values.tolist()

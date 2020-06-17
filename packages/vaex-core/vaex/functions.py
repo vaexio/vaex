@@ -669,6 +669,36 @@ def dt_strftime(x, date_format):
     import pandas as pd
     return pd.Series(_pandas_dt_fix(x)).dt.strftime(date_format)
 
+@register_function(scope='dt')
+def dt_floor(x, freq, *args):
+    """Perform floor operation on an expression for a given frequency.
+
+    :param freq: The frequency level to floor the index to. Must be a fixed frequency like 'S' (second), or 'H' (hour), but not 'ME' (month end).
+    :returns: an expression containing the floored datetime column.
+
+    Example:
+
+    >>> import vaex
+    >>> import numpy as np
+    >>> date = np.array(['2009-10-12T03:31:00', '2016-02-11T10:17:34', '2015-11-12T11:34:22'], dtype=np.datetime64)
+    >>> df = vaex.from_arrays(date=date)
+    >>> df
+      #  date
+      0  2009-10-12 03:31:00
+      1  2016-02-11 10:17:34
+      2  2015-11-12 11:34:22
+
+    >>> df.date.dt.floor("H")
+    Expression = dt_floor(date, 'H')
+    Length: 3 dtype: datetime64[ns] (expression)
+    --------------------------------------------
+    0  2009-10-12 03:00:00.000000000
+    1  2016-02-11 10:00:00.000000000
+    2  2015-11-12 11:00:00.000000000
+    """
+    import pandas as pd
+    return pd.Series(_pandas_dt_fix(x)).dt.floor(freq, *args)
+
 ########## timedelta operations ##########
 
 @register_function(scope='td', as_property=True)
