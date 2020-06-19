@@ -5884,6 +5884,8 @@ class DataFrameLocal(DataFrame):
                 if vaex.array_types.is_string_type(dtype):
                     previous_ar = ar
                     ar = _to_string_sequence(ar)
+                if dtype.is_datetime:
+                    ar = ar.view(np.uint64)
                 if np.ma.isMaskedArray(ar):
                     mask = np.ma.getmaskarray(ar)
                     found_masked = index.map_index_masked(ar.data, mask, lookup[i1:i2])
