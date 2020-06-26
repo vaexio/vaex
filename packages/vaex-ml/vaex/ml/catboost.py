@@ -133,9 +133,14 @@ class CatBoostModel(state.HasState):
             models = []
             batch_weights = self.batch_weights if 0 < len(self.batch_weights) else None
 
+            # Set up progressbar
+            n_samples = len(df)
+            progressbar = vaex.utils.progressbars(progress)
+
             column_names = self.features + [self.target]
             iterator = df[column_names].to_pandas_df(chunk_size=self.batch_size)
             for i1, i2, chunk in iterator:
+                progressbar(i1 / n_samples)
                 data = chunk[self.features].values
                 target_data = chunk[self.target].values
                 dtrain = catboost.Pool(data=data, label=target_data, **self.pool_params)
@@ -149,6 +154,7 @@ class CatBoostModel(state.HasState):
                                           **kwargs)
                 self.evals_result_.append(model.evals_result_)
                 models.append(model)
+            progressbar(1.0)
             if batch_weights is not None and len(batch_weights) != len(models):
                 print("Warning, 'batch_weights' is not the same length as the number of models, ignore.")
                 batch_weights = None
