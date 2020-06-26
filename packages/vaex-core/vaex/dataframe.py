@@ -1413,6 +1413,12 @@ class DataFrame(object):
                 waslist_percentage, [percentages, ] = vaex.utils.listify(percentage)
                 percentiles = []
                 for p in percentages:
+                    if p == 0:
+                        percentiles.append(percentile_limits[0])
+                        continue
+                    if p == 100:
+                        percentiles.append(percentile_limits[1])
+                        continue
                     values = np.array((totalcounts + 1) * p / 100.)  # make sure it's an ndarray
                     values[empty] = 0
                     floor_values = np.array(np.floor(values))
