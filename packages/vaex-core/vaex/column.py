@@ -228,9 +228,11 @@ class ColumnConcatenatedLazy(Column):
         while start >= offset + len(self.expressions[i].df):
             offset += len(self.expressions[i].df)
             i += 1
-        expressions = [self.expressions[i][start-offset:]]
-        offset += len(self.expressions[i].df)
-        if stop > offset:
+        # do need more than 1?
+        if stop > offset + len(self.expressions[i].df):
+            # then add the first one
+            expressions = [self.expressions[i][start-offset:]]
+            offset += len(self.expressions[i].df)
             # we need more expression
             i += 1
             # keep adding complete expression till we find the it to be the last
@@ -240,6 +242,10 @@ class ColumnConcatenatedLazy(Column):
                 i += 1
             if stop > offset:  # add the tail part
                 expressions.append(self.expressions[i][:stop-offset])
+        else:
+            # otherwise we only need a slice of the first
+            expressions = [self.expressions[i][start-offset:stop-offset]]
+
         return ColumnConcatenatedLazy(expressions, self.dtype)
 
     def __getitem__(self, slice):
