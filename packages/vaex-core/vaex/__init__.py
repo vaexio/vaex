@@ -786,6 +786,9 @@ for entry in pkg_resources.iter_entry_points(group='vaex.dataframe.accessor'):
 
 
 for entry in pkg_resources.iter_entry_points(group='vaex.plugin'):
+    if entry.module_name == 'vaex_arrow.opener':
+        # if vaex_arrow package is installed, we ignore it
+        continue
     logger.debug('adding vaex plugin: ' + entry.name)
     try:
         add_namespace = entry.load()
