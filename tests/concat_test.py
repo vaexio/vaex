@@ -103,6 +103,7 @@ def test_sliced_concat(i1, length, df_concat):
     i2 = i1 + length
     x = df_concat.x.tolist()
     df = df_concat[i1:i2]
+    assert len(df_concat.columns['x'].trim(0, length)) == length
     assert df.x.tolist() == x[i1:i2]
 
 
