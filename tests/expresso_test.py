@@ -1,4 +1,5 @@
 from vaex.expresso import parse_expression, node_to_string, simplify, translate, validate_expression
+import vaex
 
 
 def test_compare():
@@ -24,6 +25,13 @@ def test_simplify():
     assert simplify("a * 0 + b") == "b"
     assert simplify("b + 0 * a") == "b"
     assert simplify("b + a * 0") == "b"
+
+
+def test_kwargs():
+    text = ['Something', 'very pretty', 'is coming', 'our', 'way.']
+    df = vaex.from_arrays(text=text)
+    expression = df.text.str.replace('[.]', '', regex=True)
+    df.validate_expression(expression.expression)
 
 
 def test_lists():

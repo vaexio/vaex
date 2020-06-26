@@ -119,6 +119,8 @@ def validate_expression(expr, variable_set, function_set=[], names=None):
             validate_expression(comparator, variable_set, function_set, names)
     elif isinstance(expr, _ast.keyword):
         validate_expression(expr.value, variable_set, function_set, names)
+    elif isinstance(expr, _ast.NameConstant):
+        pass  # like True and False
     elif isinstance(expr, _ast.Subscript):
         validate_expression(expr.value, variable_set, function_set, names)
         if isinstance(expr.slice.value, _ast.Num):
