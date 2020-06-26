@@ -4,7 +4,6 @@ on:
   push:
     tags:
       - meta-*
-      - arrow-*
       - astro-*
       - graphql-*
       - jupyter-*
@@ -52,19 +51,6 @@ jobs:
         TWINE_PASSWORD: ${{ secrets.pypi_password_vaex }}
       run: |
         twine upload dist/vaex* dist/vaex*
-
-    - name: Build vaex-arrow
-      if: startsWith(github.ref, 'refs/tags/arrow')
-      run: |
-        (cd packages/vaex-arrow && python setup.py sdist bdist_wheel); cp packages/vaex-arrow/dist/* dist
-
-    - name: Publish a Python distribution to PyPI
-      if: startsWith(github.ref, 'refs/tags/arrow')
-      env:
-        TWINE_USERNAME: __token__
-        TWINE_PASSWORD: ${{ secrets.pypi_password_vaex_arrow }}
-      run: |
-        twine upload dist/vaex-arrow* dist/vaex_arrow*
 
     - name: Build vaex-graphql
       if: startsWith(github.ref, 'refs/tags/graphql')
