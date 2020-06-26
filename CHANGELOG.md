@@ -1,10 +1,19 @@
 # vaex 3.1.0 (unreleased)
 
+## vaex-core 2.1.0-dev ()
+   * Features
+       * Arrow is now a core dependency, vaex-arrow is deprecated. Much better chunked array support, numpy conversion is done lazily. [#517](https://github.com/vaexio/vaex/pull/517)
+
+
+## vaex-arrow (DEPRECATED)
+   This is now part of vaex-core.
+
+
 ## vaex-jupyter 0.5.2 (2020-6-12)
    * Features
       * Normalize histogram and change selection mode. [#826](https://github.com/vaexio/vaex/pull/826)
 
-# vaex-core 2.0.3 (unreleased)
+## vaex-core 2.0.3 (unreleased)
    * Performance
       * isin uses hashmaps, leading to a 2x-4x performance increase for primitives, 200x for strings in some cases [#822](https://github.com/vaexio/vaex/pull/822)
 
@@ -20,16 +29,16 @@
    * Features
       * Implementation of `GroupbyTransformer` [#479](https://github.com/vaexio/vaex/pull/479)
 
-# vaex-arrow 0.6.1 (2020-6-4)
+## vaex-arrow 0.6.1 (2020-6-4)
    * Fixes
       * Various fixes for aliased columns (column names with invalid identifiers) [#768](https://github.com/vaexio/vaex/pull/768)
 
-# vaex-hdf5 0.6.1 (2020-6-4)
+## vaex-hdf5 0.6.1 (2020-6-4)
    * Fixes
       * Masked arrays supported in hdf5 files on s3 [#781](https://github.com/vaexio/vaex/pull/781)
       * Various fixes for aliased columns (column names with invalid identifiers) [#768](https://github.com/vaexio/vaex/pull/768)
 
-# vaex-core 2.0.2 (2020-6-4)
+## vaex-core 2.0.2 (2020-6-4)
    * Fixes
       * Masked arrays supported in hdf5 files on s3 [#781](https://github.com/vaexio/vaex/pull/781)
       * Expression.map always uses masked arrays to be state transferrable (a new dataset might have missing values) [#479](https://github.com/vaexio/vaex/pull/479)
