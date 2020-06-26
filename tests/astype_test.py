@@ -23,6 +23,7 @@ def test_astype_str():
 
 def test_astype_dtype():
     df = vaex.from_arrays(x=[0, 1])
-    assert df.x.astype(str).dtype == vaex.column.str_type
+    assert df.x.astype(str).data_type() in [pa.string(), pa.large_string()]
     df = vaex.from_arrays(x=[np.nan, 1])
-    assert df.x.astype(str).dtype == vaex.column.str_type
+    # assert df.x.astype(str).dtype == vaex.column.str_type
+    assert df.x.astype(str).data_type() in [pa.string(), pa.large_string()]

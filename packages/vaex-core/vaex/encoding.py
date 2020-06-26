@@ -8,7 +8,7 @@ import uuid
 import struct
 
 import numpy as np
-
+import pyarrow as pa
 import vaex
 
 registry = {}
@@ -64,6 +64,8 @@ class vaex_evaluate_results_encoding:
         else:
             if isinstance(result, np.ndarray):
                 return {'type': 'ndarray', 'data': encoding.encode('ndarray', result)}
+            elif isinstance(result, vaex.column.ColumnStringArrow):
+                return {'type': 'arrow-array', 'data': encoding.encode('arrow-array', result.to_arrow())}
             elif isinstance(result, numbers.Number):
                 try:
                     result = result.item()  # for numpy scalars
@@ -79,6 +81,20 @@ class vaex_evaluate_results_encoding:
             return [cls.decode(encoding, k) for k in result_encoded]
         else:
             return encoding.decode(result_encoded['type'], result_encoded['data'])
+
+
+
+@register("arrow-array")
+class arrow_array_encoding:
+    @classmethod
+    def encode(cls, encoding, array):
+        blob = pa.serialize(array).to_buffer()
+        return {'arrow-serialized-blob': encoding.add_blob(blob)}
+
+    @classmethod
+    def decode(cls, encoding, result_encoded):
+        blob = encoding.get_blob(result_encoded['arrow-serialized-blob'])
+        return pa.deserialize(blob)
 
 
 @register("ndarray")
@@ -136,17 +152,16 @@ class ndarray_encoding:
 class dtype_encoding:
     @staticmethod
     def encode(encoding, dtype):
-        if dtype == str:
-            return "str"
-        else:
-            if type(dtype) == type:
-                dtype = dtype().dtype
+        if type(dtype) == type:
+            dtype = dtype().dtype
         return str(dtype)
 
     @staticmethod
     def decode(encoding, type_spec):
-        if type_spec == "str":
-            return str
+        if type_spec == 'string':
+            return pa.string()
+        if type_spec == 'large_string':
+            return pa.large_string()
         else:
             return np.dtype(type_spec)
 

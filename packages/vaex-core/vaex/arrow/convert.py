@@ -1,9 +1,36 @@
-"""Convert between arrow and vaex/numpy columns/arrays without doing memory copies."""
-import pyarrow
-import numpy as np
-from vaex.column import ColumnStringArrow
+"""Convert between arrow and vaex/numpy columns/arrays without doing memory copies.
 
-def arrow_array_from_numpy_array(array):
+We eventually like to get rid of this, and upstream all to pyarrow.
+"""
+import pyarrow
+import pyarrow as pa
+import numpy as np
+import vaex.column
+
+
+def ensure_not_chunked(arrow_array):
+    if isinstance(arrow_array, pa.ChunkedArray):
+        if len(arrow_array.chunks) == 0:
+            return arrow_array.chunks[0]
+        table = pa.Table.from_arrays([arrow_array], ["single"])
+        table_concat = table.combine_chunks()
+        column = table_concat.columns[0]
+        assert column.num_chunks == 1
+        arrow_array = column.chunk(0)
+    return arrow_array
+
+
+def arrow_array_from_numpy_array(array):  # TODO: -=> rename with ensure
+    if isinstance(array, vaex.column.ColumnString):
+        # we make sure it's ColumnStringArrow
+        array = vaex.column._to_string_column(array)
+        if len(array.bytes) < (2**31):  # arrow uses signed ints
+            # if possible, downcast (parquet does not support large strings)
+            array = array.to_arrow(pa.string())
+        else:
+            array = array.to_arrow()
+    if isinstance(array, (pa.Array, pa.ChunkedArray)):
+        return array
     dtype = array.dtype
     mask = None
     if np.ma.isMaskedArray(array):
@@ -27,28 +54,34 @@ from vaex.dataframe import Column
 
 
 def column_from_arrow_array(arrow_array):
+    # TODO: we may be able to pass chunked arrays
+    arrow_array = ensure_not_chunked(arrow_array)
     arrow_type = arrow_array.type
     buffers = arrow_array.buffers()
     if len(buffers) == 2:
         return numpy_array_from_arrow_array(arrow_array)
-    elif len(buffers) == 3 and  isinstance(arrow_array.type, type(pyarrow.string())):
+    elif len(buffers) == 3 and arrow_array.type in [pyarrow.string(), pyarrow.large_string()]:
         bitmap_buffer, offsets, string_bytes = arrow_array.buffers()
         if arrow_array.null_count == 0:
             null_bitmap = None  # we drop any null_bitmap when there are no null counts
         else:
             null_bitmap = np.frombuffer(bitmap_buffer, 'uint8', len(bitmap_buffer))
-        offsets = np.frombuffer(offsets, np.int32, len(offsets)//4)
+        if arrow_array.type == pyarrow.string():
+            offsets = np.frombuffer(offsets, np.int32, len(offsets)//4)
+        else:
+            offsets = np.frombuffer(offsets, np.int64, len(offsets)//8)
         if string_bytes is None:
             string_bytes = np.array([], dtype='S1')
         else:
             string_bytes = np.frombuffer(string_bytes, 'S1', len(string_bytes))
-        column = ColumnStringArrow(offsets, string_bytes, len(arrow_array), null_bitmap=null_bitmap)
+        column = vaex.column.ColumnStringArrow(offsets, string_bytes, len(arrow_array), null_bitmap=null_bitmap)
         return column
     else:
         raise TypeError('type unsupported: %r' % arrow_type)
 
 
 def numpy_array_from_arrow_array(arrow_array):
+    arrow_array = ensure_not_chunked(arrow_array)
     arrow_type = arrow_array.type
     buffers = arrow_array.buffers()
     assert len(buffers) == 2
@@ -79,15 +112,18 @@ def numpy_array_from_arrow_array(arrow_array):
         array = np.ma.MaskedArray(array, mask=mask)
     return array
 
+
 def numpy_mask_from_arrow_mask(bitmap, length):
     # arrow uses a bitmap https://github.com/apache/arrow/blob/master/format/Layout.md
     # we do have to change the ordering of the bits
     return 1-np.unpackbits(bitmap).reshape((len(bitmap),8))[:,::-1].reshape(-1)[:length]
 
+
 def numpy_bool_from_arrow_bitmap(bitmap, length):
     # arrow uses a bitmap https://github.com/apache/arrow/blob/master/format/Layout.md
     # we do have to change the ordering of the bits
     return np.unpackbits(bitmap).reshape((len(bitmap),8))[:,::-1].reshape(-1)[:length].view(np.bool_)
+
 
 def arrow_table_from_vaex_df(ds, column_names=None, selection=None, strings=True, virtual=False):
     """Implementation of Dataset.to_arrow_table"""
@@ -97,6 +133,7 @@ def arrow_table_from_vaex_df(ds, column_names=None, selection=None, strings=True
         names.append(name)
         arrays.append(arrow_array_from_numpy_array(array))
     return pyarrow.Table.from_arrays(arrays, names)
+
 
 def vaex_df_from_arrow_table(table):
     from .dataset import DatasetArrow

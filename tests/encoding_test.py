@@ -1,6 +1,6 @@
 import vaex.encoding
 import numpy as np
-
+import pyarrow as pa
 
 @vaex.encoding.register('blobtest')
 class encoding:
@@ -22,6 +22,18 @@ def test_encoding():
     data = vaex.encoding.deserialize(wiredata, encoding)
     values = encoding.decode('blobtest', data)
     assert values['someblob'] == b'1234'
+
+
+def test_encoding_arrow():
+    x = pa.array(np.arange(10, dtype='f4'))
+    encoding = vaex.encoding.Encoding()
+    data = encoding.encode('arrow-array', x)
+    wiredata = vaex.encoding.serialize(data, encoding)
+
+    encoding = vaex.encoding.Encoding()
+    data = vaex.encoding.deserialize(wiredata, encoding)
+    value = encoding.decode('arrow-array', data)
+    assert value.to_pylist() == x.to_pylist()
 
 
 def test_encoding_numpy():

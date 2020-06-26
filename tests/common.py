@@ -5,6 +5,7 @@ import vaex.server.tornado_server
 import vaex.server.dummy
 import numpy as np
 import contextlib
+import pyarrow as pa
 
 import sys
 test_port = 3911 + sys.version_info[0] * 10 + sys.version_info[1]
@@ -113,8 +114,14 @@ def ds_remote(client):
 def df_remote(ds_remote):
     return ds_remote
 
+
 @pytest.fixture()
-def ds_filtered():
+def ds_filtered(df_filtered):
+    return df_filtered
+
+
+@pytest.fixture()
+def df_filtered():
     return create_filtered()
 
 @pytest.fixture()
@@ -123,15 +130,18 @@ def ds_half():
     ds.set_active_range(2, 12)
     return ds
 
+
 @pytest.fixture()
 def ds_trimmed():
     ds = create_base_ds()
     ds.set_active_range(2, 12)
     return ds.trim()
 
+
 @pytest.fixture()
 def df_trimmed(ds_trimmed):
     return ds_trimmed
+
 
 @pytest.fixture()
 def df_concat(ds_trimmed):
@@ -150,23 +160,52 @@ def df_executor(request, df_trimmed, df_remote):
     return named[request.param]
 
 
-@pytest.fixture(params=['ds_filtered', 'ds_half', 'ds_trimmed', 'ds_remote', 'df_concat'])
-def ds(request, ds_filtered, ds_half, ds_trimmed, ds_remote, df_concat):
-    named = dict(ds_filtered=ds_filtered, ds_half=ds_half, ds_trimmed=ds_trimmed, ds_remote=ds_remote, df_concat=df_concat)
+@pytest.fixture(params=['ds_filtered', 'ds_half', 'ds_trimmed', 'ds_remote', 'df_concat', 'df_arrow'])
+def ds(request, ds_filtered, ds_half, ds_trimmed, ds_remote, df_concat, df_arrow):
+    named = dict(ds_filtered=ds_filtered, ds_half=ds_half, ds_trimmed=ds_trimmed, ds_remote=ds_remote, df_concat=df_concat, df_arrow=df_arrow)
     return named[request.param]
+
 
 @pytest.fixture
 def df(ds):
     return ds
 
+
+@pytest.fixture(params=['ds_filtered', 'ds_half', 'ds_trimmed', 'df_concat', 'df_arrow'])
+def ds_local(request, ds_filtered, ds_half, ds_trimmed, df_concat, df_arrow):
+    named = dict(ds_filtered=ds_filtered, ds_half=ds_half, ds_trimmed=ds_trimmed, df_concat=df_concat, df_arrow=df_arrow)
+    return named[request.param]
+
+
+# in some cases it is not worth testing with the arrow version
 @pytest.fixture(params=['ds_filtered', 'ds_half', 'ds_trimmed', 'df_concat'])
-def ds_local(request, ds_filtered, ds_half, ds_trimmed, df_concat):
+def df_local_non_arrow(request, ds_filtered, ds_half, ds_trimmed, df_concat):
     named = dict(ds_filtered=ds_filtered, ds_half=ds_half, ds_trimmed=ds_trimmed, df_concat=df_concat)
     return named[request.param]
+
 
 @pytest.fixture
 def df_local(ds_local):
     return ds_local
+
+
+@pytest.fixture
+def df_arrow(df_arrow_raw):
+    # we add the filter and virtual columns again to avoid the expression rewriting
+    df = df_arrow_raw.as_numpy().drop_filter()
+    del df['z']
+    df.select('(x >= 0) & (x < 10)', name=vaex.dataset.FILTER_SELECTION_NAME)
+    df.add_virtual_column("z", "x+t*y")
+    return df
+
+
+@pytest.fixture
+def df_arrow_raw(df_filtered):
+    df = df_filtered.copy()
+    df.drop('obj', inplace=True)
+    df.drop('timedelta', inplace=True)
+    df.columns = {k: vaex.array_types.to_arrow(v, convert_to_native=True) for k, v in df.columns.items()}
+    return df
 
 
 @pytest.fixture(params=[ds_half, ds_trimmed], ids=['ds_half', 'ds_trimmed'])

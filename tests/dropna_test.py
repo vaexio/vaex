@@ -1,8 +1,8 @@
 from common import *
 
 
-def test_dropna_objects(ds_local):
-    ds = ds_local
+def test_dropna_objects(df_local_non_arrow):
+    ds = df_local_non_arrow
     ds_dropped = ds.dropna(column_names=['obj'])
     assert ds_dropped['obj'].values.mask.any() == False
     float_elements = np.array([element for element in ds_dropped['obj'].values.data if isinstance(element, float)])

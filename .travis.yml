@@ -55,7 +55,6 @@ install:
   - source activate test-environment
   - (cd packages/vaex-core; pip install -v .)
   - (cd packages/vaex-hdf5; pip install .)
-  - (cd packages/vaex-arrow; pip install .)
   - (cd packages/vaex-viz; pip install .)
   - (cd packages/vaex-server; pip install .)
   - (cd packages/vaex-astro; pip install .)

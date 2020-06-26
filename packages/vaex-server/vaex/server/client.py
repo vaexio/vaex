@@ -7,7 +7,7 @@ from .dataframe import DataFrameRemote
 
 
 def create_df(name, info, executor):
-    _dtypes = {name: np.dtype(dtype) for name, dtype in info['dtypes'].items()}
+    _dtypes = {name: vaex.encoding.dtype_encoding.decode(None, dtype) for name, dtype in info['dtypes'].items()}
     df = DataFrameRemote(name=name,
                          length_original=info['length_original'],
                          column_names=info['column_names'],

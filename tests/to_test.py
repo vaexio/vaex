@@ -1,4 +1,6 @@
 import xarray
+import pyarrow as pa
+
 
 def test_to_items(df_local):
     df = df_local
@@ -57,3 +59,9 @@ def test_to_pandas_df(df_local):
         assert pdf.columns == ['y']
         assert pdf.index.values.tolist() == x[i1:i2].tolist()
         assert pdf.y.values.tolist() == y[i1:i2].tolist()
+
+
+def test_to_arrow_arrays(df_local):
+    df = df_local
+    assert isinstance(df['x'].to_arrow(convert_to_native=True), pa.Array)
+    # assert isinstance(pa.array(df['x']), pa.Array)
