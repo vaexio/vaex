@@ -63,8 +63,8 @@ class CatBoostModel(state.HasState):
     prediction_name = traitlets.Unicode(default_value='catboost_prediction', help='The name of the virtual column housing the predictions.')
     prediction_type = traitlets.Enum(values=['Probability', 'Class', 'RawFormulaVal'], default_value='Probability',
                                      help='The form of the predictions. Can be "RawFormulaVal", "Probability" or "Class".')
-    batch_size = traitlets.CInt(default_value=None, allow_none=True, help='If provided, will train in batches of this size')
-    batch_weights = traitlets.List(traitlets.Float(), default_value=None, allow_none=True, help="Weights to sum models at the end of training in batches")
+    batch_size = traitlets.CInt(default_value=None, allow_none=True, help='If provided, will train in batches of this size.')
+    batch_weights = traitlets.List(traitlets.Float(), default_value=None, allow_none=True, help='Weights to sum models at the end of training in batches.')
     evals_result_ = traitlets.List(traitlets.Dict(), default_value=[], help="Evaluation results")
 
     def __call__(self, *args):
@@ -98,6 +98,7 @@ class CatBoostModel(state.HasState):
             If *verbose_eval* is True then the evaluation metric on the validation set is printed at each boosting stage.
         :param bool plot: if True, display an interactive widget in the Jupyter
             notebook of how the train and validation sets score on each boosting iteration.
+        :param progress: If True display a progressbar when the training is done in batches.
         '''
         self.pool_params['feature_names'] = self.features
         if evals is not None:
@@ -112,13 +113,13 @@ class CatBoostModel(state.HasState):
             target_data = df[self.target].values
             dtrain = catboost.Pool(data=data, label=target_data, **self.pool_params)
             model = catboost.train(params=self.params,
-                                          dtrain=dtrain,
-                                          num_boost_round=self.num_boost_round,
-                                          evals=evals,
-                                          early_stopping_rounds=early_stopping_rounds,
-                                          verbose_eval=verbose_eval,
-                                          plot=plot,
-                                          **kwargs)
+                                   dtrain=dtrain,
+                                   num_boost_round=self.num_boost_round,
+                                   evals=evals,
+                                   early_stopping_rounds=early_stopping_rounds,
+                                   verbose_eval=verbose_eval,
+                                   plot=plot,
+                                   **kwargs)
             self.booster = model
             self.evals_result_ = [model.evals_result_]
             self.feature_importances_ = list(model.feature_importances_)
@@ -138,13 +139,13 @@ class CatBoostModel(state.HasState):
                 target_data = chunk[self.target].values
                 dtrain = catboost.Pool(data=data, label=target_data, **self.pool_params)
                 model = catboost.train(params=self.params,
-                                          dtrain=dtrain,
-                                          num_boost_round=self.num_boost_round,
-                                          evals=evals,
-                                          early_stopping_rounds=early_stopping_rounds,
-                                          verbose_eval=verbose_eval,
-                                          plot=plot,
-                                          **kwargs)
+                                       dtrain=dtrain,
+                                       num_boost_round=self.num_boost_round,
+                                       evals=evals,
+                                       early_stopping_rounds=early_stopping_rounds,
+                                       verbose_eval=verbose_eval,
+                                       plot=plot,
+                                       **kwargs)
                 self.evals_result_.append(model.evals_result_)
                 models.append(model)
             progressbar(1.0)
