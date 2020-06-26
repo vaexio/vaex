@@ -699,7 +699,7 @@ def dt_floor(x, freq, *args):
     2  2015-11-12 11:00:00.000000000
     """
     import pandas as pd
-    return pd.Series(_pandas_dt_fix(x)).dt.floor(freq, *args)
+    return pd.Series(_pandas_dt_fix(x)).dt.floor(freq, *args).values
 
 ########## timedelta operations ##########
 
