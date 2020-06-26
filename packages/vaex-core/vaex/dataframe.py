@@ -1383,9 +1383,14 @@ class DataFrame(object):
                 # if we have an off  # of elements, say, N=3, the center is at i=1=(N-1)/2
                 # if we have an even # of elements, say, N=4, the center is between i=1=(N-2)/2 and i=2=(N/2)
                 # index = (shape[-1] -1-3) * percentage/100. # the -3 is for the edges
-                waslist_percentage, [percentages, ] = vaex.utils.listify(percentage)
                 percentiles = []
                 for p in percentages:
+                    if p == 0:
+                        percentiles.append(percentile_limits[0])
+                        continue
+                    if p == 100:
+                        percentiles.append(percentile_limits[1])
+                        continue
                     values = np.array((totalcounts + 1) * p / 100.)  # make sure it's an ndarray
                     values[empty] = 0
                     floor_values = np.array(np.floor(values))
