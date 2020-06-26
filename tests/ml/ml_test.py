@@ -364,6 +364,19 @@ def test_weight_of_evidence_encoder_bad_values():
     df = vaex.from_arrays(x=['a', 'b'], y=y)
     trans.fit_transform(df)
 
+def test_weight_of_evidence_encoder_edge_cases():
+    y = [1, 0, 1, 0, 1, 0, 0, 0, 1, 1]
+    x = ['a', 'a', 'a', 'b', 'b', 'b', 'c', 'c', 'd', 'd']
+    df = vaex.from_arrays(x=x, y=y)
+
+    woe_encoder = vaex.ml.WeightOfEvidenceEncoder(features=['x'], target='y', unseen='zero')
+    df = woe_encoder.fit_transform(df)
+
+    expected_values = [0.69314, 0.69314, 0.69314, -0.69314, -0.69314,
+                      -0.69314, -13.81550, -13.81550, 13.81551, 13.81551]
+    np.testing.assert_array_almost_equal(df.woe_encoded_x.tolist(),
+                                         expected_values,
+                                         decimal=5)
 
 def test_groupby_transformer_basics():
     df_train = vaex.from_arrays(x=['dog', 'dog', 'dog', 'cat', 'cat'], y=[2, 3, 4, 10, 20])
