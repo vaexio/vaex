@@ -86,14 +86,7 @@ class CatBoostModel(state.HasState):
         copy.add_virtual_column(self.prediction_name, expression, unique=False)
         return copy
 
-    def get_feature_importance(self, data=None, type=catboost.EFstrType.FeatureImportance, prettified=False,
-                               thread_count=-1, verbose=False):
-        if self.booster is None:
-            raise RuntimeError("Model was not trained, feature importance is not available")
-        return self.booster.get_feature_importance(data=data, type=type,prettified=prettified,
-                                                   thread_count=thread_count, verbose=verbose)
-
-    def fit(self, df, evals=None, early_stopping_rounds=None, verbose_eval=None, plot=False, **kwargs):
+    def fit(self, df, evals=None, early_stopping_rounds=None, verbose_eval=None, plot=False, progress=None, **kwargs):
         '''Fit the CatBoostModel model given a DataFrame.
         This method accepts all key word arguments for the catboost.train method.
 
