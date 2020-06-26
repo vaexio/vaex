@@ -69,7 +69,7 @@ def test_catboost_batch_training():
     ds_train, ds_test = ds.ml.train_test_split(test_size=0.2, verbose=False)
     features = ['sepal_length', 'sepal_width', 'petal_length', 'petal_width']
     target = 'class_'
-    prediction_type = 'Probability'
+    prediction_type = 'Class'
     vanilla = vaex.ml.catboost.CatBoostModel(num_boost_round=1,
                                              params=params_multiclass,
                                              features=features,
@@ -95,18 +95,14 @@ def test_catboost_batch_training():
     weights_booster.fit(ds_train.head(100), evals=[ds_test])
 
     ground_truth = ds_test[target].values
-    vanilla_accuracy = accuracy_score(ground_truth, np.argmax(vanilla.predict(ds_test), 1))
-    batch_accuracy = accuracy_score(ground_truth, np.argmax(batch_booster.predict(ds_test), 1))
-    weighted_accuracy = accuracy_score(ground_truth, np.argmax(weights_booster.predict(ds_test), 1))
-    assert vanilla_accuracy == weighted_accuracy < batch_accuracy
+    vanilla_accuracy = accuracy_score(ground_truth, vanilla.predict(ds_test))
+    batch_accuracy = accuracy_score(ground_truth, batch_booster.predict(ds_test))
+    weighted_accuracy = accuracy_score(ground_truth, weights_booster.predict(ds_test))
+    assert vanilla_accuracy == weighted_accuracy
+    assert vanilla_accuracy < batch_accuracy
 
-    vanilla_auc = roc_auc_score(ground_truth, vanilla.predict(ds_test), multi_class='ovr')
-    batch_auc = roc_auc_score(ground_truth, batch_booster.predict(ds_test), multi_class='ovr')
-    weighted_auc = roc_auc_score(ground_truth, weights_booster.predict(ds_test), multi_class='ovr')
-    assert vanilla_auc == weighted_auc < batch_auc
-
-    assert list(weights_booster.get_feature_importance()) == list(vanilla.get_feature_importance()) != list(
-        batch_booster.get_feature_importance())
+    assert list(weights_booster.booster.get_feature_importance()) == list(vanilla.booster.get_feature_importance())
+    assert list(weights_booster.booster.get_feature_importance()) != list(batch_booster.booster.get_feature_importance())
 
 
 def test_catboost_numerical_validation():
