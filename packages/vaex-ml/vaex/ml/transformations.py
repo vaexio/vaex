@@ -751,6 +751,7 @@ class WeightOfEvidenceEncoder(Transformer):
             # Instead of counting the goods and bad, we divide by the count
             # which reduces to the mean
             agg = df.groupby(feature, agg={'positive': vaex.agg.mean(self.target)})
+            agg['positive'] = agg.func.where(agg['positive'] == 0, self.epsilon, agg['positive'])
             agg['negative'] = 1 - agg.positive
             agg['negative'] = agg.func.where(agg['negative'] == 0, self.epsilon, agg['negative'])
             agg['woe'] = np.log(agg.positive/agg.negative)
