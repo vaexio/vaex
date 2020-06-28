@@ -1,7 +1,12 @@
-from common import *
-import numpy as np
-import pandas as pd
 import datetime
+
+import numpy as np
+
+import pandas as pd
+
+import pytest
+
+import vaex
 
 
 def test_datetime_operations():
@@ -131,13 +136,14 @@ def test_create_datetime64_column_from_str():
     assert expr.values.astype(np.datetime64).tolist() == expr.astype('datetime64').tolist()
     assert expr.values.astype('datetime64[ns]').tolist() == expr.astype('datetime64[ns]').tolist()
 
+
 def test_create_str_column_from_datetime64():
     date = np.array([np.datetime64('2009-10-12T03:31:00'),
-                np.datetime64('2016-02-11T10:17:34'),
-                np.datetime64('2015-11-12T11:34:22'),
-                np.datetime64('2003-03-03T00:33:15'),
-                np.datetime64('2014-07-23T15:08:05'),
-                np.datetime64('2011-01-01T07:02:01')], dtype='<M8[ns]')
+                     np.datetime64('2016-02-11T10:17:34'),
+                     np.datetime64('2015-11-12T11:34:22'),
+                     np.datetime64('2003-03-03T00:33:15'),
+                     np.datetime64('2014-07-23T15:08:05'),
+                     np.datetime64('2011-01-01T07:02:01')], dtype='<M8[ns]')
 
     df = vaex.from_arrays(date=date)
     pandas_df = df.to_pandas_df()
