@@ -1,5 +1,7 @@
 from common import *
 import numpy as np
+import pandas as pd
+import datetime
 
 
 def test_datetime_operations():
@@ -143,3 +145,22 @@ def test_create_str_column_from_datetime64():
     date_format = "%Y/%m/%d"
 
     assert df.date.dt.strftime(date_format).values.tolist() == pandas_df.date.dt.strftime(date_format).values.tolist()
+
+
+def test_datetime_nat_minmax_consistency():
+    pandas_df = pd.DataFrame({'t': [pd.NaT,
+                                    datetime.datetime(2019, 1, 1),
+                                    datetime.datetime(2019, 2, 1),
+                                    datetime.datetime(2019, 4, 1),
+                                    datetime.datetime(2019, 5, 1)]})
+    df = vaex.from_pandas(pandas_df)
+
+    t_min = np.datetime64(df.t.min())
+    assert t_min == np.datetime64('2019-01-01')
+
+    t_max = np.datetime64(df.t.max())
+    assert t_max == np.datetime64('2019-05-01')
+
+    t_minmax = df.minmax(['t'])
+    assert t_minmax[0, 0] == t_min
+    assert t_minmax[0, 1] == t_max
