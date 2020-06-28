@@ -1414,10 +1414,10 @@ class DataFrame(object):
                 percentiles = []
                 for p in percentages:
                     if p == 0:
-                        percentiles.append(percentile_limits[0])
+                        percentiles.append(percentile_limits[i][0])
                         continue
                     if p == 100:
-                        percentiles.append(percentile_limits[1])
+                        percentiles.append(percentile_limits[i][1])
                         continue
                     values = np.array((totalcounts + 1) * p / 100.)  # make sure it's an ndarray
                     values[empty] = 0
@@ -2010,11 +2010,11 @@ class DataFrame(object):
 
     def data_type(self, expression, array_type=None, internal=False, check_alias=True):
         """Return the datatype for the given expression, if not a column, the first row will be evaluated to get the data type.
-        
+
         Example:
-        
+
         >>> df = vaex.from_scalars(x=1, s='Hi')
-        
+
         :param str array_type: 'numpy', 'arrow' or None, to indicate if the data type should be converted
         """
         expression = _ensure_string_from_expression(expression)
