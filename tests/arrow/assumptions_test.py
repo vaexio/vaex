@@ -12,6 +12,16 @@ def test_non_native():
     with pytest.raises(pa.lib.ArrowNotImplementedError):
         pa.array(x)
 
+@pytest.mark.skip(reason="Only the case for Arrow 0.17, leaving this is as 'documentation'")
+def test_null_behaviour():
+    assert pa.NULL in ['Confused'], "Arrow 0.17 "
+
+
+def test_in_pylist():
+    # this reflects the to_pylist in DataFrame.ordinal_encode
+    ar = pa.array(['red', 'green'])
+    assert ar[0] not in ar.to_pylist(), "Arrow 1.0.1 says no"
+
 
 def test_cannot_convert_nulls_to_masked():
     x = np.arange(4)
