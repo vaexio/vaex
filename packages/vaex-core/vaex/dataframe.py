@@ -509,10 +509,19 @@ class DataFrame(object):
         if not dropnan:
             if ordered_set.has_nan:
                 keys = [np.nan] + keys
-        if not dropmissing:
-            if ordered_set.has_null:
-                keys = [np.ma.core.MaskedConstant()] + keys
-        keys = np.asarray(keys)
+        if self.is_string(expression):
+            if not dropmissing:
+                if ordered_set.has_null:
+                    # arrow handles None as missing
+                    keys = [None] + keys
+            keys = pa.array(keys)
+        else:
+            masked = False
+            if not dropmissing:
+                if ordered_set.has_null:
+                    masked = True
+                    keys = [np.ma.core.MaskedConstant()] + keys
+            keys = np.ma.asarray(keys) if masked else np.asarray(keys)
         if return_inverse:
             return keys, inverse
         else:
@@ -5000,6 +5009,10 @@ class DataFrameLocal(DataFrame):
         # codes point to the index of found_values
         # meaning: found_values[codes[0]] == ds[column].values[0]
         found_values, codes = df_unfiltered.unique(column, return_inverse=True)
+        if isinstance(found_values, array_types.supported_arrow_array_types):
+            # elements of arrow arrays are not in arrow arrays, e.g. ar[0] in ar is False
+            # see tests/arrow/assumptions_test.py::test_in_pylist
+            found_values = found_values.to_pylist()
         if values is None:
             values = found_values
         else:
