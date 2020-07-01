@@ -370,9 +370,9 @@ class StandardScaler(Transformer):
             name = self.prefix+self.features[i]
             expression = copy[self.features[i]]
             if self.with_mean:
-                expression = expression - self.mean_[i]
+                expression -= self.mean_[i]
             if self.with_std:
-                expression = expression / self.std_[i]
+                expression /= self.std_[i]
             copy[name] = expression
         return copy
 
