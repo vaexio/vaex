@@ -184,6 +184,14 @@ class StringOperationsPandas(object):
         self.expression = expression
 
 
+class ListOperations(object):
+    """List operations on arrow arrays"""
+    def __init__(self, expression):
+        self.expression = expression
+
+    def __getitem__(self, slice):
+        return self.slice(slice)
+
 class Expression(with_metaclass(Meta)):
     """Expression class"""
     def __init__(self, ds, expression, ast=None):
@@ -339,6 +347,11 @@ class Expression(with_metaclass(Meta)):
         return TimeDelta(self)
 
     @property
+    def list(self):
+        """Gives access to list operations via :py:class:`ListOperations`"""
+        return ListOperations(self)
+
+    @property
     def str(self):
         """Gives access to string operations via :py:class:`StringOperations`"""
         return StringOperations(self)
@@ -463,7 +476,7 @@ class Expression(with_metaclass(Meta)):
         '''Short for expr.evaluate().tolist()'''
         values = self.evaluate()
         if isinstance(values, (pa.Array, pa.ChunkedArray)):
-            return values.to_pandas().values.tolist()
+            return values.to_pylist()
         return values.tolist()
 
     if not os.environ.get('VAEX_DEBUG', ''):

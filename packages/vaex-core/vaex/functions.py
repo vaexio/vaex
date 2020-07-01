@@ -14,6 +14,7 @@ import six
 
 scopes = {
     'str': vaex.expression.StringOperations,
+    'list': vaex.expression.ListOperations,
     'str_pandas': vaex.expression.StringOperationsPandas,
     'dt': vaex.expression.DateTime,
     'td': vaex.expression.TimeDelta
