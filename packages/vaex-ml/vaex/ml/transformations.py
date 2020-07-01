@@ -564,9 +564,9 @@ class RobustScaler(Transformer):
         '''
 
         copy = df.copy()
-        for i in range(len(self.features)):
-            name = self.prefix+self.features[i]
-            expr = copy[self.features[i]]
+        for i, feature in self.features:
+            name = self.prefix+feature
+            expr = copy[feature]
             if self.with_centering:
                 expr -= self.center_[i]
             if self.with_scaling:
