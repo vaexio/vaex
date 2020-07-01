@@ -492,9 +492,9 @@ class MaxAbsScaler(Transformer):
         '''
 
         copy = df.copy()
-        for i in range(len(self.features)):
-            name = self.prefix + self.features[i]
-            expr = copy[self.features[i]]
+        for i, feature in self.features:
+            name = self.prefix + feature
+            expr = copy[feature]
             expr = expr / self.absmax_[i]
             copy[name] = expr
         return copy
