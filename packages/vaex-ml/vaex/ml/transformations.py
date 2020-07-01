@@ -366,9 +366,9 @@ class StandardScaler(Transformer):
         '''
 
         copy = df.copy()
-        for i in range(len(self.features)):
-            name = self.prefix+self.features[i]
-            expression = copy[self.features[i]]
+        for i, feature in enumerate(self.features):
+            name = self.prefix+feature
+            expression = copy[feature]
             if self.with_mean:
                 expression -= self.mean_[i]
             if self.with_std:
