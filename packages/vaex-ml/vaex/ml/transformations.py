@@ -568,9 +568,9 @@ class RobustScaler(Transformer):
             name = self.prefix+self.features[i]
             expr = copy[self.features[i]]
             if self.with_centering:
-                expr = expr - self.center_[i]
+                expr -= self.center_[i]
             if self.with_scaling:
-                expr = expr / self.scale_[i]
+                expr /= self.scale_[i]
             copy[name] = expr
         return copy
 
