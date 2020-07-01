@@ -2021,6 +2021,7 @@ class DataFrame(object):
         if check_alias:
             if expression in self._column_aliases:
                 expression = self._column_aliases[expression]  # translate the alias name into the real name
+        data_type = None
         if expression in self._dtypes_override:
             data_type = self._dtypes_override[expression]
         elif expression in self.variables:
@@ -2028,15 +2029,18 @@ class DataFrame(object):
         elif self.is_local() and expression in self.columns.keys():
             column = self.columns[expression]
             if hasattr(column, 'dtype'):
+                # TODO: this probably would use data_type
+                # to support Columns that wrap arrow arrays
                 data_type = column.dtype
             else:
                 data = column[0:1]
-                data_type = array_types.numpy_dtype(data)
         else:
             try:
                 data = self.evaluate(expression, 0, 1, filtered=False, array_type=array_type, parallel=False)
             except:
                 data = self.evaluate(expression, 0, 1, filtered=True, array_type=array_type, parallel=False)
+        if data_type is None:
+            # means we have to determine it from the data
             if isinstance(data, np.ndarray):
                 data_type = data.dtype
             elif isinstance(data, Column):
@@ -5454,10 +5458,10 @@ class DataFrameLocal(DataFrame):
                     chunks_map[expression] = {}
                 else:
                     # we know exactly where to place the chunks, so we pre allocate the arrays
-                    shape = (length, ) + df._shape_of(expression, filtered=False)[1:]
-                    shapes[expression] = shape
                     if expression in virtual:
                         if isinstance(dtype, np.dtype):
+                            shape = (length, ) + df._shape_of(expression, filtered=False)[1:]
+                            shapes[expression] = shape
                             # numpy arrays are fixed length, so we can pre allocate them
                             if df.is_masked(expression):
                                 arrays[expression] = np.ma.empty(shapes.get(expression, length), dtype=dtypes[expression])

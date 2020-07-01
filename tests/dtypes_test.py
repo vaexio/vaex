@@ -15,6 +15,12 @@ def test_dtypes(df_local):
     assert [df.dtypes[name] for name in df.get_column_names()] == [df[name].data_type() for name in df.get_column_names()]
 
 
+def test_dtype_arrow():
+    l = pa.array([[1,2], [2,3,4]])
+    df = vaex.from_arrays(l=l)
+    assert df.data_type(df.l) == pa.list_(l.type.value_type)
+
+
 def test_dtype_str():
     df = vaex.from_arrays(x=["foo", "bars"], y=[1,2])
     assert df.data_type(df.x) == pa.string()

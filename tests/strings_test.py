@@ -33,8 +33,8 @@ def test_dtype_object_string(tmpdir):
     path = str(tmpdir.join('test.arrow'))
     df.export(path)
     df_read = vaex.open(path, as_numpy=False)
-    # the data type of s can be different
-    assert df_read.compare(df) == ([], [], [], [])
+    # the data type of x is different (arrow vs numpy)
+    assert df_read.compare(df) == ([], [], ['x'], [])
 
 
 def test_export_arrow_strings_to_hdf5(tmpdir):

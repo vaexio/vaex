@@ -114,7 +114,9 @@ def test_evaluate_types():
 @pytest.mark.parametrize('parallel', [True, False])
 def test_arrow_evaluate(parallel):
     x = np.arange(2)
-    df = vaex.from_arrays(s=["foo", "bars"])
+    l = pa.array([[1,2], [2,3,4]])
+    df = vaex.from_arrays(s=["foo", "bars"], l=l)
     assert df.evaluate(df.s.as_arrow(), array_type='numpy', parallel=parallel).dtype == object
     assert df.evaluate(df.s.as_arrow(), array_type='arrow', parallel=parallel).type == pa.string()
     assert df.evaluate(df.s.as_arrow(), array_type=None, parallel=parallel).type == pa.string()
+    assert df.evaluate(df.l, parallel=parallel).type == pa.list_(l.type.value_type)
