@@ -432,7 +432,7 @@ class MinMaxScaler(Transformer):
 
         copy = df.copy()
 
-        for i, feature in self.features:
+        for i, feature in enumerate(self.features):
             name = self.prefix + feature
             a = self.feature_range[0]
             b = self.feature_range[1]
@@ -492,7 +492,7 @@ class MaxAbsScaler(Transformer):
         '''
 
         copy = df.copy()
-        for i, feature in self.features:
+        for i, feature in enumerate(self.features):
             name = self.prefix + feature
             expr = copy[feature]
             expr = expr / self.absmax_[i]
