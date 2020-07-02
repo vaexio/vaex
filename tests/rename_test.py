@@ -23,7 +23,7 @@ def test_rename_existing_expression(df_local):
 
 def test_reassign_virtual(ds_local):
     df = ds_local
-    x = df.x.values
+    x = df.x.to_numpy()
     df['r'] = df.x+1
     assert df.r.tolist() == (x+1).tolist()
     df['r'] = df.r+1
@@ -32,7 +32,7 @@ def test_reassign_virtual(ds_local):
 
 def test_reassign_column(ds_filtered):
     df = ds_filtered.extract()
-    x = df.x.values
+    x = df.x.to_numpy()
     df['r'] = (df.x+1).evaluate()
     df['r'] = (df.r+1).evaluate()
     assert df.r.tolist() == (x+2).tolist()

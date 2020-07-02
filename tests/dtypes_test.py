@@ -7,7 +7,7 @@ def test_dtype_basics(df):
         if df.is_string(name):
             assert df[name].to_numpy().dtype.kind in 'OSU'
         else:
-            assert df[name].values.dtype == df.data_type(df[name])
+            assert vaex.array_types.same_type(vaex.array_types.data_type(df[name].values), df.data_type(df[name]))
 
 
 def test_dtypes(df_local):

@@ -147,7 +147,7 @@ def export_hdf5(dataset, path, column_names=None, byteorder="=", shuffle=False, 
                 sparse_groups[id(sparse_matrix)].append(column_name)
                 sparse_matrices[id(sparse_matrix)] = sparse_matrix
                 continue
-            dtype = dataset.data_type(column_name)
+            dtype = dataset.data_type(column_name, array_type='numpy')
             shape = (N, ) + dataset._shape_of(column_name)[1:]
             h5column_output = h5columns_output.require_group(column_name)
             if vaex.array_types.is_string_type(dtype):

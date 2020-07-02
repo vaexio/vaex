@@ -221,7 +221,7 @@ def df_arrow(df_arrow_cache):
 @pytest.fixture
 def df_arrow_cache(df_arrow_raw):
     # we add the filter and virtual columns again to avoid the expression rewriting
-    df = df_arrow_raw.as_numpy().drop_filter()
+    df = df_arrow_raw.drop_filter()
     del df['z']
     df.select('(x >= 0) & (x < 10)', name=vaex.dataframe.FILTER_SELECTION_NAME)
     df.add_virtual_column("z", "x+t*y")
@@ -233,7 +233,9 @@ def df_arrow_raw(df_filtered):
     df = df_filtered.copy()
     df.drop('obj', inplace=True)
     df.drop('timedelta', inplace=True)
-    df.columns = {k: vaex.array_types.to_arrow(v, convert_to_native=True) for k, v in df.columns.items()}
+    columns = {k: vaex.array_types.to_arrow(v, convert_to_native=True) for k, v in df.columns.items()}
+    dataset = vaex.dataset.DatasetArrays(columns)
+    df.dataset = dataset
     return df
 
 

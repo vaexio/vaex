@@ -9,7 +9,7 @@ def test_values(ds_local):
     assert ds['name'].tolist() == ds.evaluate('name', array_type='arrow').to_pylist()
     if 'obj' in ds:   # df_arrow does not have it
         assert ds['obj'].tolist() == ds.evaluate('obj').tolist()
-    assert ds[['x', 'y']].values.tolist() == np.array([ds.evaluate('x'), ds.evaluate('y')]).T.tolist()
+    assert ds[['x', 'y']].values.tolist() == np.array([ds.x.to_numpy(), ds.y.to_numpy()]).T.tolist()
     assert ds[['x', 'y']].values.shape == (len(ds), 2)
     assert ds[['m']].values[9].tolist()[0] == None
     assert ds[['m', 'x']].values[9].tolist()[0] == None

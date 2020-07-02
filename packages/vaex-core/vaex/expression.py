@@ -1082,7 +1082,7 @@ class FunctionSerializableJit(FunctionSerializable):
         # TODO: can we do the above using the Expressio API?s
 
         arguments = list(set(names))
-        argument_dtypes = [df.data_type(argument) for argument in arguments]
+        argument_dtypes = [df.data_type(argument, array_type='numpy') for argument in arguments]
         return_dtype = df[expression].dtype
         return cls(str(expression), arguments, argument_dtypes, return_dtype, verbose, compile=compile)
 
@@ -1133,6 +1133,7 @@ def f({0}):
         exec(code, scope)
         func = scope['f']
         def wrapper(*args):
+            args = [vaex.array_types.to_numpy(k) for k in args]
             args = [vaex.utils.to_native_array(arg) if isinstance(arg, np.ndarray) else arg for arg in args]
             args = [cupy.asarray(arg) if isinstance(arg, np.ndarray) else arg for arg in args]
             return cupy.asnumpy(func(*args))

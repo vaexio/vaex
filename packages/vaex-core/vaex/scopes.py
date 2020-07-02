@@ -3,6 +3,7 @@ import logging
 import numpy as np
 import pyarrow as pa
 import vaex.array_types
+import vaex.arrow.numpy_dispatch
 
 
 from .utils import (_ensure_strings_from_expressions,
@@ -110,6 +111,8 @@ class _BlockScope(ScopeBase):
             #   result = out
             # logger.debug("out eval")
         # logger.debug("done with eval of %s", expression)
+        if isinstance(result, vaex.arrow.numpy_dispatch.NumpyDispatch):
+            result = result.arrow_array
         return result
 
     def __getitem__(self, variable):
@@ -137,6 +140,8 @@ class _BlockScope(ScopeBase):
                         values = values.filter(vaex.array_types.to_arrow(self.mask))
                     else:
                         values = values[self.mask]
+                if isinstance(values, vaex.array_types.supported_arrow_array_types):
+                    values = vaex.arrow.numpy_dispatch.NumpyDispatch(values)
                 self.values[variable] = values
             elif variable in list(self.df.virtual_columns.keys()):
                 expression = self.df.virtual_columns[variable]
@@ -146,10 +151,14 @@ class _BlockScope(ScopeBase):
                     self.values[variable] = function(*arguments)
                 else:
                     # self._ensure_buffer(variable)
-                    self.values[variable] = self.evaluate(expression)  # , out=self.buffers[variable])
+                    values = self.evaluate(expression)
+                    if isinstance(values, vaex.array_types.supported_arrow_array_types):
+                        values = vaex.arrow.numpy_dispatch.NumpyDispatch(values)
+                    self.values[variable] = values
                     # self.values[variable] = self.buffers[variable]
             elif variable in self.df.functions:
-                return self.df.functions[variable].f
+                f = self.df.functions[variable].f
+                return vaex.arrow.numpy_dispatch.autowrapper(f)
             if variable not in self.values:
                 raise KeyError("Unknown variables or column: %r" % (variable,))
 
@@ -173,11 +182,14 @@ class _BlockScopeSelection(ScopeBase):
             expression = "default"
         try:
             expression = _ensure_string_from_expression(expression)
-            return eval(expression, expression_namespace, self)
+            result = eval(expression, expression_namespace, self)
         except:
             import traceback as tb
             tb.print_stack()
             raise
+        if isinstance(result, vaex.arrow.numpy_dispatch.NumpyDispatch):
+            result = result.arrow_array
+        return result
 
     def __contains__(self, name):  # otherwise pdb crashes during pytest
         return False
@@ -231,7 +243,7 @@ class _BlockScopeSelection(ScopeBase):
                 offset = self.df._index_start
                 if variable in expression_namespace:
                     return expression_namespace[variable]
-                elif variable in self.df.get_column_names(hidden=True, virtual=False):
+                elif variable in self.df.columns:
                     values = self.df.columns[variable][offset+self.i1:offset+self.i2]
                     # TODO: we may want to put this in array_types
                     if self.filter_mask is not None:
@@ -239,18 +251,23 @@ class _BlockScopeSelection(ScopeBase):
                             values = values.filter(vaex.array_types.to_arrow(self.filter_mask))
                         else:
                             values = values[self.filter_mask]
+                    if isinstance(values, vaex.array_types.supported_arrow_array_types):
+                        values = vaex.arrow.numpy_dispatch.NumpyDispatch(values)
                     return values
                 elif variable in self.df.variables:
                     return self.df.variables[variable]
-                elif variable in list(self.df.virtual_columns.keys()):
+                elif variable in self.df.virtual_columns:
                     expression = self.df.virtual_columns[variable]
                     # self._ensure_buffer(variable)
                     if expression == variable:
                         raise ValueError(f'Recursion protection: virtual column {variable} refers to itself')
-                    return self.evaluate(expression)  # , out=self.buffers[variable])
-                    # self.values[variable] = self.buffers[variable]
+                    values = self.evaluate(expression)  # , out=self.buffers[variable])
+                    if isinstance(values, vaex.array_types.supported_arrow_array_types):
+                        values = vaex.arrow.numpy_dispatch.NumpyDispatch(values)
+                    return values
                 elif variable in self.df.functions:
-                    return self.df.functions[variable].f
+                    f = self.df.functions[variable].f
+                    return vaex.arrow.numpy_dispatch.autowrapper(f)
                 raise KeyError("Unknown variables or column: %r" % (variable,))
         except:
             import traceback as tb

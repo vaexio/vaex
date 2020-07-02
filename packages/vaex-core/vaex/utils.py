@@ -16,6 +16,7 @@ import numbers
 import keyword
 
 import numpy as np
+import pyarrow as pa
 import progressbar
 import psutil
 import six
@@ -726,7 +727,7 @@ def _issequence(x):
 
 
 def _isnumber(x):
-    return isinstance(x, numbers.Number)
+    return isinstance(x, (numbers.Number, pa.Scalar))
 
 
 def _is_limit(x):
@@ -860,6 +861,8 @@ def find_type_from_dtype(namespace, prefix, dtype, transient=True):
         else:
             postfix = 'string' # view not support atm
     else:
+        import vaex
+        dtype = vaex.array_types.to_numpy_type(dtype)
         postfix = str(dtype)
         if postfix == '>f8':
             postfix = 'float64'
@@ -878,7 +881,7 @@ def find_type_from_dtype(namespace, prefix, dtype, transient=True):
 
 
 def to_native_dtype(dtype):
-    if dtype.byteorder not in "<=|":
+    if isinstance(dtype, np.dtype) and dtype.byteorder not in "<=|":
         return dtype.newbyteorder()
     else:
         return dtype
@@ -904,14 +907,18 @@ def unmask_selection_mask(selection_mask):
 
 
 def upcast(dtype):
-    if dtype.kind == "b":
-        return np.dtype('int64')
-    if dtype.kind == "i":
-        return np.dtype('int64')
-    if dtype.kind == "u":
-        return np.dtype('uint64')
-    if dtype.kind == "f":
-        return np.dtype('float64')
+    if isinstance(dtype, np.dtype):
+        if dtype.kind == "b":
+            return np.dtype('int64')
+        if dtype.kind == "i":
+            return np.dtype('int64')
+        if dtype.kind == "u":
+            return np.dtype('uint64')
+        if dtype.kind == "f":
+            return np.dtype('float64')
+    else:
+        # TODO: arrow
+        pass
     return dtype
 
 

@@ -1244,11 +1244,6 @@ class DataFrame(object):
         """
         # vmin  = self._compute_agg('min', expression, binby, limits, shape, selection, delay, edges, progress)
         # vmax =  self._compute_agg('max', expression, binby, limits, shape, selection, delay, edges, progress)
-        @delayed
-        def finish(*minmax_list):
-            value = vaex.utils.unlistify(waslist, np.array(minmax_list))
-            value = value.astype(dtype0)
-            return value
 
         @delayed
         def calculate(expression, limits):
@@ -1259,16 +1254,19 @@ class DataFrame(object):
         @delayed
         def finish(*minmax_list):
             value = vaex.utils.unlistify(waslist, np.array(minmax_list))
-            value = value.astype(dtype0)
+            value = vaex.array_types.to_numpy(value)
+            value = value.astype(vaex.array_types.to_numpy_type(data_type0))
             return value
         expression = _ensure_strings_from_expressions(expression)
         binby = _ensure_strings_from_expressions(binby)
         waslist, [expressions, ] = vaex.utils.listify(expression)
         column_names = self.get_column_names(hidden=True)
         expressions = [vaex.utils.valid_expression(column_names, k) for k in expressions]
-        dtypes = [self.data_type(expr) for expr in expressions]
-        dtype0 = dtypes[0]
-        if not all([k.kind == dtype0.kind for k in dtypes]):
+        data_types = [self.data_type(expr) for expr in expressions]
+        data_type0 = data_types[0]
+        # special case that we supported mixed endianness for ndarrays
+        all_same_kind = all(isinstance(data_type, np.dtype) for data_type in data_types) and all([k.kind == data_type0.kind for k in data_types])
+        if not (all_same_kind or all([vaex.array_types.same_type(k, data_type0) for k in data_types])):
             raise TypeError("cannot mix different dtypes in 1 minmax call")
         progressbar = vaex.utils.progressbars(progress, name="minmaxes")
         limits = self.limits(binby, limits, selection=selection, delay=True)
@@ -1591,6 +1589,8 @@ class DataFrame(object):
             values = (value,) * len(expressions)
         else:
             values = value
+        # we cannot hash arrow arrays
+        values = [vaex.array_types.to_numpy(k) if isinstance(k, vaex.array_types.supported_arrow_array_types) else k for k in values]
 
         initial_expressions, initial_values = expressions, values
         expression_values = dict()
@@ -2632,7 +2632,10 @@ class DataFrame(object):
         i1 = i1 or 0
         i2 = i2 or len(self)
         scope = scopes._BlockScopeSelection(self, i1, i2, selection, cache=cache, filter_mask=filter_mask)
-        return vaex.utils.unmask_selection_mask(scope.evaluate(name))
+        mask = scope.evaluate(name)
+        # TODO: can we do without arrow->numpy conversion?
+        mask = vaex.array_types.to_numpy(mask)
+        return vaex.utils.unmask_selection_mask(mask)
 
     def evaluate_selection_mask(self, name="default", i1=None, i2=None, selection=None, cache=False, filtered=True, pre_filtered=True):
         i1 = i1 or 0
@@ -3529,7 +3532,7 @@ class DataFrame(object):
         N = len(self)
         columns = {}
         for feature in self.get_column_names(strings=strings, virtual=virtual)[:]:
-            data_type = self.data_type(feature)
+            data_type = self.data_type(feature, array_type='numpy')
             if not isinstance(data_type, np.dtype):
                 if data_type in array_types.string_types:
                     count = self.count(feature, selection=selection, delay=True)
@@ -5273,10 +5276,11 @@ class DataFrameLocal(DataFrame):
         chunks = []
         column_names = self.get_column_names(strings=False)
         for name in column_names:
-            if not np.can_cast(self.data_type(name), dtype):
-                if self.data_type(name) != dtype:
+            column_type = self.data_type(name, array_type='numpy')
+            if not np.can_cast(column_type, dtype):
+                if column_type != dtype:
                     raise ValueError("Cannot cast %r (of type %r) to %r" % (name, self.data_type(name), dtype))
-        chunks = self.evaluate(column_names, parallel=parallel)
+        chunks = self.evaluate(column_names, parallel=parallel, array_type='numpy')
         if any(np.ma.isMaskedArray(chunk) for chunk in chunks):
             return np.ma.array(chunks, dtype=dtype).T
         else:
