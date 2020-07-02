@@ -66,6 +66,7 @@ class _LinearBase(state.HasState):
                 if dataset.is_category(expression):
                     return np.arange(dataset.category_count(expression))
                 return dataset.bin_centers(expression, limits, shape)
+                
             centers = [coordinates(expression, l, shape) for expression, l, shape
                        in zip(binby, self.limits, shapes)]
             # l = ds.bin_centers('y', limits[1], shape)
