@@ -8,7 +8,7 @@ def test_evaluate_iterator(df_local, chunk_size, prefetch, parallel):
     df = df_local
     x = df.x.to_numpy()
     total = 0
-    for i1, i2, chunk in df_local.evaluate_iterator('x', chunk_size=chunk_size, prefetch=prefetch, parallel=parallel):
+    for i1, i2, chunk in df_local.evaluate_iterator('x', chunk_size=chunk_size, prefetch=prefetch, parallel=parallel, array_type='numpy'):
         assert x[i1:i2].tolist() == chunk.tolist()
         total += chunk.sum()
     assert total == x.sum()
@@ -16,7 +16,7 @@ def test_evaluate_iterator(df_local, chunk_size, prefetch, parallel):
 
 @pytest.mark.parametrize("chunk_size", [2, 5])
 @pytest.mark.parametrize("parallel", [True, False])
-@pytest.mark.parametrize("array_type", [None, 'list', 'xarray'])
+@pytest.mark.parametrize("array_type", ['numpy', 'list', 'xarray'])
 def test_to_items(df_local, chunk_size, parallel, array_type):
     df = df_local
     x = df.x.to_numpy()
@@ -29,7 +29,7 @@ def test_to_items(df_local, chunk_size, parallel, array_type):
 
 @pytest.mark.parametrize("chunk_size", [2, 5])
 @pytest.mark.parametrize("parallel", [True, False])
-@pytest.mark.parametrize("array_type", [None, 'list', 'xarray'])
+@pytest.mark.parametrize("array_type", ['numpy', 'list', 'xarray'])
 def test_to_dict(df_local, chunk_size, parallel, array_type):
     df = df_local
     x = df.x.to_numpy()
@@ -42,7 +42,7 @@ def test_to_dict(df_local, chunk_size, parallel, array_type):
 
 @pytest.mark.parametrize("chunk_size", [2, 5])
 @pytest.mark.parametrize("parallel", [True, False])
-@pytest.mark.parametrize("array_type", [None, 'list', 'xarray'])
+@pytest.mark.parametrize("array_type", ['numpy', 'list', 'xarray'])
 def test_to_arrays(df_local, chunk_size, parallel, array_type):
     df = df_local
     x = df.x.to_numpy()

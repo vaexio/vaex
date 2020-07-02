@@ -10,5 +10,5 @@ def test_materialize(ds_local):
     assert 'r' not in ds.virtual_columns
     assert 'r' in ds.columns
     assert hasattr(ds, 'r')
-    assert ds.r.evaluate().tolist() == np.sqrt(ds.x.evaluate()**2 + ds.y.evaluate()**2).tolist()
+    assert ds.r.evaluate().tolist() == np.sqrt(ds.x.to_numpy()**2 + ds.y.to_numpy()**2).tolist()
 

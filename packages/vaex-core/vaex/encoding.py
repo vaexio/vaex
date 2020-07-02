@@ -162,6 +162,9 @@ class dtype_encoding:
             return pa.string()
         if type_spec == 'large_string':
             return pa.large_string()
+        # TODO: find a proper way to support all arrow types
+        if type_spec == 'timestamp[ms]':
+            return pa.timestamp('ms')
         else:
             return np.dtype(type_spec)
 

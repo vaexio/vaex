@@ -6,10 +6,12 @@ import pyarrow.compute as pc
 from vaex import column
 from vaex.column import _to_string_sequence, _to_string_column, _to_string_list_sequence, _is_stringy
 from vaex.dataframe import docsubst
+import vaex.arrow.numpy_dispatch
 import re
 import vaex.expression
 import functools
 import six
+
 
 # @vaex.serialize.register_function
 # class Function(FunctionSerializable):
@@ -76,6 +78,7 @@ def register_function(scope=None, as_property=False, name=None, on_expression=Tr
             def closure(name=name, full_name=full_name, function=f):
                 def wrapper(self, *args, **kwargs):
                     lazy_func = getattr(self.df.func, full_name)
+                    lazy_func = vaex.arrow.numpy_dispatch.autowrapper(lazy_func)
                     return lazy_func(*args, **kwargs)
                 return functools.wraps(function)(wrapper)
             if as_property:
@@ -88,6 +91,7 @@ def register_function(scope=None, as_property=False, name=None, on_expression=Tr
                     def closure(name=name, full_name=full_name, function=f):
                         def wrapper(self, *args, **kwargs):
                             lazy_func = getattr(self.expression.ds.func, full_name)
+                            lazy_func = vaex.arrow.numpy_dispatch.autowrapper(lazy_func)
                             args = (self.expression, ) + args
                             return lazy_func(*args, **kwargs)
                         return functools.wraps(function)(wrapper)
@@ -99,11 +103,12 @@ def register_function(scope=None, as_property=False, name=None, on_expression=Tr
                     def closure(name=name, full_name=full_name, function=f):
                         def wrapper(self, *args, **kwargs):
                             lazy_func = getattr(self.ds.func, full_name)
+                            lazy_func = vaex.arrow.numpy_dispatch.autowrapper(lazy_func)
                             args = (self, ) + args
                             return lazy_func(*args, **kwargs)
                         return functools.wraps(function)(wrapper)
                     setattr(vaex.expression.Expression, name, closure())
-        vaex.expression.expression_namespace[prefix + name] = f
+        vaex.expression.expression_namespace[prefix + name] = vaex.arrow.numpy_dispatch.autowrapper(f)
         return f  # we leave the original function as is
     return wrapper
 

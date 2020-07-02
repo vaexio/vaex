@@ -79,7 +79,6 @@ catboost_info/
 .vscode
 
 # symlinks generated in setup.py
-packages/vaex-core/vaex/arrow
 packages/vaex-core/vaex/astro
 packages/vaex-core/vaex/distributed
 packages/vaex-core/vaex/graphql

@@ -180,6 +180,7 @@ class TaskPartStatistic:
 
         masks = [np.ma.getmaskarray(block) for block in blocks if np.ma.isMaskedArray(block)]
         blocks = [block.data if np.ma.isMaskedArray(block) else block for block in blocks]
+        blocks = [np.asarray(k) for k in blocks]
         mask = None
 
         # blocks = [as_flat_float(block) for block in blocks]
@@ -356,6 +357,8 @@ class TaskPartAggregations:
                 selection_mask = None
                 if selection:
                     selection_mask = self.df.evaluate_selection_mask(selection, i1=i1, i2=i2, cache=True)  # TODO
+                    # TODO: we probably want a way to avoid a to numpy conversion?
+                    selection_mask = np.asarray(selection_mask)
                     references.append(selection_mask)
                     # some aggregators make a distiction between missing value and no value
                     # like nunique, they need to know if they should take the value into account or not
@@ -408,6 +411,7 @@ class TaskPartAggregations:
             result = np.asarray(grids) if selection_waslist else grids[0]
             if agg_desc.dtype_out != str:
                 dtype_out = vaex.utils.to_native_dtype(agg_desc.dtype_out)
+                dtype_out = vaex.array_types.to_numpy_type(dtype_out)
                 result = result.view(dtype_out)
             result = result.copy()
             results.append(result)

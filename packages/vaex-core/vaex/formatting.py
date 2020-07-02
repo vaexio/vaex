@@ -2,6 +2,7 @@ import numpy as np
 import numbers
 import six
 import datetime
+import pyarrow as pa
 
 
 MAX_LENGTH = 50
@@ -10,6 +11,12 @@ MAX_LENGTH = 50
 def _format_value(value):
     if isinstance(value, six.string_types):
         value = str(value)
+    elif isinstance(value, pa.lib.Scalar):
+        value = value.as_py()
+        if value is None:
+            value = '--'
+        else:
+            value = repr(value)
     elif isinstance(value, bytes):
         value = repr(value)
     elif isinstance(value, np.ma.core.MaskedConstant):

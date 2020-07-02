@@ -165,7 +165,7 @@ def _export_column(dataset_input, dataset_output, column_name, shuffle, sort, se
         if 1:
             block_scope = dataset_input._block_scope(0, vaex.execution.buffer_size_default)
             to_array = dataset_output.columns[column_name]
-            dtype = dataset_input.data_type(column_name)
+            dtype = dataset_input.data_type(column_name, array_type='numpy')
             is_string = vaex.array_types.is_string_type(dtype)
             if is_string:
                 assert isinstance(to_array, pa.Array)  # we don't support chunked arrays here
@@ -189,7 +189,7 @@ def _export_column(dataset_input, dataset_output, column_name, shuffle, sort, se
 
             for i1, i2 in vaex.utils.subdivide(count, max_length=max_length):
                 logger.debug("from %d to %d (total length: %d, output length: %d)", i1, i2, len(dataset_input), N)
-                values = dataset_input.evaluate(column_name, i1=i1, i2=i2, filtered=True, parallel=False, selection=selection)
+                values = dataset_input.evaluate(column_name, i1=i1, i2=i2, filtered=True, parallel=False, selection=selection, array_type='numpy')
                 no_values = len(values)
                 if no_values:
                     if is_string:

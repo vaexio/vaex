@@ -132,7 +132,7 @@ class SelectionExpression(Selection):
             N = i2 - i1
             current_mask = np.full(N, result)
         else:
-            current_mask = result.astype(np.bool)
+            current_mask = result #.astype(np.bool)
         if previous_mask is None:
             logger.debug("setting mask")
             mask = current_mask
@@ -184,6 +184,9 @@ class SelectionLasso(Selection):
         radius = np.sqrt((meanx - x)**2 + (meany - y)**2).max()
         blockx = df._evaluate(self.boolean_expression_x, i1=i1, i2=i2, filter_mask=filter_mask)
         blocky = df._evaluate(self.boolean_expression_y, i1=i1, i2=i2, filter_mask=filter_mask)
+        # TODO: can we do without arrow->numpy conversion?
+        blockx = vaex.array_types.to_numpy(blockx)
+        blocky = vaex.array_types.to_numpy(blocky)
         (blockx, blocky), excluding_mask = _split_and_combine_mask([blockx, blocky])
         blockx = as_flat_float(blockx)
         blocky = as_flat_float(blocky)

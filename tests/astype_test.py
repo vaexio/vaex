@@ -9,7 +9,7 @@ def test_astype(ds_local):
     ds['x'] = ds['x'].astype('f4')
 
     assert ds.x.evaluate().dtype == np.float32
-    assert ds.x.tolist() == ds_original.x.evaluate().astype(np.float32).tolist()
+    assert ds.x.tolist() == ds_original.x.as_numpy().evaluate().astype(np.float32).tolist()
 
 
 def test_astype_str():
