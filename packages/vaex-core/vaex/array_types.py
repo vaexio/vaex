@@ -15,6 +15,16 @@ def is_string_type(data_type):
     return not isinstance(data_type, np.dtype) and data_type in string_types
 
 
+def is_string(ar):
+    return isinstance(ar, supported_arrow_array_types) and is_string_type(ar.type)
+
+
+def filter(ar, boolean_mask):
+    if isinstance(ar, supported_arrow_array_types):
+        return ar.filter(pa.array(boolean_mask))
+    else:
+        return ar[boolean_mask]
+
 def same_type(type1, type2):
     try:
         return type1 == type2

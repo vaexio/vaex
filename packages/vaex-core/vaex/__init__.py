@@ -823,6 +823,5 @@ def vrange(start, stop, step=1, dtype='f8'):
     return ColumnVirtualRange(start, stop, step, dtype)
 
 def string_column(strings):
-    from vaex.arrow.convert import column_from_arrow_array
     import pyarrow as pa
-    return column_from_arrow_array(pa.array(strings))
+    return pa.array(strings)

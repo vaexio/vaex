@@ -89,7 +89,7 @@ def _export_table(dataset, column_names=None, byteorder="=", shuffle=False, sele
         values = dataset[column_name].evaluate(selection=selection)
         if shuffle or sort:
             indices = order_array
-            values = values[indices]
+            values = values.take(indices)
         values = arrow_array_from_numpy_array(values)
         arrow_arrays.append(values)
     if shuffle:

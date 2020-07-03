@@ -20,8 +20,9 @@ import vaex.file
 from vaex.expression import Expression
 from vaex.dataset_mmap import DatasetMemoryMapped
 from vaex.file import gcs, s3
-from vaex.column import ColumnNumpyLike
+from vaex.column import ColumnNumpyLike, ColumnStringArrow
 from vaex.file.column import ColumnFile
+import vaex.arrow.convert
 
 logger = logging.getLogger("vaex.file")
 
@@ -366,8 +367,11 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
                             null_bitmap = self._map_hdf5_array(column['null_bitmap'])
                         else:
                             null_bitmap = None
-                        from vaex.column import ColumnStringArrow
-                        self.add_column(column_name, ColumnStringArrow(indices, bytes, null_bitmap=null_bitmap))
+                        if isinstance(indices, np.ndarray):  # this is a real mmappable file
+                            self.add_column(column_name, vaex.arrow.convert.arrow_string_array_from_buffers(bytes, indices, null_bitmap))
+                        else:
+                            # if not a reall mmappable array, we fall back to this, maybe we can generalize this
+                            self.add_column(column_name, ColumnStringArrow(indices, bytes, null_bitmap=null_bitmap))
                     else:
                         shape = data.shape
                         if True:  # len(shape) == 1:

@@ -64,8 +64,8 @@ class vaex_evaluate_results_encoding:
         else:
             if isinstance(result, np.ndarray):
                 return {'type': 'ndarray', 'data': encoding.encode('ndarray', result)}
-            elif isinstance(result, vaex.column.ColumnStringArrow):
-                return {'type': 'arrow-array', 'data': encoding.encode('arrow-array', result.to_arrow())}
+            elif isinstance(result, vaex.array_types.supported_arrow_array_types):
+                return {'type': 'arrow-array', 'data': encoding.encode('arrow-array', result)}
             elif isinstance(result, numbers.Number):
                 try:
                     result = result.item()  # for numpy scalars

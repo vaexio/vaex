@@ -2,7 +2,6 @@ import logging
 import numpy as np
 
 import vaex.expression
-import vaex.functions
 from .utils import _split_and_combine_mask, as_flat_float
 
 logger = logging.getLogger('vaex.selections')
