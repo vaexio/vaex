@@ -414,7 +414,10 @@ def test_groupby_transformer_serialization():
     assert df_test.x.tolist() == ['dog', 'cat', 'dog', 'mouse']
     assert df_test.y.tolist() == [5, 5, 5, 5]
 
-
+@pytest.mark.skipif(((1,17,0) <= version <= (1,18,1)) and platform.system().lower() == 'windows', reason="strange ref count issue with numpy")
+@pytest.mark.skipif(((1,17,0) <= version <= (1,18,5)) and platform.system().lower() == 'linux' and sys.version_info[:2] == (3,6), reason="strange ref count issue with numpy")
+@pytest.mark.skipif(((1,17,5) <= version <= (1,18,5)) and platform.system().lower() == 'linux' and sys.version_info[:2] == (3,7), reason="strange ref count issue with numpy")
+@pytest.mark.skipif(((1,17,0) <= version <= (1,18,5)) and platform.system().lower() == 'linux' and sys.version_info[:2] == (3,8), reason="strange ref count issue with numpy")
 @pytest.mark.parametrize('strategy', ['uniform', 'quantile', 'kmeans'])
 def test_kbinsdiscretizer(tmpdir, strategy):
     df_train = vaex.from_arrays(x=[0, 2.5, 5, 7.5, 10, 12.5, 15])
