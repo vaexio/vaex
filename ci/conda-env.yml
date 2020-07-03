@@ -1,0 +1,26 @@
+astropy
+catboost
+cython
+geopandas
+graphviz
+h5py
+# libcxx=9.0.0
+lightgbm
+matplotlib-base
+notebook
+numba
+numpy
+pandas
+pcre
+pip
+python-annoy
+py-xgboost
+# pyarrow
+pyqt
+pytest
+pytest-asyncio
+python-graphviz
+scikit-learn
+scipy
+tornado
+xarray

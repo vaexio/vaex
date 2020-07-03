@@ -18,8 +18,8 @@ install:
   - conda config --set always_yes yes --set changeps1 no
   - conda update -q conda
   - conda info -a
-  - "conda create -q -n test-environment -c conda-forge python=%PYTHON_VERSION% numpy scipy xarray pyqt matplotlib pyopengl h5py astropy tornado cython pandas cython pytest pytest-asyncio numba graphviz python-graphviz pcre lightgbm py-xgboost catboost scikit-learn ipydatawidgets ipyvolume bqplot ipympl geopandas"
-  - activate test-environment
+  - "conda create -y -q -n vaex-dev -c arrow-nightlies -c conda-forge python=%PYTHON_VERSION%  --file ci/conda-env.yml --file ci/conda-env-nightlies.yml"
+  - activate vaex-dev
   - pip install -r requirements-ml.txt
   - pushd packages\vaex-core   && pip install . && popd
   - pushd packages\vaex-hdf5   && pip install . && popd
@@ -35,5 +35,3 @@ install:
 test_script:
  - python -m vaex.test.dataset TestDataset
  - py.test tests/
-# - runipy examples/tutorial_ipython_notebook.ipynb
-# - runipy examples/advanced_plotting.ipynb
