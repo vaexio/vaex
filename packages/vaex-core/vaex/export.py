@@ -2,10 +2,12 @@ __author__ = 'maartenbreddels'
 import os
 import sys
 import collections
-import numpy as np
 import logging
 import concurrent.futures
 import threading
+
+import numpy as np
+import pyarrow as pa
 
 import vaex
 import vaex.utils
@@ -164,6 +166,11 @@ def _export_column(dataset_input, dataset_output, column_name, shuffle, sort, se
             block_scope = dataset_input._block_scope(0, vaex.execution.buffer_size_default)
             to_array = dataset_output.columns[column_name]
             dtype = dataset_input.data_type(column_name)
+            is_string = vaex.array_types.is_string_type(dtype)
+            if is_string:
+                assert isinstance(to_array, pa.Array)  # we don't support chunked arrays here
+                # TODO legacy: we still use ColumnStringArrow to write, find a way to do this with arrow
+                to_array = ColumnStringArrow.from_arrow(to_array)
             if shuffle or sort:  # we need to create a in memory copy, otherwise we will do random writes which is VERY inefficient
                 to_array_disk = to_array
                 if np.ma.isMaskedArray(to_array):
@@ -177,7 +184,6 @@ def _export_column(dataset_input, dataset_output, column_name, shuffle, sort, se
             to_offset = 0  # we need this for selections
             to_offset_unselected = 0 # we need this for filtering
             count = len(dataset_input)# if not selection else dataset_input.length_unfiltered()
-            is_string = vaex.array_types.is_string_type(dtype)
             # TODO: if no filter, selection or mask, we can choose the quick path for str
             string_byte_offset = 0
 
@@ -189,7 +195,6 @@ def _export_column(dataset_input, dataset_output, column_name, shuffle, sort, se
                     if is_string:
                         # for strings, we don't take sorting/shuffling into account when building the structure
                         to_column = to_array
-                        assert isinstance(to_column, ColumnStringArrow)
                         from_sequence = _to_string_sequence(values)
                         to_sequence = to_column.string_sequence.slice(to_offset, to_offset+no_values, string_byte_offset)
                         string_byte_offset += to_sequence.fill_from(from_sequence)

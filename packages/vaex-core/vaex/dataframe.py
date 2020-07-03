@@ -134,6 +134,7 @@ _doc_snippets['chunk_size'] = 'Return an iterator with cuts of the object in len
 _doc_snippets['chunk_size_export'] = 'Number of rows to be written to disk in a single iteration'
 _doc_snippets['evaluate_parallel'] = 'Evaluate the (virtual) columns in parallel'
 _doc_snippets['array_type'] = 'Type of output array, possible values are None/"numpy" (ndarray), "xarray" for a xarray.DataArray, or "list" for a Python list'
+_doc_snippets['ascii'] = 'Transform only ascii characters (usually faster).'
 
 
 def docsubst(f):
@@ -1984,7 +1985,7 @@ class DataFrame(object):
             dtype = self.data_type(column)
             dtype_internal = self.data_type(column, internal=True)
             #if dtype in [str_type, str] and dtype_internal.kind == 'O':
-            if isinstance(self.columns[column], ColumnString):
+            if self.is_string(column):
                 # TODO: document or fix this
                 # is it too expensive to calculate this exactly?
                 extra += self.columns[column].nbytes

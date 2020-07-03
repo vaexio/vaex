@@ -101,8 +101,6 @@ class StringSequenceBase : public StringSequence {
     virtual StringSequenceBase* concat2(std::string other);
     virtual StringSequenceBase* concat_reverse(std::string other);
     virtual StringSequenceBase* pad(int width, std::string fillchar, bool left, bool right);
-    virtual StringSequenceBase* lower();
-    virtual StringSequenceBase* upper();
     virtual StringSequenceBase* lstrip(std::string chars);
     virtual StringSequenceBase* rstrip(std::string chars);
     virtual StringSequenceBase* repeat(int64_t repeats);
@@ -652,8 +650,6 @@ public:
         bytes = (char*)realloc(bytes, byte_length);
     }
     virtual StringSequenceBase* capitalize();
-    // virtual StringSequenceBase* lower();
-    // virtual StringSequenceBase* upper();
     // a slice for when the indices are not filled yet
     StringList* slice_byte_offset(size_t i1, size_t i2, size_t byte_offset) {
         size_t byte_length = this->byte_length - byte_offset;
@@ -1185,19 +1181,6 @@ StringSequenceBase* _apply2(StringSequenceBase* _this, W word_transform) {
 inline void lower(const string_view& source, char*& target) {
     utf8_transform(source, target, ::tolower, ::char32_lowercase);
     target += source.length();
-}
-
-StringSequenceBase* StringSequenceBase::lower() {
-    return _apply2<>(this, char_transformer_lower());
-}
-
-inline void upper(const string_view& source, char*& target) {
-    utf8_transform(source, target, ::toupper, ::char32_uppercase);
-    target += source.length();
-}
-
-StringSequenceBase* StringSequenceBase::upper() {
-    return _apply2<>(this, char_transformer_upper());
 }
 
 StringSequenceBase* StringSequenceBase::lstrip(std::string chars) {
@@ -2131,11 +2114,9 @@ PYBIND11_MODULE(superstrings, m) {
         .def("pad", &StringSequenceBase::pad)
         .def("search", &StringSequenceBase::search, "Tests if strings contains pattern", py::arg("pattern"), py::arg("regex"))//, py::call_guard<py::gil_scoped_release>())
         .def("count", &StringSequenceBase::count, "Count occurrences of pattern", py::arg("pattern"), py::arg("regex"))
-        .def("upper", &StringSequenceBase::upper)
         .def("endswith", &StringSequenceBase::endswith)
         .def("find", &StringSequenceBase::find)
         .def("isin", &StringSequenceBase::isin)
-        .def("lower", &StringSequenceBase::lower)
         .def("match", &StringSequenceBase::match, "Tests if strings matches regex", py::arg("pattern"))
         .def("equals", &StringSequenceBase::equals, "Tests if strings are equal")
         .def("equals", &StringSequenceBase::equals2, "Tests if strings are equal")

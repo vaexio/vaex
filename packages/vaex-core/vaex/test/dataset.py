@@ -767,10 +767,11 @@ class TestDataset(unittest.TestCase):
 		self.assertEqual(self.dataset.data_type("x*f"), np.float64)
 
 	def test_byte_size(self):
-		arrow_size = self.dataset.columns['name_arrow'].nbytes
-		self.assertEqual(self.dataset.byte_size(), (8*6 + 2 + self.dataset.columns['name'].dtype.itemsize)*len(self.dataset) + arrow_size)
+		arrow_size = self.dataset.columns['name_arrow'].nbytes +\
+		             self.dataset.columns['name'].nbytes
+		self.assertEqual(self.dataset.byte_size(), (8*6 + 2)*len(self.dataset) + arrow_size)
 		self.dataset.select("x < 1")
-		self.assertEqual(self.dataset.byte_size(selection=True), 8*6 + 2 + self.dataset.columns['name'].dtype.itemsize + arrow_size)
+		self.assertEqual(self.dataset.byte_size(selection=True), 8*6 + 2 + arrow_size)
 
 	def test_ucd_find(self):
 		self.dataset.ucds["x"] = "a;b;c"

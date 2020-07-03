@@ -2,8 +2,10 @@ import vaex.serialize
 import json
 import numpy as np
 import pyarrow as pa
+import pyarrow.compute as pc
 from vaex import column
 from vaex.column import _to_string_sequence, _to_string_column, _to_string_list_sequence, _is_stringy
+from vaex.dataframe import docsubst
 import re
 import vaex.expression
 import functools
@@ -11,6 +13,21 @@ import six
 
 # @vaex.serialize.register_function
 # class Function(FunctionSerializable):
+
+
+def _arrow_string_might_grow(ar, factor):
+    # will upcast utf8 string to large_utf8 string when needed
+    # TODO: in the future we might be able to rely on Apache Arrow for this
+    # TODO: placeholder, needs a test
+    return ar
+
+
+def _arrow_string_kernel_dispatch(name, ascii, *args):
+    # helper function to call a pyarrow kernel
+    variant = 'ascii' if ascii else 'utf8'
+    kernel_name = f'{variant}_{name}'  # eg utf8_istitle / ascii_istitle
+    return pc.call_function(kernel_name, args)
+
 
 scopes = {
     'str': vaex.expression.StringOperations,
@@ -146,8 +163,11 @@ def fillmissing(ar, value):
     '''Returns an array where missing values are replaced by value.
     See :`ismissing` for the definition of missing values.
     '''
-    # TODO: optimize, we don't want to_numpy for strings, we want to
-    # do this in c++
+    # TODO: optimize once https://github.com/apache/arrow/pull/7656 gets in
+    was_string = _is_stringy(ar)
+    if was_string:
+        ar = np.array(ar)
+
     ar = ar if not isinstance(ar, column.Column) else ar.to_numpy()
     mask = ismissing(ar)
     if np.any(mask):
@@ -156,6 +176,8 @@ def fillmissing(ar, value):
         else:
             ar = ar.copy()
         ar[mask] = value
+    if was_string:
+        vaex.array_types.to_arrow(ar)
     return ar
 
 
@@ -182,6 +204,10 @@ def fillna(ar, value):
     See :`isna` for the definition of missing values.
 
     '''
+    # TODO: optimize once https://github.com/apache/arrow/pull/7656 gets in
+    was_string = _is_stringy(ar)
+    if was_string:
+        ar = np.array(ar)
     ar = ar if not isinstance(ar, column.Column) else ar.to_numpy()
     mask = isna(ar)
     if np.any(mask):
@@ -190,6 +216,8 @@ def fillna(ar, value):
         else:
             ar = ar.copy()
         ar[mask] = value
+    if was_string:
+        vaex.array_types.to_arrow(ar)
     return ar
 
 @register_function()
@@ -1048,7 +1076,10 @@ def str_contains(x, pattern, regex=True):
     3  False
     4  False
     """
-    return _to_string_sequence(x).search(pattern, regex)
+    if regex:
+        return _to_string_sequence(x).search(pattern, regex)
+    else:
+        return pc.match_substring(x, pattern)
 
 # TODO: default regex is False, which breaks with pandas
 @register_function(scope='str')
@@ -1382,8 +1413,7 @@ def str_lower(x):
     3          our
     4         way.
     """
-    sl = _to_string_sequence(x).lower()
-    return column.ColumnStringArrow.from_string_sequence(sl)
+    return pc.utf8_lower(x)
 
 
 @register_function(scope='str')
@@ -1861,9 +1891,11 @@ def str_title(x):
 
 
 @register_function(scope='str')
-def str_upper(x):
+@docsubst
+def str_upper(x, ascii=False):
     """Converts all strings in a column to uppercase.
 
+    :param bool ascii: {ascii}
     :returns: an expression containing the converted strings.
 
     Example:
@@ -1891,8 +1923,10 @@ def str_upper(x):
     4         WAY.
 
     """
-    sl = _to_string_sequence(x).upper()
-    return column.ColumnStringArrow.from_string_sequence(sl)
+    if ascii:
+        return pc.ascii_upper(x)
+    else:
+        return pc.utf8_upper(_arrow_string_might_grow(x, 3/2))
 
 
 # TODO: wrap, is*, get_dummies(maybe?)
@@ -1932,9 +1966,11 @@ def str_zfill(x, width):
 
 
 @register_function(scope='str')
-def str_isalnum(x):
+@docsubst
+def str_isalnum(x, ascii=False):
     """Check if all characters in a string sample are alphanumeric.
 
+    :param bool ascii: {ascii}
     :returns: an expression evaluated to True if a sample contains only alphanumeric characters, otherwise False.
 
     Example:
@@ -1960,7 +1996,9 @@ def str_isalnum(x):
     3   True
     4  False
     """
-    return _to_string_sequence(x).isalnum()
+    kernel_function = pc.ascii_is_alnum if ascii else pc.utf8_is_alnum
+    return kernel_function(x)
+
 
 @register_function(scope='str')
 def str_isalpha(x):
@@ -2117,9 +2155,11 @@ def str_isupper(x):
     """
     return _to_string_sequence(x).isupper()
 
-# @register_function(scope='str')
-# def str_istitle(x):
-#     return _to_string_sequence(x).istitle()
+@register_function(scope='str')
+def str_istitle(x, ascii=False):
+    '''TODO'''
+    return _arrow_string_kernel_dispatch('is_title', ascii, x)
+
 
 # @register_function(scope='str')
 # def str_isnumeric(x):

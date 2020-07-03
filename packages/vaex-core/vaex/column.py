@@ -368,7 +368,9 @@ def _to_string(string_bytes):
 
 
 def _is_stringy(x):
-    if isinstance(x, ColumnString):
+    if vaex.array_types.is_string(x):
+        return True
+    elif isinstance(x, ColumnString):
         return True
     elif isinstance(x, np.ndarray):
         if x.dtype.kind in 'US':
@@ -562,6 +564,10 @@ class ColumnStringArrow(ColumnString):
     def from_string_sequence(cls, string_sequence):
         s = string_sequence
         return cls(s.indices, s.bytes, s.length, s.offset, string_sequence=s, null_bitmap=s.null_bitmap)
+
+    @classmethod
+    def from_arrow(cls, ar):
+        return cls.from_string_sequence(_to_string_sequence(ar))
 
     def _zeros_like(self):
         return ColumnStringArrow(np.zeros_like(self.indices), np.zeros_like(self.bytes), self.length, null_bitmap=self.null_bitmap)

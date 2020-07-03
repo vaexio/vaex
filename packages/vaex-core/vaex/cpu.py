@@ -7,6 +7,7 @@ import vaex
 import vaex.encoding
 from .utils import as_flat_float, as_flat_array, _issequence, _ensure_list
 from . import array_types
+from .array_types import filter
 
 
 _task_part_register = {}
@@ -114,13 +115,13 @@ class TaskPartMapReduce(TaskPart):
             if self.pre_filter:
                 if selection:
                     selection_mask = self.df.evaluate_selection_mask(selection, i1=i1, i2=i2, cache=True)
-                    blocks = [block[selection_mask] for block in blocks]
+                    blocks = [filter(block, selection_mask) for block in blocks]
             else:
                 if selection or self.df.filtered:
                     selection_mask = self.df.evaluate_selection_mask(selection, i1=i1, i2=i2, cache=True, pre_filtered=False)
                     if filter_mask is not None:
                         selection_mask = selection_mask & filter_mask
-                    blocks = [block[selection_mask] for block in blocks]
+                    blocks = [filter(block, selection_mask) for block in blocks]
         if self.info:
             self.values.append(self._map(thread_index, i1, i2, *blocks))
         else:

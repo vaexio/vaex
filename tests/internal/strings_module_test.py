@@ -226,11 +226,6 @@ def test_arrow_basics():
     assert list(c.to_numpy()) == ["ap", "oot",  None, "ies"]
 
     assert sys.getrefcount(sl) == 2
-    c = sl.lower()
-    assert list(c.to_numpy()) == ["aap", "noot",  None, "mies"]
-
-    c = sl.upper()
-    assert list(c.to_numpy()) == ["AAP", "NOOT",  None, "MIES"]
 
     c = sl.count("a", False)
     assert c.tolist() == [2, 0, 0, 0]
