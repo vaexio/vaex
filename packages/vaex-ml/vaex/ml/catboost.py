@@ -64,8 +64,10 @@ class CatBoostModel(state.HasState):
     prediction_type = traitlets.Enum(values=['Probability', 'Class', 'RawFormulaVal'], default_value='Probability',
                                      help='The form of the predictions. Can be "RawFormulaVal", "Probability" or "Class".')
     batch_size = traitlets.CInt(default_value=None, allow_none=True, help='If provided, will train in batches of this size.')
-    batch_weights = traitlets.List(traitlets.Float(), default_value=None, allow_none=True, help='Weights to sum models at the end of training in batches.')
+    batch_weights = traitlets.List(traitlets.Float(), default_value=[], allow_none=True, help='Weights to sum models at the end of training in batches.')
     evals_result_ = traitlets.List(traitlets.Dict(), default_value=[], help="Evaluation results")
+    ctr_merge_policy = traitlets.Enum(values=['FailIfCtrsIntersects', 'LeaveMostDiversifiedTable', 'IntersectingCountersAverage'],
+                                      default_value='IntersectingCountersAverage', help="Strategy for summing up models. Only used when training in batches. See the CatBoost documentation for more info.")
 
     def __call__(self, *args):
         data2d = np.vstack([arg.astype(np.float64) for arg in args]).T.copy()
@@ -125,7 +127,6 @@ class CatBoostModel(state.HasState):
             self.feature_importances_ = list(model.feature_importances_)
         else:
             models = []
-            batch_weights = self.batch_weights if 0 < len(self.batch_weights) else None
 
             # Set up progressbar
             n_samples = len(df)
@@ -149,10 +150,17 @@ class CatBoostModel(state.HasState):
                 self.evals_result_.append(model.evals_result_)
                 models.append(model)
             progressbar(1.0)
-            if batch_weights is not None and len(batch_weights) != len(models):
-                print("Warning, 'batch_weights' is not the same length as the number of models, ignore.")
-                batch_weights = None
-            self.booster = catboost.sum_models(models, weights=batch_weights)
+
+            # Weights are key when summing models
+            if len(self.batch_weights) == 0:
+                batch_weights = [1/len(models)] * len(models)
+            elif self.batch_weights is not None and len(self.batch_weights) != len(models):
+                raise ValueError("'batch_weights' must be te same length as the number of models.")
+            else:
+                batch_weights = self.batch_weights
+
+            # Sum the models
+            self.booster = catboost.sum_models(models, weights=batch_weights, ctr_merge_policy=self.ctr_merge_policy)
 
 
     def predict(self, df, **kwargs):
