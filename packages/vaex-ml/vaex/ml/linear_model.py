@@ -11,10 +11,11 @@ from . import generate
 def listify(l):
     if hasattr(l, 'tolist'):
         return l.tolist()
-    try:
-        return [listify(k) for k in l]
-    except TypeError:
-        return l
+    else:
+        try:
+            return [listify(k) for k in l]
+        except TypeError:
+            return l
 
 
 class _LinearBase(state.HasState):
@@ -65,8 +66,8 @@ class _LinearBase(state.HasState):
             def coordinates(expression, limits, shape):
                 if dataset.is_category(expression):
                     return np.arange(dataset.category_count(expression))
-                return dataset.bin_centers(expression, limits, shape)
-                
+                else:
+                    return dataset.bin_centers(expression, limits, shape)
             centers = [coordinates(expression, l, shape) for expression, l, shape
                        in zip(binby, self.limits, shapes)]
             # l = ds.bin_centers('y', limits[1], shape)

@@ -366,13 +366,13 @@ class StandardScaler(Transformer):
         '''
 
         copy = df.copy()
-        for i, feature in enumerate(self.features):
-            name = self.prefix+feature
-            expression = copy[feature]
+        for i in range(len(self.features)):
+            name = self.prefix+self.features[i]
+            expression = copy[self.features[i]]
             if self.with_mean:
-                expression -= self.mean_[i]
+                expression = expression - self.mean_[i]
             if self.with_std:
-                expression /= self.std_[i]
+                expression = expression / self.std_[i]
             copy[name] = expression
         return copy
 
@@ -432,11 +432,11 @@ class MinMaxScaler(Transformer):
 
         copy = df.copy()
 
-        for i, feature in enumerate(self.features):
-            name = self.prefix + feature
+        for i in range(len(self.features)):
+            name = self.prefix + self.features[i]
             a = self.feature_range[0]
             b = self.feature_range[1]
-            expr = copy[feature]
+            expr = copy[self.features[i]]
             expr = (b-a)*(expr-self.fmin_[i])/(self.fmax_[i]-self.fmin_[i]) + a
             copy[name] = expr
         return copy
@@ -492,9 +492,9 @@ class MaxAbsScaler(Transformer):
         '''
 
         copy = df.copy()
-        for i, feature in enumerate(self.features):
-            name = self.prefix + feature
-            expr = copy[feature]
+        for i in range(len(self.features)):
+            name = self.prefix + self.features[i]
+            expr = copy[self.features[i]]
             expr = expr / self.absmax_[i]
             copy[name] = expr
         return copy
@@ -564,13 +564,13 @@ class RobustScaler(Transformer):
         '''
 
         copy = df.copy()
-        for i, feature in enumerate(self.features):
-            name = self.prefix+feature
-            expr = copy[feature]
+        for i in range(len(self.features)):
+            name = self.prefix+self.features[i]
+            expr = copy[self.features[i]]
             if self.with_centering:
-                expr -= self.center_[i]
+                expr = expr - self.center_[i]
             if self.with_scaling:
-                expr /= self.scale_[i]
+                expr = expr / self.scale_[i]
             copy[name] = expr
         return copy
 
