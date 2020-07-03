@@ -247,7 +247,8 @@ def test_minmax_mixed_types():
     x = np.array([1, 0], dtype=np.int)
     y = np.array([0.5, 1.5], dtype=np.float)
     df = vaex.from_arrays(x=x, y=y)
-    assert df.minmax(['x', 'y']).tolist() == [[0.0, 1.0], [0.5, 1.5]]
+    with pytest.raises(TypeError):
+        df.minmax(['x', 'y'])
 
 
 def test_big_endian_binning():
