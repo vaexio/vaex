@@ -11,7 +11,7 @@ import vaex.utils
 import vaex.execution
 import vaex.export
 import vaex.hdf5.dataset
-from vaex.column import ColumnStringArrow, str_type
+from vaex.column import ColumnStringArrow
 
 max_length = int(1e5)
 
@@ -119,13 +119,11 @@ def export_hdf5(dataset, path, column_names=None, byteorder="=", shuffle=False, 
     :param: bool virtual: When True, export virtual columns
     :return:
     """
-    
     if selection:
         if selection == True:  # easier to work with the name
             selection = "default"
     # first open file using h5py api
     with h5py.File(path, "w") as h5file_output:
-        
         h5table_output = h5file_output.require_group("/table")
         h5table_output.attrs["type"] = "table"
         h5columns_output = h5file_output.require_group("/table/columns")
@@ -137,7 +135,6 @@ def export_hdf5(dataset, path, column_names=None, byteorder="=", shuffle=False, 
         logger.debug("exporting %d rows to file %s" % (N, path))
         # column_names = column_names or (dataset.get_column_names() + (list(dataset.virtual_columns.keys()) if virtual else []))
         column_names = column_names or dataset.get_column_names(virtual=virtual, strings=True, alias=False)
-        
         logger.debug("exporting columns(hdf5): %r" % column_names)
         sparse_groups = collections.defaultdict(list)
         sparse_matrices = {}  # alternative to a set of matrices, since they are not hashable
@@ -150,13 +147,9 @@ def export_hdf5(dataset, path, column_names=None, byteorder="=", shuffle=False, 
                 sparse_matrices[id(sparse_matrix)] = sparse_matrix
                 continue
             dtype = dataset.data_type(column_name)
-            if column_name in dataset.get_column_names(virtual=False):
-                column = dataset.columns[column_name]
-                shape = (N,) + column.shape[1:]
-            else:
-                shape = (N,)
+            shape = (N, ) + dataset._shape_of(column_name)[1:]
             h5column_output = h5columns_output.require_group(column_name)
-            if dtype == str_type:
+            if vaex.array_types.is_string_type(dtype):
                 # TODO: if no selection or filter, we could do this
                 # if isinstance(column, ColumnStringArrow):
                 #     data_shape = column.bytes.shape
@@ -171,7 +164,6 @@ def export_hdf5(dataset, path, column_names=None, byteorder="=", shuffle=False, 
                     dtype_indices = 'i8'
                 else:
                     dtype_indices = 'i4'
-                
                 data_shape = (byte_length, )
                 indices_shape = (N+1, )
 
@@ -214,7 +206,6 @@ def export_hdf5(dataset, path, column_names=None, byteorder="=", shuffle=False, 
                 if np.ma.isMaskedArray(data):
                     mask = h5column_output.require_dataset('mask', shape=shape, dtype=np.bool)
                     mask[0] = mask[0]  # make sure the array really exists
-
         random_index_name = None
         column_order = list(column_names)  # copy
         if shuffle:
@@ -225,7 +216,6 @@ def export_hdf5(dataset, path, column_names=None, byteorder="=", shuffle=False, 
             shuffle_array[0] = shuffle_array[0]
             column_order.append(random_index_name)  # last item
         h5columns_output.attrs["column_order"] = ",".join(column_order)  # keep track or the ordering of columns
-
         sparse_index = 0
         for sparse_matrix in sparse_matrices.values():
             columns = sorted(sparse_groups[id(sparse_matrix)], key=lambda col: dataset.columns[col].column_index)
@@ -244,7 +234,6 @@ def export_hdf5(dataset, path, column_names=None, byteorder="=", shuffle=False, 
             for i, column_name in enumerate(columns):
                 h5column = sparse_group.require_group(column_name)
                 h5column.attrs['column_index'] = i
-    
     # after this the file is closed,, and reopen it using out class
     dataset_output = vaex.hdf5.dataset.Hdf5MemoryMapped(path, write=True)
     gc.collect()
@@ -262,7 +251,6 @@ def export_hdf5(dataset, path, column_names=None, byteorder="=", shuffle=False, 
     dataset_output.copy_metadata(dataset)
     dataset_output.description = description
     logger.debug("writing meta information")
-    
     dataset_output.write_meta()
     dataset_output.close_files()
     gc.collect()
