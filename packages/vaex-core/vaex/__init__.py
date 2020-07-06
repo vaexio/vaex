@@ -346,9 +346,10 @@ def from_arrays(**arrays):
             df.add_column(name, array)
     return df
 
+
 def from_arrow_table(table, as_numpy=True):
     """Creates a vaex DataFrame from an arrow Table.
-
+    
     :param as_numpy: Will lazily cast columns to a NumPy ndarray.
     :rtype: DataFrame
     """
@@ -534,14 +535,17 @@ def _from_csv_convert_and_read(filename_or_buffer, copy_index, maybe_convert_pat
 
     # convert CSV chunks to separate HDF5 files
     import pandas as pd
+    import gc
     converted_paths = []
     csv_reader = pd.read_csv(filename_or_buffer, chunksize=chunk_size, **kwargs)
+    gc.collect()
     for i, df_pandas in enumerate(csv_reader):
-        df = from_pandas(df_pandas, copy_index=copy_index)
+        vaex_df = from_pandas(df_pandas, copy_index=copy_index)
         filename_hdf5 = _convert_name(csv_path, suffix='_chunk%d' % i)
-        df.export_hdf5(filename_hdf5, shuffle=False)
+        vaex_df.export_hdf5(filename_hdf5, shuffle=False)
         converted_paths.append(filename_hdf5)
         logger.info('saved chunk #%d to %s' % (i, filename_hdf5))
+        gc.collect()        
 
     # combine chunks into one HDF5 file
     if len(converted_paths) == 1:
@@ -551,8 +555,9 @@ def _from_csv_convert_and_read(filename_or_buffer, copy_index, maybe_convert_pat
         logger.info('converting %d chunks into single HDF5 file %s' % (len(converted_paths), combined_hdf5))
         dfs = [vaex.file.open(p) for p in converted_paths]
         df_combined = vaex.dataframe.DataFrameConcatenated(dfs)
+        gc.collect()
         df_combined.export_hdf5(combined_hdf5, shuffle=False)
-
+        
         logger.info('deleting %d chunk files' % len(converted_paths))
         for df, df_path in zip(dfs, converted_paths):
             try:

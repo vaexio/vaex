@@ -1,5 +1,6 @@
 from __future__ import division, print_function
 __author__ = 'maartenbreddels'
+import gc
 import os
 import sys
 import collections
@@ -118,13 +119,13 @@ def export_hdf5(dataset, path, column_names=None, byteorder="=", shuffle=False, 
     :param: bool virtual: When True, export virtual columns
     :return:
     """
-
+    
     if selection:
         if selection == True:  # easier to work with the name
             selection = "default"
     # first open file using h5py api
     with h5py.File(path, "w") as h5file_output:
-
+    
         h5table_output = h5file_output.require_group("/table")
         h5table_output.attrs["type"] = "table"
         h5columns_output = h5file_output.require_group("/table/columns")
@@ -136,11 +137,12 @@ def export_hdf5(dataset, path, column_names=None, byteorder="=", shuffle=False, 
         logger.debug("exporting %d rows to file %s" % (N, path))
         # column_names = column_names or (dataset.get_column_names() + (list(dataset.virtual_columns.keys()) if virtual else []))
         column_names = column_names or dataset.get_column_names(virtual=virtual, strings=True, alias=False)
-
+        
         logger.debug("exporting columns(hdf5): %r" % column_names)
         sparse_groups = collections.defaultdict(list)
         sparse_matrices = {}  # alternative to a set of matrices, since they are not hashable
         for column_name in list(column_names):
+            gc.collect()
             sparse_matrix = dataset._sparse_matrix(column_name)
             if sparse_matrix is not None:
                 # sparse columns are stored differently
@@ -156,13 +158,17 @@ def export_hdf5(dataset, path, column_names=None, byteorder="=", shuffle=False, 
                 #     data_shape = column.bytes.shape
                 #     indices_shape = column.indices.shape
                 # else:
-
-                byte_length = dataset[column_name].str.byte_length().sum(selection=selection)
+                
+                byte_length = dataset[column_name].str.byte_length()
+                gc.collect()
+                byte_length = byte_length.sum(selection=selection)
+                gc.collect()
+                
                 if byte_length > max_int32:
                     dtype_indices = 'i8'
                 else:
                     dtype_indices = 'i4'
-
+                    
                 data_shape = (byte_length, )
                 indices_shape = (N+1, )
 
@@ -172,13 +178,13 @@ def export_hdf5(dataset, path, column_names=None, byteorder="=", shuffle=False, 
 
                 index_array = h5column_output.require_dataset('indices', shape=indices_shape, dtype=dtype_indices)
                 index_array[0] = index_array[0]  # make sure the array really exists
-
+                gc.collect()
                 null_value_count = N - dataset.count(column_name, selection=selection)
                 if null_value_count > 0:
                     null_shape = ((N + 7) // 8, )  # TODO: arrow requires padding right?
                     null_bitmap_array = h5column_output.require_dataset('null_bitmap', shape=null_shape, dtype='u1')
                     null_bitmap_array[0] = null_bitmap_array[0]  # make sure the array really exists
-
+                gc.collect()
                 array.attrs["dtype"] = 'str'
                 # TODO: masked support ala arrow?
             else:
@@ -215,7 +221,7 @@ def export_hdf5(dataset, path, column_names=None, byteorder="=", shuffle=False, 
             shuffle_array[0] = shuffle_array[0]
             column_order.append(random_index_name)  # last item
         h5columns_output.attrs["column_order"] = ",".join(column_order)  # keep track or the ordering of columns
-
+        
         sparse_index = 0
         for sparse_matrix in sparse_matrices.values():
             columns = sorted(sparse_groups[id(sparse_matrix)], key=lambda col: dataset.columns[col].column_index)
@@ -234,10 +240,10 @@ def export_hdf5(dataset, path, column_names=None, byteorder="=", shuffle=False, 
             for i, column_name in enumerate(columns):
                 h5column = sparse_group.require_group(column_name)
                 h5column.attrs['column_index'] = i
-
+                
     # after this the file is closed,, and reopen it using out class
     dataset_output = vaex.hdf5.dataset.Hdf5MemoryMapped(path, write=True)
-
+    gc.collect()
     column_names = vaex.export._export(dataset_input=dataset, dataset_output=dataset_output, path=path, random_index_column=random_index_name,
                                        column_names=column_names, selection=selection, shuffle=shuffle, byteorder=byteorder,
                                        progress=progress, sort=sort, ascending=ascending)
@@ -254,4 +260,4 @@ def export_hdf5(dataset, path, column_names=None, byteorder="=", shuffle=False, 
     logger.debug("writing meta information")
     dataset_output.write_meta()
     dataset_output.close_files()
-    return
+    gc.collect()
