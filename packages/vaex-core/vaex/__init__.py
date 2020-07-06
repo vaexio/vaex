@@ -336,25 +336,23 @@ def from_arrays(**arrays):
     """
     import numpy as np
     import six
-    from .column import Column, supported_column_types
+    from .column import Column
     df = vaex.dataframe.DataFrameArrays("array")
     for name, array in arrays.items():
-        if isinstance(array, supported_column_types):
+        if isinstance(array, Column):
             df.add_column(name, array)
         else:
             array = np.asanyarray(array)
             df.add_column(name, array)
     return df
 
-def from_arrow_table(table, as_numpy=True):
+def from_arrow_table(table):
     """Creates a vaex DataFrame from an arrow Table.
 
-    :param as_numpy: Will lazily cast columns to a NumPy ndarray.
     :rtype: DataFrame
     """
-    from vaex.arrow.dataset import from_table
-    return from_table(table=table, as_numpy=as_numpy)
-
+    from vaex_arrow.convert import vaex_df_from_arrow_table
+    return vaex_df_from_arrow_table(table=table)
 
 def from_scalars(**kwargs):
     """Similar to from_arrays, but convenient for a DataFrame of length 1.
@@ -534,25 +532,32 @@ def _from_csv_convert_and_read(filename_or_buffer, copy_index, maybe_convert_pat
 
     # convert CSV chunks to separate HDF5 files
     import pandas as pd
+    import gc
     converted_paths = []
     csv_reader = pd.read_csv(filename_or_buffer, chunksize=chunk_size, **kwargs)
+    gc.collect()
     for i, df_pandas in enumerate(csv_reader):
-        df = from_pandas(df_pandas, copy_index=copy_index)
+        vaex_df = from_pandas(df_pandas, copy_index=copy_index)
         filename_hdf5 = _convert_name(csv_path, suffix='_chunk%d' % i)
-        df.export_hdf5(filename_hdf5, shuffle=False)
+        vaex_df.export_hdf5(filename_hdf5, shuffle=False)
         converted_paths.append(filename_hdf5)
         logger.info('saved chunk #%d to %s' % (i, filename_hdf5))
-
+        gc.collect()
+        
+    print('arrived here!!!')
+    print(len(converted_paths))
     # combine chunks into one HDF5 file
     if len(converted_paths) == 1:
         # no need to merge several HDF5 files
         os.rename(converted_paths[0], combined_hdf5)
     else:
         logger.info('converting %d chunks into single HDF5 file %s' % (len(converted_paths), combined_hdf5))
+        
         dfs = [vaex.file.open(p) for p in converted_paths]
         df_combined = vaex.dataframe.DataFrameConcatenated(dfs)
+        gc.collect()
         df_combined.export_hdf5(combined_hdf5, shuffle=False)
-
+        
         logger.info('deleting %d chunk files' % len(converted_paths))
         for df, df_path in zip(dfs, converted_paths):
             try:
@@ -786,9 +791,6 @@ for entry in pkg_resources.iter_entry_points(group='vaex.dataframe.accessor'):
 
 
 for entry in pkg_resources.iter_entry_points(group='vaex.plugin'):
-    if entry.module_name == 'vaex_arrow.opener':
-        # if vaex_arrow package is installed, we ignore it
-        continue
     logger.debug('adding vaex plugin: ' + entry.name)
     try:
         add_namespace = entry.load()
@@ -811,6 +813,6 @@ def vrange(start, stop, step=1, dtype='f8'):
     return ColumnVirtualRange(start, stop, step, dtype)
 
 def string_column(strings):
-    from vaex.arrow.convert import column_from_arrow_array
+    from vaex_arrow.convert import column_from_arrow_array
     import pyarrow as pa
     return column_from_arrow_array(pa.array(strings))

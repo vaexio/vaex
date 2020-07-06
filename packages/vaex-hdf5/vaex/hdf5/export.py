@@ -1,5 +1,6 @@
 from __future__ import division, print_function
 __author__ = 'maartenbreddels'
+import gc
 import os
 import sys
 import collections
@@ -10,7 +11,7 @@ import vaex.utils
 import vaex.execution
 import vaex.export
 import vaex.hdf5.dataset
-from vaex.column import ColumnStringArrow
+from vaex.column import ColumnStringArrow, str_type
 
 max_length = int(1e5)
 
@@ -118,13 +119,13 @@ def export_hdf5(dataset, path, column_names=None, byteorder="=", shuffle=False, 
     :param: bool virtual: When True, export virtual columns
     :return:
     """
-
+    
     if selection:
         if selection == True:  # easier to work with the name
             selection = "default"
     # first open file using h5py api
     with h5py.File(path, "w") as h5file_output:
-
+        
         h5table_output = h5file_output.require_group("/table")
         h5table_output.attrs["type"] = "table"
         h5columns_output = h5file_output.require_group("/table/columns")
@@ -136,11 +137,12 @@ def export_hdf5(dataset, path, column_names=None, byteorder="=", shuffle=False, 
         logger.debug("exporting %d rows to file %s" % (N, path))
         # column_names = column_names or (dataset.get_column_names() + (list(dataset.virtual_columns.keys()) if virtual else []))
         column_names = column_names or dataset.get_column_names(virtual=virtual, strings=True, alias=False)
-
+        
         logger.debug("exporting columns(hdf5): %r" % column_names)
         sparse_groups = collections.defaultdict(list)
         sparse_matrices = {}  # alternative to a set of matrices, since they are not hashable
         for column_name in list(column_names):
+            gc.collect()
             sparse_matrix = dataset._sparse_matrix(column_name)
             if sparse_matrix is not None:
                 # sparse columns are stored differently
@@ -148,21 +150,28 @@ def export_hdf5(dataset, path, column_names=None, byteorder="=", shuffle=False, 
                 sparse_matrices[id(sparse_matrix)] = sparse_matrix
                 continue
             dtype = dataset.data_type(column_name)
-            shape = (N, ) + dataset._shape_of(column_name)[1:]
+            if column_name in dataset.get_column_names(virtual=False):
+                column = dataset.columns[column_name]
+                shape = (N,) + column.shape[1:]
+            else:
+                shape = (N,)
             h5column_output = h5columns_output.require_group(column_name)
-            if vaex.array_types.is_string_type(dtype):
+            if dtype == str_type:
                 # TODO: if no selection or filter, we could do this
                 # if isinstance(column, ColumnStringArrow):
                 #     data_shape = column.bytes.shape
                 #     indices_shape = column.indices.shape
                 # else:
-
-                byte_length = dataset[column_name].str.byte_length().sum(selection=selection)
+                byte_length = dataset[column_name].str.byte_length()
+                gc.collect()
+                byte_length = byte_length.sum(selection=selection)
+                gc.collect()
+                
                 if byte_length > max_int32:
                     dtype_indices = 'i8'
                 else:
                     dtype_indices = 'i4'
-
+                
                 data_shape = (byte_length, )
                 indices_shape = (N+1, )
 
@@ -172,13 +181,13 @@ def export_hdf5(dataset, path, column_names=None, byteorder="=", shuffle=False, 
 
                 index_array = h5column_output.require_dataset('indices', shape=indices_shape, dtype=dtype_indices)
                 index_array[0] = index_array[0]  # make sure the array really exists
-
+                gc.collect()
                 null_value_count = N - dataset.count(column_name, selection=selection)
                 if null_value_count > 0:
                     null_shape = ((N + 7) // 8, )  # TODO: arrow requires padding right?
                     null_bitmap_array = h5column_output.require_dataset('null_bitmap', shape=null_shape, dtype='u1')
                     null_bitmap_array[0] = null_bitmap_array[0]  # make sure the array really exists
-
+                gc.collect()
                 array.attrs["dtype"] = 'str'
                 # TODO: masked support ala arrow?
             else:
@@ -205,6 +214,7 @@ def export_hdf5(dataset, path, column_names=None, byteorder="=", shuffle=False, 
                 if np.ma.isMaskedArray(data):
                     mask = h5column_output.require_dataset('mask', shape=shape, dtype=np.bool)
                     mask[0] = mask[0]  # make sure the array really exists
+
         random_index_name = None
         column_order = list(column_names)  # copy
         if shuffle:
@@ -234,10 +244,10 @@ def export_hdf5(dataset, path, column_names=None, byteorder="=", shuffle=False, 
             for i, column_name in enumerate(columns):
                 h5column = sparse_group.require_group(column_name)
                 h5column.attrs['column_index'] = i
-
+    
     # after this the file is closed,, and reopen it using out class
     dataset_output = vaex.hdf5.dataset.Hdf5MemoryMapped(path, write=True)
-
+    gc.collect()
     column_names = vaex.export._export(dataset_input=dataset, dataset_output=dataset_output, path=path, random_index_column=random_index_name,
                                        column_names=column_names, selection=selection, shuffle=shuffle, byteorder=byteorder,
                                        progress=progress, sort=sort, ascending=ascending)
@@ -252,6 +262,7 @@ def export_hdf5(dataset, path, column_names=None, byteorder="=", shuffle=False, 
     dataset_output.copy_metadata(dataset)
     dataset_output.description = description
     logger.debug("writing meta information")
+    
     dataset_output.write_meta()
     dataset_output.close_files()
-    return
+    gc.collect()
