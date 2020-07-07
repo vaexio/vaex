@@ -107,7 +107,7 @@ class KMeans(vaex.ml.state.HasState):
         k = centroids.shape[0]
         dimensions = centroids.shape[1]
         distances_sq = np.zeros((k, N))
-        if 1:
+        if True:
             distances_square(distances_sq, centroids, *blocks)
         else:
             for d in range(dimensions):
