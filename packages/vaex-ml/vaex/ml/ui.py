@@ -40,9 +40,7 @@ class Widgetize(widgets.VBox):
 
                 if isinstance(widget, widgets.SelectMultiple):
                     widget.options = self.dataframe.get_column_names(virtual=True, strings=True)
-                    traitlets.link((self.pipeline_object, trait_name), (widget, 'value'))
-                else:
-                    traitlets.link((self.pipeline_object, trait_name), (widget, 'value'))
+                traitlets.link((self.pipeline_object, trait_name), (widget, 'value'))
 
         fit_button = widgets.Button(description='Fit', button_style='info')
         fit_button.on_click(lambda button: self.pipeline_object.fit(self.dataframe))
