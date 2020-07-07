@@ -201,7 +201,7 @@ class KMeans(vaex.ml.state.HasState):
             sumpos = np.zeros((runs, clusters, dimensions))
             counts = np.zeros((runs, clusters))
             inertia = np.zeros((runs))
-            if 1:
+            if True:
                 centroid_stats(centroids, counts, sumpos, inertia,  *blocks)
             else:
                 # this is the pure python code
