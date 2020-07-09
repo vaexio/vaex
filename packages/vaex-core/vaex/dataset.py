@@ -1,3 +1,4 @@
+from pathlib import Path
 from .dataframe import *
 from .dataframe import (
     # .dataframe imports from .utils
@@ -35,10 +36,14 @@ DatasetConcatenated = DataFrameConcatenated
 
 import os
 import collections.abc
-from frozendict import frozendict
-import blake3
 import numpy as np
 import uuid
+import logging
+
+logger = logging.getLogger('vaex.dataset')
+
+import blake3
+from frozendict import frozendict
 
 from .column import Column, supported_column_types
 import pyarrow as pa
@@ -149,6 +154,8 @@ class Dataset(collections.abc.Mapping):
             return NotImplemented
         return self._ids == rhs._ids
 
+    def __hash__(self):
+        return hash(self._ids)
 
 class DatasetRenamed(Dataset):
     def __init__(self, original, renaming):
@@ -189,28 +196,66 @@ class DatasetFile(Dataset):
     """Datasets that map to a file can keep their ids/hashes in the file itself,
     or keep them in a meta file.
     """
-    def __init__(self, path):
+    def __init__(self, path, write=False):
         self.path = path
+        self.write = write
         self._columns = {}
         self._ids = {}
+        self._frozen = False
+        self._hash_calculations = 0  # track it for testing purposes
+        self._disk_cached_hashes = {}
+        self._read_hashes()
+
+    def _read_hashes(self):
+        path_hashes = Path(self.path + '.d') / 'hashes.yaml'
+        if path_hashes.exists():
+            with path_hashes.open() as f:
+                self._disk_cached_hashes = vaex.utils.yaml_load(f).get('columns', {})
+
+    def _freeze(self):
+        if self.write:
+            for name, column in self.items():
+                logging.error(f'Calculating hash for column {name} of length {len(column)} (1 time operation, will be cached on disk)')
+                hash = hash_array(column)
+                self._hash_calculations += 1
+                self._ids[name] = hash
+        self._ids = frozendict(self._ids)
+        self._columns = frozendict(self._columns)
+        directory = Path(self.path + '.d')
+        directory.mkdir(exist_ok=True)
+        path_hashes = directory / 'hashes.yaml'
+        with path_hashes.open('w') as f:
+            vaex.utils.yaml_dump(f, {'columns': dict(self._ids)})
+        self._frozen = True
 
     def __getstate__(self):
         # we don't have the columns in the state, since we should be able
         # to get them from disk again
         return {
-            '_ids': self._ids
+            'write': self.write,
+            'path': self.path,
+            '_ids': dict(self._ids)  # serialize the hases as non-frozen dict
         }
 
     def __setstate__(self, state):
         self.__dict__.update(state)
+        # 'ctor' like initialization
+        self._frozen = False
+        self._hash_calculations = 0
         self._columns = {}
+        self._disk_cached_hashes = {}
 
     def add_column(self, name, data):
         self._columns[name] = data
-        # we wanna cache this
-        # if unpickled, the ids are already there
-        if name not in self._ids:
-            self._ids[name] = hash_array(data)
+        if self.write:
+            return  # the columns don't include the final data
+            # the hashes will be done in .freeze()
+        hash = self._disk_cached_hashes.get(name)
+        if hash is None:
+            hash = hash_array(data)
+            logging.error(f'Calculating hash for column {name} of length {len(data)} (1 time operation, will be cached on disk)')
+            self._hash_calculations += 1
+        self._ids[name] = hash
 
         # self._columns, self._ids, self.attrs = read_hdf5(path)
 

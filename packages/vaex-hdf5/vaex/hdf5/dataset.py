@@ -71,6 +71,8 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
         self.h5table_root_name = None
         self._version = 1
         self._load()
+        if not write:  # in write mode, call freeze yourself, so the hashes are computed
+            self._freeze()
 
     def _open(self, path):
         if hasattr(path, 'read'):
@@ -97,8 +99,6 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
     def __getstate__(self):
         return {
             **super().__getstate__(),
-            'write': self.write,
-            'path': self.path,
             'nommap': self.nommap
         }
 
@@ -106,6 +106,7 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
         super().__setstate__(state)
         self._open(self.path)
         self._load()
+        self._freeze()
 
     def write_meta(self):
         """ucds, descriptions and units are written as attributes in the hdf5 file, instead of a seperate file as
