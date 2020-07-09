@@ -237,21 +237,23 @@ def export_hdf5(dataset, path, column_names=None, byteorder="=", shuffle=False, 
 
     # after this the file is closed,, and reopen it using out class
     dataset_output = vaex.hdf5.dataset.Hdf5MemoryMapped(path, write=True)
+    df_output = vaex.dataframe.DataFrameLocal(dataset_output)
 
-    column_names = vaex.export._export(dataset_input=dataset, dataset_output=dataset_output, path=path, random_index_column=random_index_name,
+    column_names = vaex.export._export(dataset_input=dataset, dataset_output=df_output, path=path, random_index_column=random_index_name,
                                        column_names=column_names, selection=selection, shuffle=shuffle, byteorder=byteorder,
                                        progress=progress, sort=sort, ascending=ascending)
+    dataset_output._freeze()
     import getpass
     import datetime
     user = getpass.getuser()
     date = str(datetime.datetime.now())
-    source = dataset.path
-    description = "file exported by vaex, by user %s, on date %s, from source %s" % (user, date, source)
-    if dataset.description:
-        description += "previous description:\n" + dataset.description
-    dataset_output.copy_metadata(dataset)
-    dataset_output.description = description
-    logger.debug("writing meta information")
-    dataset_output.write_meta()
-    dataset_output.close_files()
+    # source = dataset.path
+    # description = "file exported by vaex, by user %s, on date %s, from source %s" % (user, date, source)
+    # if dataset.description:
+    #     description += "previous description:\n" + dataset.description
+    # dataset_output.copy_metadata(dataset)
+    # dataset_output.description = description
+    # logger.debug("writing meta information")
+    # dataset_output.write_meta()
+    # dataset_output.close_files()
     return
