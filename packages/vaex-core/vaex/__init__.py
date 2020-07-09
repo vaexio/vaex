@@ -349,7 +349,7 @@ def from_arrays(**arrays):
 
 def from_arrow_table(table, as_numpy=True):
     """Creates a vaex DataFrame from an arrow Table.
-    
+
     :param as_numpy: Will lazily cast columns to a NumPy ndarray.
     :rtype: DataFrame
     """
@@ -557,7 +557,7 @@ def _from_csv_convert_and_read(filename_or_buffer, copy_index, maybe_convert_pat
         df_combined = vaex.dataframe.DataFrameConcatenated(dfs)
         gc.collect()
         df_combined.export_hdf5(combined_hdf5, shuffle=False)
-        
+
         logger.info('deleting %d chunk files' % len(converted_paths))
         for df, df_path in zip(dfs, converted_paths):
             try:

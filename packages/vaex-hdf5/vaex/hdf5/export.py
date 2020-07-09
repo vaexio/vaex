@@ -119,13 +119,13 @@ def export_hdf5(dataset, path, column_names=None, byteorder="=", shuffle=False, 
     :param: bool virtual: When True, export virtual columns
     :return:
     """
-    
+
     if selection:
         if selection == True:  # easier to work with the name
             selection = "default"
     # first open file using h5py api
     with h5py.File(path, "w") as h5file_output:
-    
+
         h5table_output = h5file_output.require_group("/table")
         h5table_output.attrs["type"] = "table"
         h5columns_output = h5file_output.require_group("/table/columns")
@@ -137,7 +137,7 @@ def export_hdf5(dataset, path, column_names=None, byteorder="=", shuffle=False, 
         logger.debug("exporting %d rows to file %s" % (N, path))
         # column_names = column_names or (dataset.get_column_names() + (list(dataset.virtual_columns.keys()) if virtual else []))
         column_names = column_names or dataset.get_column_names(virtual=virtual, strings=True, alias=False)
-        
+
         logger.debug("exporting columns(hdf5): %r" % column_names)
         sparse_groups = collections.defaultdict(list)
         sparse_matrices = {}  # alternative to a set of matrices, since they are not hashable
