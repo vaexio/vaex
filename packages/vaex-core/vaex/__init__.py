@@ -407,7 +407,7 @@ def from_pandas(df, name="pandas", copy_index=False, index_name="index"):
             except Exception as e:
                 print("Giving up column %s, error: %r" % (name, e))
     for name in df.columns:
-        add(name, df[name])
+        add(str(name), df[name])
     if copy_index:
         add(index_name, df.index)
     return from_dict(columns)
