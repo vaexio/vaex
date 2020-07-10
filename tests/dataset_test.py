@@ -126,6 +126,8 @@ def test_cache_hash():
     assert df2.dataset._hash_calculations == 0
     assert path_hashes.exists()
 
-    df3 = vaex.open(str(path_data))
-    assert df3.dataset._hash_calculations == 0
-    assert df2.dataset == df3.dataset
+    # and pickling
+    ds = df2.dataset
+    ds2 = rebuild(ds)
+    assert ds2._hash_calculations == 0
+    assert ds == ds2

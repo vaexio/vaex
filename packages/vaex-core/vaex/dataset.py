@@ -210,7 +210,10 @@ class DatasetFile(Dataset):
         path_hashes = Path(self.path + '.d') / 'hashes.yaml'
         if path_hashes.exists():
             with path_hashes.open() as f:
-                self._disk_cached_hashes = vaex.utils.yaml_load(f).get('columns', {})
+                hashes = vaex.utils.yaml_load(f)
+                if hashes is None:
+                    raise ValueError(f'{path_hashes} was probably truncated due to another process writing.')
+                self._disk_cached_hashes = hashes.get('columns', {})
 
     def _freeze(self):
         if self.write:
@@ -224,8 +227,11 @@ class DatasetFile(Dataset):
         directory = Path(self.path + '.d')
         directory.mkdir(exist_ok=True)
         path_hashes = directory / 'hashes.yaml'
-        with path_hashes.open('w') as f:
-            vaex.utils.yaml_dump(f, {'columns': dict(self._ids)})
+        # TODO: without this check, if multiple processes are writing (e.g. tests/execution_test.py::test_task_sum with ray)
+        # this leads to a race condition, where we write the file, and while truncated, _read_hases() fails (because the file exists)
+        if self._disk_cached_hashes != self._ids:
+            with path_hashes.open('w') as f:
+                vaex.utils.yaml_dump(f, {'columns': dict(self._ids)})
         self._frozen = True
 
     def __getstate__(self):
@@ -244,6 +250,7 @@ class DatasetFile(Dataset):
         self._hash_calculations = 0
         self._columns = {}
         self._disk_cached_hashes = {}
+        self._read_hashes()
 
     def add_column(self, name, data):
         self._columns[name] = data
