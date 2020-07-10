@@ -3,7 +3,7 @@ import pytest
 
 
 @pytest.mark.skipif(vaex.utils.devmode, reason='runs too slow when developing')
-def test_s3():
+def test_gcs():
     df = vaex.open('gs://vaex-data/testing/xys.hdf5?cache=false&token=anon')
     assert df.x.tolist() == [1, 2]
     assert df.y.tolist() == [3, 4]
@@ -16,7 +16,7 @@ def test_s3():
 
 
 @pytest.mark.skipif(vaex.utils.devmode, reason='runs too slow when developing')
-def test_s3_masked():
+def test_gcs_masked():
     df = vaex.open('gs://vaex-data/testing/xys-masked.hdf5?cache=false&token=anon')
     assert df.x.tolist() == [1, None]
     assert df.y.tolist() == [None, 4]
