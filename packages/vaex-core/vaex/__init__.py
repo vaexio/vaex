@@ -125,7 +125,7 @@ def open(path, convert=False, shuffle=False, copy_index=False, *args, **kwargs):
 
     S3 support:
 
-    Vaex supports streaming in hdf5 files from Amazon AWS object storage S3.
+    Vaex supports streaming of hdf5 files from Amazon AWS object storage S3.
     Files are by default cached in $HOME/.vaex/file-cache/s3 such that successive access
     is as fast as native disk access. The following url parameters control S3 options:
 
@@ -141,6 +141,18 @@ def open(path, convert=False, shuffle=False, copy_index=False, *args, **kwargs):
     >>> df = vaex.open('s3://vaex/taxi/yellow_taxi_2015_f32s.hdf5', anon=True)  # Note that anon is a boolean, not the string 'true'
     >>> df = vaex.open('s3://mybucket/path/to/file.hdf5?profile_name=myprofile')
 
+    GCS support:
+    Vaex supports streaming of hdf5 files from Google Cloud Storage.
+    Files are by default cached in $HOME/.vaex/file-cache/gs such that successive access
+    is as fast as native disk access. The following url parameters control GCS options:
+     * token: Authentication method for GCP. Use 'anon' for annonymous access. See https://gcsfs.readthedocs.io/en/latest/index.html#credentials for more details.
+     * use_cache: Use the disk cache or not, only set to false if the data should be accessed once. (Allowed values are: true,True,1,false,False,0).
+     * project and other arguments are passed to :py:class:`gcsfs.core.GCSFileSystem`
+
+    Examples:
+
+    >>> df = vaex.open('gs://vaex-data/airlines/us_airline_data_1988_2019.hdf5?token=anon')
+    >>> df = vaex.open('gs://vaex-data/testing/xys.hdf5?token=anon&cache=False')
     """
     import vaex
     try:
