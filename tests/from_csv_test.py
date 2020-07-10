@@ -21,6 +21,11 @@ def test_from_csv():
     df = vaex.from_csv(os.path.join(path, 'data', 'empty.csv'))
     assert len(df) == 0
 
+    # can read csv with no header
+    df = vaex.from_csv(os.path.join(path, 'data', 'noheader.csv'), header=None)
+    assert len(df) == 5
+    assert df.get_column_names() == ['0', '1', '2']
+
     # can read as chunks iterator
     df_iterator = vaex.from_csv(csv_path, chunk_size=1)
     df1 = next(df_iterator)

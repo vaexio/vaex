@@ -548,6 +548,8 @@ def valid_identifier(name):
 
 
 def find_valid_name(name, used=[]):
+    if isinstance(name, int):
+        name = str(name)
     first, rest = name[0], name[1:]
     if name in used:
         nr = 1
