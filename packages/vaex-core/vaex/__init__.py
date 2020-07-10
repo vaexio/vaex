@@ -174,6 +174,8 @@ def open(path, convert=False, shuffle=False, copy_index=False, *args, **kwargs):
                 # TODO: can we do glob with s3?
                 if path.startswith('s3://'):
                     filenames.append(path)
+                elif path.startswith('gs://'):
+                    filenames.append(path)
                 else:
                     # sort to get predictable behaviour (useful for testing)
                     filenames.extend(list(sorted(glob.glob(path))))
@@ -202,8 +204,6 @@ def open(path, convert=False, shuffle=False, copy_index=False, *args, **kwargs):
                 if ds is None:
                     if os.path.exists(path):
                         raise IOError('Could not open file: {}, did you install vaex-hdf5? Is the format supported?'.format(path))
-                    if os.path.exists(path):
-                        raise IOError('Could not open file: {}, it does not exist?'.format(path))
             elif len(filenames) > 1:
                 if convert not in [True, False]:
                     filename_hdf5 = convert

@@ -19,7 +19,7 @@ import vaex.dataset
 import vaex.file
 from vaex.expression import Expression
 from vaex.dataset_mmap import DatasetMemoryMapped
-from vaex.file import s3
+from vaex.file import gcs, s3
 from vaex.column import ColumnNumpyLike
 from vaex.file.column import ColumnFile
 
@@ -62,7 +62,8 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
 
     def __init__(self, filename, write=False):
         if isinstance(filename, six.string_types):
-            super(Hdf5MemoryMapped, self).__init__(filename, write=write, nommap=filename.startswith('s3://'))
+            nommap = s3.is_s3_path(filename) or gcs.is_gs_path(filename)
+            super(Hdf5MemoryMapped, self).__init__(filename, write=write, nommap=nommap)
         else:
             super(Hdf5MemoryMapped, self).__init__(filename.name, write=write, nommap=True)
         if hasattr(filename, 'read'):
@@ -72,6 +73,9 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
             mode = 'rb+' if write else 'rb'
             if s3.is_s3_path(filename):
                 fp = s3.open(self.filename)
+                self.file_map[self.filename] = fp
+            elif gcs.is_gs_path(filename):
+                fp = gcs.open(filename)
                 self.file_map[self.filename] = fp
             else:
                 if self.nommap:
@@ -101,7 +105,7 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
                 else:
                     for group in h5columns.values():
                         if 'type' in group.attrs:
-                            if group.attrs['type'] in ['csr_matrix']: 
+                            if group.attrs['type'] in ['csr_matrix']:
                                 for name, column in group.items():
                                     if name == column_name:
                                         h5dataset = column
@@ -148,27 +152,51 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
     def can_open(cls, path, *args, **kwargs):
         h5file = None
         # before we try to open it with h5py, we check the signature (quicker)
-        try:
-            with s3.open(path, "rb") as f:
-                signature = f.read(4)
-                hdf5file = signature == b"\x89\x48\x44\x46"
-        except:
-            logger.exception("could not read 4 bytes from %r", path)
-            return
+        if path.startswith('gs://'):
+            try:
+                with gcs.open(path, "rb") as f:
+                    signature = f.read(4)
+                    hdf5file = signature == b"\x89\x48\x44\x46"
+            except:
+                logger.exception("could not read 4 bytes from %r", path)
+                return
+        else:
+            try:
+                with s3.open(path, "rb") as f:
+                    signature = f.read(4)
+                    hdf5file = signature == b"\x89\x48\x44\x46"
+            except:
+                logger.exception("could not read 4 bytes from %r", path)
+                return
         if hdf5file:
-            with s3.open(path, "rb") as f:
-                try:
-                    h5file = h5py.File(f, "r")
-                except:
-                    logger.exception("could not open file as hdf5")
-                    return False
-                if h5file is not None:
-                    with h5file:
-                        root_datasets = [dataset for name, dataset in h5file.items() if isinstance(dataset, h5py.Dataset)]
-                        return ("data" in h5file) or ("columns" in h5file) or ("table" in h5file) or \
-                            len(root_datasets) > 0
-                else:
-                    logger.debug("file %s has no data or columns group" % path)
+            if path.startswith('gs://'):
+                with gcs.open(path, "rb") as f:
+                    try:
+                        h5file = h5py.File(f, "r")
+                    except:
+                        logger.exception("could not open file as hdf5")
+                        return False
+                    if h5file is not None:
+                        with h5file:
+                            root_datasets = [dataset for name, dataset in h5file.items() if isinstance(dataset, h5py.Dataset)]
+                            return ("data" in h5file) or ("columns" in h5file) or ("table" in h5file) or \
+                                len(root_datasets) > 0
+                    else:
+                        logger.debug("file %s has no data or columns group" % path)
+            else:
+                with s3.open(path, "rb") as f:
+                    try:
+                        h5file = h5py.File(f, "r")
+                    except:
+                        logger.exception("could not open file as hdf5")
+                        return False
+                    if h5file is not None:
+                        with h5file:
+                            root_datasets = [dataset for name, dataset in h5file.items() if isinstance(dataset, h5py.Dataset)]
+                            return ("data" in h5file) or ("columns" in h5file) or ("table" in h5file) or \
+                                len(root_datasets) > 0
+                    else:
+                        logger.debug("file %s has no data or columns group" % path)
         return False
 
     @classmethod
