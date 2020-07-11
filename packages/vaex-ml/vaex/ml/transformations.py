@@ -826,12 +826,12 @@ class KBinsDiscretizer(Transformer):
         if self.strategy == 'uniform':
             bin_edges = {feat: np.linspace(minmax[i, 0], minmax[i, 1], self.n_bins+1) for i, feat in enumerate(self.features)}
 
-        if self.strategy == 'quantile':
+        elif self.strategy == 'quantile':
             percentiles = np.linspace(0, 100, self.n_bins + 1)
             bin_edges = df.percentile_approx(self.features, percentage=percentiles)
             bin_edges = {feat: edges for feat, edges in zip(self.features, bin_edges)}
 
-        if self.strategy == 'kmeans':
+        else:
             from .cluster import KMeans
 
             bin_edges = {}
