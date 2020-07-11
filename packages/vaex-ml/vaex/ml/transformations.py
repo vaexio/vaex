@@ -415,15 +415,16 @@ class MinMaxScaler(Transformer):
         :param df: A vaex DataFrame.
         '''
 
-        fmin = df.min(self.features, delay=True)
-        fmax = df.max(self.features, delay=True)
+        minmax = []
+        for feat in self.features:
+            minmax.append(df.minmax(feat, delay=True))
 
         @vaex.delayed
-        def assign(fmin, fmax):
-            self.fmin_ = fmin.tolist()
-            self.fmax_ = fmax.tolist()
+        def assign(minmax):
+            self.fmin_ = [elem[0] for elem in minmax]
+            self.fmax_ = [elem[1] for elem in minmax]
 
-        assign(fmin, fmax)
+        assign(minmax)
         df.execute()
 
     def transform(self, df):
