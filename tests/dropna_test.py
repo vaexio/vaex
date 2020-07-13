@@ -9,6 +9,20 @@ def test_dropna_objects(df_local_non_arrow):
     assert np.isnan(float_elements).any() == False, 'np.nan still exists in column'
 
 
+def test_dropna_cache_bug():
+    # tests https://github.com/vaexio/vaex/pull/874
+    # where repeated dropna would use a cached length
+    df = vaex.from_arrays(
+        x=[1, None, 2],
+        y=[3, 4, None],
+    )
+    df1 = df.dropna('x')
+    assert len(df1) == 2
+
+    df2 = df1.dropna('y')
+    assert len(df2) == 1
+
+
 def test_dropna(ds_local):
     ds = ds_local
     ds_copy = ds.copy()

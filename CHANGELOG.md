@@ -1,8 +1,10 @@
 # vaex 3.1.0 (unreleased)
 
 ## vaex-core 2.1.0-dev (unreleased)
+   * Fixes
+      * Repeated dropna/dropnan/dropmissing could report cached length [#874](https://github.com/vaexio/vaex/pull/874)
    * Features
-       * Arrow is now a core dependency, vaex-arrow is deprecated. Much better chunked array support, numpy conversion is done lazily. [#517](https://github.com/vaexio/vaex/pull/517)
+      * Arrow is now a core dependency, vaex-arrow is deprecated. Much better chunked array support, numpy conversion is done lazily. [#517](https://github.com/vaexio/vaex/pull/517)
 
 ## vaex-arrow (DEPRECATED)
    This is now part of vaex-core.
