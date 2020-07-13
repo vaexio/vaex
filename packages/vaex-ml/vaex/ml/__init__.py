@@ -243,4 +243,4 @@ from .transformations import LabelEncoder, OneHotEncoder, FrequencyEncoder
 from .transformations import CycleTransformer
 from .transformations import BayesianTargetEncoder
 from .transformations import WeightOfEvidenceEncoder
-from .transformations import GroupByTransformer
+from .transformations import GroupByTransformer, KBinsDiscretizer

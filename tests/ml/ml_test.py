@@ -413,3 +413,33 @@ def test_groupby_transformer_serialization():
     assert df_test.mean_y.tolist() == [3.0, 15, 3.0, None]
     assert df_test.x.tolist() == ['dog', 'cat', 'dog', 'mouse']
     assert df_test.y.tolist() == [5, 5, 5, 5]
+
+@pytest.mark.skipif(((1,17,0) <= version <= (1,18,1)) and platform.system().lower() == 'windows', reason="strange ref count issue with numpy")
+@pytest.mark.skipif(((1,17,0) <= version <= (1,18,5)) and platform.system().lower() == 'linux' and sys.version_info[:2] == (3,6), reason="strange ref count issue with numpy")
+@pytest.mark.skipif(((1,17,5) <= version <= (1,18,5)) and platform.system().lower() == 'linux' and sys.version_info[:2] == (3,7), reason="strange ref count issue with numpy")
+@pytest.mark.skipif(((1,17,0) <= version <= (1,18,5)) and platform.system().lower() == 'linux' and sys.version_info[:2] == (3,8), reason="strange ref count issue with numpy")
+@pytest.mark.parametrize('strategy', ['uniform', 'quantile', 'kmeans'])
+def test_kbinsdiscretizer(tmpdir, strategy):
+    df_train = vaex.from_arrays(x=[0, 2.5, 5, 7.5, 10, 12.5, 15])
+    df_test = vaex.from_arrays(x=[1, 4, 8, 9, 20, -2])
+
+    trans = vaex.ml.KBinsDiscretizer(features=['x'], n_bins=3, strategy=strategy)
+    df_train_trans = trans.fit_transform(df_train)
+    df_test_trans = trans.transform(df_test)
+
+    if strategy == 'quantile':
+        expected_result_train = [0, 0, 1, 1, 1, 2, 2]
+    else:
+        expected_result_train = [0, 0, 0, 1, 1, 2, 2]
+    expected_result_test = [0, 0, 1, 1, 2, 0]
+
+    assert df_train_trans.shape == (7, 2)
+    assert df_test_trans.shape == (6, 2)
+    assert df_train_trans.binned_x.tolist() == expected_result_train
+    assert df_test_trans.binned_x.tolist() == expected_result_test
+
+    # Test serialization
+    df_train_trans.state_write(str(tmpdir.join('test.json')))
+    df_test.state_load(str(tmpdir.join('test.json')))
+    assert df_test.shape == (6, 2)
+    assert df_test.binned_x.tolist() == expected_result_test
