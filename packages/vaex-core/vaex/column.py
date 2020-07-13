@@ -105,6 +105,10 @@ class ColumnArrowLazyCast(Column):
         self.ar = ar  # this should behave like a numpy array
         self.type = type
 
+    @property
+    def dtype(self):
+        return vaex.array_types.to_numpy_type(self.type)
+
     def __len__(self):
         return len(self.ar)
 
@@ -112,6 +116,9 @@ class ColumnArrowLazyCast(Column):
         return type(self)(self.ar[i1:i2], self.type)
 
     def __getitem__(self, slice):
+        if self.ar.dtype == object and vaex.array_types.is_string_type(self.type):
+            # this seem to be the only way to convert mixed str and nan to include nulls
+            return pa.Array.from_pandas(self.ar[slice], type=self.type)
         return pa.array(self.ar[slice], type=self.type)
 
     # def __setitem__(self, slice, value):

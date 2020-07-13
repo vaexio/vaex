@@ -233,6 +233,13 @@ class Expression(with_metaclass(Meta)):
         return self._ast_names
 
     @property
+    def _ast_slices(self):
+        # if self._ast_slices is None:
+        return expresso.slices(self.ast)
+        # return self._ast_slices
+
+
+    @property
     def expression(self):
         if self._expression is None:
             self._expression = expresso.node_to_string(self.ast)
@@ -770,7 +777,11 @@ def f({0}):
             for node in expression.ast_names[old]:
                 node.id = new
             expression._ast_names[new] = expression._ast_names.pop(old)
-            expression._expression = None  # resets the cached string representation
+        slices = expression._ast_slices
+        if old in slices:
+            for node in slices[old]:
+                node.slice.value.s = new
+        expression._expression = None  # resets the cached string representation
         return expression
 
     def astype(self, data_type):

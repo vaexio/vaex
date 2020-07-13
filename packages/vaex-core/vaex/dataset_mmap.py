@@ -27,7 +27,7 @@ class DatasetMemoryMapped(vaex.dataset.DatasetFile):
 
     # nommap is a hack to get in memory datasets working
     def __init__(self, path, write=False, nommap=False):
-        super().__init__(path=os.path.abspath(path), write=write)
+        super().__init__(path=path, write=write)
         # self.name = name or os.path.splitext(os.path.basename(self.path))[0]
         # self.path = os.path.abspath(path) if path is not None else None
         self.nommap = nommap

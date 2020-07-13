@@ -156,9 +156,9 @@ def create_aggregation_on_field(df, groupby):
                 return agg_values.tolist()
             return getattr(obj.df, obj.agg)(name)
     if groupby:
-        attrs = {name: graphene.List(map_to_field(df, name)) for name in df.get_column_names(alias=False)}
+        attrs = {name: graphene.List(map_to_field(df, name)) for name in df.get_column_names()}
     else:
-        attrs = {name: map_to_field(df, name)() for name in df.get_column_names(alias=False)}
+        attrs = {name: map_to_field(df, name)() for name in df.get_column_names()}
     attrs['Meta'] = Meta
     DataFrameAggregationOnField = type("AggregationOnField"+postfix, (AggregationOnFieldBase, ), attrs)
     return DataFrameAggregationOnField
@@ -196,7 +196,7 @@ def create_groupby(df, groupby):
         def resolver(*args, **kwargs):
             return Aggregate(df, groupby + [name])
         return graphene.Field(Aggregate, resolver=resolver)
-    attrs = {name: field_groupby(name) for name in df.get_column_names(alias=False)}
+    attrs = {name: field_groupby(name) for name in df.get_column_names()}
     GroupBy = type("GroupBy"+postfix, (GroupByBase, ), attrs)
     return GroupBy
 
@@ -204,7 +204,7 @@ def create_groupby(df, groupby):
 def create_row(df):
     class RowBase(graphene.ObjectType):
         pass
-    attrs = {name: map_to_field(df, name)() for name in df.get_column_names(alias=False)}
+    attrs = {name: map_to_field(df, name)() for name in df.get_column_names()}
     Row = type("Row", (RowBase, ), attrs)
     return Row
 
@@ -289,7 +289,7 @@ def create_aggregate(df, groupby=None):
 
 # similar to https://docs.hasura.io/1.0/graphql/manual/api-reference/graphql-api/query.html#whereexp
 def create_boolexp(df):
-    column_names = df.get_column_names(alias=False)
+    column_names = df.get_column_names()
     class BoolExpBase(graphene.InputObjectType):
         _and = graphene.List(lambda: BoolExp)
         _or = graphene.List(lambda: BoolExp)
@@ -325,7 +325,7 @@ def create_query(dfs):
         hello = graphene.String(description='A typical hello world')
     fields = {}
     for name, df in dfs.items():
-        columns = df.get_column_names(alias=False)
+        columns = df.get_column_names()
         columns = [k for k in columns if df.is_string(k) or df[k].dtype.kind != 'O']
         df = df[columns]
         Aggregate = create_aggregate(df, [])

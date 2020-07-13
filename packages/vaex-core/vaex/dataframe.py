@@ -201,7 +201,6 @@ class DataFrame(object):
         self.ucds = {}
         self.units = {}
         self.descriptions = {}
-        self._dtypes_override = {}
 
         self.favorite_selections = {}
 
@@ -220,7 +219,6 @@ class DataFrame(object):
         self._selection_mask_caches = collections.defaultdict(dict)
         self._selection_masks = {}  # maps to vaex.superutils.Mask object
         self._renamed_columns = []
-        self._column_aliases = {}  # maps from invalid variable names to valid ones
 
         # weak refs of expression that we keep to rewrite expressions
         self._expressions = []
@@ -445,7 +443,8 @@ class DataFrame(object):
 
     def _index(self, expression, progress=False, delay=False):
         column = _ensure_string_from_expression(expression)
-        column = self._column_aliases.get(column, column)
+        # TODO: this does not seem needed
+        # column = vaex.utils.valid_expression(self.dataset, column)
         columns = [column]
         from .hash import index_type_from_dtype
         from vaex.column import _to_string_sequence
@@ -645,7 +644,8 @@ class DataFrame(object):
         if extra_expressions:
             extra_expressions = _ensure_strings_from_expressions(extra_expressions)
         expression_waslist, [expressions, ] = vaex.utils.listify(expression)
-        expressions = [self._column_aliases.get(k, k) for k in expressions]
+        # TODO: doesn't seemn needed anymore?
+        # expressions = [self._column_aliases.get(k, k) for k in expressions]
         import traceback
         trace = ''.join(traceback.format_stack())
         for expression in expressions:
@@ -1252,7 +1252,8 @@ class DataFrame(object):
         expression = _ensure_strings_from_expressions(expression)
         binby = _ensure_strings_from_expressions(binby)
         waslist, [expressions, ] = vaex.utils.listify(expression)
-        expressions = [self._column_aliases.get(k, k) for k in expressions]
+        column_names = self.get_column_names(hidden=True)
+        expressions = [vaex.utils.valid_expression(column_names, k) for k in expressions]
         dtypes = [self.data_type(expr) for expr in expressions]
         dtype0 = dtypes[0]
         if not all([k.kind == dtype0.kind for k in dtypes]):
@@ -2000,16 +2001,17 @@ class DataFrame(object):
         """Alias for `df.byte_size()`, see :meth:`DataFrame.byte_size`."""
         return self.byte_size()
 
-    def _shape_of(self, expression, filtered=True, check_alias=True):
-        if check_alias:
-            if str(expression) in self._column_aliases:
-                expression = self._column_aliases[str(expression)]  # translate the alias name into the real name
+    def _shape_of(self, expression, filtered=True):
+        # TODO: we don't seem to need it anymore, would expect a valid_expression() call
+        # if check_alias:
+            # if str(expression) in self._column_aliases:
+            #     expression = self._column_aliases[str(expression)]  # translate the alias name into the real name
         sample = self.evaluate(expression, 0, 1, filtered=False, array_type="numpy", parallel=False)
         sample = vaex.array_types.to_numpy(sample, strict=True)
         rows = len(self) if filtered else self.length_unfiltered()
         return (rows,) + sample.shape[1:]
 
-    def data_type(self, expression, array_type=None, internal=False, check_alias=True):
+    def data_type(self, expression, array_type=None, internal=False):
         """Return the datatype for the given expression, if not a column, the first row will be evaluated to get the data type.
 
         Example:
@@ -2019,13 +2021,9 @@ class DataFrame(object):
         :param str array_type: 'numpy', 'arrow' or None, to indicate if the data type should be converted
         """
         expression = _ensure_string_from_expression(expression)
-        if check_alias:
-            if expression in self._column_aliases:
-                expression = self._column_aliases[expression]  # translate the alias name into the real name
         data_type = None
-        if expression in self._dtypes_override:
-            data_type = self._dtypes_override[expression]
-        elif expression in self.variables:
+        expression = vaex.utils.valid_expression(self.get_column_names(hidden=True), expression)
+        if expression in self.variables:
             data_type = np.float64(1).dtype
         elif self.is_local() and expression in self.columns.keys():
             column = self.columns[expression]
@@ -2278,8 +2276,7 @@ class DataFrame(object):
                      units=units,
                      descriptions=descriptions,
                      description=self.description,
-                     active_range=[self._index_start, self._index_end],
-                     column_aliases=self._column_aliases)
+                     active_range=[self._index_start, self._index_end])
         return state
 
     def state_set(self, state, use_active_range=False, trusted=True):
@@ -2341,7 +2338,6 @@ class DataFrame(object):
             for name, value in state['virtual_columns'].items():
                 self[name] = self._expr(value)
         self.variables = state['variables']
-        self._column_aliases = state.get('column_aliases', {})
         import astropy  # TODO: make this dep optional?
         units = {key: astropy.units.Unit(value) for key, value in state["units"].items()}
         self.units.update(units)
@@ -2823,7 +2819,6 @@ class DataFrame(object):
                 self.descriptions[name] = other.descriptions[name]
             if name in other.ucds:
                 self.ucds[name] = other.ucds[name]
-        self._column_aliases = dict(other._column_aliases)
         self.description = other.description
 
     @docsubst
@@ -2957,7 +2952,7 @@ class DataFrame(object):
             return
         if self.is_local() and str(expression) in self.columns:
             return
-        vars = set(self.get_names(hidden=True, alias=False))
+        vars = set(self.get_names(hidden=True)) | {'df'}
         funcs = set(expression_namespace.keys())  | set(self.functions.keys())
         try:
             return vaex.expresso.validate_expression(expression, vars, funcs)
@@ -3003,8 +2998,6 @@ class DataFrame(object):
                         raise ValueError("Array is of length %s, while the length of the DataFrame is %s due to the filtering, the (unfiltered) length is %s." % (len(ar), len(self), self.length_unfiltered()))
                 raise ValueError("array is of length %s, while the length of the DataFrame is %s" % (len(ar), self.length_original()))
             valid_name = vaex.utils.find_valid_name(name, used=self.get_column_names(hidden=True))
-            if name != valid_name:
-                self._column_aliases[name] = valid_name
             self.columns[valid_name] = ar
             if valid_name not in self.column_names:
                 self.column_names.insert(column_position, valid_name)
@@ -3014,7 +3007,7 @@ class DataFrame(object):
         self._initialize_column(valid_name)
 
     def _initialize_column(self, name):
-        self._save_assign_expression(name, Expression(self, name))
+        self._save_assign_expression(name)
 
     def _sparse_matrix(self, column):
         column = _ensure_string_from_expression(column)
@@ -3027,12 +3020,10 @@ class DataFrame(object):
                 raise ValueError('number of columns ({}) does not match number of column names ({})'.format(columns.shape[1], len(names)))
             for i, name in enumerate(names):
                 valid_name = vaex.utils.find_valid_name(name, used=self.get_column_names(hidden=True))
-                if name != valid_name:
-                    self._column_aliases[name] = valid_name
                 self.columns[valid_name] = ColumnSparse(columns, i)
                 self.column_names.append(valid_name)
                 self._sparse_matrices[valid_name] = columns
-                self._save_assign_expression(valid_name, Expression(self, valid_name))
+                self._save_assign_expression(valid_name)
         else:
             raise ValueError('only scipy.sparse.csr_matrix is supported')
 
@@ -3041,8 +3032,9 @@ class DataFrame(object):
         # it's ok to set it if it does not exist, or we overwrite an older expression
         if obj is None or isinstance(obj, Expression):
             if expression is None:
-                expression = Expression(self, name)
-            if isinstance(expression, six.string_types):
+                expression = name
+            if isinstance(expression, str):
+                expression = vaex.utils.valid_expression(self.get_column_names(hidden=True), expression)
                 expression = Expression(self, expression)
             setattr(self, name, expression)
 
@@ -3304,20 +3296,17 @@ class DataFrame(object):
                 expression = expression.copy(self)
         column_position = len(self.column_names)
         # if the current name is an existing column name....
-        real_name = self._column_aliases.get(name, name)
         if name in self.get_column_names(hidden=True):
-            column_position = self.column_names.index(real_name)
+            column_position = self.column_names.index(name)
             renamed = vaex.utils.find_valid_name('__' +name, used=self.get_column_names(hidden=True))
             # we rewrite all existing expressions (including the passed down expression argument)
-            self._rename(real_name, renamed)
+            self._rename(name, renamed)
         expression = _ensure_string_from_expression(expression)
 
         if vaex.utils.find_valid_name(name) != name:
             # if we have to rewrite the name, we need to make it unique
             unique = True
         valid_name = vaex.utils.find_valid_name(name, used=[] if not unique else self.get_column_names(hidden=True))
-        if name != valid_name:
-            self._column_aliases[name] = valid_name
 
         self.virtual_columns[valid_name] = expression
         self._virtual_expressions[valid_name] = Expression(self, expression)
@@ -3331,17 +3320,11 @@ class DataFrame(object):
         """Renames a column or variable, and rewrite expressions such that they refer to the new name"""
         if name == new_name:
             return
-        if name in self._column_aliases:
-            # nobody should refer to an alias, so we can just rename it
-            self._column_aliases[new_name] = self._column_aliases.pop(name)
-            return
         new_name = vaex.utils.find_valid_name(new_name, used=[] if not unique else self.get_column_names(hidden=True))
         self._rename(name, new_name, rename_meta_data=True)
         return new_name
 
     def _rename(self, old, new, rename_meta_data=False):
-        if old in self._dtypes_override:
-            self._dtypes_override[new] = self._dtypes_override.pop(old)
         is_variable = False
         if old in self.variables:
             self.variables[new] = self.variables.pop(old)
@@ -3433,7 +3416,6 @@ class DataFrame(object):
                 parts += ["<th>%s</th>" % header]
         parts += ["</tr></thead>"]
         for name in self.get_column_names():
-            column_name = self._column_aliases.get(name, name)
             parts += ["<tr>"]
             parts += ["<td>%s</td>" % name]
             virtual = column_name in self.virtual_columns
@@ -3598,14 +3580,13 @@ class DataFrame(object):
         parts = []  # """<div>%s (length=%d)</div>""" % (self.name, len(self))]
         parts += ["<table class='table-striped'>"]
 
-        aliases_reverse = {value: key for key, value in self._column_aliases.items()}
         # we need to get the underlying names since we use df.evaluate
-        column_names = self.get_column_names(alias=False)
+        column_names = self.get_column_names()
         values_list = []
         values_list.append(['#', []])
         # parts += ["<thead><tr>"]
         for name in column_names:
-            values_list.append([aliases_reverse.get(name, name), []])
+            values_list.append([name, []])
             # parts += ["<th>%s</th>" % name]
         # parts += ["</tr></thead>"]
 
@@ -3776,12 +3757,12 @@ class DataFrame(object):
         """
         return len(self.get_column_names(hidden=hidden))
 
-    def get_names(self, hidden=False, alias=True):
+    def get_names(self, hidden=False):
         """Return a list of column names and variable names."""
-        names = self.get_column_names(hidden=hidden, alias=alias)
+        names = self.get_column_names(hidden=hidden)
         return names + [k for k in self.variables.keys() if not hidden or not k.startswith('__')]
 
-    def get_column_names(self, virtual=True, strings=True, hidden=False, regex=None, alias=True):
+    def get_column_names(self, virtual=True, strings=True, hidden=False, regex=None):
         """Return a list of column names
 
         Example:
@@ -3803,7 +3784,6 @@ class DataFrame(object):
         :param alias: Return the alias (True) or internal name (False).
         :rtype: list of str
         """
-        aliases_reverse = {value: key for key, value in self._column_aliases.items()} if alias else {}
         def column_filter(name):
             '''Return True if column with specified name should be returned'''
             if regex and not re.match(regex, name):
@@ -3815,11 +3795,11 @@ class DataFrame(object):
             if not hidden and name.startswith('__'):
                 return False
             return True
-        if hidden and virtual and regex is None and not alias:
+        if hidden and virtual and regex is None:
             return list(self.column_names)  # quick path
-        if not hidden and virtual and regex is None and not alias:
+        if not hidden and virtual and regex is None:
             return [k for k in self.column_names if not k.startswith('__')]  # also a quick path
-        return [aliases_reverse.get(name, name) for name in self.column_names if column_filter(name)]
+        return [name for name in self.column_names if column_filter(name)]
 
     def __bool__(self):
         return True  # we are always true :) otherwise Python might call __len__, which can be expensive
@@ -4624,14 +4604,13 @@ class DataFrame(object):
             names = self.get_column_names()
             return [self.evaluate(name, item, item+1)[0] for name in names]
         elif isinstance(item, six.string_types):
-            if item in self._column_aliases:
-                item = self._column_aliases[item]  # translate the alias name into the real name
             if hasattr(self, item) and isinstance(getattr(self, item), Expression):
                 return getattr(self, item)
             # if item in self.virtual_columns:
             #   return Expression(self, self.virtual_columns[item])
             # if item in self._virtual_expressions:
             #     return self._virtual_expressions[item]
+            item = vaex.utils.valid_expression(self.get_column_names(), item)
             self.validate_expression(item)
             return Expression(self, item)  # TODO we'd like to return the same expression if possible
         elif isinstance(item, Expression):
@@ -4649,8 +4628,6 @@ class DataFrame(object):
                     names = self.get_column_names().__getitem__(item[1])
                     return df[names]
             for expression in item:
-                if expression in self._column_aliases:
-                    expression = self._column_aliases[expression]
                 self.validate_expression(expression)
             df = self.copy(column_names=item)
             return df
@@ -4937,14 +4914,6 @@ class DataFrameLocal(DataFrame):
         if dataset is None:
             dataset = vaex.dataset.DatasetArrays()
         super(DataFrameLocal, self).__init__(dataset.keys())
-        all_names = list(dataset)
-        for name in dataset:
-            other_names = all_names.copy()
-            other_names.remove(name)
-            valid_name = vaex.utils.find_valid_name(name, used=other_names)
-            if name != valid_name:
-                dataset = dataset.renamed({name: valid_name})
-                self._column_aliases[name] = valid_name
         self.dataset = dataset
         self.column_names = list(self.dataset)
         for column_name in self.column_names:
@@ -5093,13 +5062,9 @@ class DataFrameLocal(DataFrame):
         df.units.update(self.units)
         df.variables.update(self.variables)  # we add all, could maybe only copy used
         df._categories.update(self._categories)
+        all_column_names = self.get_column_names(hidden=True)
         if column_names is None:
-            column_names = self.get_column_names(hidden=True, alias=False)
-            df._column_aliases = dict(self._column_aliases)
-        else:
-            df._column_aliases = {alias: real_name for alias, real_name in self._column_aliases.items()}
-            column_names = [self._column_aliases.get(k, k) for k in column_names]
-        all_column_names = self.get_column_names(hidden=True, alias=False)
+            column_names = all_column_names.copy()
 
         # put in the selections (thus filters) in place
         # so drop moves instead of really dropping it
@@ -5137,24 +5102,25 @@ class DataFrameLocal(DataFrame):
                 added.add(name)
                 if name in self.columns:
                     column = self.columns[name]
-                    df.add_column(name, column, dtype=self._dtypes_override.get(name))
+                    df.add_column(name, column)
                     if isinstance(column, ColumnSparse):
                         df._sparse_matrices[name] = self._sparse_matrices[name]
                 elif name in self.virtual_columns:
                     if virtual:  # TODO: check if the ast is cached
                         df.add_virtual_column(name, self.virtual_columns[name])
                         deps = [key for key, value in df._virtual_expressions[name].ast_names.items()]
+                        deps += [key for key, value in df._virtual_expressions[name]._ast_slices.items()]
                         # print("add virtual", name, df._virtual_expressions[name].expression, deps)
                         depending.update(deps)
                 else:
                     # this might be an expression, create a valid name
-                    real_column_name = df._column_aliases.get(name, name)
                     valid_name = vaex.utils.find_valid_name(name)
-                    self.validate_expression(real_column_name)
+                    self.validate_expression(name)
                     # add the expression
-                    df[valid_name] = df._expr(real_column_name)
+                    df[valid_name] = df._expr(name)
                     # then get the dependencies
                     deps = [key for key, value in df._virtual_expressions[valid_name].ast_names.items()]
+                    deps += [key for key, value in df._virtual_expressions[name]._ast_slices.items()]
                     depending.update(deps)
                 # print(depending, "after add")
             # depending |= column_names
@@ -5175,7 +5141,7 @@ class DataFrameLocal(DataFrame):
                     added.add(name)
                     if name in self.columns:
                         # print("add column", name)
-                        df.add_column(name, self.columns[name], dtype=self._dtypes_override.get(name))
+                        df.add_column(name, self.columns[name])
                         # print("and hide it")
                         # df._hide_column(name)
                         hide.append(name)
@@ -5183,6 +5149,7 @@ class DataFrameLocal(DataFrame):
                         if virtual:  # TODO: check if the ast is cached
                             df.add_virtual_column(name, self.virtual_columns[name])
                             deps = [key for key, value in self._virtual_expressions[name].ast_names.items()]
+                            deps += [key for key, value in df._virtual_expressions[name]._ast_slices.items()]
                             new_depending.update(deps)
                         # df._hide_column(name)
                         hide.append(name)
@@ -5205,7 +5172,7 @@ class DataFrameLocal(DataFrame):
             def add_columns(columns):
                 for name in columns:
                     if name in self.columns:
-                        df.add_column(name, self.columns[name], dtype=self._dtypes_override.get(name))
+                        df.add_column(name, self.columns[name])
                     elif name in self.virtual_columns:
                         if virtual:
                             df.add_virtual_column(name, self.virtual_columns[name])
@@ -5431,7 +5398,9 @@ class DataFrameLocal(DataFrame):
         # expression = _ensure_string_from_expression(expression)
         was_list, [expressions] = vaex.utils.listify(expression)
         expressions = vaex.utils._ensure_strings_from_expressions(expressions)
-        expressions = [self._column_aliases.get(k, k) for k in expressions]
+        column_names = self.get_column_names(hidden=True)
+        expressions = [vaex.utils.valid_expression(column_names, k) for k in expressions]
+
 
         selection = _ensure_strings_from_expressions(selection)
         max_stop = (len(self) if (self.filtered and filtered) else self.length_unfiltered())
@@ -5734,8 +5703,6 @@ class DataFrameLocal(DataFrame):
         right_on = _ensure_string_from_expression(right_on)
         left_on = left_on or on
         right_on = right_on or on
-        left_on = self._column_aliases.get(left_on, left_on)
-        right_on = self._column_aliases.get(right_on, right_on)
         for name in right:
             if left_on and (rprefix + name + rsuffix == lprefix + left_on + lsuffix):
                 continue  # it's ok when we join on the same column name
@@ -5841,7 +5808,7 @@ class DataFrameLocal(DataFrame):
         right_names = right.get_names(hidden=True)
         left_names = left.get_names(hidden=True)
         for name in right_names:
-            column_name = right._column_aliases.get(name, name)
+            column_name = name
             if name == left_on and name in left_names:
                 continue  # skip when it's the join column
             assert name not in left_names
@@ -6127,6 +6094,20 @@ class DataFrameLocal(DataFrame):
             return selection
         return super()._selection(create_wrapper, name, executor, execute_fully)
 
+    @property
+    def values(self):
+        """Gives a full memory copy of the DataFrame into a 2d numpy array of shape (n_rows, n_columns).
+        Note that the memory order is fortran, so all values of 1 column are contiguous in memory for performance reasons.
+
+        Note this returns the same result as:
+
+        >>> np.array(ds)
+
+        If any of the columns contain masked arrays, the masks are ignored (i.e. the masked elements are returned as well).
+        """
+        return self.__array__()
+
+
 class DataFrameConcatenated(DataFrameLocal):
     """Represents a set of DataFrames all concatenated. See :func:`DataFrameLocal.concat` for usage.
     """
@@ -6138,11 +6119,11 @@ class DataFrameConcatenated(DataFrameLocal):
         # self.name = name or "-".join(df.name for df in self.dfs)
         # self.path = "-".join(df.path for df in self.dfs)
         first, tail = dfs[0], dfs[1:]
-        for column_name in first.get_column_names(virtual=False, hidden=True, alias=False):
-            if all([column_name in df.get_column_names(virtual=False, hidden=True, alias=False) for df in tail]):
+        for column_name in first.get_column_names(virtual=False, hidden=True):
+            if all([column_name in df.get_column_names(virtual=False, hidden=True) for df in tail]):
                 self.column_names.append(column_name)
         # self.columns = {}
-        for column_name in self.get_column_names(virtual=False, hidden=True, alias=False):
+        for column_name in self.get_column_names(virtual=False, hidden=True):
             self.columns[column_name] = ColumnConcatenatedLazy([df[column_name] for df in dfs])
             self._save_assign_expression(column_name)
 
@@ -6153,11 +6134,6 @@ class DataFrameConcatenated(DataFrameLocal):
                 self.columns[name] = ColumnConcatenatedLazy([df[name] for df in dfs])
                 self.column_names.append(name)
             self._save_assign_expression(name)
-
-        for df in tail:
-            if first._column_aliases != df._column_aliases:
-                raise ValueError(f'Concatenating dataframes where different column aliases not supported: {first._column_aliases} != {df._column_aliases}')
-        self._column_aliases = first._column_aliases.copy()
 
         for df in dfs[:1]:
             for name, value in list(df.variables.items()):
@@ -6178,6 +6154,7 @@ class DataFrameConcatenated(DataFrameLocal):
             if isinstance(ar, np.ndarray) and np.ma.isMaskedArray(ar):
                 return True
         return False
+
 
 
 def _is_dtype_ok(dtype):
@@ -6217,15 +6194,3 @@ def _is_array_type_ok(array):
 #         self._length_unfiltered = int(round(self._length_original * self._active_fraction))
 #         # self.set_active_fraction(self._active_fraction)
 
-#     @property
-#     def values(self):
-#         """Gives a full memory copy of the DataFrame into a 2d numpy array of shape (n_rows, n_columns).
-#         Note that the memory order is fortran, so all values of 1 column are contiguous in memory for performance reasons.
-
-#         Note this returns the same result as:
-
-#         >>> np.array(ds)
-
-#         If any of the columns contain masked arrays, the masks are ignored (i.e. the masked elements are returned as well).
-#         """
-#         return self.__array__()

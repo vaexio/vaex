@@ -311,7 +311,7 @@ class SoneiraPeebles(DatasetArrays):
 				reorder(array[i], array[-1], order)
 				self.addColumn(name, array=array[i])
 
-dataset_type_map["soneira-peebles"] = SoneiraPeebles
+# dataset_type_map["soneira-peebles"] = SoneiraPeebles
 
 
 class Zeldovich(DatasetArrays):
@@ -351,7 +351,7 @@ class Zeldovich(DatasetArrays):
 			self.add_column(name+"0", Q[d].reshape(-1) * scale)
 		return
 
-dataset_type_map["zeldovich"] = Zeldovich
+# dataset_type_map["zeldovich"] = Zeldovich
 
 
 class AsciiTable(DatasetMemoryMapped):
@@ -382,7 +382,7 @@ class AsciiTable(DatasetMemoryMapped):
 		can_open = path.endswith(".asc")
 		logger.debug("%r can open: %r"  %(cls.__name__, can_open))
 		return can_open
-dataset_type_map["ascii"] = AsciiTable
+# dataset_type_map["ascii"] = AsciiTable
 
 class MemoryMappedGadget(DatasetMemoryMapped):
 	def __init__(self, filename):
@@ -417,7 +417,7 @@ class MemoryMappedGadget(DatasetMemoryMapped):
 
 
 
-dataset_type_map["gadget-plain"] = MemoryMappedGadget
+# dataset_type_map["gadget-plain"] = MemoryMappedGadget
 
 class DatasetAstropyTable(DatasetArrays):
 	def __init__(self, filename=None, format=None, table=None, **kwargs):

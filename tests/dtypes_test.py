@@ -42,10 +42,8 @@ def test_dtype_str():
     df = vaex.from_arrays(n=n)
     assert df.n.dtype == pa.string()
     assert df.copy().n.dtype == pa.string()
-    assert 'n' in df._dtypes_override
 
     n = np.array([None, 'aap', 'noot'])
     df = vaex.from_arrays(n=n)
     assert df.n.dtype == pa.string()
     assert df.copy().n.dtype == pa.string()
-    assert 'n' in df._dtypes_override

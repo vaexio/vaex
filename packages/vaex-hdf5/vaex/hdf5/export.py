@@ -135,7 +135,7 @@ def export_hdf5(dataset, path, column_names=None, byteorder="=", shuffle=False, 
         logger.debug("virtual=%r", virtual)
         logger.debug("exporting %d rows to file %s" % (N, path))
         # column_names = column_names or (dataset.get_column_names() + (list(dataset.virtual_columns.keys()) if virtual else []))
-        column_names = column_names or dataset.get_column_names(virtual=virtual, strings=True, alias=False)
+        column_names = column_names or dataset.get_column_names(virtual=virtual, strings=True)
 
         logger.debug("exporting columns(hdf5): %r" % column_names)
         sparse_groups = collections.defaultdict(list)

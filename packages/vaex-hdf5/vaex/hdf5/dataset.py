@@ -472,7 +472,7 @@ class AmuseHdf5MemoryMapped(Hdf5MemoryMapped):
         self.update_virtual_meta()
 
 
-dataset_type_map["amuse"] = AmuseHdf5MemoryMapped
+# dataset_type_map["amuse"] = AmuseHdf5MemoryMapped
 
 
 gadget_particle_names = "gas halo disk bulge stars dm".split()
@@ -592,7 +592,7 @@ class Hdf5MemoryMappedGadget(DatasetMemoryMapped):
         return []
 
 
-dataset_type_map["gadget-hdf5"] = Hdf5MemoryMappedGadget
+# dataset_type_map["gadget-hdf5"] = Hdf5MemoryMappedGadget
 
 
 class MemoryMappedGadget(DatasetMemoryMapped):
@@ -610,4 +610,4 @@ class MemoryMappedGadget(DatasetMemoryMapped):
         self.addColumn("vz", veloffset + 8, length, dtype=np.float32, stride=3)
 
 
-dataset_type_map["gadget-plain"] = MemoryMappedGadget
+# dataset_type_map["gadget-plain"] = MemoryMappedGadget

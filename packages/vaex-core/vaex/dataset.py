@@ -61,9 +61,10 @@ def hash_array(ar):
             return str(uuid.uuid4())
         if np.ma.isMaskedArray(ar):
             data_byte_ar = _to_bytes(ar.data)
-            mask_byte_ar = _to_bytes(ar.mask)
             blake = blake3.blake3(data_byte_ar, multithreading=True)
-            blake.update(mask_byte_ar)
+            if ar.mask is not True and ar.mask is not False and ar.mask is not np.True_ and ar.mask is not np.False_:
+                mask_byte_ar = _to_bytes(ar.mask)
+                blake.update(mask_byte_ar)
             return blake.hexdigest()
         else:
             try:

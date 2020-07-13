@@ -312,11 +312,7 @@ def from_items(*items):
     :rtype: DataFrame
 
     """
-    import numpy as np
-    df = vaex.dataframe.DataFrameArrays("array")
-    for name, array in items:
-        df.add_column(name, np.asanyarray(array))
-    return df
+    return from_dict(dict(items))
 
 
 def from_arrays(**arrays):
@@ -390,7 +386,7 @@ def from_pandas(df, name="pandas", copy_index=False, index_name="index"):
     import six
     import pandas as pd
     import numpy as np
-    vaex_df = vaex.dataframe.DataFrameArrays(name)
+    columns = {}
 
     def add(name, column):
         values = column.values
@@ -398,19 +394,19 @@ def from_pandas(df, name="pandas", copy_index=False, index_name="index"):
         if hasattr(pd.core.arrays, 'integer') and isinstance(values, pd.core.arrays.integer.IntegerArray):
             values = np.ma.array(values._data, mask=values._mask)
         try:
-            vaex_df.add_column(name, values)
+            columns[name] = vaex.dataset.to_supported_array(values)
         except Exception as e:
             print("could not convert column %s, error: %r, will try to convert it to string" % (name, e))
             try:
                 values = values.astype("S")
-                vaex_df.add_column(name, values)
+                columns[name] = vaex.dataset.to_supported_array(values)
             except Exception as e:
                 print("Giving up column %s, error: %r" % (name, e))
     for name in df.columns:
         add(name, df[name])
     if copy_index:
         add(index_name, df.index)
-    return vaex_df
+    return from_dict(columns)
 
 
 def from_ascii(path, seperator=None, names=True, skip_lines=0, skip_after=0, **kwargs):
