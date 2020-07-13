@@ -1,8 +1,8 @@
-import numpy as np
 import catboost as cb
+import numpy as np
 import vaex.ml.catboost
 import vaex.ml.datasets
-
+from sklearn.metrics import roc_auc_score, accuracy_score
 
 # the parameters of the model
 params_multiclass = {
@@ -56,6 +56,53 @@ def test_catboost():
     state = ds_train.state_get()
     ds_test.state_set(state)
     assert np.all(ds_test.col.class_.values == np.argmax(ds_test.catboost_prediction.values, axis=1))
+
+
+def test_catboost_batch_training():
+    """
+    We train three models. One on 10 samples. the second on 100 samples with batches of 10,
+    and the third too on 100 samples with batches of 10, but we weight the models as if only the first batch matters.
+    A model trained on more data, should do better than the model who only trained on 10 samples,
+    and the weighted model will do exactly as good as the one who trained on 10 samples as it ignore the rest by weighting.
+    """
+    ds = vaex.ml.datasets.load_iris()
+    ds_train, ds_test = ds.ml.train_test_split(test_size=0.2, verbose=False)
+    features = ['sepal_length', 'sepal_width', 'petal_length', 'petal_width']
+    target = 'class_'
+    prediction_type = 'Class'
+    vanilla = vaex.ml.catboost.CatBoostModel(num_boost_round=1,
+                                             params=params_multiclass,
+                                             features=features,
+                                             target=target,
+                                             prediction_type=prediction_type)
+    batch_booster = vaex.ml.catboost.CatBoostModel(num_boost_round=1,
+                                                   params=params_multiclass,
+                                                   features=features,
+                                                   target=target,
+                                                   prediction_type=prediction_type,
+                                                   batch_size=10)
+    weights = [1.0] + [0.0] * 9
+    weights_booster = vaex.ml.catboost.CatBoostModel(num_boost_round=1,
+                                                     params=params_multiclass,
+                                                     features=features,
+                                                     target=target,
+                                                     prediction_type=prediction_type,
+                                                     batch_size=10,
+                                                     batch_weights=weights)
+
+    vanilla.fit(ds_train.head(10), evals=[ds_test])
+    batch_booster.fit(ds_train.head(100), evals=[ds_test])
+    weights_booster.fit(ds_train.head(100), evals=[ds_test])
+
+    ground_truth = ds_test[target].values
+    vanilla_accuracy = accuracy_score(ground_truth, vanilla.predict(ds_test))
+    batch_accuracy = accuracy_score(ground_truth, batch_booster.predict(ds_test))
+    weighted_accuracy = accuracy_score(ground_truth, weights_booster.predict(ds_test))
+    assert vanilla_accuracy == weighted_accuracy
+    assert vanilla_accuracy < batch_accuracy
+
+    assert list(weights_booster.booster.get_feature_importance()) == list(vanilla.booster.get_feature_importance())
+    assert list(weights_booster.booster.get_feature_importance()) != list(batch_booster.booster.get_feature_importance())
 
 
 def test_catboost_numerical_validation():
