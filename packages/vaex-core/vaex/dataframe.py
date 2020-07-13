@@ -501,7 +501,7 @@ class DataFrame(object):
                     if not transient:
                         assert ar is previous_ar.string_sequence
                 # TODO: what about masked values?
-                inverse[i1:i2:] = ordered_set.map_ordinal(ar)
+                inverse[i1:i2] = ordered_set.map_ordinal(ar)
             def reduce(a, b):
                 pass
             self.map_reduce(map, reduce, [expression], delay=delay, name='unique_return_inverse', info=True, to_numpy=False, selection=selection)

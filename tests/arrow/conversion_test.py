@@ -2,6 +2,7 @@ import numpy as np
 import pyarrow as pa
 import pytest
 from vaex import array_types 
+import vaex.arrow.convert
 
 
 bools = [False, True, True]
@@ -46,6 +47,14 @@ def test_float_sliced_masked():
     assert x_arrow.to_pylist() == x_original[2:].tolist()
     x = array_types.to_numpy(x_arrow)
     assert x.tolist() == x_original[2:].tolist()
+
+
+def test_string_sliced():
+    values = ["a", "bb", "ccc", "dddd"]
+    ar = pa.array(values)
+    assert vaex.arrow.convert.column_from_arrow_array(ar).tolist() == values
+    assert vaex.arrow.convert.column_from_arrow_array(ar[1:]).tolist() == values[1:]
+    assert vaex.arrow.convert.column_from_arrow_array(ar[1:3]).tolist() == values[1:3] != values[1:]
 
 
 def test_keep_masked_data_values():
