@@ -415,10 +415,17 @@ class MinMaxScaler(Transformer):
         :param df: A vaex DataFrame.
         '''
 
-        assert len(self.feature_range) == 2, 'feature_range must have 2 elements only'
-        minmax = df.minmax(self.features)
-        self.fmin_ = minmax[:, 0].tolist()
-        self.fmax_ = minmax[:, 1].tolist()
+        minmax = []
+        for feat in self.features:
+            minmax.append(df.minmax(feat, delay=True))
+
+        @vaex.delayed
+        def assign(minmax):
+            self.fmin_ = [elem[0] for elem in minmax]
+            self.fmax_ = [elem[1] for elem in minmax]
+
+        assign(minmax)
+        df.execute()
 
     def transform(self, df):
         '''

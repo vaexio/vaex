@@ -1255,7 +1255,7 @@ class DataFrame(object):
         dtypes = [self.data_type(expr) for expr in expressions]
         dtype0 = dtypes[0]
         if not all([k.kind == dtype0.kind for k in dtypes]):
-            raise ValueError("cannot mix datetime and non-datetime expressions")
+            raise TypeError("cannot mix different dtypes in 1 minmax call")
         progressbar = vaex.utils.progressbars(progress, name="minmaxes")
         limits = self.limits(binby, limits, selection=selection, delay=True)
         all_tasks = [calculate(expression, limits) for expression in expressions]
