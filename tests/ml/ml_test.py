@@ -420,26 +420,33 @@ def test_groupby_transformer_serialization():
 @pytest.mark.skipif(((1,17,0) <= version <= (1,18,5)) and platform.system().lower() == 'linux' and sys.version_info[:2] == (3,8), reason="strange ref count issue with numpy")
 @pytest.mark.parametrize('strategy', ['uniform', 'quantile', 'kmeans'])
 def test_kbinsdiscretizer(tmpdir, strategy):
-    df_train = vaex.from_arrays(x=[0, 2.5, 5, 7.5, 10, 12.5, 15])
-    df_test = vaex.from_arrays(x=[1, 4, 8, 9, 20, -2])
+    df_train = vaex.from_arrays(x=[0, 2.5, 5, 7.5, 10, 12.5, 15],
+                                y=[0, 0, 5, 5, 5, 9, 9])
+    df_test = vaex.from_arrays(x=[1, 4, 8, 9, 20, -2],
+                               y=[1, 2, 5, 6, 10, 9])
 
-    trans = vaex.ml.KBinsDiscretizer(features=['x'], n_bins=3, strategy=strategy)
+    trans = vaex.ml.KBinsDiscretizer(features=['x', 'y'], n_bins=3, strategy=strategy)
     df_train_trans = trans.fit_transform(df_train)
     df_test_trans = trans.transform(df_test)
 
     if strategy == 'quantile':
-        expected_result_train = [0, 0, 1, 1, 1, 2, 2]
+        expected_result_train_x = [0, 0, 1, 1, 1, 2, 2]
     else:
-        expected_result_train = [0, 0, 0, 1, 1, 2, 2]
-    expected_result_test = [0, 0, 1, 1, 2, 0]
+        expected_result_train_x = [0, 0, 0, 1, 1, 2, 2]
+    expected_result_train_y = [0, 0, 1, 1, 1, 2, 2]
+    expected_result_test_x = [0, 0, 1, 1, 2, 0]
+    expected_result_test_y = [0, 0, 1, 1, 2, 2]
 
-    assert df_train_trans.shape == (7, 2)
-    assert df_test_trans.shape == (6, 2)
-    assert df_train_trans.binned_x.tolist() == expected_result_train
-    assert df_test_trans.binned_x.tolist() == expected_result_test
+    assert df_train_trans.shape == (7, 4)
+    assert df_test_trans.shape == (6, 4)
+    assert df_train_trans.binned_x.tolist() == expected_result_train_x
+    assert df_train_trans.binned_y.tolist() == expected_result_train_y
+    assert df_test_trans.binned_x.tolist() == expected_result_test_x
+    assert df_test_trans.binned_y.tolist() == expected_result_test_y
 
     # Test serialization
     df_train_trans.state_write(str(tmpdir.join('test.json')))
     df_test.state_load(str(tmpdir.join('test.json')))
-    assert df_test.shape == (6, 2)
-    assert df_test.binned_x.tolist() == expected_result_test
+    assert df_test.shape == (6, 4)
+    assert df_test.binned_x.tolist() == expected_result_test_x
+    assert df_test.binned_y.tolist() == expected_result_test_y

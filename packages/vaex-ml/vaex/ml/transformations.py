@@ -826,7 +826,21 @@ class KBinsDiscretizer(Transformer):
         assert self.n_bins > 1, ' Kwarg `n_bins` must be greated than 1.'
 
         # Find the extent of the features
-        minmax = df.minmax(expression=self.features)
+        minmax = []
+        minmax_promise = []
+        for feat in self.features:
+            minmax_promise.append(df.minmax(feat, delay=True))
+
+        @vaex.delayed
+        def assign(minmax_promise):
+            for elem in minmax_promise:
+                minmax.append(elem)
+
+        assign(minmax_promise)
+        df.execute()
+
+        # warning: everyting is cast to float, which is unavoidable due to the addition of self.epsilon
+        minmax = np.array(minmax)
         minmax[:, 1] = minmax[:, 1] + self.epsilon
 
         # # Determine the bin edges and number of bins depending on the strategy per feature
