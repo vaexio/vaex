@@ -93,7 +93,8 @@ def column_from_arrow_array(arrow_array):
             string_bytes = np.array([], dtype='S1')
         else:
             string_bytes = np.frombuffer(string_bytes, 'S1', len(string_bytes))
-        column = vaex.column.ColumnStringArrow(offsets, string_bytes, len(arrow_array), null_bitmap=null_bitmap)
+        offset = arrow_array.offset
+        column = vaex.column.ColumnStringArrow(offsets[offset:], string_bytes, len(arrow_array), null_bitmap=null_bitmap)
         return column
     else:
         raise TypeError('type unsupported: %r' % arrow_type)
