@@ -69,9 +69,9 @@ def test_concat_mixed_types():
     df2 = vaex.from_arrays(x=x2)
     df = vaex.concat([df1, df2])
     assert df2.x.dtype == df.x.dtype, "expect 'upcast' to string"
-    assert df[:2].x.tolist() == [None, None]
-    assert df[1:4].x.tolist() == [None, None, 'hi']
-    assert df[2:4].x.tolist() == [None, 'hi']
+    assert df[:2].x.tolist() == ['nan', 'nan']
+    assert df[1:4].x.tolist() == ['nan', 'nan', 'hi']
+    assert df[2:4].x.tolist() == ['nan', 'hi']
     assert df[3:4].x.tolist() == ['hi']
     assert df[3:5].x.tolist() == ['hi', 'there']
 
