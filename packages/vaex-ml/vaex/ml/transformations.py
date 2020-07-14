@@ -640,6 +640,8 @@ class CycleTransformer(Transformer):
         return copy
 
 
+@register
+@generate.register
 class BayesianTargetEncoder(Transformer):
     '''Encode categorical variables with a Bayesian Target Encoder.
 
@@ -912,6 +914,7 @@ class KBinsDiscretizer(Transformer):
             df[name] = (df[feat].digitize(self.bin_edges_[feat]) - 1).clip(0, self.n_bins_[feat] - 1)
 
         return df
+
 
 @register
 @generate.register
