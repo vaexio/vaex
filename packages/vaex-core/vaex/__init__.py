@@ -270,7 +270,8 @@ def from_samp(username=None, password=None):
 def from_astropy_table(table):
     """Create a vaex DataFrame from an Astropy Table."""
     import vaex.file.other
-    return vaex.file.other.DatasetAstropyTable(table=table)
+    ds = vaex.file.other.DatasetAstropyTable(table=table)
+    return vaex.dataframe.DataFrameLocal(ds)
 
 
 def from_dict(data):
@@ -426,7 +427,7 @@ def from_ascii(path, seperator=None, names=True, skip_lines=0, skip_after=0, **k
     """
 
     import vaex.ext.readcol as rc
-    ds = vaex.dataframe.DataFrameArrays(path)
+    ds = vaex.dataframe.DataFrameLocal()
     if names not in [True, False]:
         namelist = names
         names = False

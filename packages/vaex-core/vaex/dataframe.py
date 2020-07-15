@@ -2902,7 +2902,6 @@ class DataFrame(object):
         """
         from astropy.table import Table, Column, MaskedColumn
         meta = dict()
-        meta["name"] = self.name
         meta["description"] = self.description
 
         table = Table(meta=meta)
@@ -3418,7 +3417,7 @@ class DataFrame(object):
         for name in self.get_column_names():
             parts += ["<tr>"]
             parts += ["<td>%s</td>" % name]
-            virtual = column_name in self.virtual_columns
+            virtual = name in self.virtual_columns
             if not virtual:
                 dtype = str(self.data_type(name)) if self.data_type(name) != str else 'str'
             else:
@@ -3430,7 +3429,7 @@ class DataFrame(object):
             if description:
                 parts += ["<td ><pre>%s</pre></td>" % self.descriptions.get(name, "")]
             if virtual:
-                parts += ["<td><code>%s</code></td>" % self.virtual_columns[column_name]]
+                parts += ["<td><code>%s</code></td>" % self.virtual_columns[name]]
             else:
                 parts += ["<td></td>"]
             parts += ["</tr>"]
@@ -4896,6 +4895,10 @@ class DataFrameLocal(DataFrame):
             dataset = vaex.dataset.DatasetArrays()
         super(DataFrameLocal, self).__init__(dataset.keys())
         self.dataset = dataset
+        if hasattr(dataset, 'units'):
+            self.units.update(dataset.units)
+        if hasattr(dataset, 'ucds'):
+            self.ucds.update(dataset.ucds)
         self.column_names = list(self.dataset)
         for column_name in self.column_names:
             self._initialize_column(column_name)

@@ -69,7 +69,7 @@ class CallbackCounter(object):
 
 class TestDataset(unittest.TestCase):
 	def setUp(self):
-		self.dataset = dataset.DatasetArrays("dataset")
+		self.dataset = vaex.dataframe.DataFrameLocal()
 
 
 		# x is non-c
@@ -143,7 +143,7 @@ class TestDataset(unittest.TestCase):
 
 		x = np.array([0., 1])
 		y = np.array([-1., 1])
-		self.datasetxy = vx.dataset.DatasetArrays("datasetxy")
+		self.datasetxy = vx.dataframe.DataFrameLocal()
 		self.datasetxy.add_column("x", x)
 		self.datasetxy.add_column("y", y)
 
@@ -152,9 +152,9 @@ class TestDataset(unittest.TestCase):
 		x3 = np.array([5.])
 		self.x_concat = np.concatenate((x1, x2, x3))
 
-		dataset1 = vx.dataset.DatasetArrays("dataset1")
-		dataset2 = vx.dataset.DatasetArrays("dataset2")
-		dataset3 = vx.dataset.DatasetArrays("dataset3")
+		dataset1 = vx.dataframe.DataFrameLocal()
+		dataset2 = vx.dataframe.DataFrameLocal()
+		dataset3 = vx.dataframe.DataFrameLocal()
 		dataset1.add_column("x", x1)
 		dataset2.add_column("x", x2)
 		dataset3.add_column("x", x3)
@@ -425,9 +425,7 @@ class TestDataset(unittest.TestCase):
 					#np.testing.assert_array_equal(ds.data.names, self.dataset.data.name)
 
 	def tearDown(self):
-		self.dataset.remove_virtual_meta()
-		self.dataset_concat.remove_virtual_meta()
-		self.dataset_concat_dup.remove_virtual_meta()
+		pass
 
 	def test_mixed_endian(self):
 
@@ -502,10 +500,11 @@ class TestDataset(unittest.TestCase):
 		distance_std = ds_1.evaluate("distance_uncertainty")[0]
 		self.assertAlmostEqual(distance_std, distance_std_est,2)
 
-	def test_virtual_column_storage(self):
-		self.dataset.write_meta()
-		ds = vaex.zeldovich()
-		ds.write_meta()
+	# deprecated
+	# def test_virtual_column_storage(self):
+	# 	self.dataset.write_meta()
+	# 	ds = vaex.zeldovich()
+	# 	ds.write_meta()
 
 	def test_add_virtual_columns_cartesian_velocities_to_polar(self):
 		if 1:
@@ -1156,7 +1155,7 @@ class TestDataset(unittest.TestCase):
 		def concat(*types):
 			arrays = [np.arange(3, dtype=dtype) for dtype in types]
 			N = len(arrays)
-			dfs = [vx.dataset.DatasetArrays("dataset-%i" % i)  for i in range(N)]
+			dfs = [vx.dataframe.DataFrameLocal()  for i in range(N)]
 			for dataset, array in zip(dfs, arrays):
 				dataset.add_column("x", array)
 			dataset_concat = vx.dataset.DatasetConcatenated(dfs, name="dataset_concat")
@@ -1171,7 +1170,7 @@ class TestDataset(unittest.TestCase):
 		ar2 = np.zeros((20))
 		arrays = [ar1, ar2]
 		N = len(arrays)
-		dfs = [vx.dataset.DatasetArrays("dataset1") for i in range(N)]
+		dfs = [vx.dataframe.DataFrameLocal() for i in range(N)]
 		for dataset, array in zip(dfs, arrays):
 			dataset.add_column("x", array)
 		with self.assertRaises(ValueError):
@@ -1182,7 +1181,7 @@ class TestDataset(unittest.TestCase):
 		ar2 = np.zeros((20))
 		arrays = [ar1, ar2]
 		N = len(arrays)
-		dfs = [vx.dataset.DatasetArrays("dataset1") for i in range(N)]
+		dfs = [vx.dataframe.DataFrameLocal() for i in range(N)]
 		for dataset, array in zip(dfs, arrays):
 			dataset.add_column("x", array)
 		dataset_concat = vx.dataset.DatasetConcatenated(dfs, name="dataset_concat")
@@ -1200,8 +1199,8 @@ class TestDataset(unittest.TestCase):
 		x2 = np.arange(100, dtype=np.float32)
 		self.x_concat = np.concatenate((x1, x2))
 
-		dataset1 = vx.dataset.DatasetArrays("dataset1")
-		dataset2 = vx.dataset.DatasetArrays("dataset2")
+		dataset1 = vx.dataframe.DataFrameLocal()
+		dataset2 = vx.dataframe.DataFrameLocal()
 		dataset1.add_column("x", x1)
 		dataset2.add_column("x", x2)
 
@@ -1334,6 +1333,9 @@ class TestDataset(unittest.TestCase):
 
 				# self.dataset_concat_dup references self.dataset, so set it's active_fraction to 1 again
 				dataset.set_active_fraction(1)
+
+	def test_export_cmdline(self):
+		import vaex.export
 		path_arrow = tempfile.mktemp(".arrow")
 		path_hdf5 = tempfile.mktemp(".hdf5")
 		dataset = self.dataset
@@ -1633,7 +1635,7 @@ class TestDatasetDistributed(TestDatasetRemote):
 	def setUp(self):
 		TestDataset.setUp(self)
 		global test_port
-		# self.dataset_local = self.dataset = dataset.DatasetArrays("dataset")
+		# self.dataset_local = self.dataset = dataframe.DataFrameLocal("dataset")
 		self.dataset_local = self.dataset
 
 		dfs = [self.dataset]
@@ -1722,7 +1724,7 @@ class TestDatasetDistributed(TestDatasetRemote):
 
 class T_stWebServer(unittest.TestCase):
 	def setUp(self):
-		self.dataset = dataset.DatasetArrays()
+		self.dataset = dataframe.DataFrameLocal()
 
 		self.x = x = np.arange(10)
 		self.y = y = x ** 2

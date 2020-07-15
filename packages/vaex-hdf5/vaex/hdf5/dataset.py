@@ -67,12 +67,16 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
             super(Hdf5MemoryMapped, self).__init__(path, write=write, nommap=nommap)
         else:
             super(Hdf5MemoryMapped, self).__init__(path.name, write=write, nommap=True)
+        self._all_mmapped = True
         self._open(path)
+        self.units = {}
         self.h5table_root_name = None
         self._version = 1
         self._load()
         if not write:  # in write mode, call freeze yourself, so the hashes are computed
             self._freeze()
+        if self._all_mmapped:
+            self.h5file.close()
 
     def _open(self, path):
         if hasattr(path, 'read'):
@@ -279,6 +283,7 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
         if offset is None:  # non contiguous array, chunked arrays etc
             # we don't support masked in this case
             column = ColumnNumpyLike(data)
+            self._all_mmapped = False
             return column
         else:
             shape = data.shape
@@ -467,12 +472,13 @@ class AmuseHdf5MemoryMapped(Hdf5MemoryMapped):
             column_name = "keys"
             column = group[column_name]
             offset = column.id.get_offset()
-            self.addColumn(column_name, offset, len(column), dtype=column.dtype)
-        self.update_meta()
-        self.update_virtual_meta()
+            data = self._map_hdf5_array(column)
+            self.add_column(column_name, data)
+        # self.update_meta()
+        # self.update_virtual_meta()
 
 
-# dataset_type_map["amuse"] = AmuseHdf5MemoryMapped
+dataset_type_map["amuse"] = AmuseHdf5MemoryMapped
 
 
 gadget_particle_names = "gas halo disk bulge stars dm".split()
@@ -593,21 +599,3 @@ class Hdf5MemoryMappedGadget(DatasetMemoryMapped):
 
 
 # dataset_type_map["gadget-hdf5"] = Hdf5MemoryMappedGadget
-
-
-class MemoryMappedGadget(DatasetMemoryMapped):
-    def __init__(self, path):
-        super(MemoryMappedGadget, self).__init__(path)
-        # h5file = h5py.File(self.path)
-        import vaex.file.gadget
-        length, posoffset, veloffset, header = vaex.file.gadget.getinfo(path)
-        self.addColumn("x", posoffset, length, dtype=np.float32, stride=3)
-        self.addColumn("y", posoffset + 4, length, dtype=np.float32, stride=3)
-        self.addColumn("z", posoffset + 8, length, dtype=np.float32, stride=3)
-
-        self.addColumn("vx", veloffset, length, dtype=np.float32, stride=3)
-        self.addColumn("vy", veloffset + 4, length, dtype=np.float32, stride=3)
-        self.addColumn("vz", veloffset + 8, length, dtype=np.float32, stride=3)
-
-
-# dataset_type_map["gadget-plain"] = MemoryMappedGadget

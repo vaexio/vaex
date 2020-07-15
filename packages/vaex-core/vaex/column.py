@@ -121,9 +121,6 @@ class ColumnArrowLazyCast(Column):
             return pa.Array.from_pandas(self.ar[slice], type=self.type)
         return pa.array(self.ar[slice], type=self.type)
 
-    # def __setitem__(self, slice, value):
-    #     self.ar[slice] = value
-
 
 class ColumnIndexed(Column):
     def __init__(self, column, indices, masked=False):

@@ -39,6 +39,7 @@ import collections.abc
 import numpy as np
 import uuid
 import logging
+from urllib.parse import urlparse
 
 logger = logging.getLogger('vaex.dataset')
 
@@ -69,6 +70,7 @@ def hash_slice(hash, start, end):
 
 def hash_array(ar):
     if isinstance(ar, np.ndarray):
+        ar = ar.ravel()
         if ar.dtype == np.object_:
             return str(uuid.uuid4())
         if np.ma.isMaskedArray(ar):
@@ -321,9 +323,7 @@ class DatasetFile(Dataset):
         self._ids = frozendict(self._ids)
         self._columns = frozendict(self._columns)
         self._set_row_count()
-        directory = Path(self.path + '.d')
-        directory.mkdir(exist_ok=True)
-        path_hashes = directory / 'hashes.yaml'
+        path_hashes = self._local_hash_path
         # TODO: without this check, if multiple processes are writing (e.g. tests/execution_test.py::test_task_sum with ray)
         # this leads to a race condition, where we write the file, and while truncated, _read_hases() fails (because the file exists)
         if self._disk_cached_hashes != self._ids:
@@ -364,18 +364,12 @@ class DatasetFile(Dataset):
         # self._columns, self._ids, self.attrs = read_hdf5(path)
 
 
-    def _get_private_dir(self, create=False):
-        """Each DataFrame has a directory where files are stored for metadata etc.
-
-        Example
-
-        >>> ds._get_private_dir()
-        '/Users/users/breddels/.vaex/dataset/_Users_users_breddels_vaex-testing_data_helmi-dezeeuw-2000-10p.hdf5'
-
-        :param bool create: is True, it will create the directory if it does not exist
-        """
-        name = os.path.abspath(self.path).replace(os.path.sep, "_")[:250]  # should not be too long for most os'es
-        name = name.replace(":", "_")  # for windows drive names
-        dir = os.path.join(vaex.utils.get_private_dir(), "dataset", name)
-        os.makedirs(dir, exist_ok=create)
-        return dir
+    @property
+    def _local_hash_path(self):
+        if Path(self.path).exists():
+            directory = Path(self.path + '.d')
+            directory.mkdir(exist_ok=True)
+        else:
+            o = urlparse(self.path)
+            directory = Path(vaex.utils.get_private_dir('dataset', o.scheme, o.netloc, o.path[1:]))
+        return directory / 'hashes.yaml'
