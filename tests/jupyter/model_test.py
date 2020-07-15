@@ -152,7 +152,7 @@ async def test_model_status(df_executor, flush_guard, server_latency):
     y = vaex.jupyter.model.Axis(df=df, expression='y', _status_change_delay=0.001, _debug=True)
     assert x.status == x.Status.NO_LIMITS
     assert y.status == y.Status.NO_LIMITS
-    model = vaex.jupyter.model.Heatmap(df=df, x=x, y=y, shape=5, _debug=True)
+    model = vaex.jupyter.model.Heatmap(df=df, x=x, y=y, shape=5, _debug=True, selection=[None, 'default'])
     grid = vaex.jupyter.model.GridCalculator(df, [model])  # noqa
     assert x.status == x.Status.NO_LIMITS
     assert y.status == y.Status.NO_LIMITS
