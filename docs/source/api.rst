@@ -8,7 +8,7 @@ Opening/reading in your data.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. autosummary::
-    
+
     vaex.open
     vaex.from_arrow_table
     vaex.from_arrays
@@ -22,7 +22,7 @@ Visualization.
 ~~~~~~~~~~~~~~
 
 .. autosummary::
-    
+
     vaex.dataframe.DataFrame.plot
     vaex.dataframe.DataFrame.plot1d
     vaex.dataframe.DataFrame.scatter
@@ -34,7 +34,7 @@ Statistics.
 ~~~~~~~~~~~
 
 .. autosummary::
-    
+
     vaex.dataframe.DataFrame.count
     vaex.dataframe.DataFrame.mean
     vaex.dataframe.DataFrame.std
@@ -163,7 +163,7 @@ vaex.jupyter.model
 ~~~~~~~~~~~~~~~~~~
 
 .. automodule:: vaex.jupyter.model
-    :members: 
+    :members:
     :undoc-members:
     :show-inheritance:
 
@@ -171,7 +171,7 @@ vaex.jupyter.view
 ~~~~~~~~~~~~~~~~~~
 
 .. automodule:: vaex.jupyter.view
-    :members: 
+    :members:
     :undoc-members:
     :show-inheritance:
 
@@ -179,7 +179,7 @@ vaex.jupyter.widgets
 ~~~~~~~~~~~~~~~~~~
 
 .. automodule:: vaex.jupyter.widgets
-    :members: 
+    :members:
     :undoc-members:
     :show-inheritance:
 
@@ -325,7 +325,7 @@ Clustering
 ~~~~~~~~~~
 
 .. autosummary::
-    
+
     vaex.ml.cluster.KMeans
 
 .. autoclass:: vaex.ml.cluster.KMeans
@@ -347,6 +347,8 @@ Transformers/encoders
     vaex.ml.transformations.CycleTransformer
     vaex.ml.transformations.BayesianTargetEncoder
     vaex.ml.transformations.WeightOfEvidenceEncoder
+    vaex.ml.transformations.KBinsDiscretizer
+    vaex.ml.transformations.GroupByTransformer
 
 
 .. autoclass:: vaex.ml.transformations.FrequencyEncoder
@@ -382,6 +384,12 @@ Transformers/encoders
 .. autoclass:: vaex.ml.transformations.WeightOfEvidenceEncoder
      :members:
 
+.. autoclass:: vaex.ml.transformations.KBinsDiscretizer
+     :members:
+
+.. autoclass:: vaex.ml.transformations.GroupByTransformer
+     :members:
+
 
 Boosted trees
 ~~~~~~~~~~~~~
@@ -390,12 +398,16 @@ Boosted trees
 
     vaex.ml.lightgbm.LightGBMModel
     vaex.ml.xgboost.XGBoostModel
+    vaex.ml.catboost.CatBoostModel
 
 
 .. autoclass:: vaex.ml.lightgbm.LightGBMModel
      :members:
 
 .. autoclass:: vaex.ml.xgboost.XGBoostModel
+     :members:
+
+.. autoclass:: vaex.ml.catboost.CatBoostModel
      :members:
 
 Incubator/experimental

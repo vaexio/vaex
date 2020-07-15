@@ -41,6 +41,7 @@ extensions = [
     'sphinx.ext.intersphinx',
     'sphinx_gallery.load_style',
 ]
+
 import os
 on_rtd = os.environ.get('READTHEDOCS', None) == 'True'
 # if not on_rtd:

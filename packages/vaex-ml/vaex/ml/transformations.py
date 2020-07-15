@@ -640,6 +640,8 @@ class CycleTransformer(Transformer):
         return copy
 
 
+@register
+@generate.register
 class BayesianTargetEncoder(Transformer):
     '''Encode categorical variables with a Bayesian Target Encoder.
 
@@ -709,6 +711,9 @@ class BayesianTargetEncoder(Transformer):
                                            allow_missing=True)
         return copy
 
+
+@register
+@generate.register
 class WeightOfEvidenceEncoder(Transformer):
     '''Encode categorical variables with a Weight of Evidence Encoder.
 
@@ -785,6 +790,9 @@ class WeightOfEvidenceEncoder(Transformer):
 
         return copy
 
+
+@register
+@generate.register
 class KBinsDiscretizer(Transformer):
     '''Bin continous features into discrete bins.
 
@@ -908,6 +916,8 @@ class KBinsDiscretizer(Transformer):
         return df
 
 
+@register
+@generate.register
 class GroupByTransformer(Transformer):
     '''The GroupByTransformer creates aggregations via the groupby operation, which are
     joined to a DataFrame. This is useful for creating aggregate features.

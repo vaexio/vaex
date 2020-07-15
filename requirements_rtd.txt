@@ -19,3 +19,4 @@ annoy
 lightgbm
 xgboost
 sphinx_gallery
+catboost
