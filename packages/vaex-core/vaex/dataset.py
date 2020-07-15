@@ -54,6 +54,13 @@ def _to_bytes(ar):
     except ValueError:
         return ar.copy().view(np.uint8)
 
+def hash_combine(*hashes):
+    blake = blake3.blake3(multithreading=False)
+    for hash in hashes:
+        blake.update(hash.encode())
+    return blake.hexdigest()
+
+
 def hash_slice(hash, start, end):
     blake = blake3.blake3(hash.encode(), multithreading=False)
     slice = np.array([start, end], dtype=np.int64)
@@ -148,6 +155,15 @@ class Dataset(collections.abc.Mapping):
     def row_count(self):
         return self._row_count
 
+    def project(self, *names):
+        all = set(self)
+        drop = all - set(names)
+        print(drop)
+        return self.dropped(*list(drop))
+
+    def take(self, indices, masked=False):
+        return DatasetTake(self, indices, masked=masked)
+
     def renamed(self, renaming):
         return DatasetRenamed(self, renaming)
 
@@ -188,6 +204,30 @@ class DatasetRenamed(Dataset):
         self._ids = frozendict({renaming.get(name, name): ar for name, ar in original._ids.items()})
         self._set_row_count()
 
+
+class DatasetTake(Dataset):
+    def __init__(self, original, indices, masked):
+        super().__init__()
+        self.original = original
+        self.indices = indices
+        self.masked = masked
+        columns = dict(original)
+        # if the columns in ds already have a ColumnIndex
+        # we could do, direct_indices = df.column['bla'].indices[indices]
+        # which should be shared among multiple ColumnIndex'es, so we store
+        # them in this dict
+        direct_indices_map = {}
+        columns = {}
+        hashes = {}
+        hash_index = hash_array(indices)
+        for name, column in original.items():
+            columns[name] = ColumnIndexed.index(column, indices, direct_indices_map, masked=masked)
+            hashes[name] = hash_combine(hash_index, original._ids[name])
+        self._columns = frozendict(columns)
+        self._ids = frozendict(hashes)
+        self._set_row_count()
+
+
 class DatasetSliced(Dataset):
     def __init__(self, original, start, end):
         super().__init__()
@@ -200,7 +240,15 @@ class DatasetSliced(Dataset):
         #     df.columns[name] = column[self._index_start:self._index_end]
         # else:
         #     df.columns[name] = column.trim(self._index_start, self._index_end)
-        self._columns = frozendict({name: ar[start:end] for name, ar in original.items()})
+        columns = {}
+        for name, column in original.items():
+            if isinstance(column, array_types.supported_array_types):  # real array
+                column = column[start:end]
+            else:
+                column = column.trim(start, end)
+            columns[name] = column
+
+        self._columns = frozendict(columns)
         self._ids = frozendict({name: hash_slice(hash, start, end) for name, hash in original._ids.items()})
         self._set_row_count()
 

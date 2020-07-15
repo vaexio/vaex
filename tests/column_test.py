@@ -100,7 +100,7 @@ def test_column_indexed(df_local):
     assert isinstance(dff.columns[x_name], vaex.column.ColumnIndexed)
     assert dff.x.tolist() == [1, 3, 5, 7, 9]
 
-    column_masked = vaex.column.ColumnIndexed.index(dff, dff.columns[x_name], 'x', np.array([0, -1, 2, 3, 4]), {}, True)
+    column_masked = vaex.column.ColumnIndexed.index(dff.columns[x_name], np.array([0, -1, 2, 3, 4]), {}, True)
     assert column_masked[:].tolist() == [1, None, 5, 7, 9]
     assert column_masked.masked
     assert column_masked.trim(0, 1).masked

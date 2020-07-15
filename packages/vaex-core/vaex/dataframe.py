@@ -3919,11 +3919,6 @@ class DataFrame(object):
         '''
         df_trimmed = self.trim()
         df = df_trimmed.copy()
-        # if the columns in ds already have a ColumnIndex
-        # we could do, direct_indices = df.column['bla'].indices[indices]
-        # which should be shared among multiple ColumnIndex'es, so we store
-        # them in this dict
-        direct_indices_map = {}
         indices = np.asarray(indices)
         if df.filtered and filtered:
             # we translate the indices that refer to filters row indices to
@@ -3933,11 +3928,7 @@ class DataFrame(object):
             mask = df._selection_masks[FILTER_SELECTION_NAME]
             filtered_indices = mask.first(max_index+1)
             indices = filtered_indices[indices]
-        for name, column in df.columns.items():
-            if column is not None:
-                # we optimize this somewhere, so we don't do multiple
-                # levels of indirection
-                df.columns[name] = ColumnIndexed.index(df_trimmed, column, name, indices, direct_indices_map)
+        df.dataset = df.dataset.take(indices)
         df._length_original = len(indices)
         df._length_unfiltered = df._length_original
         df._cached_filtered_length = None
@@ -5797,6 +5788,7 @@ class DataFrameLocal(DataFrame):
         # now we add columns from the right, to the left
         right_names = right.get_names(hidden=True)
         left_names = left.get_names(hidden=True)
+        right_columns = []
         for name in right_names:
             column_name = name
             if name == left_on and name in left_names:
@@ -5807,11 +5799,18 @@ class DataFrameLocal(DataFrame):
             elif column_name in right.virtual_columns:
                 left.add_virtual_column(name, right.virtual_columns[column_name])
             else:
-                if lookup is not None:
-                    column = ColumnIndexed.index(right, right.columns[column_name], name, lookup, direct_indices_map, any(lookup_masked))
-                else:
-                    column = right.columns[name]
-                left.add_column(name, column)
+                right_columns.append(name)
+                # we already add the column name here to get the same order
+                left.column_names.append(name)
+                left._initialize_column(name)
+        # merge the two datasets
+        right_dataset = right.dataset.project(*right_columns)
+        if lookup is not None:
+            # if lookup is None, we do a row based join
+            # and we only need to merge.
+            # if we have an array of lookup indices, we 'take' those
+            right_dataset = right_dataset.take(lookup, masked=any(lookup_masked))
+        left.dataset = left.dataset.merged(right_dataset)
         return left
 
     def export(self, path, column_names=None, byteorder="=", shuffle=False, selection=False, progress=None, virtual=True, sort=None, ascending=True):

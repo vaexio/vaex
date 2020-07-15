@@ -126,11 +126,10 @@ class ColumnArrowLazyCast(Column):
 
 
 class ColumnIndexed(Column):
-    def __init__(self, df, indices, name, masked=False):
-        self.df = df
+    def __init__(self, column, indices, masked=False):
+        self.column = column
         self.indices = indices
-        self.name = name
-        self.dtype = self.df.data_type(name)
+        self.dtype = vaex.array_types.data_type(column)
         self.shape = (len(indices),)
         self.masked = masked
         # this check is too expensive
@@ -139,7 +138,7 @@ class ColumnIndexed(Column):
         #     assert max_index < self.df._length_original
 
     @staticmethod
-    def index(df, column, name, indices, direct_indices_map=None, masked=False):
+    def index(column, indices, direct_indices_map=None, masked=False):
         """Creates a new column indexed by indices which avoids nested indices
 
         :param df: Dataframe where column comes from
@@ -160,15 +159,15 @@ class ColumnIndexed(Column):
                 direct_indices_map[id(column.indices)] = direct_indices
             else:
                 direct_indices = direct_indices_map[id(column.indices)]
-            return ColumnIndexed(column.df, direct_indices, column.name, masked=masked or column.masked)
+            return ColumnIndexed(column.column, direct_indices, masked=masked or column.masked)
         else:
-            return ColumnIndexed(df, indices, name, masked=masked)
+            return ColumnIndexed(column, indices, masked=masked)
 
     def __len__(self):
         return len(self.indices)
 
     def trim(self, i1, i2):
-        return ColumnIndexed(self.df, self.indices[i1:i2], self.name, masked=self.masked)
+        return ColumnIndexed(self.column, self.indices[i1:i2], masked=self.masked)
 
     def __arrow_array__(self, type=None):
         # TODO: without a copy we get a buserror
@@ -179,13 +178,16 @@ class ColumnIndexed(Column):
         # else:
         return pa.array(self)
 
+    def to_numpy(self):
+        return np.array(self[:])
+
     def __getitem__(self, slice):
         start, stop, step = slice.start, slice.stop, slice.step
         start = start or 0
         stop = stop or len(self)
         assert step in [None, 1]
         indices = self.indices[start:stop]
-        ar_unfiltered = self.df.columns[self.name]
+        ar_unfiltered = self.column
         if self.masked:
             mask = indices == -1
         if isinstance(ar_unfiltered, Column):

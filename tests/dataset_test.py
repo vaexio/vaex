@@ -78,6 +78,17 @@ def test_merge():
         ds2.merged(dsx)
 
 
+def test_slice_column():
+    # slicing a colunm type should keep it column type
+    x = np.arange(10)
+    y = x**2
+    ds1 = dataset.DatasetArrays(x=x, y=y)
+    indices = np.array([1, 2, 5, 7, 9])
+    ds2 = ds1.take(indices)
+    ds3 = ds2[1:3]
+    assert isinstance(ds3['x'], vaex.column.ColumnIndexed)
+
+
 def test_slice():
     x = np.arange(10)
     y = x**2
@@ -99,6 +110,41 @@ def test_slice():
 
     assert ds2 != ds3
     assert rebuild(ds1) != rebuild(ds2)
+
+
+def test_take():
+    x = np.arange(10)
+    y = x**2
+    ds1 = dataset.DatasetArrays(x=x, y=y)
+    indices = np.array([1, 2, 5])
+    indices_other = np.array([1, 2, 6])
+    ds2 = ds1.take(indices)
+    ds2b = ds1.take(indices)
+    ds2c = ds1.take(indices_other)
+    assert ds1 != ds2
+    assert ds2 == ds2b
+    assert ds2 != ds2c
+    assert ds1.row_count == 10
+    assert ds2.row_count == len(indices)
+    assert ds2b.row_count == len(indices)
+    assert ds2c.row_count == len(indices_other)
+    assert ds2['x'].tolist() == x[indices].tolist()
+
+    ds3 = dataset.DatasetArrays(x=x[indices], y=y[indices])
+
+    assert ds2 != ds3
+    assert rebuild(ds1) != rebuild(ds2)
+
+
+def test_project():
+    x = np.arange(10)
+    y = x**2
+    ds1 = dataset.DatasetArrays(x=x, y=y)
+    ds2 = ds1.project('x')
+    ds3 = dataset.DatasetArrays(x=x)
+    assert ds1 != ds2
+    assert ds2 == ds3
+    assert rebuild(ds2) == rebuild(ds3)
 
 
 def test_drop():

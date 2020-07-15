@@ -33,6 +33,13 @@ def same_type(type1, type2):
         return False
 
 
+def data_type(ar):
+    if isinstance(ar, supported_arrow_array_types):
+        return ar.type
+    else:
+        return ar.dtype
+
+
 def to_numpy(x, strict=False):
     import vaex.arrow.convert
     import vaex.column
