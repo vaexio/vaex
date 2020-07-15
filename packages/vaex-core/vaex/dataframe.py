@@ -3882,17 +3882,7 @@ class DataFrame(object):
         df = self if inplace else self.copy()
         if self._index_start == 0 and self._index_end == self._length_original:
             return df
-        for name in df.columns.keys():
-            column = df.columns.get(name)
-            if column is not None:
-                if self._index_start == 0 and len(column) == self._index_end:
-                    pass  # we already assigned it in .copy
-                else:
-                    if isinstance(column, array_types.supported_array_types):  # real array
-                        df.columns[name] = column[self._index_start:self._index_end]
-                    else:
-                        df.columns[name] = column.trim(self._index_start, self._index_end)
-
+        df.dataset = self.dataset[self._index_start:self._index_end]
         df._length_original = self.length_unfiltered()
         df._length_unfiltered = df._length_original
         df._cached_filtered_length = None

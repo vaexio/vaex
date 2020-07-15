@@ -78,6 +78,29 @@ def test_merge():
         ds2.merged(dsx)
 
 
+def test_slice():
+    x = np.arange(10)
+    y = x**2
+    ds1 = dataset.DatasetArrays(x=x, y=y)
+    ds2 = ds1[1:8]
+    ds2b = ds1[1:8]
+    ds2c = ds1[1:9]
+    assert ds1 != ds2
+    assert ds2 == ds2b
+    assert ds2 != ds2c
+    assert ds1.row_count == 10
+    assert ds2.row_count == 7
+    assert ds2b.row_count == 7
+    assert ds2c.row_count == 8
+    assert ds2['x'].tolist() == x[1:8].tolist()
+
+
+    ds3 = dataset.DatasetArrays(x=x[1:8], y=y[1:8])
+
+    assert ds2 != ds3
+    assert rebuild(ds1) != rebuild(ds2)
+
+
 def test_drop():
     x = np.arange(10)
     y = x**2

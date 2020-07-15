@@ -54,6 +54,11 @@ def _to_bytes(ar):
     except ValueError:
         return ar.copy().view(np.uint8)
 
+def hash_slice(hash, start, end):
+    blake = blake3.blake3(hash.encode(), multithreading=False)
+    slice = np.array([start, end], dtype=np.int64)
+    blake.update(_to_bytes(slice))
+    return blake.hexdigest()
 
 def hash_array(ar):
     if isinstance(ar, np.ndarray):
@@ -128,6 +133,20 @@ class Dataset(collections.abc.Mapping):
     def __init__(self):
         super().__init__()
         self._columns = frozendict()
+        self._row_count = None
+
+    def _set_row_count(self):
+        if not self._columns:
+            return
+        values = list(self._columns.values())
+        self._row_count = len(values[0])
+        for name, value in list(self._columns.items())[1:]:
+            if len(value) != self._row_count:
+                raise ValueError(f'First columns has length {self._row_count}, while column {name} has length {len(value)}')
+
+    @property
+    def row_count(self):
+        return self._row_count
 
     def renamed(self, renaming):
         return DatasetRenamed(self, renaming)
@@ -138,8 +157,11 @@ class Dataset(collections.abc.Mapping):
     def dropped(self, *names):
         return DatasetDropped(self, names)
 
-    def __getitem__(self, name):
-        return self._columns[name]
+    def __getitem__(self, item):
+        if isinstance(item, slice):
+            assert item.step in [1, None]
+            return DatasetSliced(self, item.start or 0, item.stop or self.row_count)
+        return self._columns[item]
     
     def __len__(self):
         return len(self._columns)
@@ -160,35 +182,59 @@ class Dataset(collections.abc.Mapping):
 
 class DatasetRenamed(Dataset):
     def __init__(self, original, renaming):
+        super().__init__()
         self.original = original
         self._columns = frozendict({renaming.get(name, name): ar for name, ar in original.items()})
         self._ids = frozendict({renaming.get(name, name): ar for name, ar in original._ids.items()})
+        self._set_row_count()
+
+class DatasetSliced(Dataset):
+    def __init__(self, original, start, end):
+        super().__init__()
+        # maybe we want to avoid slicing twice, and collapse it to 1?
+        self.original = original
+        self.start = start
+        self.end = end
+        # TODO: this is the old dataframe.trim method, we somehow need to test/capture that
+        # if isinstance(column, array_types.supported_array_types):  # real array
+        #     df.columns[name] = column[self._index_start:self._index_end]
+        # else:
+        #     df.columns[name] = column.trim(self._index_start, self._index_end)
+        self._columns = frozendict({name: ar[start:end] for name, ar in original.items()})
+        self._ids = frozendict({name: hash_slice(hash, start, end) for name, hash in original._ids.items()})
+        self._set_row_count()
 
 
 class DatasetDropped(Dataset):
     def __init__(self, original, names):
+        super().__init__()
         self.original = original
         self._columns = frozendict({name: ar for name, ar in original.items() if name not in names})
         self._ids = frozendict({name: ar for name, ar in original._ids.items() if name not in names})
+        self._set_row_count()
 
 
 class DatasetMerged(Dataset):
     def __init__(self, left, right):
+        super().__init__()
         overlap = set(left) & set(right)
         if overlap:
             raise NameError(f'Duplicate names: {overlap}')
         self._columns = frozendict({**left._columns, **right._columns})
         self._ids = frozendict({**left._ids, **right._ids})
+        self._set_row_count()
 
 
 class DatasetArrays(Dataset):
     def __init__(self, mapping=None, **kwargs):
+        super().__init__()
         if mapping is None:
             mapping = {}
         columns = {**mapping, **kwargs}
         columns = {key: to_supported_array(ar) for key, ar in columns.items()}
         self._columns = frozendict(columns)
         self._ids = frozendict({key: hash_array(array) for key, array in self._columns.items()})
+        self._set_row_count()
 
     # TODO: we might want to really get rid of these, since we want to avoid copying them over the network?
     # def dropped(self, names):
@@ -198,6 +244,7 @@ class DatasetFile(Dataset):
     or keep them in a meta file.
     """
     def __init__(self, path, write=False):
+        super().__init__()
         self.path = path
         self.write = write
         self._columns = {}
@@ -225,6 +272,7 @@ class DatasetFile(Dataset):
                 self._ids[name] = hash
         self._ids = frozendict(self._ids)
         self._columns = frozendict(self._columns)
+        self._set_row_count()
         directory = Path(self.path + '.d')
         directory.mkdir(exist_ok=True)
         path_hashes = directory / 'hashes.yaml'
