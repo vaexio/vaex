@@ -4203,6 +4203,18 @@ class DataFrame(object):
         df.add_column(virtual_column, ar)
         return df
 
+    def _lazy_materialize(self, *virtual_columns):
+        '''Returns a new DataFrame where the virtual column is turned into an lazily evaluated column.'''
+        df = self.trim()
+        virtual_columns = _ensure_strings_from_expression(virtual_columns)
+        for name in virtual_columns:
+            if name not in df.virtual_columns:
+                raise KeyError('Virtual column not found: %r' % virtual_column)
+            column = ColumnConcatenatedLazy(self[name])
+            del df[virtual_column]
+            df.add_column(name, column)
+        return df
+
     def get_selection(self, name="default"):
         """Get the current selection object (mostly for internal use atm)."""
         name = _normalize_selection_name(name)
@@ -5295,25 +5307,47 @@ class DataFrameLocal(DataFrame):
                 new_name = name
             self.add_column(new_name, other.columns[name])
 
-    def concat(self, other):
-        """Concatenates two DataFrames, adding the rows of the other DataFrame to the current, returned in a new DataFrame.
+    def concat(self, *others):
+        """Concatenates multiple DataFrames, adding the rows of the other DataFrame to the current, returned in a new DataFrame.
 
         No copy of the data is made.
 
-        :param other: The other DataFrame that is concatenated with this DataFrame
+        :param others: The other DataFrames that are concatenated with this DataFrame
         :return: New DataFrame with the rows concatenated
-        :rtype: DataFrameConcatenated
+        :rtype: DataFrameLocal
         """
-        dfs = []
-        if isinstance(self, DataFrameConcatenated):
-            dfs.extend(self.dfs)
-        else:
-            dfs.extend([self])
-        if isinstance(other, DataFrameConcatenated):
-            dfs.extend(other.dfs)
-        else:
-            dfs.extend([other])
-        return DataFrameConcatenated(dfs)
+        # to reduce complexity, we 'extract' the dataframes (i.e. remove filter)
+        dfs = [self, *others]
+        dfs = [df.extract() for df in dfs]
+        first, *tail = dfs
+        common = []
+        df_column_names = [df.get_column_names(virtual=False, hidden=True) for df in dfs]  # for performance
+        df_all_column_names = [df.get_column_names(virtual=True, hidden=True) for df in dfs]  # for performance
+        for name in df_column_names[0]:
+            for df, column_names in zip(tail, df_column_names[1:]):
+                if name not in column_names:
+                    if name in df_all_column_names:  # it's a virtual column, while in first a real column
+                        # upgrade to a column, so Dataset's concat works
+                        dfs[dfs.index(df)] = df._lazy_materialize(name)
+                    else:
+                        pass  # TODO: add columns with empty/null values
+        # concatenate all datasets
+        dataset = first.dataset.concat(*[df.dataset for df in tail])
+        df_concat = vaex.dataframe.DataFrameLocal(dataset)
+
+        for name in list(first.virtual_columns.keys()):
+            if all([first.virtual_columns[name] == df.virtual_columns.get(name, None) for df in tail]):
+                df_concat.add_virtual_column(name, first.virtual_columns[name])
+            else:
+                df_concat.columns[name] = ColumnConcatenatedLazy([df[name] for df in dfs])
+                df_concat.column_names.append(name)
+            df_concat._save_assign_expression(name)
+
+        for df in tail:
+            for name, value in list(df.variables.items()):
+                if name not in self.variables:
+                    df_concat.set_variable(name, value, write=False)
+        return df_concat
 
     def _invalidate_caches(self):
         self._invalidate_selection_cache()
@@ -6098,55 +6132,6 @@ class DataFrameLocal(DataFrame):
         If any of the columns contain masked arrays, the masks are ignored (i.e. the masked elements are returned as well).
         """
         return self.__array__()
-
-
-class DataFrameConcatenated(DataFrameLocal):
-    """Represents a set of DataFrames all concatenated. See :func:`DataFrameLocal.concat` for usage.
-    """
-
-    def __init__(self, dfs, name=None):
-        super(DataFrameConcatenated, self).__init__()
-        # to reduce complexity, we 'extract' the dataframes (i.e. remove filter)
-        self.dfs = dfs = [df.extract() for df in dfs]
-        # self.name = name or "-".join(df.name for df in self.dfs)
-        # self.path = "-".join(df.path for df in self.dfs)
-        first, tail = dfs[0], dfs[1:]
-        for column_name in first.get_column_names(virtual=False, hidden=True):
-            if all([column_name in df.get_column_names(virtual=False, hidden=True) for df in tail]):
-                self.column_names.append(column_name)
-        # self.columns = {}
-        for column_name in self.get_column_names(virtual=False, hidden=True):
-            self.columns[column_name] = ColumnConcatenatedLazy([df[column_name] for df in dfs])
-            self._save_assign_expression(column_name)
-
-        for name in list(first.virtual_columns.keys()):
-            if all([first.virtual_columns[name] == df.virtual_columns.get(name, None) for df in tail]):
-                self.add_virtual_column(name, first.virtual_columns[name])
-            else:
-                self.columns[name] = ColumnConcatenatedLazy([df[name] for df in dfs])
-                self.column_names.append(name)
-            self._save_assign_expression(name)
-
-        for df in dfs[:1]:
-            for name, value in list(df.variables.items()):
-                if name not in self.variables:
-                    self.set_variable(name, value, write=False)
-        # self.write_virtual_meta()
-
-        self._length_unfiltered = sum(len(ds) for ds in self.dfs)
-        self._length_original = self._length_unfiltered
-        self._index_end = self._length_unfiltered
-
-    def is_masked(self, column):
-        column = _ensure_string_from_expression(column)
-        if column in self.columns:
-            return self.columns[column].is_masked
-        else:
-            ar = self.evaluate(column, i1=0, i2=1, parallel=False)
-            if isinstance(ar, np.ndarray) and np.ma.isMaskedArray(ar):
-                return True
-        return False
-
 
 
 def _is_dtype_ok(dtype):

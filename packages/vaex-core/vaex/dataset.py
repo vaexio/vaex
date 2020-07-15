@@ -163,6 +163,19 @@ class Dataset(collections.abc.Mapping):
         print(drop)
         return self.dropped(*list(drop))
 
+    def concat(self, *others):
+        datasets = []
+        if isinstance(self, DatasetConcatenated):
+            datasets.extend(self.datasets)
+        else:
+            datasets.extend([self])
+        for other in others:
+            if isinstance(other, DatasetConcatenated):
+                datasets.extend(other.datasets)
+            else:
+                datasets.extend([other])
+        return DatasetConcatenated(datasets)
+
     def take(self, indices, masked=False):
         return DatasetTake(self, indices, masked=masked)
 
@@ -204,6 +217,29 @@ class DatasetRenamed(Dataset):
         self.original = original
         self._columns = frozendict({renaming.get(name, name): ar for name, ar in original.items()})
         self._ids = frozendict({renaming.get(name, name): ar for name, ar in original._ids.items()})
+        self._set_row_count()
+
+
+class DatasetConcatenated(Dataset):
+    def __init__(self, datasets):
+        self.datasets = datasets
+        for dataset in datasets[1:]:
+            if set(dataset) != set(datasets[0]):
+                l = set(dataset)
+                r = set(datasets[0])
+                diff = l ^ r
+                raise NameError(f'Concatenating datasets with different names: {l} and {r} (difference: {diff})')
+        # we need to work with a dataframe :( because the column expects that
+        # maybe we should split the column into a lazy evaluate (virtual column -> column)
+        # and a concatenated one (that only works with columns)
+        dfs = [vaex.dataframe.DataFrameLocal(ds) for ds in datasets]
+        columns = {}
+        hashes = {}
+        for name in datasets[0]:
+            columns[name] = ColumnConcatenatedLazy([df[name] for df in dfs])
+            hashes[name] = hash_combine(*[ds._ids[name] for ds in datasets])
+        self._columns = frozendict(columns)
+        self._ids = frozendict(hashes)
         self._set_row_count()
 
 

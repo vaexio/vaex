@@ -159,6 +159,18 @@ def test_drop():
     assert rebuild(ds1) == rebuild(ds2.merged(ds3))
 
 
+def test_concat():
+    x = np.arange(10)
+    y = x**2
+    ds = dataset.DatasetArrays(x=x, y=y)
+    mid = 4
+    ds1 = dataset.DatasetArrays(x=x[:mid], y=y[:mid])
+    ds2 = dataset.DatasetArrays(y=y[mid:], x=x[mid:])  # order should not matter
+    dsc = ds1.concat(ds2)
+    assert ds.row_count == dsc.row_count
+    assert dsc.row_count == ds1.row_count + ds2.row_count
+
+
 def test_example():
     df = vaex.example()
     assert isinstance(df, vaex.dataframe.DataFrame)

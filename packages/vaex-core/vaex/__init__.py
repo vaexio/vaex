@@ -804,8 +804,8 @@ def concat(dfs):
 
     :rtype: DataFrame
     '''
-    ds = reduce((lambda x, y: x.concat(y)), dfs)
-    return ds
+    df, *tail = dfs
+    return df.concat(*tail)
 
 def vrange(start, stop, step=1, dtype='f8'):
     """Creates a virtual column which is the equivalent of numpy.arange, but uses 0 memory"""
