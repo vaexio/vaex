@@ -40,7 +40,6 @@ extensions = [
     'nbsphinx',
     'sphinx.ext.intersphinx',
     'sphinx_gallery.load_style',
-    'autoapi.extension',
 ]
 
 import os
