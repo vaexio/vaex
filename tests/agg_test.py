@@ -408,18 +408,18 @@ def test_var_and_std(df):
 def test_mutual_information(df_local):
     df = df_local
     limits = df.limits(["x", "y"], "minmax")
-    mi2 = df.mutual_information("x", "y", mi_limits=limits, mi_shape=256)
+    mi2 = df.mutual_information("x", "y", mi_limits=limits, mi_shape=32)
 
-    np.testing.assert_array_almost_equal(2.19722458, mi2)
+    np.testing.assert_array_almost_equal(2.043192, mi2)
 
     # no test, just for coverage
-    mi1d = df.mutual_information("x", "y", mi_limits=limits, mi_shape=256, binby="x", limits=[0, 10], shape=2)
+    mi1d = df.mutual_information("x", "y", mi_limits=limits, mi_shape=32, binby="x", limits=[0, 10], shape=2)
     assert mi1d.shape == (2,)
 
-    mi2d = df.mutual_information("x", "y", mi_limits=limits, mi_shape=256, binby=["x", "y"], limits=[[0, 10], [0, 100]], shape=(2, 3))
+    mi2d = df.mutual_information("x", "y", mi_limits=limits, mi_shape=32, binby=["x", "y"], limits=[[0, 10], [0, 100]], shape=(2, 3))
     assert mi2d.shape == (2,3)
 
-    mi3d = df.mutual_information("x", "y", mi_limits=limits, mi_shape=256, binby=["x", "y", "z"], limits=[[0, 10], [0, 100], [-100, 100]], shape=(2, 3, 4))
+    mi3d = df.mutual_information("x", "y", mi_limits=limits, mi_shape=32, binby=["x", "y", "z"], limits=[[0, 10], [0, 100], [-100, 100]], shape=(2, 3, 4))
     assert mi3d.shape == (2,3,4)
 
     mi_list, subspaces = df.mutual_information([["x", "y"], ["x", "z"]], sort=True)
