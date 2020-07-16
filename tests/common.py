@@ -120,22 +120,34 @@ def ds_filtered(df_filtered):
     return df_filtered
 
 
-@pytest.fixture()
-def df_filtered():
+@pytest.fixture(scope="module")
+def df_filtered_cached():
     return create_filtered()
 
 @pytest.fixture()
-def ds_half():
+def df_filtered(df_filtered_cached):
+    return df_filtered_cached.copy()
+
+@pytest.fixture(scope="module")
+def ds_half_cache():
     ds = create_base_ds()
     ds.set_active_range(2, 12)
     return ds
 
-
 @pytest.fixture()
-def ds_trimmed():
+def ds_half(ds_half_cache):
+    return ds_half_cache.copy()
+
+
+@pytest.fixture(scope="module")
+def ds_trimmed_cache():
     ds = create_base_ds()
     ds.set_active_range(2, 12)
     return ds.trim()
+
+@pytest.fixture()
+def ds_trimmed(ds_trimmed_cache):
+    return ds_trimmed_cache.copy()
 
 
 @pytest.fixture()
@@ -143,14 +155,19 @@ def df_trimmed(ds_trimmed):
     return ds_trimmed
 
 
-@pytest.fixture()
-def df_concat(ds_trimmed):
-    df = ds_trimmed
+@pytest.fixture(scope="module")
+def df_concat_cache(ds_trimmed_cache):
+    df = ds_trimmed_cache
     df1 = df[:2]   # length 2
     df2 = df[2:3]  # length 1
     df3 = df[3:7]  # length 4
     df4 = df[7:10]  # length 3
     return vaex.concat([df1, df2, df3, df4])
+
+@pytest.fixture()
+def df_concat(df_concat_cache):
+    return df_concat_cache.copy()
+
 
 
 # for when only the type of executor matters
@@ -184,13 +201,17 @@ def df_local_non_arrow(request, ds_filtered, ds_half, ds_trimmed, df_concat):
     return named[request.param]
 
 
-@pytest.fixture
+@pytest.fixture()
 def df_local(ds_local):
     return ds_local
 
+@pytest.fixture
+def df_arrow(df_arrow_cache):
+    return df_arrow_cache.copy()
+
 
 @pytest.fixture
-def df_arrow(df_arrow_raw):
+def df_arrow_cache(df_arrow_raw):
     # we add the filter and virtual columns again to avoid the expression rewriting
     df = df_arrow_raw.as_numpy().drop_filter()
     del df['z']
