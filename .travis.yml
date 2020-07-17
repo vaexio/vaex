@@ -25,7 +25,7 @@ before_install:
   - ./ci/01-setup-conda.sh
   - export PATH="$HOME/miniconda/bin:$PATH"
   - ./ci/02-create-vaex-dev-env.sh $PYTHON_VERSION
-  - source activate test-environment
+  - source activate vaex-dev
   - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then
       conda install gxx_linux-64 -y;
     fi
