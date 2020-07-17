@@ -1,3 +1,11 @@
+try:
+    # we need to load sklearn first, otherwise we get a similar issue as
+    # https://github.com/pytorch/pytorch/issues/2575
+    # but with catboost, xgboost and lightgbm
+    import sklearn
+except:
+    pass
+
 import pytest
 import vaex
 import vaex.server.service
