@@ -19,6 +19,8 @@ def counter_type_from_dtype(dtype, transient=True):
         postfix = str(dtype)
         if postfix == '>f8':
             postfix = 'float64'
+        if postfix == 'double':  # arrow
+            postfix = 'float64'
     name = 'counter_' + postfix
     return globals()[name]
 

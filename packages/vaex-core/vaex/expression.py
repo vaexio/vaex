@@ -599,7 +599,7 @@ class Expression(with_metaclass(Meta)):
         :returns: Pandas series containing the counts
         """
         from pandas import Series
-        dtype = self.dtype
+        data_type = self.data_type()
 
         transient = self.transient or self.ds.filtered or self.ds.is_masked(self.expression)
         if self.is_string() and not transient:
@@ -608,12 +608,12 @@ class Expression(with_metaclass(Meta)):
             if not isinstance(ar, ColumnString):
                 transient = True
 
-        counter_type = counter_type_from_dtype(self.dtype, transient)
+        counter_type = counter_type_from_dtype(data_type, transient)
         counters = [None] * self.ds.executor.thread_pool.nthreads
         def map(thread_index, i1, i2, ar):
             if counters[thread_index] is None:
                 counters[thread_index] = counter_type()
-            if vaex.array_types.is_string_type(dtype):
+            if vaex.array_types.is_string_type(data_type):
                 previous_ar = ar
                 ar = _to_string_sequence(ar)
                 if not transient:

@@ -102,3 +102,14 @@ def test_value_counts_masked_str():
     assert value_counts['A'] == 2
     assert value_counts['B'] == 1
     assert value_counts[''] == 2
+
+
+def test_value_counts_add_strings():
+    x = ['car', 'car', 'boat']
+    y = ['red', 'red', 'blue']
+    df = vaex.from_arrays(x=x, y=y)
+    df['z'] = df.x + '-' + df.y
+
+    value_counts = df.z.value_counts()
+    assert list(value_counts.index) == ['car-red', 'boat-blue']
+    assert value_counts.values.tolist() == [2, 1]
