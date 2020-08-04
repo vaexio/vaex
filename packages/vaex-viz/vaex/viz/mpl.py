@@ -10,6 +10,7 @@ import vaex.image
 from .vector import plot2d_vector
 from .tensor import plot2d_tensor
 from .contour import plot2d_contour
+import warnings
 
 logger = logging.getLogger("vaex.viz")
 
@@ -33,24 +34,24 @@ patch(plot2d_contour)
 max_labels = 10
 
 @patch
-def plot1d(self, x=None, what="count(*)", grid=None, shape=64, facet=None, limits=None, figsize=None, f="identity", n=None, normalize_axis=None,
-           xlabel=None, ylabel=None, label=None,
-           selection=None, show=False, tight_layout=True, hardcopy=None,
-           progress=None,
-           **kwargs):
-    """Viz data in 1d (histograms, running means etc)
+def histogram(self, x=None, what="count(*)", grid=None, shape=64, facet=None, limits=None, figsize=None, f="identity", n=None, normalize_axis=None,
+              xlabel=None, ylabel=None, label=None,
+              selection=None, show=False, tight_layout=True, hardcopy=None,
+              progress=None,
+              **kwargs):
+    """Plot a histogram.
 
-    Example
+    Example:
 
-    >>> df.plot1d(df.x)
-    >>> df.plot1d(df.x, limits=[0, 100], shape=100)
-    >>> df.plot1d(df.x, what='mean(y)', limits=[0, 100], shape=100)
+    >>> df.histogram(df.x)
+    >>> df.histogram(df.x, limits=[0, 100], shape=100)
+    >>> df.histogram(df.x, what='mean(y)', limits=[0, 100], shape=100)
 
     If you want to do a computation yourself, pass the grid argument, but you are responsible for passing the
     same limits arguments:
 
     >>> counts = df.mean(df.y, binby=df.x, limits=[0, 100], shape=100)/100.
-    >>> df.plot1d(df.x, limits=[0, 100], shape=100, grid=means, label='mean(y)/100')
+    >>> df.histogram(df.x, limits=[0, 100], shape=100, grid=means, label='mean(y)/100')
 
     :param x: Expression to bin in the x direction
     :param what: What to plot, count(*) will show a N-d histogram, mean('x'), the mean of the x column, sum('x') the sum
@@ -186,6 +187,12 @@ def plot1d(self, x=None, what="count(*)", grid=None, shape=64, facet=None, limit
 
 
 @patch
+def plot1d(self, x=None, **kwargs):
+    warnings.warn('`plot1d` is deprecated and it will be removed in version 5.x. Please `histogram` instead.')
+    histogram(self, x=x, **kwargs)
+
+
+@patch
 def scatter(self, x, y, xerr=None, yerr=None, cov=None, corr=None, s_expr=None, c_expr=None, labels=None, selection=None, length_limit=50000,
     length_check=True, label=None, xlabel=None, ylabel=None, errorbar_kwargs={}, ellipse_kwargs={}, **kwargs):
     """Viz (small amounts) of data in 2d using a scatter plot
@@ -288,19 +295,19 @@ def scatter(self, x, y, xerr=None, yerr=None, cov=None, corr=None, s_expr=None, 
 
 
 @patch
-def plot(self, x=None, y=None, z=None, what="count(*)", vwhat=None, reduce=["colormap"], f=None,
-         normalize="normalize", normalize_axis="what",
-         vmin=None, vmax=None,
-         shape=256, vshape=32, limits=None, grid=None, colormap="afmhot",  # colors=["red", "green", "blue"],
-         figsize=None, xlabel=None, ylabel=None, aspect="auto", tight_layout=True, interpolation="nearest", show=False,
-         colorbar=True,
-         colorbar_label=None,
-         selection=None, selection_labels=None, title=None,
-         background_color="white", pre_blend=False, background_alpha=1.,
-         visual=dict(x="x", y="y", layer="z", fade="selection", row="subspace", column="what"),
-         smooth_pre=None, smooth_post=None,
-         wrap=True, wrap_columns=4,
-         return_extra=False, hardcopy=None):
+def heatmap(self, x=None, y=None, z=None, what="count(*)", vwhat=None, reduce=["colormap"], f=None,
+            normalize="normalize", normalize_axis="what",
+            vmin=None, vmax=None,
+            shape=256, vshape=32, limits=None, grid=None, colormap="afmhot",  # colors=["red", "green", "blue"],
+            figsize=None, xlabel=None, ylabel=None, aspect="auto", tight_layout=True, interpolation="nearest", show=False,
+            colorbar=True,
+            colorbar_label=None,
+            selection=None, selection_labels=None, title=None,
+            background_color="white", pre_blend=False, background_alpha=1.,
+            visual=dict(x="x", y="y", layer="z", fade="selection", row="subspace", column="what"),
+            smooth_pre=None, smooth_post=None,
+            wrap=True, wrap_columns=4,
+            return_extra=False, hardcopy=None):
     """Viz data in a 2d histogram/heatmap.
 
     Declarative plotting of statistical plots using matplotlib, supports subplots, selections, layers.
@@ -849,3 +856,9 @@ def plot(self, x=None, y=None, z=None, what="count(*)", vwhat=None, reduce=["col
         return im
     # colorbar = None
     # return im, colorbar
+
+
+@patch
+def plot(self, x=None, y=None, z=None, **kwargs):
+    warnings.warn('`plot` is deprecated and it will be removed in version 5.x. Please `heatmap` instead.')
+    heatmap(self, x=x, y=y, z=z, **kwargs)
