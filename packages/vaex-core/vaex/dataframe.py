@@ -4753,7 +4753,25 @@ class DataFrame(object):
     def shift(self, column_names=None, periods=1, cyclic=False, fill_value=None):
         """Shift the locations of the specified columns by a certain number of periods/rows.
 
-        :param:
+        Example:
+
+        >>> import vaex
+        >>> df = vaex.from_arrays(x=[1, 2, 3], y=['Maria', 'John', 'Reggie'])
+        >>> df.shift(periods=1)
+          #  x    y
+          0  --   --
+          1  1    Maria
+          2  2    John
+        >>> df.shift(periods=-2, cyclic=True)
+          #    x  y
+          0    3  Reggie
+          1    1  Maria
+          2    2  John
+
+        :param column_names: A list of column names or expressions to be shifted.
+        :param periods: Number of periods to shift. Can be positive or negative.
+        :param cyclic: If True, the shifting is cyclical, i.e. the last samples become the first samples and vice versa.
+        :param fill_value: If cyclic is False, one can specify a value to fill the masked values that arise do the the shifted columns.
         """
         def get_dtype(expr):
             if self[expr].is_string():
