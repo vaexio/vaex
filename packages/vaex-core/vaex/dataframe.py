@@ -4749,6 +4749,47 @@ class DataFrame(object):
                 del df[column]
         return df
 
+    @docsubst
+    def shift(self, column_names=None, periods=1, cyclic=False, fill_value=None):
+        """Shift the locations of the specified columns by a certain number of periods/rows.
+
+        :param:
+        """
+        def get_dtype(expr):
+            if self[expr].is_string():
+                dtype = 'str'
+            else:
+                dtype = self[expr].dtype
+            return dtype
+
+        if column_names is None:
+            columns = self.get_column_names()
+        else:
+            columns = _ensure_strings_from_expressions(_ensure_list(column_names))
+
+        copy = self[columns].copy()
+
+        if periods == 0:
+            return copy
+
+        if cyclic:
+            head = copy[-periods:]
+            tail = copy[:-periods]
+
+        else:
+            if periods > 0:
+                head = vaex.from_dict({key: np.ma.masked_all(periods, dtype=get_dtype(key)) for key in columns})
+                tail = copy[:-periods]
+            else:
+                head = copy[-periods:]
+                tail = vaex.from_dict({key: np.ma.masked_all(-periods, dtype=get_dtype(key)) for key in columns})
+
+        df_shift = head.concat(tail)
+        if fill_value is not None:
+            df_shift = df_shift.fillna(fill_value)
+
+        return df_shift
+
     def _hide_column(self, column):
         '''Hides a column by prefixing the name with \'__\''''
         column = _ensure_string_from_expression(column)
