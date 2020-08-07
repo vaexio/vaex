@@ -109,17 +109,6 @@ class Predictor(state.HasState):
 
 @vaex.serialize.register
 @generate.register
-class SKLearnPredictor(Predictor):
-
-    def __init__(self):
-        super(SKLearnPredictor, self).__init__()
-        warnings.warn(message='''This class is deprecated and it will be removed in vaex-ml 0.8.
-                      Please use vaex.ml.sklearn.Predictor instead.''',
-                      category=DeprecationWarning)
-
-
-@vaex.serialize.register
-@generate.register
 class IncrementalPredictor(state.HasState):
     '''This class wraps any scikit-learn estimator (a.k.a predictions) that has
     a `.partial_fit` method, and makes it a vaex pipeline object.
