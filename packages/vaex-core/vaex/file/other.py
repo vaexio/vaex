@@ -15,7 +15,7 @@ import astropy.io.fits as fits
 import re
 import six
 
-from vaex.dataset import DatasetLocal, DatasetArrays, DatasetFile
+from vaex.dataset import DatasetArrays, DatasetFile
 logger = logging.getLogger("vaex.file")
 import vaex.dataset
 import vaex.file

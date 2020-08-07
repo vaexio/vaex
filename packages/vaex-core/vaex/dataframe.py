@@ -5343,9 +5343,9 @@ class DataFrameLocal(DataFrame):
                 df_concat.column_names.append(name)
             df_concat._save_assign_expression(name)
 
-        for df in tail:
+        for df in dfs:
             for name, value in list(df.variables.items()):
-                if name not in self.variables:
+                if name not in df_concat.variables:
                     df_concat.set_variable(name, value, write=False)
         return df_concat
 

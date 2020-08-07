@@ -6,7 +6,6 @@ import logging
 import numpy as np
 import numpy.ma
 import vaex
-from vaex.dataset import DatasetLocal
 import vaex.dataset
 import vaex.file
 from vaex.expression import Expression

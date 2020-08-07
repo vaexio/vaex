@@ -223,7 +223,7 @@ def df_arrow_cache(df_arrow_raw):
     # we add the filter and virtual columns again to avoid the expression rewriting
     df = df_arrow_raw.as_numpy().drop_filter()
     del df['z']
-    df.select('(x >= 0) & (x < 10)', name=vaex.dataset.FILTER_SELECTION_NAME)
+    df.select('(x >= 0) & (x < 10)', name=vaex.dataframe.FILTER_SELECTION_NAME)
     df.add_virtual_column("z", "x+t*y")
     return df
 
@@ -243,11 +243,11 @@ def ds_no_filter(request):
 
 def create_filtered():
     ds = create_base_ds()
-    ds.select('(x >= 0) & (x < 10)', name=vaex.dataset.FILTER_SELECTION_NAME)
+    ds.select('(x >= 0) & (x < 10)', name=vaex.dataframe.FILTER_SELECTION_NAME)
     return ds
 
 def create_base_ds():
-    dataset = vaex.dataset.DataFrameLocal()
+    dataset = vaex.dataframe.DataFrameLocal()
     x = np.arange(-2, 40, dtype=">f8").reshape((-1,21)).T.copy()[:,0]
     y = y = x ** 2
     ints = np.arange(-2,19, dtype="i8")

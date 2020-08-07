@@ -14,7 +14,6 @@ from vaex.utils import ensure_string
 import astropy.io.fits as fits
 import re
 import six
-from vaex.dataset import DatasetLocal, DatasetArrays
 import vaex.dataset
 import vaex.file
 from vaex.expression import Expression

@@ -1,53 +1,21 @@
-from pathlib import Path
-from .dataframe import *
-from .dataframe import (
-    # .dataframe imports from .utils
-    _ensure_strings_from_expressions,
-    _ensure_string_from_expression,
-    _ensure_list,
-    _is_limit,
-    _isnumber,
-    _issequence,
-    _is_string,
-    _parse_reduction,
-    _parse_n,
-    _normalize_selection_name,
-    _normalize,
-    _parse_f,
-    _expand,
-    _expand_shape,
-    _expand_limits,
-    _split_and_combine_mask,
-    # dataframe definitions
-    ColumnConcatenatedLazy as _ColumnConcatenatedLazy,
-    _doc_snippets,
-    _functions_statistics_1d,
-    _hidden,
-    _is_array_type_ok,
-    _is_dtype_ok,
-    _requires
-)
-
-# alias kept for backward compatibility
-Dataset = DataFrame
-DatasetLocal = DataFrameLocal
-# DatasetArrays = DataFrameArrays
-DatasetConcatenated = DataFrameConcatenated
-
 import os
+from pathlib import Path
 import collections.abc
-import numpy as np
-import uuid
 import logging
+import uuid
 from urllib.parse import urlparse
+
+import numpy as np
+import blake3
+from frozendict import frozendict
+import pyarrow as pa
+
+import vaex
+from .column import Column, ColumnIndexed, ColumnConcatenatedLazy, supported_column_types
+from . import array_types
 
 logger = logging.getLogger('vaex.dataset')
 
-import blake3
-from frozendict import frozendict
-
-from .column import Column, supported_column_types
-import pyarrow as pa
 
 def _to_bytes(ar):
     try:
@@ -129,7 +97,7 @@ def to_supported_array(ar):
                     return False
             types = list({type(k) for k in ar_data if k is not is_missing(k)})
 
-        if len(types) == 1 and issubclass(types[0], six.string_types):
+        if len(types) == 1 and issubclass(types[0], str):
             # TODO: how do we know it should not be large_string?
             # self._dtypes_override[valid_name] = pa.string()
             ar = vaex.column.ColumnArrowLazyCast(ar, pa.string())
