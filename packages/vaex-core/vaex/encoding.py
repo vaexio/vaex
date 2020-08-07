@@ -224,6 +224,10 @@ class Encoding:
         encoded = [self.registry[typename].encode(self, k) for k in values]
         return encoded
 
+    def encode_list2(self, typename, values):
+        encoded = [self.encode_list(typename, k) for k in values]
+        return encoded
+
     def encode_dict(self, typename, values):
         encoded = {key: self.registry[typename].encode(self, value) for key, value in values.items()}
         return encoded
@@ -234,6 +238,10 @@ class Encoding:
 
     def decode_list(self, typename, values, **kwargs):
         decoded = [self.registry[typename].decode(self, k, **kwargs) for k in values]
+        return decoded
+
+    def decode_list2(self, typename, values, **kwargs):
+        decoded = [self.decode_list(typename, k, **kwargs) for k in values]
         return decoded
 
     def decode_dict(self, typename, values, **kwargs):
