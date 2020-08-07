@@ -56,10 +56,21 @@ class Predictor(state.HasState):
     features = traitlets.List(traitlets.Unicode(), help='List of features to use.')
     target = traitlets.Unicode(allow_none=False, help='The name of the target column.')
     prediction_name = traitlets.Unicode(default_value='prediction', help='The name of the virtual column housing the predictions.')
+    prediction_type = traitlets.Enum(values=['predict', 'predict_proba', 'predict_log_proba'], default_value='predict',
+                                     help='Which method to use to get the predictions. \
+                                     Can be "predict", "predict_proba" or "predict_log_proba".')
+
+    # if not hasattr(model, prediction_type):
+    #     raise AttributeError(f'The specified sklearn model does not have a {prediction_type} attribute')
 
     def __call__(self, *args):
         X = np.vstack([arg.astype(np.float64) for arg in args]).T.copy()
-        return self.model.predict(X)
+        if self.prediction_type == 'predict':
+            return self.model.predict(X)
+        elif self.prediction_type == 'predict_proba':
+            return self.model.predict_proba(X)
+        else:
+            return self.model.predict_log_proba(X)
 
     def predict(self, df):
         '''Get an in-memory numpy array with the predictions of the SKLearnPredictor.self
@@ -68,8 +79,7 @@ class Predictor(state.HasState):
         :returns: A in-memory numpy array containing the SKLearnPredictor predictions.
         :rtype: numpy.array
         '''
-        data = df[self.features].values
-        return self.model.predict(data)
+        return self.transform(df)[self.prediction_name].values
 
     def transform(self, df):
         '''Transform a DataFrame such that it contains the predictions of the SKLearnPredictor.
@@ -173,11 +183,19 @@ class IncrementalPredictor(state.HasState):
     num_epochs = traitlets.Int(default_value=1, allow_none=False, help='Number of times each batch is sent to the model.')
     shuffle = traitlets.Bool(default_value=False, allow_none=False, help='If True, shuffle the samples before sending them to the model.')
     prediction_name = traitlets.Unicode(default_value='prediction', help='The name of the virtual column housing the predictions.')
+    prediction_type = traitlets.Enum(values=['predict', 'predict_proba', 'predict_log_proba'], default_value='predict',
+                                     help='Which method to use to get the predictions. \
+                                     Can be "predict", "predict_proba" or "predict_log_proba".')
     partial_fit_kwargs = traitlets.Dict(default_value={}, help='A dictionary of key word arguments to be passed on to the `fit_predict` method of the `model`.')
 
     def __call__(self, *args):
         X = np.vstack([arg.astype(np.float64) for arg in args]).T.copy()
-        return self.model.predict(X)
+        if self.prediction_type == 'predict':
+            return self.model.predict(X)
+        elif self.prediction_type == 'predict_proba':
+            return self.model.predict_proba(X)
+        else:
+            return self.model.predict_log_proba(X)
 
     def predict(self, df):
         '''Get an in-memory numpy array with the predictions of the SKLearnPredictor.self

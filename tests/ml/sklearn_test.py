@@ -25,7 +25,7 @@ models_regression = [LinearRegression(),
                      RandomForestRegressor(n_estimators=10, random_state=42, max_depth=3)]
 
 models_classification = [LogisticRegression(solver='lbfgs', max_iter=100, random_state=42),
-                         SVC(gamma='scale', max_iter=100),
+                         SVC(gamma='scale', max_iter=100, probability=True),
                          AdaBoostClassifier(random_state=42, n_estimators=10),
                          GradientBoostingClassifier(random_state=42, max_depth=3, n_estimators=10),
                          RandomForestClassifier(n_estimators=10, random_state=42, max_depth=3)]
@@ -137,10 +137,12 @@ def test_sklearn_estimator_pipeline():
     np.testing.assert_array_almost_equal(pred, df_trans.pred.values)
 
 
-def test_sklearn_estimator_classification_validation():
-    ds = vaex.ml.datasets.load_titanic()
+@pytest.mark.parametrize("prediction_type", ['predict', 'predict_proba'])
+def test_sklearn_estimator_classification_validation(prediction_type):
+    df = vaex.ml.datasets.load_titanic()
+    df['survived'] = df.survived.astype('int')
 
-    train, test = ds.ml.train_test_split(verbose=False)
+    train, test = df.ml.train_test_split(verbose=False)
     features = ['pclass', 'parch', 'sibsp']
 
     # Dense features
@@ -151,13 +153,16 @@ def test_sklearn_estimator_classification_validation():
     for model in models_classification:
 
         # vaex
-        vaex_model = Predictor(model=model, features=features, target='survived', prediction_name='pred')
+        vaex_model = Predictor(model=model, features=features, target='survived', prediction_name='pred', prediction_type=prediction_type)
         vaex_model.fit(train)
         test = vaex_model.transform(test)
 
         # scikit-learn
         model.fit(Xtrain, ytrain)
-        skl_pred = model.predict(Xtest)
+        if prediction_type == 'predict':
+            skl_pred = model.predict(Xtest)
+        else:
+            skl_pred = model.predict_proba(Xtest)
 
         assert np.all(skl_pred == test.pred.values)
 
@@ -190,21 +195,23 @@ def test_sklearn_incremental_predictor_regression():
     np.testing.assert_array_almost_equal(pred_in_memory, df_test.pred.values, decimal=1)
 
 
-def test_sklearn_incremental_predictor_classification():
+@pytest.mark.parametrize("prediction_type", ['predict', 'predict_proba'])
+def test_sklearn_incremental_predictor_classification(prediction_type):
     df = vaex.ml.datasets.load_iris_1e5()
     df_train, df_test = df.ml.train_test_split(test_size=0.1, verbose=False)
 
     features = df_train.column_names[:4]
     target = 'class_'
 
-    incremental = IncrementalPredictor(model=SGDClassifier(learning_rate='constant', eta0=0.01),
+    incremental = IncrementalPredictor(model=SGDClassifier(loss='log', learning_rate='constant', eta0=0.01),
                                        features=features,
                                        target=target,
                                        batch_size=10_000,
                                        num_epochs=3,
                                        shuffle=False,
                                        prediction_name='pred',
-                                       partial_fit_kwargs={'classes':[0, 1, 2]})
+                                       prediction_type=prediction_type,
+                                       partial_fit_kwargs={'classes': [0, 1, 2]})
 
     incremental.fit(df=df_train)
     df_train = incremental.transform(df_train)
@@ -214,7 +221,10 @@ def test_sklearn_incremental_predictor_classification():
     df_test.state_set(state)
 
     assert df_test.column_count() == 6
-    assert df_test.pred.values.shape == (10050,)
+    if prediction_type == 'predict':
+        assert df_test.pred.values.shape == (10050,)
+    else:
+        assert df_test.pred.values.shape == (10050, 3)
 
     pred_in_memory = incremental.predict(df_test)
     np.testing.assert_array_equal(pred_in_memory, df_test.pred.values)
