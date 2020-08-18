@@ -110,39 +110,38 @@ def register_function(scope=None, as_property=False, name=None, on_expression=Tr
 # name maps to numpy function
 # <vaex name>:<numpy name>
 numpy_function_mapping = [name.strip().split(":") if ":" in name else (name, name) for name in """
-sinc
-sin
-cos
-tan
-arcsin
+abs
 arccos
+arccosh
+arcsin
+arcsinh
 arctan
 arctan2
-sinh
-cosh
-tanh
-arcsinh
-arccosh
 arctanh
+clip
+cos
+cosh
+deg2rad
+digitize
+exp
+expm1
+isfinite
+isinf
 log
 log10
 log1p
-exp
-expm1
-sqrt
-abs
-where
-rad2deg
-deg2rad
-minimum
 maximum
-clip
-searchsorted
-isinf
-isfinite
-digitize
-searchsorted
+minimum
+rad2deg
 round
+searchsorted
+sin
+sinc
+sinh
+sqrt
+tan
+tanh
+where
 """.strip().split()]
 for name, numpy_name in numpy_function_mapping:
     if not hasattr(np, numpy_name):
