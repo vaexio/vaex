@@ -125,3 +125,17 @@ def test_fillna_dataframe():
     assert df_filled.x.tolist() == [3, 1, -1, 10, -1]
     assert df_filled.y.tolist() == [-1, 1, True, '10street', -1]
     assert df_filled.z.tolist() == [5, 7, -1, 1, -1]
+
+def test_fillna_string_dtype():
+    name = ['Maria', 'Adam', None, None, 'Dan']
+    age = [28, 15, 34, 55, 41]
+    weight = [np.nan, np.nan, 77.5, 65, 95]
+    df = vaex.from_arrays(name=name, age=age, weight=weight)
+
+    # Originally - the column "name" is string
+    assert df['name'].is_string()
+
+    df['name'] = df['name'].fillna('missing')
+
+    # Confirm that the column "name" is still of type string after fillna
+    assert df['name'].is_string()
