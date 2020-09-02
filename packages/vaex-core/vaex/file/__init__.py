@@ -39,6 +39,7 @@ def open(path, *args, **kwargs):
             break
     if dataset_class:
         dataset = dataset_class(path, *args, **kwargs)
+        return vaex.dataframe.DataFrameLocal(dataset)
         return dataset
 
 

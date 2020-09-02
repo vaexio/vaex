@@ -16,6 +16,7 @@ if not on_rtd:
 logger = logging.getLogger("vaex.column")
 
 
+
 class Column(object):
     def tolist(self):
         return self.to_numpy().tolist()
@@ -95,6 +96,27 @@ class ColumnNumpyLike(Column):
 
     def __setitem__(self, slice, value):
         self.ar[slice] = value
+
+
+
+class ColumnArrowLazyCast(Column):
+    """Wraps an array like object and cast it lazily"""
+    def __init__(self, ar, type):
+        self.ar = ar  # this should behave like a numpy array
+        self.type = type
+
+    def __len__(self):
+        return len(self.ar)
+
+    def trim(self, i1, i2):
+        return type(self)(self.ar[i1:i2], self.type)
+
+    def __getitem__(self, slice):
+        return pa.array(self.ar[slice], type=self.type)
+
+    # def __setitem__(self, slice, value):
+    #     self.ar[slice] = value
+
 
 class ColumnIndexed(Column):
     def __init__(self, df, indices, name, masked=False):
@@ -296,6 +318,9 @@ class ColumnConcatenatedLazy(Column):
             expressions = [self.expressions[i][start-offset:stop-offset]]
 
         return ColumnConcatenatedLazy(expressions, self.dtype)
+
+    def __arrow_array__(self, type=None):
+        return pa.array(self[:], type=type)
 
     def __getitem__(self, slice):
         start, stop, step = slice.start, slice.stop, slice.step

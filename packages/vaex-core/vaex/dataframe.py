@@ -172,9 +172,9 @@ class DataFrame(object):
     :type executor: Executor
     """
 
-    def __init__(self, name, column_names, executor=None):
+    def __init__(self, name=None, executor=None):
         self.name = name
-        self.column_names = column_names
+        self.column_names = []
         self.executor = executor or get_main_executor()
         self.signal_pick = vaex.events.Signal("pick")
         self.signal_sequence_index_change = vaex.events.Signal("sequence index change")
@@ -3002,48 +3002,19 @@ class DataFrame(object):
                     if len(self) == len(ar):
                         raise ValueError("Array is of length %s, while the length of the DataFrame is %s due to the filtering, the (unfiltered) length is %s." % (len(ar), len(self), self.length_unfiltered()))
                 raise ValueError("array is of length %s, while the length of the DataFrame is %s" % (len(ar), self.length_original()))
-            # assert self.length_unfiltered() == len(data), "columns should be of equal length, length should be %d, while it is %d" % ( self.length_unfiltered(), len(data))
             valid_name = vaex.utils.find_valid_name(name, used=self.get_column_names(hidden=True))
             if name != valid_name:
                 self._column_aliases[name] = valid_name
-            ar = f_or_array
-            if dtype is not None:
-                self._dtypes_override[valid_name] = dtype
-            else:
-                if isinstance(ar, np.ndarray) and ar.dtype.kind == 'O':
-                    ar_data = ar
-                    if np.ma.isMaskedArray(ar):
-                        ar_data = ar.data
-
-                    try:
-                        # "k != k" is a way to detect NaN's and NaT's
-                        types = list({type(k) for k in ar_data if k is not None and k == k})
-                    except ValueError:
-                        # If there is an array value in the column, Numpy throws a ValueError
-                        # "The truth value of an array with more than one element is ambiguous".
-                        # We don't handle this by default as it is a bit slower.
-                        def is_missing(k):
-                            if k is None:
-                                return True
-                            try:
-                                # a way to detect NaN's and NaT
-                                return not (k == k)
-                            except ValueError:
-                                # if a value is an array, this will fail, and it is a non-missing
-                                return False
-                        types = list({type(k) for k in ar_data if k is not is_missing(k)})
-
-                    if len(types) == 1 and issubclass(types[0], six.string_types):
-                        # TODO: how do we know it should not be large_string?
-                        self._dtypes_override[valid_name] = pa.string()
-                    if len(types) == 0:  # can only be if all nan right?
-                        ar = ar.astype(np.float64)
             self.columns[valid_name] = ar
             if valid_name not in self.column_names:
                 self.column_names.insert(column_position, valid_name)
         else:
             raise ValueError("functions not yet implemented")
-        self._save_assign_expression(valid_name, Expression(self, valid_name))
+        # self._save_assign_expression(valid_name, Expression(self, valid_name))
+        self._initialize_column(valid_name)
+
+    def _initialize_column(self, name):
+        self._save_assign_expression(name, Expression(self, name))
 
     def _sparse_matrix(self, column):
         column = _ensure_string_from_expression(column)
@@ -4923,15 +4894,71 @@ for name in hidden:
 del hidden
 
 
+class ColumnProxy(collections.abc.MutableMapping):
+    def __init__(self, df):
+        self.df = df
+
+    @property
+    def dataset(self):
+        return self.df.dataset
+
+    def __delitem__(self, item):
+        assert item in self.dataset
+        self.df.dataset = self.dataset.dropped(item)
+
+    def __len__(self):
+        return len(self.dataset)
+
+    def __setitem__(self, item, value):
+        # import pdb; pdb.set_trace()
+        left = self.dataset
+        if item in self.dataset:
+            left = left.dropped(item)
+        right = vaex.dataset.DatasetArrays({item: value})
+        merged = left.merged(right)
+        self.df.dataset = merged
+
+        self.df._length = len(value)
+        if self.df._length_unfiltered is None:
+            self.df._length_unfiltered = self.df._length
+            self.df._length_original = self.df._length
+            self.df._index_end = self.df._length_unfiltered
+
+    def __iter__(self):
+        return iter(self.dataset)
+
+    def __getitem__(self, item):
+        return self.dataset[item]
 
 class DataFrameLocal(DataFrame):
     """Base class for DataFrames that work with local file/data"""
 
-    def __init__(self, name, path, column_names):
-        super(DataFrameLocal, self).__init__(name, column_names)
-        self.path = path
+    def __init__(self, dataset=None):
+        if dataset is None:
+            dataset = vaex.dataset.DatasetArrays()
+        super(DataFrameLocal, self).__init__(dataset.keys())
+        all_names = list(dataset)
+        for name in dataset:
+            other_names = all_names.copy()
+            other_names.remove(name)
+            valid_name = vaex.utils.find_valid_name(name, used=other_names)
+            if name != valid_name:
+                dataset = dataset.renamed({name: valid_name})
+                self._column_aliases[name] = valid_name
+        self.dataset = dataset
+        self.column_names = list(self.dataset)
+        for column_name in self.column_names:
+            self._initialize_column(column_name)
+        if len(self.dataset):
+            ar = self.dataset[list(self.dataset.keys())[0]]
+            self._length = len(ar)
+            if self._length_unfiltered is None:
+                self._length_unfiltered = self._length
+                self._length_original = self._length
+                self._index_end = self._length_unfiltered
+        # self.path = dataset.path
         self.mask = None
-        self.columns = {}
+        self.columns = ColumnProxy(self)
 
     def _readonly(self, inplace=False):
         # make arrays read only if possib;e
@@ -5055,7 +5082,7 @@ class DataFrameLocal(DataFrame):
         return datas
 
     def copy(self, column_names=None, virtual=True):
-        df = DataFrameArrays()
+        df = DataFrameLocal()
         df._length_unfiltered = self._length_unfiltered
         df._length_original = self._length_original
         df._cached_filtered_length = self._cached_filtered_length
@@ -6105,16 +6132,16 @@ class DataFrameConcatenated(DataFrameLocal):
     """
 
     def __init__(self, dfs, name=None):
-        super(DataFrameConcatenated, self).__init__(None, None, [])
+        super(DataFrameConcatenated, self).__init__()
         # to reduce complexity, we 'extract' the dataframes (i.e. remove filter)
         self.dfs = dfs = [df.extract() for df in dfs]
-        self.name = name or "-".join(df.name for df in self.dfs)
-        self.path = "-".join(df.path for df in self.dfs)
+        # self.name = name or "-".join(df.name for df in self.dfs)
+        # self.path = "-".join(df.path for df in self.dfs)
         first, tail = dfs[0], dfs[1:]
         for column_name in first.get_column_names(virtual=False, hidden=True, alias=False):
             if all([column_name in df.get_column_names(virtual=False, hidden=True, alias=False) for df in tail]):
                 self.column_names.append(column_name)
-        self.columns = {}
+        # self.columns = {}
         for column_name in self.get_column_names(virtual=False, hidden=True, alias=False):
             self.columns[column_name] = ColumnConcatenatedLazy([df[column_name] for df in dfs])
             self._save_assign_expression(column_name)
@@ -6163,42 +6190,42 @@ def _is_array_type_ok(array):
     return _is_dtype_ok(array.dtype)
 
 
-class DataFrameArrays(DataFrameLocal):
-    """Represent an in-memory DataFrame of numpy arrays, see :func:`from_arrays` for usage."""
+# class DataFrameArrays(DataFrameLocal):
+#     """Represent an in-memory DataFrame of numpy arrays, see :func:`from_arrays` for usage."""
 
-    def __init__(self, name="arrays"):
-        super(DataFrameArrays, self).__init__(None, None, [])
-        self.name = name
-        self.path = "/has/no/path/" + name
+#     def __init__(self, name="arrays"):
+#         super(DataFrameArrays, self).__init__(None, None, [])
+#         self.name = name
+#         self.path = "/has/no/path/" + name
 
-    # def __len__(self):
-    #   return len(self.columns.values()[0])
+#     # def __len__(self):
+#     #   return len(self.columns.values()[0])
 
-    def add_column(self, name, data, dtype=None):
-        """Add a column to the DataFrame
+#     def add_column(self, name, data, dtype=None):
+#         """Add a column to the DataFrame
 
-        :param str name: name of column
-        :param data: numpy array with the data
-        """
-        # assert _is_array_type_ok(data), "dtype not supported: %r, %r" % (data.dtype, data.dtype.type)
-        # self._length = len(data)
-        # if self._length_unfiltered is None:
-        #     self._length_unfiltered = len(data)
-        #     self._length_original = len(data)
-        #     self._index_end = self._length_unfiltered
-        super(DataFrameArrays, self).add_column(name, data, dtype=dtype)
-        self._length_unfiltered = int(round(self._length_original * self._active_fraction))
-        # self.set_active_fraction(self._active_fraction)
+#         :param str name: name of column
+#         :param data: numpy array with the data
+#         """
+#         # assert _is_array_type_ok(data), "dtype not supported: %r, %r" % (data.dtype, data.dtype.type)
+#         # self._length = len(data)
+#         # if self._length_unfiltered is None:
+#         #     self._length_unfiltered = len(data)
+#         #     self._length_original = len(data)
+#         #     self._index_end = self._length_unfiltered
+#         super(DataFrameArrays, self).add_column(name, data, dtype=dtype)
+#         self._length_unfiltered = int(round(self._length_original * self._active_fraction))
+#         # self.set_active_fraction(self._active_fraction)
 
-    @property
-    def values(self):
-        """Gives a full memory copy of the DataFrame into a 2d numpy array of shape (n_rows, n_columns).
-        Note that the memory order is fortran, so all values of 1 column are contiguous in memory for performance reasons.
+#     @property
+#     def values(self):
+#         """Gives a full memory copy of the DataFrame into a 2d numpy array of shape (n_rows, n_columns).
+#         Note that the memory order is fortran, so all values of 1 column are contiguous in memory for performance reasons.
 
-        Note this returns the same result as:
+#         Note this returns the same result as:
 
-        >>> np.array(ds)
+#         >>> np.array(ds)
 
-        If any of the columns contain masked arrays, the masks are ignored (i.e. the masked elements are returned as well).
-        """
-        return self.__array__()
+#         If any of the columns contain masked arrays, the masks are ignored (i.e. the masked elements are returned as well).
+#         """
+#         return self.__array__()

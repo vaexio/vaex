@@ -348,15 +348,8 @@ def from_arrays(**arrays):
     """
     import numpy as np
     import six
-    from .column import Column, supported_column_types
-    df = vaex.dataframe.DataFrameArrays("array")
-    for name, array in arrays.items():
-        if isinstance(array, supported_column_types):
-            df.add_column(name, array)
-        else:
-            array = np.asanyarray(array)
-            df.add_column(name, array)
-    return df
+    dataset = vaex.dataset.DatasetArrays(arrays)
+    return vaex.dataframe.DataFrameLocal(dataset)
 
 def from_arrow_table(table, as_numpy=True):
     """Creates a vaex DataFrame from an arrow Table.

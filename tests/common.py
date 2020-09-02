@@ -247,7 +247,7 @@ def create_filtered():
     return ds
 
 def create_base_ds():
-    dataset = vaex.dataset.DatasetArrays("dataset")
+    dataset = vaex.dataset.DataFrameLocal()
     x = np.arange(-2, 40, dtype=">f8").reshape((-1,21)).T.copy()[:,0]
     y = y = x ** 2
     ints = np.arange(-2,19, dtype="i8")

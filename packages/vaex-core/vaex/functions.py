@@ -2259,9 +2259,12 @@ def _float(x):
 def _astype(x, dtype):
     if dtype == 'str':
         if isinstance(x, np.ndarray) and x.dtype.kind not in 'US':
-            mask = np.isnan(x)
-            x = x.astype(dtype).astype('O')
-            x[mask] = None
+            try:
+                x = x.astype(dtype).astype('O')
+                mask = np.isnan(x)
+                x[mask] = None
+            except TypeError:
+                pass  # does not work for all data
         return _to_string_column(x)
     # we rely on numpy for astype conversions (TODO: possible performance hit?)
     if isinstance(x, vaex.column.ColumnString):
