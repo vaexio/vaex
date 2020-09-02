@@ -272,7 +272,7 @@ class NoTest:
 		def tearDown(self):
 			#vx.promise.rereaise_unhandled()
 			for dataset in self.app.dataset_selector.datasets:
-				dataset.close_files()
+				dataset.close()
 				dataset.remove_virtual_meta()
 			self.window.close()
 			if not self.no_exceptions:

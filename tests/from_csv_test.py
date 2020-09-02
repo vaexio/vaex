@@ -28,7 +28,7 @@ def test_from_csv():
     df2, df3 = next(df_iterator), next(df_iterator)
     with pytest.raises(StopIteration):
         next(df_iterator)
-    _assert_csv_content(vaex.dataframe.DataFrameConcatenated([df1, df2, df3]))
+    _assert_csv_content(vaex.concat([df1, df2, df3]))
 
 
 def test_from_csv_converting_in_chunks():
@@ -78,6 +78,6 @@ def _assert_csv_content(csv_df, with_index=False):
 
 def _cleanup_generated_files(*dfs):
     for df in dfs:
-        df.close_files()
+        df.close()
     for hdf5_file in glob.glob(os.path.join(path, 'data', '*.hdf5')):
         os.remove(hdf5_file)

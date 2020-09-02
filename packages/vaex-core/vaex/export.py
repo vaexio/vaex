@@ -299,10 +299,11 @@ def export_fits(dataset, path, column_names=None, shuffle=False, selection=False
         del data_types[-1]
         del data_shapes[-1]
     dataset_output = vaex.file.other.FitsBinTable(path, write=True)
-    _export(dataset_input=dataset, dataset_output=dataset_output, path=path, random_index_column=random_index_name,
+    df_output = vaex.dataframe.DataFrameLocal(dataset_output)
+    _export(dataset_input=dataset, dataset_output=df_output, path=path, random_index_column=random_index_name,
             column_names=column_names, selection=selection, shuffle=shuffle,
             progress=progress, sort=sort, ascending=ascending)
-    dataset_output.close_files()
+    dataset_output.close()
 
 
 def export_hdf5_v1(dataset, path, column_names=None, byteorder="=", shuffle=False, selection=False, progress=None, virtual=True):
@@ -371,6 +372,7 @@ def main(argv):
             if not args.quiet:
                 print("generating soneira peebles dataset...")
             dataset = vaex.file.other.SoneiraPeebles(args.dimension, 2, args.max_level, args.lambdas)
+            dataset = vaex.dataframe.DataFrameLocal(dataset)
         else:
             return 1
     if args.task == "tap":
@@ -488,5 +490,5 @@ def main(argv):
                 progressbar.finish()
             if not args.quiet:
                 print("\noutput to %s" % os.path.abspath(args.output))
-            dataset.close_files()
+            dataset.close()
     return 0

@@ -285,27 +285,37 @@ class TaskPartStatistic:
 class TaskPartAggregations:
     name = "aggregations"
 
-    def __init__(self, df, grid, aggregator_descriptors, dtypes):
+    def __init__(self, df, grid, aggregation_descriptions, dtypes, initial_values=None):
         self.df = df
+        self.has_values = False
         self.dtypes = dtypes
         # self.expressions_all = expressions
         self.expressions = [binner.expression for binner in grid.binners]
         # TODO: selection and edges in descriptor?
-        for aggregator_descriptor in aggregator_descriptors:
+        self.aggregation_descriptions = aggregation_descriptions
+        for aggregator_descriptor in self.aggregation_descriptions:
             self.expressions.extend(aggregator_descriptor.expressions)
         # self.expressions = list(set(expressions))
         self.grid = vaex.superagg.Grid([binner.copy() for binner in grid.binners])
 
-        def create_aggregator(aggregator_descriptor, selections):
+        def create_aggregator(aggregator_descriptor, selections, initial_values):
             # for each selection, we have a separate aggregator, sharing the grid and binners
-            return [aggregator_descriptor._create_operation(self.df, self.grid) for selection in selections]
+            for i, selection in enumerate(selections):
+                agg = aggregator_descriptor._create_operation(self.df, self.grid)
+                if initial_values is not None:
+                    print(np.asarray(agg))
+                    print(initial_values[i])
+                    # np.asarray(agg)[:] = initial_values[i]
+                    np.copyto(np.asarray(agg), initial_values[i])
+                yield agg
 
         self.aggregations = []
-        for aggregator_descriptor in aggregator_descriptors:
+        for i, aggregator_descriptor in enumerate(self.aggregation_descriptions):
             selection = aggregator_descriptor.selection
             selection_waslist = _issequence(selection)
             selections = _ensure_list(selection)
-            self.aggregations.append((aggregator_descriptor, selections, create_aggregator(aggregator_descriptor, selections), selection_waslist))
+            initial_values_i = initial_values[i] if initial_values else None
+            self.aggregations.append((aggregator_descriptor, selections, list(create_aggregator(aggregator_descriptor, selections, initial_values_i)), selection_waslist))
 
     def process(self, thread_index, i1, i2, filter_mask, *blocks):
         # self.check()
@@ -379,6 +389,7 @@ class TaskPartAggregations:
         if filter_mask is not None:
             N = filter_mask.astype(np.uint8).sum()
         grid.bin(all_aggregators, N)
+        self.has_values = True
 
     def reduce(self, others):
         for agg_index, (agg_desc, selections, aggregation, selection_waslist) in enumerate(self.aggregations):
@@ -402,13 +413,36 @@ class TaskPartAggregations:
             results.append(result)
         return results
 
+    def get_values(self):
+        values_outer = []
+        for agg_index, (agg_desc, selections, aggregation, selection_waslist) in enumerate(self.aggregations):
+            values = []
+            for selection_index, selection in enumerate(selections):
+                agg = aggregation[selection_index]
+                values.append(np.asarray(agg))
+            values_outer.append(values)
+        return values_outer
+
+
     @classmethod
     def decode(cls, encoding, spec, df):
         # aggs = [vaex.agg._from_spec(agg_spec) for agg_spec in spec['aggregations']]
         aggs = encoding.decode_list('aggregation', spec['aggregations'])
         dtypes = encoding.decode_dict('dtype', spec['dtypes'])
         grid = encoding.decode('grid', spec['grid'])
+        values = encoding.decode_list2('ndarray', spec['values']) if 'values' in spec else None
         # dtypes = {expr: _deserialize_type(type_spec) for expr, type_spec in spec['dtypes'].items()}
         for agg in aggs:
             agg._prepare_types(df)
-        return cls(df, grid, aggs, dtypes)
+        return cls(df, grid, aggs, dtypes, initial_values=values)
+
+    def encode(self, encoding):
+        # TODO: get rid of dtypes
+        encoded = {'task': type(self).name,
+                'grid': encoding.encode('grid', self.grid),
+                'aggregations': encoding.encode_list("aggregation", self.aggregation_descriptions),
+                'dtypes': encoding.encode_dict("dtype", self.dtypes)
+                }
+        if self.has_values:
+            encoded['values'] = encoding.encode_list2('ndarray', self.get_values())
+        return encoded

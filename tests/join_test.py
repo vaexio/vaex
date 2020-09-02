@@ -97,7 +97,7 @@ def test_left_a_b_filtered():
 
     # actually, even though the filter is applied, all rows will be matched
     # since the filter can change
-    df.set_selection(None, vaex.dataset.FILTER_SELECTION_NAME)
+    df.set_selection(None, vaex.dataframe.FILTER_SELECTION_NAME)
     assert df['a'].tolist() == ['A', 'B', 'C']
     assert df['b'].tolist() == ['A', 'B', None]
     assert df['x'].tolist() == [0, 1, 2]
@@ -108,7 +108,7 @@ def test_left_a_b_filtered():
     # if we extract, that shouldn't be the case
     df_af = df_a[df_a.x > 0].extract()
     df = df_af.join(other=df_b, left_on='a', right_on='b', rsuffix='_r')
-    df.set_selection(None, vaex.dataset.FILTER_SELECTION_NAME)
+    df.set_selection(None, vaex.dataframe.FILTER_SELECTION_NAME)
     assert df['a'].tolist() == ['B', 'C']
     assert df['b'].tolist() == ['B', None]
     assert df['x'].tolist() == [1, 2]

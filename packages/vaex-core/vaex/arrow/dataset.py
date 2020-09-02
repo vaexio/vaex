@@ -11,11 +11,10 @@ logger = logging.getLogger("vaex.arrow")
 
 
 def from_table(table, as_numpy=True):
-    df = vaex.dataframe.DataFrameLocal(None, None, [])
-    df._length_unfiltered = df._length_original = table.num_rows
-    df._index_end = df._length_original = table.num_rows
-    for col, name in zip(table.columns, table.schema.names):
-        df.add_column(name, col)
+    columns = dict(zip(table.schema.names, table.columns))
+    # TODO: this should be an DatasetArrow and/or DatasetParquet
+    dataset = vaex.dataset.DatasetArrays(columns)
+    df = vaex.dataframe.DataFrameLocal(dataset)
     return df.as_numpy() if as_numpy else df
 
 

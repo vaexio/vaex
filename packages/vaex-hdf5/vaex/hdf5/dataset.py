@@ -14,7 +14,6 @@ from vaex.utils import ensure_string
 import astropy.io.fits as fits
 import re
 import six
-from vaex.dataset import DatasetLocal, DatasetArrays
 import vaex.dataset
 import vaex.file
 from vaex.expression import Expression
@@ -61,40 +60,62 @@ def _try_unit(unit):
 class Hdf5MemoryMapped(DatasetMemoryMapped):
     """Implements the vaex hdf5 file format"""
 
-    def __init__(self, filename, write=False):
-        if isinstance(filename, six.string_types):
-            nommap = s3.is_s3_path(filename) or gcs.is_gs_path(filename)
-            super(Hdf5MemoryMapped, self).__init__(filename, write=write, nommap=nommap)
+    def __init__(self, path, write=False):
+        if isinstance(path, six.string_types):
+            nommap = s3.is_s3_path(path) or gcs.is_gs_path(path)
+            super(Hdf5MemoryMapped, self).__init__(path, write=write, nommap=nommap)
         else:
-            super(Hdf5MemoryMapped, self).__init__(filename.name, write=write, nommap=True)
-        if hasattr(filename, 'read'):
-            fp = filename  # support file handle for testing
-            self.file_map[self.filename] = fp
-        else:
-            mode = 'rb+' if write else 'rb'
-            if s3.is_s3_path(filename):
-                fp = s3.open(self.filename)
-                self.file_map[self.filename] = fp
-            elif gcs.is_gs_path(filename):
-                fp = gcs.open(filename)
-                self.file_map[self.filename] = fp
-            else:
-                if self.nommap:
-                    fp = open(self.filename, mode)
-                    self.file_map[self.filename] = fp
-                else:
-                    # this is the only path that will have regular mmapping
-                    fp = self.filename
-        self.h5file = h5py.File(fp, "r+" if write else "r")
+            super(Hdf5MemoryMapped, self).__init__(path.name, write=write, nommap=True)
+        self._all_mmapped = True
+        self._open(path)
+        self.units = {}
         self.h5table_root_name = None
         self._version = 1
         self._load()
+        if not write:  # in write mode, call freeze yourself, so the hashes are computed
+            self._freeze()
+        if self._all_mmapped:
+            self.h5file.close()
+
+    def _open(self, path):
+        if hasattr(path, 'read'):
+            fp = path  # support file handle for testing
+            self.file_map[self.path] = fp
+        else:
+            mode = 'rb+' if self.write else 'rb'
+            if s3.is_s3_path(path):
+                fp = s3.open(self.path)
+                self.file_map[self.path] = fp
+            elif gcs.is_gs_path(path):
+                fp = gcs.open(self.path)
+                self.file_map[self.path] = fp
+            else:
+                if self.nommap:
+                    fp = open(self.path, mode)
+                    self.file_map[self.path] = fp
+                else:
+                    # this is the only path that will have regular mmapping
+                    fp = self.path
+        self.h5file = h5py.File(fp, "r+" if self.write else "r")
+
+
+    def __getstate__(self):
+        return {
+            **super().__getstate__(),
+            'nommap': self.nommap
+        }
+
+    def __setstate__(self, state):
+        super().__setstate__(state)
+        self._open(self.path)
+        self._load()
+        self._freeze()
 
     def write_meta(self):
         """ucds, descriptions and units are written as attributes in the hdf5 file, instead of a seperate file as
          the default :func:`Dataset.write_meta`.
          """
-        with h5py.File(self.filename, "r+") as h5file_output:
+        with h5py.File(self.path, "r+") as h5file_output:
             h5table_root = h5file_output[self.h5table_root_name]
             if self.description is not None:
                 h5table_root.attrs["description"] = self.description
@@ -209,6 +230,9 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
         return []
 
     def _load(self):
+        self.ucds = {}
+        self.descriptions = {}
+        self.units = {}
         if "data" in self.h5file:
             self._load_columns(self.h5file["/data"])
             self.h5table_root_name = "/data"
@@ -233,10 +257,8 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
             self._load_variables(self.h5file["/properties"])  # old name, kept for portability
         if "variables" in self.h5file:
             self._load_variables(self.h5file["/variables"])
-        if "axes" in self.h5file:
-            self._load_axes(self.h5file["/axes"])
-        self.update_meta()
-        self.update_virtual_meta()
+        # self.update_meta()
+        # self.update_virtual_meta()
 
     # def
     def _load_axes(self, axes_data):
@@ -263,6 +285,7 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
         if offset is None:  # non contiguous array, chunked arrays etc
             # we don't support masked in this case
             column = ColumnNumpyLike(data)
+            self._all_mmapped = False
             return column
         else:
             shape = data.shape
@@ -387,20 +410,20 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
                         else:
                             transposed = shape[1] < shape[0]
                             self.addRank1(column_name, offset, shape[1], length1=shape[0], dtype=data.dtype, stride=1, stride1=1, transposed=transposed)
-        all_columns = dict(**self.columns)
+        all_columns = dict(**self._columns)
         # in case the column_order refers to non-existing columns
         column_order = [k for k in column_order if k in all_columns]
-        self.column_names = []
+        column_names = []
+        self._columns = {}
         for name in column_order:
-            self.columns[name] = all_columns.pop(name)
-            self.column_names.append(name)
+            self._columns[name] = all_columns.pop(name)
         # add the rest
         for name, col in all_columns.items():
-            self.columns[name] = col
-            self.column_names.append(name)
+            self._columns[name] = col
+            # self.column_names.append(name)
 
-    def close_files(self):
-        super(Hdf5MemoryMapped, self).close_files()
+    def close(self):
+        super().close()
         self.h5file.close()
 
     def __expose_array(self, hdf5path, column_name):
@@ -425,8 +448,8 @@ dataset_type_map["h5vaex"] = Hdf5MemoryMapped
 class AmuseHdf5MemoryMapped(Hdf5MemoryMapped):
     """Implements reading Amuse hdf5 files `amusecode.org <http://amusecode.org/>`_"""
 
-    def __init__(self, filename, write=False):
-        super(AmuseHdf5MemoryMapped, self).__init__(filename, write=write)
+    def __init__(self, path, write=False):
+        super(AmuseHdf5MemoryMapped, self).__init__(path, write=write)
 
     @classmethod
     def can_open(cls, path, *args, **kwargs):
@@ -451,9 +474,10 @@ class AmuseHdf5MemoryMapped(Hdf5MemoryMapped):
             column_name = "keys"
             column = group[column_name]
             offset = column.id.get_offset()
-            self.addColumn(column_name, offset, len(column), dtype=column.dtype)
-        self.update_meta()
-        self.update_virtual_meta()
+            data = self._map_hdf5_array(column)
+            self.add_column(column_name, data)
+        # self.update_meta()
+        # self.update_virtual_meta()
 
 
 dataset_type_map["amuse"] = AmuseHdf5MemoryMapped
@@ -465,9 +489,9 @@ gadget_particle_names = "gas halo disk bulge stars dm".split()
 class Hdf5MemoryMappedGadget(DatasetMemoryMapped):
     """Implements reading `Gadget2 <http://wwwmpa.mpa-garching.mpg.de/gadget/>`_ hdf5 files """
 
-    def __init__(self, filename, particle_name=None, particle_type=None):
-        if "#" in filename:
-            filename, index = filename.split("#")
+    def __init__(self, path, particle_name=None, particle_type=None):
+        if "#" in path:
+            path, index = path.split("#")
             index = int(index)
             particle_type = index
             particle_name = gadget_particle_names[particle_type]
@@ -481,12 +505,12 @@ class Hdf5MemoryMappedGadget(DatasetMemoryMapped):
             else:
                 raise ValueError("particle name not supported: %r, expected one of %r" % (particle_name, " ".join(gadget_particle_names)))
         else:
-            raise Exception("expected particle type or name as argument, or #<nr> behind filename")
-        super(Hdf5MemoryMappedGadget, self).__init__(filename)
+            raise Exception("expected particle type or name as argument, or #<nr> behind path")
+        super(Hdf5MemoryMappedGadget, self).__init__(path)
         self.particle_type = particle_type
         self.particle_name = particle_name
         self.name = self.name + "-" + self.particle_name
-        h5file = h5py.File(self.filename, 'r')
+        h5file = h5py.File(self.path, 'r')
         # for i in range(1,4):
         key = "/PartType%d" % self.particle_type
         if key not in h5file:
@@ -548,7 +572,7 @@ class Hdf5MemoryMappedGadget(DatasetMemoryMapped):
         elif "particle_type" in kwargs:
             particle_type = kwargs["particle_type"]
         elif "#" in path:
-            filename, index = path.split("#")
+            path, index = path.split("#")
             particle_type = gadget_particle_names[index]
         else:
             return False
@@ -576,22 +600,4 @@ class Hdf5MemoryMappedGadget(DatasetMemoryMapped):
         return []
 
 
-dataset_type_map["gadget-hdf5"] = Hdf5MemoryMappedGadget
-
-
-class MemoryMappedGadget(DatasetMemoryMapped):
-    def __init__(self, filename):
-        super(MemoryMappedGadget, self).__init__(filename)
-        # h5file = h5py.File(self.filename)
-        import vaex.file.gadget
-        length, posoffset, veloffset, header = vaex.file.gadget.getinfo(filename)
-        self.addColumn("x", posoffset, length, dtype=np.float32, stride=3)
-        self.addColumn("y", posoffset + 4, length, dtype=np.float32, stride=3)
-        self.addColumn("z", posoffset + 8, length, dtype=np.float32, stride=3)
-
-        self.addColumn("vx", veloffset, length, dtype=np.float32, stride=3)
-        self.addColumn("vy", veloffset + 4, length, dtype=np.float32, stride=3)
-        self.addColumn("vz", veloffset + 8, length, dtype=np.float32, stride=3)
-
-
-dataset_type_map["gadget-plain"] = MemoryMappedGadget
+# dataset_type_map["gadget-hdf5"] = Hdf5MemoryMappedGadget

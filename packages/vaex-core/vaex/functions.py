@@ -204,10 +204,10 @@ def fillna(ar, value):
     See :`isna` for the definition of missing values.
 
     '''
-    # TODO: optimize once https://github.com/apache/arrow/pull/7656 gets in
-    was_string = _is_stringy(ar)
-    if was_string:
-        ar = np.array(ar)
+    # TODO: should use arrow fill_null in the future
+    if vaex.array_types.is_string(ar):
+        ar = fillna(vaex.array_types.to_numpy(ar, strict=True), value)
+        return vaex.array_types.to_arrow(ar)
     ar = ar if not isinstance(ar, column.Column) else ar.to_numpy()
     mask = isna(ar)
     if np.any(mask):
@@ -216,8 +216,6 @@ def fillna(ar, value):
         else:
             ar = ar.copy()
         ar[mask] = value
-    if was_string:
-        vaex.array_types.to_arrow(ar)
     return ar
 
 @register_function()
@@ -2259,9 +2257,12 @@ def _float(x):
 def _astype(x, dtype):
     if dtype == 'str':
         if isinstance(x, np.ndarray) and x.dtype.kind not in 'US':
-            mask = np.isnan(x)
-            x = x.astype(dtype).astype('O')
-            x[mask] = None
+            try:
+                x = x.astype(dtype).astype('O')
+                mask = np.isnan(x)
+                x[mask] = None
+            except TypeError:
+                pass  # does not work for all data
         return _to_string_column(x)
     # we rely on numpy for astype conversions (TODO: possible performance hit?)
     if isinstance(x, vaex.column.ColumnString):

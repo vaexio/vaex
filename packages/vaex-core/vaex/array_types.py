@@ -25,6 +25,7 @@ def filter(ar, boolean_mask):
     else:
         return ar[boolean_mask]
 
+
 def same_type(type1, type2):
     try:
         return type1 == type2
@@ -38,6 +39,13 @@ def tolist(ar):
         return ar.to_pylist()
     else:
         return ar.tolist()
+
+
+def data_type(ar):
+    if isinstance(ar, supported_arrow_array_types):
+        return ar.type
+    else:
+        return ar.dtype
 
 
 def to_numpy(x, strict=False):
