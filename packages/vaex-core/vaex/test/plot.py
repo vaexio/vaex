@@ -73,7 +73,7 @@ class TestPlot(unittest.TestCase):
 
 	def tearDown(self):
 		if vx.utils.osname != "osx":
-			self.dataset.close_files()
+			self.dataset.close()
 
 	def test_single(self):
 		with check_output("single_xy"):

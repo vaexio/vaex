@@ -15,7 +15,7 @@ import astropy.io.fits as fits
 import re
 import six
 
-from vaex.dataset import DatasetLocal, DatasetArrays
+from vaex.dataset import DatasetArrays, DatasetFile
 logger = logging.getLogger("vaex.file")
 import vaex.dataset
 import vaex.file
@@ -136,6 +136,8 @@ def _try_unit(unit):
 class FitsBinTable(DatasetMemoryMapped):
 	def __init__(self, filename, write=False):
 		super(FitsBinTable, self).__init__(filename, write=write)
+		self.ucds = {}
+		self.units = {}
 		with fits.open(filename) as fitsfile:
 			for table in fitsfile:
 				if isinstance(table, fits.BinTableHDU):
@@ -150,7 +152,7 @@ class FitsBinTable(DatasetMemoryMapped):
 							for i in range(len(table.columns)):
 								column = table.columns[i]
 								cannot_handle = False
-								column_name = _python_save_name(column.name.strip(), used=self.columns.keys())
+								column_name = column.name.strip()
 								self._get_column_meta_data(table, column_name, column, i)
 
 
@@ -180,7 +182,8 @@ class FitsBinTable(DatasetMemoryMapped):
 										dtypecode += str(arraylength)
 									logger.debug("column type: %r", (column.name, offset, dtype, length, column.format, column.dim))
 									if arraylength == 1 or dtypecode[0] == "a":
-										self.addColumn(column_name, offset=offset, dtype=dtype, length=length)
+										ar = self._map_array(offset=offset, dtype=dtype, length=length)
+										self.add_column(column_name, ar)
 									else:
 										for i in range(arraylength):
 											name = column_name+"_" +str(i)
@@ -203,16 +206,17 @@ class FitsBinTable(DatasetMemoryMapped):
 								self._check_null(table, column_name, column, i)
 			self._try_votable(fitsfile[0])
 
-		self.update_meta()
-		self.update_virtual_meta()
+		self._freeze()
+		# self.update_meta()
+		# self.update_virtual_meta()
 
 	def _check_null(self, table, column_name, column, i):
 		null_name = "TNULL%d" % (i+1)
 		if null_name in table.header:
 			mask_value = table.header[null_name]
-			array = self.columns[column_name]
+			array = self._columns[column_name]
 			mask = array == mask_value
-			self.columns[column_name] = numpy.ma.masked_array(array, mask)
+			self._columns[column_name] = numpy.ma.masked_array(array, mask)
 
 	def _try_votable(self, table):
 		try:
@@ -283,7 +287,7 @@ dataset_type_map["fits"] = FitsBinTable
 
 class SoneiraPeebles(DatasetArrays):
 	def __init__(self, dimension, eta, max_level, L):
-		super(SoneiraPeebles, self).__init__(name="soneira-peebles")
+		columns = {}
 		#InMemory.__init__(self)
 		def todim(value):
 			if isinstance(value, (tuple, list)):
@@ -302,16 +306,10 @@ class SoneiraPeebles(DatasetArrays):
 		for d in range(dimension):
 			vaex.vaexfast.soneira_peebles(array[d], 0, 1, L[d], eta, max_level)
 		for d, name in zip(list(range(dimension)), "x y z w v u".split()):
-			self.add_column(name, array[d])
-		if 0:
-			order = np.zeros(N, dtype=np.int64)
-			vaex.vaexfast.shuffled_sequence(order);
-			for i, name in zip(list(range(dimension)), "x y z w v u".split()):
-				#np.take(array[i], order, out=array[i])
-				reorder(array[i], array[-1], order)
-				self.addColumn(name, array=array[i])
+			columns[name] = array[d]
+		super(SoneiraPeebles, self).__init__(columns)
 
-dataset_type_map["soneira-peebles"] = SoneiraPeebles
+# dataset_type_map["soneira-peebles"] = SoneiraPeebles
 
 
 class Zeldovich(DatasetArrays):
@@ -351,7 +349,7 @@ class Zeldovich(DatasetArrays):
 			self.add_column(name+"0", Q[d].reshape(-1) * scale)
 		return
 
-dataset_type_map["zeldovich"] = Zeldovich
+# dataset_type_map["zeldovich"] = Zeldovich
 
 
 class AsciiTable(DatasetMemoryMapped):
@@ -382,7 +380,7 @@ class AsciiTable(DatasetMemoryMapped):
 		can_open = path.endswith(".asc")
 		logger.debug("%r can open: %r"  %(cls.__name__, can_open))
 		return can_open
-dataset_type_map["ascii"] = AsciiTable
+# dataset_type_map["ascii"] = AsciiTable
 
 class MemoryMappedGadget(DatasetMemoryMapped):
 	def __init__(self, filename):
@@ -390,13 +388,21 @@ class MemoryMappedGadget(DatasetMemoryMapped):
 		#h5file = h5py.File(self.filename)
 		import vaex.file.gadget
 		length, posoffset, veloffset, header = vaex.file.gadget.getinfo(filename)
-		self.addColumn("x", posoffset, length, dtype=np.float32, stride=3)
-		self.addColumn("y", posoffset+4, length, dtype=np.float32, stride=3)
-		self.addColumn("z", posoffset+8, length, dtype=np.float32, stride=3)
+		self._add("x", posoffset, length, dtype=np.float32, stride=3)
+		self._add("y", posoffset+4, length, dtype=np.float32, stride=3)
+		self._add("z", posoffset+8, length, dtype=np.float32, stride=3)
 
-		self.addColumn("vx", veloffset, length, dtype=np.float32, stride=3)
-		self.addColumn("vy", veloffset+4, length, dtype=np.float32, stride=3)
-		self.addColumn("vz", veloffset+8, length, dtype=np.float32, stride=3)
+		self._add("vx", veloffset, length, dtype=np.float32, stride=3)
+		self._add("vy", veloffset+4, length, dtype=np.float32, stride=3)
+		self._add("vz", veloffset+8, length, dtype=np.float32, stride=3)
+		self._freeze()
+
+	def _add(self, name, offset, length, dtype, stride):
+		ar = self._map_array(offset, length, dtype)
+		ar = ar[::stride]
+		self.add_column(name, ar)
+
+
 	@classmethod
 	def can_open(cls, path, *args, **kwargs):
 		try:
@@ -421,15 +427,16 @@ dataset_type_map["gadget-plain"] = MemoryMappedGadget
 
 class DatasetAstropyTable(DatasetArrays):
 	def __init__(self, filename=None, format=None, table=None, **kwargs):
+		self.ucds = {}
+		self.units = {}
+		columns = {}
 		if table is None:
 			self.filename = filename
 			self.format = format
-			DatasetArrays.__init__(self, filename)
 			self.read_table()
 		else:
 			#print vars(table)
 			#print dir(table)
-			DatasetArrays.__init__(self, table.meta.get("name", "unknown-astropy"))
 			self.description = table.meta.get("description")
 			self.table = table
 			#self.name
@@ -440,27 +447,28 @@ class DatasetAstropyTable(DatasetArrays):
 			column = self.table[name]
 			type = self.table.dtype[i]
 			#clean_name = re.sub("[^a-zA-Z_]", "_", name)
-			clean_name = _python_save_name(name, self.columns.keys())
 			if type.kind in "fiuSU": # only store float and int
 				#datagroup.create_dataset(name, data=table.array[name].astype(np.float64))
 				#dataset.addMemoryColumn(name, table.array[name].astype(np.float64))
 				masked_array = self.table[name].data
 				if "ucd" in column._meta:
-					self.ucds[clean_name] = column._meta["ucd"]
+					self.ucds[name] = column._meta["ucd"]
 				if column.unit:
 					unit = _try_unit(column.unit)
 					if unit:
-						self.units[clean_name] = unit
+						self.units[name] = unit
 				if column.description:
-					self.descriptions[clean_name] = column.description
+					self.descriptions[name] = column.description
 				if hasattr(masked_array, "mask"):
 					if type.kind in ["f"]:
 						masked_array.data[masked_array.mask] = np.nan
 					if type.kind in ["i"]:
 						masked_array.data[masked_array.mask] = 0
-				self.add_column(clean_name, self.table[name].data)
+				columns[name] = self.table[name].data
 			if type.kind in ["SU"]:
-				self.add_column(clean_name, self.table[name].data)
+				columns[name] = self.table[name].data
+
+		super().__init__(columns)
 
 		#dataset.samp_id = table_id
 		#self.list.addDataset(dataset)
@@ -471,9 +479,11 @@ class DatasetAstropyTable(DatasetArrays):
 
 import astropy.io.votable
 import string
-class VOTable(DatasetArrays):
+class VOTable(DatasetFile):
 	def __init__(self, filename):
-		DatasetArrays.__init__(self, filename)
+		super().__init__(filename)
+		self.ucds = {}
+		self.units = {}
 		self.filename = filename
 		self.path = filename
 		votable = astropy.io.votable.parse(self.filename)
@@ -485,7 +495,7 @@ class VOTable(DatasetArrays):
 			name = field.name
 			data = self.first_table.array[name]
 			type = self.first_table.array[name].dtype
-			clean_name = _python_save_name(name, self.columns.keys())
+			clean_name = name
 			if field.ucd:
 				self.ucds[clean_name] = field.ucd
 			if field.unit:
@@ -505,12 +515,16 @@ class VOTable(DatasetArrays):
 					print("Giving up column %s, error: %r" (name, e))
 			#if type.kind in ["S"]:
 			#	self.add_column(clean_name, self.first_table.array[name].data)
+		self._freeze()
 
 	@classmethod
 	def can_open(cls, path, *args, **kwargs):
 		can_open = path.endswith(".vot")
 		logger.debug("%r can open: %r"  %(cls.__name__, can_open))
 		return can_open
+
+	def close(self):
+		pass
 
 dataset_type_map["votable"] = VOTable
 

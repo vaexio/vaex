@@ -535,24 +535,19 @@ def unlistify(waslist, *args):
             return values[0]
 
 
+def valid_expression(names, name):
+    if name in names and not valid_identifier(name):
+        return f'df[%r]' % name
+    else:
+        return name
+
+
+def valid_identifier(name):
+    return name.isidentifier() and not keyword.iskeyword(name)
+
+
 def find_valid_name(name, used=[]):
     first, rest = name[0], name[1:]
-    if not first.isidentifier():
-        if ('col_' + first).isidentifier():
-            first = 'col_' + first
-        else:
-            first = 'col_'
-    name = first
-    for char in rest:
-        # we test if it is an identifier with _ prefixed, since not every first character
-        # and following character are treated the same
-        # https://docs.python.org/3/reference/lexical_analysis.html#identifiers
-        if not ('_' + char).isidentifier():
-            name += '_'
-        else:
-            name += char
-    if keyword.iskeyword(name):
-        name += '_'
     if name in used:
         nr = 1
         while name + ("_%d" % nr) in used:

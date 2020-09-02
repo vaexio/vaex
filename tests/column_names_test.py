@@ -23,12 +23,12 @@ def test_column_names(df_arrow):
 def test_add_invalid_name(tmpdir):
     # support invalid names and keywords
     df = vaex.from_dict({'X!1': x, 'class': x*2})
+    assert str(df['X!1']) != 'X!1', "invalid identifier cannot be an expression"
+    assert str(df['class']) != 'class', "keyword cannot be an expression"
     assert df.get_column_names() == ['X!1', 'class']
-    assert df.get_column_names(alias=False) != ['X!1', 'class']
     assert df['X!1'].tolist() == x.tolist()
     assert (df['X!1']*2).tolist() == (x*2).tolist()
     assert (df['class']).tolist() == (x*2).tolist()
-    assert 'X!1' in df._column_aliases
     assert (df.copy()['X!1']*2).tolist() == (x*2).tolist()
 
     path = str(tmpdir.join('test.hdf5'))

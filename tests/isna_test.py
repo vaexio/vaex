@@ -3,7 +3,7 @@ import numpy as np
 
 def test_is_missing():
     s = vaex.string_column(["aap", None, "noot", "mies"])
-    o = ["aap", None, "noot", np.nan]
+    o = ["aap", None, False, np.nan]
     x = np.arange(4, dtype=np.float64)
     x[2] = x[3] = np.nan
     m = np.ma.array(x, mask=[0, 1, 0, 1])
@@ -18,7 +18,7 @@ def test_is_missing():
 
 def test_is_nan():
     s = vaex.string_column(["aap", None, "noot", "mies"])
-    o = ["aap", None, "noot", np.nan]
+    o = ["aap", None, False, np.nan]
     x = np.arange(4, dtype=np.float64)
     x[2] = x[3] = np.nan
     m = np.ma.array(x, mask=[0, 1, 0, 1])
@@ -34,7 +34,7 @@ def test_is_nan():
 
 def test_is_na():
     s = vaex.string_column(["aap", None, "noot", "mies"])
-    o = ["aap", None, "noot", np.nan]
+    o = ["aap", None, False, np.nan]
     x = np.arange(4, dtype=np.float64)
     x[2] = x[3] = np.nan
     m = np.ma.array(x, mask=[0, 1, 0, 1])

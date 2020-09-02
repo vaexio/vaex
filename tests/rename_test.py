@@ -81,7 +81,9 @@ def test_rename_aliased():
     df = vaex.from_dict({'1': [1, 2], '#': [2,3]})
     df['x'] = df['1'] + df['#']
     assert df.x.tolist() == [3, 5]
+    assert df['#'].tolist() == [2, 3]
     df.rename('#', '$')
+    assert df['$'].tolist() == [2, 3]
     df['x'] = df['1'] + df['$']
     assert df.x.tolist() == [3, 5]
 
@@ -89,3 +91,11 @@ def test_rename_aliased():
     assert df.x.tolist() == [3, 5]
     df['x'] = df['1'] + df['$']
     assert df.x.tolist() == [5, 8]
+
+
+def test_rename_expression():
+    df = vaex.from_dict({'1': [1, 2], '#': [2,3]})
+    expr = vaex.expression.Expression(df, "df['1']")
+    assert expr.tolist() == [1, 2]
+    expr2 = expr._rename('1', '#')
+    assert expr2.tolist() == [2, 3]

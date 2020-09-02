@@ -226,10 +226,10 @@ def open(path, convert=False, shuffle=False, copy_index=False, *args, **kwargs):
                 else:
                     # with ProcessPoolExecutor() as executor:
                     # executor.submit(read_csv_and_convert, filenames, shuffle=shuffle, **kwargs)
-                    DataFrames = []
+                    dfs = []
                     for filename in filenames:
-                        DataFrames.append(open(filename, convert=bool(convert), shuffle=shuffle, **kwargs))
-                    ds = vaex.dataframe.DataFrameConcatenated(DataFrames)
+                        dfs.append(open(filename, convert=bool(convert), shuffle=shuffle, **kwargs))
+                    ds = concat(dfs)
                     if convert:
                         ds.export_hdf5(filename_hdf5, shuffle=shuffle)
                         ds = vaex.file.open(filename_hdf5)
@@ -253,7 +253,7 @@ def open_many(filenames):
         filename = filename.strip()
         if filename and filename[0] != "#":
             dfs.append(open(filename))
-    return vaex.dataframe.DataFrameConcatenated(dfs=dfs)
+    return concat(dfs)
 
 
 def from_samp(username=None, password=None):
@@ -270,7 +270,8 @@ def from_samp(username=None, password=None):
 def from_astropy_table(table):
     """Create a vaex DataFrame from an Astropy Table."""
     import vaex.file.other
-    return vaex.file.other.DatasetAstropyTable(table=table)
+    ds = vaex.file.other.DatasetAstropyTable(table=table)
+    return vaex.dataframe.DataFrameLocal(ds)
 
 
 def from_dict(data):
@@ -312,11 +313,7 @@ def from_items(*items):
     :rtype: DataFrame
 
     """
-    import numpy as np
-    df = vaex.dataframe.DataFrameArrays("array")
-    for name, array in items:
-        df.add_column(name, np.asanyarray(array))
-    return df
+    return from_dict(dict(items))
 
 
 def from_arrays(**arrays):
@@ -348,15 +345,8 @@ def from_arrays(**arrays):
     """
     import numpy as np
     import six
-    from .column import Column, supported_column_types
-    df = vaex.dataframe.DataFrameArrays("array")
-    for name, array in arrays.items():
-        if isinstance(array, supported_column_types):
-            df.add_column(name, array)
-        else:
-            array = np.asanyarray(array)
-            df.add_column(name, array)
-    return df
+    dataset = vaex.dataset.DatasetArrays(arrays)
+    return vaex.dataframe.DataFrameLocal(dataset)
 
 def from_arrow_table(table, as_numpy=True):
     """Creates a vaex DataFrame from an arrow Table.
@@ -397,7 +387,7 @@ def from_pandas(df, name="pandas", copy_index=False, index_name="index"):
     import six
     import pandas as pd
     import numpy as np
-    vaex_df = vaex.dataframe.DataFrameArrays(name)
+    columns = {}
 
     def add(name, column):
         values = column.values
@@ -405,19 +395,19 @@ def from_pandas(df, name="pandas", copy_index=False, index_name="index"):
         if hasattr(pd.core.arrays, 'integer') and isinstance(values, pd.core.arrays.integer.IntegerArray):
             values = np.ma.array(values._data, mask=values._mask)
         try:
-            vaex_df.add_column(name, values)
+            columns[name] = vaex.dataset.to_supported_array(values)
         except Exception as e:
             print("could not convert column %s, error: %r, will try to convert it to string" % (name, e))
             try:
                 values = values.astype("S")
-                vaex_df.add_column(name, values)
+                columns[name] = vaex.dataset.to_supported_array(values)
             except Exception as e:
                 print("Giving up column %s, error: %r" % (name, e))
     for name in df.columns:
         add(name, df[name])
     if copy_index:
         add(index_name, df.index)
-    return vaex_df
+    return from_dict(columns)
 
 
 def from_ascii(path, seperator=None, names=True, skip_lines=0, skip_after=0, **kwargs):
@@ -437,7 +427,7 @@ def from_ascii(path, seperator=None, names=True, skip_lines=0, skip_after=0, **k
     """
 
     import vaex.ext.readcol as rc
-    ds = vaex.dataframe.DataFrameArrays(path)
+    ds = vaex.dataframe.DataFrameLocal()
     if names not in [True, False]:
         namelist = names
         names = False
@@ -562,13 +552,13 @@ def _from_csv_convert_and_read(filename_or_buffer, copy_index, maybe_convert_pat
     else:
         logger.info('converting %d chunks into single HDF5 file %s' % (len(converted_paths), combined_hdf5))
         dfs = [vaex.file.open(p) for p in converted_paths]
-        df_combined = vaex.dataframe.DataFrameConcatenated(dfs)
+        df_combined = vaex.concat(dfs)
         df_combined.export_hdf5(combined_hdf5, shuffle=False)
 
         logger.info('deleting %d chunk files' % len(converted_paths))
         for df, df_path in zip(dfs, converted_paths):
             try:
-                df.close_files()
+                df.close()
                 os.remove(df_path)
             except Exception as e:
                 logger.error('Could not close or delete intermediate hdf5 file %s used to convert %s to hdf5: %s' % (
@@ -814,8 +804,8 @@ def concat(dfs):
 
     :rtype: DataFrame
     '''
-    ds = reduce((lambda x, y: x.concat(y)), dfs)
-    return ds
+    df, *tail = dfs
+    return df.concat(*tail)
 
 def vrange(start, stop, step=1, dtype='f8'):
     """Creates a virtual column which is the equivalent of numpy.arange, but uses 0 memory"""

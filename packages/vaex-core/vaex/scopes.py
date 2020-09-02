@@ -115,6 +115,8 @@ class _BlockScope(ScopeBase):
     def __getitem__(self, variable):
         # logger.debug("get " + variable)
         # return self.df.columns[variable][self.i1:self.i2]
+        if variable == 'df':
+            return self  # to support df['no!identifier']
         if variable in expression_namespace:
             return expression_namespace[variable]
         try:

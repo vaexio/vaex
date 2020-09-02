@@ -6,11 +6,15 @@ if vaex.utils.devmode:
 
 @pytest.fixture(scope='module')
 def schema(ds_trimmed_cache):
+    ds_trimmed_cache = ds_trimmed_cache.drop('123456')
     return ds_trimmed_cache.graphql.schema()
 
-def test_aggregates(df_local, schema):
-    df = df_local
+@pytest.fixture()
+def df(df_trimmed):
+    return df_trimmed.drop('123456')
 
+
+def test_aggregates(df, schema):
     result = schema.execute("""
     {
         df {
@@ -40,8 +44,7 @@ def test_aggregates(df_local, schema):
     assert result.data['df']['mean']['y'] == df.y.mean()
 
 
-def test_groupby(df_local, schema):
-    df = df_local
+def test_groupby(df, schema):
 
     result = schema.execute("""
     {
@@ -61,8 +64,7 @@ def test_groupby(df_local, schema):
     assert result.data['df']['groupby']['x']['min']['x'] == dfg['xmin'].tolist()
 
 
-def test_row_pagination(df_local, schema):
-    df = df_local
+def test_row_pagination(df, schema):
     def values(row, name):
         return [k[name] for k in row]
     result = schema.execute("""
@@ -106,8 +108,7 @@ def test_row_pagination(df_local, schema):
     assert values(result.data['df']['row'], 'x') == df[3:5].x.tolist()
 
 
-def test_where(df_local, schema):
-    df = df_local
+def test_where(df, schema):
     def values(row, name):
         return [k[name] for k in row]
     result = schema.execute("""
@@ -201,9 +202,8 @@ def test_where(df_local, schema):
     assert values(result.data['df']['row'], 'x') == [4, 5, 6]
 
 
-def test_pandas(df_local, schema):
-    df = df_local
-    df_pandas = df_local.to_pandas_df()
+def test_pandas(df, schema):
+    df_pandas = df.to_pandas_df()
     def values(row, name):
         return [k[name] for k in row]
     result = df_pandas.graphql.execute("""

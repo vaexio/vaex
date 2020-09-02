@@ -2,6 +2,10 @@ from common import *
 
 
 def test_fillna_column(df_local_non_arrow):
+    if isinstance(df_local_non_arrow.dataset['obj'], vaex.column.ColumnConcatenatedLazy):
+        # TODO: vaex.column.ColumnConcatenatedLazy is too eager to cast to string
+        # we need the same behaviour as in vaex.dataset.to_supported_array
+        return
     df = df_local_non_arrow
     df['ok'] = df['obj'].fillna(value='NA')
     assert df.ok.values[5] == 'NA'
@@ -61,7 +65,7 @@ def test_fillna_missing():
 # equivalent of isna_test
 def test_fillmissing():
     s = vaex.string_column(["aap", None, "noot", "mies"])
-    o = ["aap", None, "noot", np.nan]
+    o = ["aap", None, False, np.nan]
     x = np.arange(4, dtype=np.float64)
     x[2] = x[3] = np.nan
     m = np.ma.array(x, mask=[0, 1, 0, 1])
@@ -74,13 +78,13 @@ def test_fillmissing():
     assert np.isnan(m[2])
     assert m[3] == 9
     assert (df.s.fillmissing('kees').tolist() == ["aap", "kees", "noot", "mies"])
-    assert (df.o.fillmissing({'a':1}).tolist()[:3] == ["aap", {'a':1}, "noot"])
+    assert (df.o.fillmissing({'a':1}).tolist()[:3] == ["aap", {'a':1}, False])
     assert np.isnan(df.o.fillmissing([1]).tolist()[3])
 
 # equivalent of isna_test
 def test_fillnan():
     s = vaex.string_column(["aap", None, "noot", "mies"])
-    o = ["aap", None, "noot", np.nan]
+    o = ["aap", None, False, np.nan]
     x = np.arange(4, dtype=np.float64)
     x[2] = x[3] = np.nan
     m = np.ma.array(x, mask=[0, 1, 0, 1])
@@ -90,11 +94,11 @@ def test_fillnan():
     m = df.m.fillnan(9).tolist()
     assert m == [0, None, 9, None]
     assert (df.s.fillnan('kees').tolist() == ["aap", None, "noot", "mies"])
-    assert (df.o.fillnan({'a':1}).tolist() == ["aap", None, "noot", {'a':1}])
+    assert (df.o.fillnan({'a':1}).tolist() == ["aap", None, False, {'a':1}])
 
 def test_fillna():
     s = vaex.string_column(["aap", None, "noot", "mies"])
-    o = ["aap", None, "noot", np.nan]
+    o = ["aap", None, False, np.nan]
     x = np.arange(4, dtype=np.float64)
     x[2] = x[3] = np.nan
     m = np.ma.array(x, mask=[0, 1, 0, 1])
@@ -104,7 +108,7 @@ def test_fillna():
     m = df.m.fillna(9).tolist()
     assert m == [0, 9, 9, 9]
     assert (df.s.fillna('kees').tolist() == ["aap", "kees", "noot", "mies"])
-    assert (df.o.fillna({'a':1}).tolist() == ["aap", {'a': 1}, "noot", {'a':1}])
+    assert (df.o.fillna({'a':1}).tolist() == ["aap", {'a': 1}, False, {'a':1}])
 
 def test_fillna_array():
     x = np.array([1, 2, 3, np.nan])
@@ -125,3 +129,17 @@ def test_fillna_dataframe():
     assert df_filled.x.tolist() == [3, 1, -1, 10, -1]
     assert df_filled.y.tolist() == [-1, 1, True, '10street', -1]
     assert df_filled.z.tolist() == [5, 7, -1, 1, -1]
+
+def test_fillna_string_dtype():
+    name = ['Maria', 'Adam', None, None, 'Dan']
+    age = [28, 15, 34, 55, 41]
+    weight = [np.nan, np.nan, 77.5, 65, 95]
+    df = vaex.from_arrays(name=name, age=age, weight=weight)
+
+    # Originally - the column "name" is string
+    assert df['name'].is_string()
+
+    df['name'] = df['name'].fillna('missing')
+
+    # Confirm that the column "name" is still of type string after fillna
+    assert df['name'].is_string()

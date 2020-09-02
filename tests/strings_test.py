@@ -24,12 +24,12 @@ def test_format():
     assert df.text.format('pre-%s-post').tolist() == ['pre-%s-post' % k for k in text]
 
 
-@pytest.mark.skipif(sys.version_info < (3, 3), reason="requires python3.4 or higher")
 def test_dtype_object_string(tmpdir):
+    # CHANGE: before vaex v4 we worked with dtype object, now we lazily cast to arrow
     x = np.arange(8, 12)
     s = np.array(list(map(str, x)), dtype='O')
     df = vaex.from_arrays(x=x, s=s)
-    assert df.columns['s'].dtype.kind == 'O'
+    assert df.columns['s'].type == pa.string()
     path = str(tmpdir.join('test.arrow'))
     df.export(path)
     df_read = vaex.open(path, as_numpy=False)

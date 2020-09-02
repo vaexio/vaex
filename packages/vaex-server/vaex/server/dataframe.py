@@ -27,7 +27,8 @@ def _rmi(f=None):
 # TODO: we should not inherit from local
 class DataFrameRemote(DataFrame):
     def __init__(self, name, column_names, dtypes, length_original):
-        super(DataFrameRemote, self).__init__(name, '', column_names)
+        super(DataFrameRemote, self).__init__(name)
+        self.column_names = column_names
         self._dtypes = dtypes
         for column_name in self.get_column_names(virtual=True, strings=True):
             self._save_assign_expression(column_name)
