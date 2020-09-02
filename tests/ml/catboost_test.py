@@ -110,7 +110,7 @@ def test_catboost_numerical_validation():
     features = ['sepal_width', 'petal_length', 'sepal_length', 'petal_width']
 
     # Vanilla catboost
-    dtrain = cb.Pool(ds[features].values, label=ds.data.class_)
+    dtrain = cb.Pool(ds[features].values, label=ds.class_.values)
     cb_bst = cb.train(params=params_multiclass, dtrain=dtrain, num_boost_round=3)
     cb_pred = cb_bst.predict(dtrain, prediction_type='Probability')
 
