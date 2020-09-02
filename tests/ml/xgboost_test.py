@@ -61,7 +61,7 @@ def test_xgboost_numerical_validation():
     features = ['sepal_width', 'petal_length', 'sepal_length', 'petal_width']
 
     # Vanilla xgboost
-    dtrain = xgb.DMatrix(ds[features], label=ds.data.class_)
+    dtrain = xgb.DMatrix(ds[features].values, label=ds.class_.values)
     xgb_bst = xgb.train(params=params_multiclass, dtrain=dtrain, num_boost_round=3)
     xgb_pred = xgb_bst.predict(dtrain)
 
