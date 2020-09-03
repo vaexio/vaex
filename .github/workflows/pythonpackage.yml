@@ -26,6 +26,11 @@ jobs:
     - uses: actions/checkout@v1
       with:
         submodules: true
+    - uses: actions/checkout@v2
+      with:
+        repository: vaexio/vaex-enterprise
+        token: ${{ secrets.PAT_PULL_ENTERPRISE }}
+        path: vaex-enterprise
     - name: Install conda with Python ${{ matrix.python-version }}
       uses: s-weigand/setup-conda@master
       with:
@@ -73,6 +78,16 @@ jobs:
       shell: bash
       run: |
         ./ci/03-install-vaex.sh
+    - name: Install vaex-enterprise
+      if: matrix.os == 'ubuntu-latest'
+      shell: bash
+      run: |
+        conda config --set always_yes yes --set changeps1 no
+        source activate vaex-dev
+        cd vaex-enterprise
+        mamba install -c conda-forge distributed
+        pip install ray
+        pip install -e .
     - name: Lint with flake8
       run: |
         echo "soon"
@@ -88,6 +103,12 @@ jobs:
         source activate vaex-dev
         python -m vaex.ml.spec packages/vaex-ml/vaex/ml/spec_new.json
         diff packages/vaex-ml/vaex/ml/spec_new.json packages/vaex-ml/vaex/ml/spec.json
+    - name: Test with pytest (vaex-enterprise)
+      if: matrix.os == 'ubuntu-latest'
+      shell: bash
+      run: |
+        source activate vaex-dev
+        py.test vaex-enterprise/tests
     - name: Test notebooks
       if: matrix.os != 'windows-latest'
       shell: bash
