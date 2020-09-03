@@ -21,6 +21,7 @@ install:
   - "conda create -y -q -n vaex-dev -c arrow-nightlies -c conda-forge python=%PYTHON_VERSION%  --file ci/conda-env.yml --file ci/conda-env-nightlies.yml"
   - activate vaex-dev
   - pip install -r requirements-ml.txt
+  - pip install "ipython>=7" "dask>=1"  # similar to GHA
   - pushd packages\vaex-core   && pip install . && popd
   - pushd packages\vaex-hdf5   && pip install . && popd
   - pushd packages\vaex-viz   && pip install . && popd

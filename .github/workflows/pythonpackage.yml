@@ -43,6 +43,9 @@ jobs:
       shell: bash
       run: |
         ./ci/02-create-vaex-dev-env.sh ${{ matrix.python-version }}
+        source activate vaex-dev
+        pip install "ipython>=7" "dask>=1"
+        # not sure why, but the conda env is strange (old dask) if we put this constraint in the conda solver
     - name: free disk space
       if: matrix.os == 'ubuntu-latest'
       run: |
