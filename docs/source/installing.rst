@@ -28,10 +28,10 @@ Short version
 Longer version
 ^^^^^^^^^^^^^^
 
-If you don't want all packages installed, do not install the vaex package. The vaex package is a meta packages that depends on all other vaex packages so it will instal them all, but if you don't need astronomy related parts (``vaex-astro``), or don't care about distributed (``vaex-distributed``), you can leave out those packages. Copy paste the following lines and remove what you do not need:
+If you don't want all packages installed, do not install the vaex package. The vaex package is a meta packages that depends on all other vaex packages so it will instal them all, but if you don't need astronomy related parts (``vaex-astro``), or don't care about graphql (``vaex-graphql``), you can leave out those packages. Copy paste the following lines and remove what you do not need:
 
- * **Regular Python users**: ``pip install vaex-core vaex-viz vaex-jupyter vaex-arrow vaex-server vaex-ui vaex-hdf5 vaex-astro vaex-distributed``
- * **Anaconda users**: ``conda install -c conda-forge vaex-core vaex-viz vaex-jupyter vaex-arrow vaex-server vaex-ui vaex-hdf5 vaex-astro vaex-distributed``
+ * **Regular Python users**: ``pip install vaex-core vaex-viz vaex-jupyter vaex-arrow vaex-server vaex-ui vaex-hdf5 vaex-astro``
+ * **Anaconda users**: ``conda install -c conda-forge vaex-core vaex-viz vaex-jupyter vaex-arrow vaex-server vaex-ui vaex-hdf5 vaex-astro``
 
 When installing ``vaex-ui`` it does not install PyQt4, PyQt5 or PySide, you have to choose yourself and installing may be tricky. If running pip install PyQt5 fails, you may want to try your favourite package manager (brew, macports) to install it instead. You can check if you have one of these packages by running:
 
