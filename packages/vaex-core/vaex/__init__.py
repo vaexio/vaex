@@ -172,8 +172,8 @@ def open(path, convert=False, shuffle=False, copy_index=False, *args, **kwargs):
             client = vaex.connect(server, **kwargs)
             return client[name]
         if path.startswith("cluster"):
-            import vaex.distributed
-            return vaex.distributed.open(path, *args, **kwargs)
+            import vaex.enterprise.distributed
+            return vaex.enterprise.distributed.open(path, *args, **kwargs)
         else:
             import vaex.file
             import glob
