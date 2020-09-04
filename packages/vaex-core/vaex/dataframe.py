@@ -241,6 +241,9 @@ class DataFrame(object):
         else:
             return object.__getattribute__(self, name)
 
+    def _ipython_key_completions_(self):
+        return self.get_column_names()
+
     @property
     def func(self):
         class Functions(object):
