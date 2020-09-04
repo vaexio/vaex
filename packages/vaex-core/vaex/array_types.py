@@ -25,6 +25,7 @@ def filter(ar, boolean_mask):
     else:
         return ar[boolean_mask]
 
+
 def same_type(type1, type2):
     try:
         return type1 == type2
