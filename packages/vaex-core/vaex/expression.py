@@ -234,10 +234,7 @@ class Expression(with_metaclass(Meta)):
 
     @property
     def _ast_slices(self):
-        # if self._ast_slices is None:
         return expresso.slices(self.ast)
-        # return self._ast_slices
-
 
     @property
     def expression(self):

@@ -6142,32 +6142,3 @@ def _is_dtype_ok(dtype):
 
 def _is_array_type_ok(array):
     return _is_dtype_ok(array.dtype)
-
-
-# class DataFrameArrays(DataFrameLocal):
-#     """Represent an in-memory DataFrame of numpy arrays, see :func:`from_arrays` for usage."""
-
-#     def __init__(self, name="arrays"):
-#         super(DataFrameArrays, self).__init__(None, None, [])
-#         self.name = name
-#         self.path = "/has/no/path/" + name
-
-#     # def __len__(self):
-#     #   return len(self.columns.values()[0])
-
-#     def add_column(self, name, data, dtype=None):
-#         """Add a column to the DataFrame
-
-#         :param str name: name of column
-#         :param data: numpy array with the data
-#         """
-#         # assert _is_array_type_ok(data), "dtype not supported: %r, %r" % (data.dtype, data.dtype.type)
-#         # self._length = len(data)
-#         # if self._length_unfiltered is None:
-#         #     self._length_unfiltered = len(data)
-#         #     self._length_original = len(data)
-#         #     self._index_end = self._length_unfiltered
-#         super(DataFrameArrays, self).add_column(name, data, dtype=dtype)
-#         self._length_unfiltered = int(round(self._length_original * self._active_fraction))
-#         # self.set_active_fraction(self._active_fraction)
-

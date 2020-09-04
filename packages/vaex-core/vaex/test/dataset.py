@@ -123,7 +123,7 @@ class TestDataset(unittest.TestCase):
 		self.dataset.add_column("name", np.array(name))
 		self.dataset.add_column("name_arrow", vaex.string_column(name))
 		if use_filtering:
-			self.dataset.select('(x >= 0) & (x < 10)', name=vaex.dataset.FILTER_SELECTION_NAME)
+			self.dataset.select('(x >= 0) & (x < 10)', name=vaex.dataframe.FILTER_SELECTION_NAME)
 			self.x = x = self.x[2:12]
 			self.y = y = self.y[2:12]
 			self.m = m = self.m[2:12]
@@ -158,10 +158,10 @@ class TestDataset(unittest.TestCase):
 		dataset1.add_column("x", x1)
 		dataset2.add_column("x", x2)
 		dataset3.add_column("x", x3)
-		dataset3.add_column("y", x3**2)
-		self.dataset_concat = vx.dataset.DatasetConcatenated([dataset1, dataset2, dataset3], name="dataset_concat")
+		# dataset3.add_column("y", x3**2)
+		self.dataset_concat = vaex.concat([dataset1, dataset2, dataset3])
 
-		self.dataset_concat_dup = vx.dataset.DatasetConcatenated([self.dataset_no_filter, self.dataset_no_filter, self.dataset_no_filter], name="dataset_concat_dup")
+		self.dataset_concat_dup = vaex.concat([self.dataset_no_filter, self.dataset_no_filter, self.dataset_no_filter])
 		self.dataset_local = self.dataset
 		self.datasetxy_local = self.datasetxy
 		self.dataset_concat_local = self.dataset_concat
@@ -207,7 +207,7 @@ class TestDataset(unittest.TestCase):
 			ds._invalidate_selection_cache()
 		with small_buffer(ds):
 			ds1 = ds.copy()
-			ds1.select(ds1.x > 4, name=vaex.dataset.FILTER_SELECTION_NAME, mode='and')
+			ds1.select(ds1.x > 4, name=vaex.dataframe.FILTER_SELECTION_NAME, mode='and')
 			ds1._invalidate_caches()
 
 			ds2 = ds[ds.x > 4]
@@ -1158,7 +1158,7 @@ class TestDataset(unittest.TestCase):
 			dfs = [vx.dataframe.DataFrameLocal()  for i in range(N)]
 			for dataset, array in zip(dfs, arrays):
 				dataset.add_column("x", array)
-			dataset_concat = vx.dataset.DatasetConcatenated(dfs, name="dataset_concat")
+			dataset_concat = vaex.concat(dfs)
 			return dataset_concat
 
 		self.assertEqual(concat(np.float32, np.float64).columns["x"].dtype, np.float64)
@@ -1174,7 +1174,7 @@ class TestDataset(unittest.TestCase):
 		for dataset, array in zip(dfs, arrays):
 			dataset.add_column("x", array)
 		with self.assertRaises(ValueError):
-			dataset_concat = vx.dataset.DatasetConcatenated(dfs, name="dataset_concat")
+			dataset_concat = vaex.concat(dfs)
 
 
 		ar1 = np.zeros((10))
@@ -1184,15 +1184,16 @@ class TestDataset(unittest.TestCase):
 		dfs = [vx.dataframe.DataFrameLocal() for i in range(N)]
 		for dataset, array in zip(dfs, arrays):
 			dataset.add_column("x", array)
-		dataset_concat = vx.dataset.DatasetConcatenated(dfs, name="dataset_concat")
+		dataset_concat = vaex.concat(dfs)
 
 
-		dataset_concat1 = vx.dataset.DatasetConcatenated(dfs, name="dataset_concat")
-		dataset_concat2 = vx.dataset.DatasetConcatenated(dfs, name="dataset_concat")
-		self.assertEqual(len(dataset_concat1.concat(dataset_concat2).dfs), 4)
-		self.assertEqual(len(dataset_concat1.concat(dfs[0]).dfs), 3)
-		self.assertEqual(len(dfs[0].concat(dataset_concat1).dfs), 3)
-		self.assertEqual(len(dfs[0].concat(dfs[0]).dfs), 2)
+		dataset_concat1 = vaex.concat(dfs)
+		dataset_concat2 = vaex.concat(dfs)
+		# TODO: is it really a performance penalty if we don't 'collapse' multiple concats
+		# self.assertEqual(len(dataset_concat1.concat(dataset_concat2).dataset.datasets), 4)
+		# self.assertEqual(len(dataset_concat1.concat(dfs[0]).dataset.datasets), 3)
+		# self.assertEqual(len(dfs[0].concat(dataset_concat1).dataset.datasets), 3)
+		# self.assertEqual(len(dfs[0].concat(dfs[0]).dataset.datasets), 2)
 
 	def test_export_concat(self):
 		x1 = np.arange(1000, dtype=np.float32)
@@ -1204,7 +1205,7 @@ class TestDataset(unittest.TestCase):
 		dataset1.add_column("x", x1)
 		dataset2.add_column("x", x2)
 
-		self.dataset_concat = vx.dataset.DatasetConcatenated([dataset1, dataset2], name="dataset_concat")
+		self.dataset_concat = vaex.concat([dataset1, dataset2])
 
 		path_hdf5 = tempfile.mktemp(".hdf5")
 		self.dataset_concat.export_hdf5(path_hdf5)

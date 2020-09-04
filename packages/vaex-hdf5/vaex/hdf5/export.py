@@ -243,10 +243,11 @@ def export_hdf5(dataset, path, column_names=None, byteorder="=", shuffle=False, 
                                        column_names=column_names, selection=selection, shuffle=shuffle, byteorder=byteorder,
                                        progress=progress, sort=sort, ascending=ascending)
     dataset_output._freeze()
-    import getpass
-    import datetime
-    user = getpass.getuser()
-    date = str(datetime.datetime.now())
+    # We aren't really making use of the metadata, we could put this back in some form in the future
+    # import getpass
+    # import datetime
+    # user = getpass.getuser()
+    # date = str(datetime.datetime.now())
     # source = dataset.path
     # description = "file exported by vaex, by user %s, on date %s, from source %s" % (user, date, source)
     # if dataset.description:

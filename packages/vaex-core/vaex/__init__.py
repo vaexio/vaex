@@ -253,7 +253,7 @@ def open_many(filenames):
         filename = filename.strip()
         if filename and filename[0] != "#":
             dfs.append(open(filename))
-    return vaex.dataframe.DataFrameConcatenated(dfs=dfs)
+    return concat(dfs)
 
 
 def from_samp(username=None, password=None):
