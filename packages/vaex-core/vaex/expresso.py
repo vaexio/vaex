@@ -20,6 +20,11 @@ else:  # Python3.8
     ast_Num = _ast.Constant
     ast_Str = _ast.Constant
 
+if hasattr(_ast, '_ast.NameConstant'):
+    ast_Constant = _ast.NameConstant
+else:
+    ast_Constant = _ast.Constant
+
 
 logger = logging.getLogger("expr")
 logger.setLevel(logging.ERROR)
@@ -121,11 +126,11 @@ def validate_expression(expr, variable_set, function_set=[], names=None):
             validate_expression(comparator, variable_set, function_set, names)
     elif isinstance(expr, _ast.keyword):
         validate_expression(expr.value, variable_set, function_set, names)
-    elif isinstance(expr, _ast.NameConstant):
+    elif isinstance(expr, ast_Constant):
         pass  # like True and False
     elif isinstance(expr, _ast.Subscript):
         validate_expression(expr.value, variable_set, function_set, names)
-        if isinstance(expr.slice.value, _ast.Num):
+        if isinstance(expr.slice.value, ast_Num):
             pass  # numbers are fine
         else:
             raise ValueError(
