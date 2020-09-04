@@ -14,7 +14,7 @@ import difflib
 
 
 if hasattr(_ast, 'Num'):
-    ast_Num = _ast.Num
+    ast_Num = ast_Num
     ast_Str = _ast.Str
 else:  # Python3.8
     ast_Num = _ast.Constant
