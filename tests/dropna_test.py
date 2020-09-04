@@ -76,7 +76,9 @@ def test_dropmissing():
     assert len(m) == 2
     assert (df.s.dropmissing().tolist() == ["aap", "noot", "mies"])
     assert (df.o.dropmissing().tolist()[:2] == ["aap", "noot"])
-    assert np.isnan(df.o.dropmissing().tolist()[2])
+    # this changed in vaex 4, since the np.nan is considered missing, the whole
+    # columns is seen as string
+    # assert np.isnan(df.o.dropmissing().tolist()[2])
 
 
 # equivalent of isna_test
@@ -92,7 +94,9 @@ def test_dropnan():
     m = df.m.dropnan().tolist()
     assert m == [0, None, None]
     assert (df.s.dropnan().tolist() == ["aap", None, "noot", "mies"])
-    assert (df.o.dropnan().tolist() == ["aap", None, "noot"])
+    # this changed in vaex 4, since the np.nan is considered missing, the whole
+    # columns is seen as string
+    assert (df.o.dropnan().tolist() == ["aap", None, "noot", None])
 
 def test_dropna():
     s = vaex.string_column(["aap", None, "noot", "mies"])
