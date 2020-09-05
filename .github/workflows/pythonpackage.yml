@@ -60,10 +60,10 @@ jobs:
         brew install libomp
     - name: Cache compiled binaries
       id: cache-compiled-binaries
-      uses: actions/cache@v1
+      uses: actions/cache@v2
       with:
         path: packages/vaex-core/build
-        key: ${{ runner.OS }}-${{ matrix.python-version }}-${{ hashFiles('packages/vaex-core/src/*') }}-v4
+        key: ${{ runner.OS }}-${{ matrix.python-version }}-${{ hashFiles('packages/vaex-core/src/*') }}-v1
     - name: Fix cache timestamp
       if: steps.cache-compiled-binaries.outputs.cache-hit == 'true' && matrix.os != 'windows-latest'
       shell: bash
