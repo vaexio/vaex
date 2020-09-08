@@ -1,13 +1,31 @@
-# vaex 3.1.0 (unreleased)
-
-## vaex-core 2.1.0-dev (unreleased)
-   * Fixes
-      * Repeated dropna/dropnan/dropmissing could report cached length [#874](https://github.com/vaexio/vaex/pull/874)
-   * Features
-      * Arrow is now a core dependency, vaex-arrow is deprecated. Much better chunked array support, numpy conversion is done lazily. [#517](https://github.com/vaexio/vaex/pull/517)
+# vaex 4.0.0 (unreleased)
+   * Breaking changes:
+      * Arrow is now a core dependency, vaex-arrow is deprecated. All methods that return string, will return Arrow arrays [#517](https://github.com/vaexio/vaex/pull/517)
 
 ## vaex-arrow (DEPRECATED)
    This is now part of vaex-core.
+
+## vaex-core 4.0.0 (unreleased)
+   * Fixes
+      * Repeated dropna/dropnan/dropmissing could report cached length. [#874](https://github.com/vaexio/vaex/pull/874)
+      * Trimming concatenated columns. [#860](https://github.com/vaexio/vaex/pull/860)
+      * percentile_approx works for 0 and 100 percentile. [#818](https://github.com/vaexio/vaex/pull/818)
+      * Expression containing kwarg=True were treated as invalid. [#861](hhttps://github.com/vaexio/vaex/pull/861)
+   * Features
+      * Datetime floor method [#843](https://github.com/vaexio/vaex/pull/843)
+      * dropinf (similar to dropna) [#821](https://github.com/vaexio/vaex/pull/821)
+      * Support for streaming from Google Cloud Storage. [#898](https://github.com/vaexio/vaex/pull/898)
+      * IPython autocomplete support (e.g. `df['hom' (tab)`) [#961](https://github.com/vaexio/vaex/pull/961)
+   * Refactor
+      * Use `arrow.compute` for several string functions/kernels. [#885](https://github.com/vaexio/vaex/pull/885)
+      * Separate DataFrame and Dataset. [#865](https://github.com/vaexio/vaex/pull/865)
+
+## vaex-ml 0.11.0 (unreleased)
+   * Features
+      * Batch training for CatBoost. [#819](https://github.com/vaexio/vaex/pull/819)
+      * Support for `predict_proba` and `predict_log_proba` for sklearn classifiers. [#927](https://github.com/vaexio/vaex/pull/927)
+
+# vaex 3.1.0 (unreleased)
 
 ## vaex-jupyter 0.5.2 (2020-6-12)
    * Features
