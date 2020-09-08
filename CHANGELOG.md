@@ -25,6 +25,9 @@
       * Batch training for CatBoost. [#819](https://github.com/vaexio/vaex/pull/819)
       * Support for `predict_proba` and `predict_log_proba` for sklearn classifiers. [#927](https://github.com/vaexio/vaex/pull/927)
 
+## vaex-hdf5 0.7.0 (unreleased)
+   * Requirement of vaex-core >=3,<4
+
 # vaex 3.1.0 (unreleased)
 
 ## vaex-jupyter 0.5.2 (2020-6-12)
