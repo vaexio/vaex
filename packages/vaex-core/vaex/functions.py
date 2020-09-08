@@ -290,6 +290,34 @@ def _pandas_dt_fix(x):
         x = x.copy()
     return x
 
+@register_function(scope='dt', as_property=True)
+def dt_date(x):
+    """Return the date part of the datetime value
+
+    :returns: an expression containing the date portion of a datetime value
+
+    Example:
+
+    >>> import vaex
+    >>> import numpy as np
+    >>> date = np.array(['2009-10-12T03:31:00', '2016-02-11T10:17:34', '2015-11-12T11:34:22'], dtype=np.datetime64)
+    >>> df = vaex.from_arrays(date=date)
+    >>> df
+      #  date
+      0  2009-10-12 03:31:00
+      1  2016-02-11 10:17:34
+      2  2015-11-12 11:34:22
+
+    >>> df.date.dt.date
+    Expression = dt_date(date)
+    Length: 3 dtype: datetime64[D] (expression)
+    -------------------------------------------
+    0  2009-10-12
+    1  2016-02-11
+    2  2015-11-12
+    """
+    import pandas as pd
+    return pd.Series(_pandas_dt_fix(x)).dt.date.values.astype(np.datetime64)
 
 @register_function(scope='dt', as_property=True)
 def dt_dayofweek(x):
