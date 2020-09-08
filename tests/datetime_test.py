@@ -28,6 +28,7 @@ def test_datetime_operations():
     assert df.date.dt.dayofyear.tolist() == pandas_df.date.dt.dayofyear.values.tolist()
     assert df.date.dt.dayofweek.tolist() == pandas_df.date.dt.dayofweek.values.tolist()
     assert df.date.dt.floor('H').tolist() == pandas_df.date.dt.floor('H').values.tolist()
+    assert df.date.dt.date.tolist() == pandas_df.date.dt.date.values.tolist()
 
 
 def test_datetime_agg():
