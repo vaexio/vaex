@@ -29,7 +29,7 @@ class DevelopCmd(develop):
             with cwd(os.path.join('packages', package)):
                 err = os.system('python -m pip install -e .')
                 if err:
-                    sys.exit(err)
+                    raise RuntimeError(f'Oops, failed to install {package}')
             # we need to make symbolic links from vaex-core/vaex/<name> to vaex-<name>/vaex/<name>
             # otherwise development install do not work
             if package not in ['vaex-core']:
