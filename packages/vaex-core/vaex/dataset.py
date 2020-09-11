@@ -65,10 +65,11 @@ def hash_array_data(ar):
             blake = blake3.blake3(byte_ar, multithreading=True)
             hash_data = {"type": "numpy", "data": blake.hexdigest(), "mask": None}
     else:
-        try:
-            ar = pa.array(ar)
-        except:  # dtype=o for lazy columns doesn't work..
-            return str(uuid.uuid4())
+        if not isinstance(ar, pa.Array):
+            try:
+                ar = pa.array(ar)
+            except Exception as e:
+                raise ValueError(f'Cannot convert array {ar} to arrow array for hashing') from e
         blake = blake3.blake3(multithreading=True)
         buffer_hashes = []
         hash_data = {"type": "arrow", "buffers": buffer_hashes}
