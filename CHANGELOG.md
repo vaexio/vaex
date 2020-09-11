@@ -5,6 +5,9 @@
 ## vaex-arrow (DEPRECATED)
    This is now part of vaex-core.
 
+## vaex-astro 0.8.0 (unreleased)
+  * Requirement changed to vaex-core >=4,<5
+
 ## vaex-core 4.0.0 (unreleased)
    * Fixes
       * Repeated dropna/dropnan/dropmissing could report cached length. [#874](https://github.com/vaexio/vaex/pull/874)
@@ -20,13 +23,28 @@
       * Use `arrow.compute` for several string functions/kernels. [#885](https://github.com/vaexio/vaex/pull/885)
       * Separate DataFrame and Dataset. [#865](https://github.com/vaexio/vaex/pull/865)
 
+## vaex-distributed (DEPRECATED)
+   This is now part of vaex-enterprise (was a proof of content, never functional).
+
+## vaex-graphql 0.2.0 (unreleased)
+  * Requirement changed to vaex-core >=4,<5
+
+## vaex-hdf5 0.7.0 (unreleased)
+   * Requirement changed vaex-core >=4,<5
+
+## vaex-jupyter 0.6.0 (unreleased)
+  * Requirement changed to vaex-core >=4,<5
+
 ## vaex-ml 0.11.0 (unreleased)
    * Features
       * Batch training for CatBoost. [#819](https://github.com/vaexio/vaex/pull/819)
       * Support for `predict_proba` and `predict_log_proba` for sklearn classifiers. [#927](https://github.com/vaexio/vaex/pull/927)
 
-## vaex-hdf5 0.7.0 (unreleased)
-   * Requirement of vaex-core >=3,<4
+## vaex-server 0.4.0 (unreleased)
+  * Requirement changed to vaex-core >=4,<5
+
+## vaex-viz 0.5.0 (unreleased)
+  * Requirement changed to vaex-core >=4,<5
 
 # vaex 3.1.0 (unreleased)
 
