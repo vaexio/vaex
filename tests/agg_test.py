@@ -357,6 +357,37 @@ def test_agg_selections():
     assert df_grouped['z_mean_selected'].tolist() == [1, 4, 6.5]
     assert df_grouped['w_nuniqe_selected'].tolist() == [2, 1, 2]
 
+def test_agg_selections_equal():
+    x = np.array([0, 0, 0, 1, 1, 2, 2])
+    y = np.array([1, 3, 5, 1, 7, 1, -1])
+    z = np.array([0, 2, 3, 4, 5, 6, 7])
+    w = np.array(['dog', 'cat', 'mouse', 'dog', 'dog', 'mouse', 'cat'])
+
+    df = vaex.from_arrays(x=x, y=y, z=z, w=w)
+
+
+    df_grouped = df.groupby(df.x).agg({'counts': vaex.agg.count(),
+                                      'sel_counts': vaex.agg.count(selection=df.y==1.)
+                                      })
+    assert df_grouped['counts'].tolist() == [3, 2, 2]
+    assert df_grouped['sel_counts'].tolist() == [1, 1, 1]
+
+def test_agg_selection_nodata():
+    x = np.array([0, 0, 0, 1, 1, 2, 2])
+    y = np.array([1, 3, 5, 1, 7, 1, -1])
+    z = np.array([0, 2, 3, 4, 5, 6, 7])
+    w = np.array(['dog', 'cat', 'mouse', 'dog', 'dog', 'mouse', 'cat'])
+
+    df = vaex.from_arrays(x=x, y=y, z=z, w=w)
+
+    df_grouped = df.groupby(df.x).agg({'counts': vaex.agg.count(),
+                                      'dog_counts': vaex.agg.count(selection=df.w == 'dog')
+                                      })
+
+    assert len(df_grouped) == 3
+    assert df_grouped['counts'].tolist() == [3, 2, 2]
+    assert df_grouped['dog_counts'].tolist() == [1, 2, 0]
+
 def test_upcast():
     df = vaex.from_arrays(b=[False, True, True], i8=np.array([120, 121, 122], dtype=np.int8),
         f4=np.array([1, 1e-13, 1], dtype=np.float32))
