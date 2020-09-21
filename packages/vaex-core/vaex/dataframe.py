@@ -3894,16 +3894,6 @@ class DataFrame(object):
         if self._index_start == 0 and self._index_end == self._length_original:
             return df
         df.dataset = self.dataset[self._index_start:self._index_end]
-        df._length_original = self.length_unfiltered()
-        df._length_unfiltered = df._length_original
-        df._cached_filtered_length = None
-        df._index_start = 0
-        df._index_end = df._length_original
-        df._active_fraction = 1
-        # trim should be cheap, we don't invalidate the cache unless it is
-        # really trimmed
-        if self._index_start != 0 or self._index_end != self._length_original:
-            df._invalidate_selection_cache()
         return df
 
     @docsubst
@@ -3940,19 +3930,10 @@ class DataFrame(object):
             filtered_indices = mask.first(max_index+1)
             indices = filtered_indices[indices]
         df.dataset = df.dataset.take(indices)
-        df._length_original = len(indices)
-        df._length_unfiltered = df._length_original
-        df._cached_filtered_length = None
-        df._index_start = 0
-        df._index_end = df._length_original
         if dropfilter:
             # if the indices refer to the filtered rows, we can discard the
             # filter in the final dataframe
             df.set_selection(None, name=FILTER_SELECTION_NAME)
-        # if we will not drop the filter, we will have to invalidate the cache
-        # since it refers to the previous dataframe rows
-        # TODO perf: we could instead of dropping the cache, take out the rows we need
-        df._invalidate_selection_cache()
         return df
 
     @docsubst
@@ -4885,7 +4866,7 @@ class ColumnProxy(collections.abc.MutableMapping):
 
     def __delitem__(self, item):
         assert item in self.dataset
-        self.df.dataset = self.dataset.dropped(item)
+        self.df._dataset = self.dataset.dropped(item)
 
     def __len__(self):
         return len(self.dataset)
@@ -4897,7 +4878,7 @@ class ColumnProxy(collections.abc.MutableMapping):
             left = left.dropped(item)
         right = vaex.dataset.DatasetArrays({item: value})
         merged = left.merged(right)
-        self.df.dataset = merged
+        self.df._dataset = merged
 
         self.df._length = len(value)
         if self.df._length_unfiltered is None:
@@ -4918,7 +4899,7 @@ class DataFrameLocal(DataFrame):
         if dataset is None:
             dataset = vaex.dataset.DatasetArrays()
         super(DataFrameLocal, self).__init__(dataset.keys())
-        self.dataset = dataset
+        self._dataset = dataset
         if hasattr(dataset, 'units'):
             self.units.update(dataset.units)
         if hasattr(dataset, 'ucds'):
@@ -4936,6 +4917,20 @@ class DataFrameLocal(DataFrame):
         # self.path = dataset.path
         self.mask = None
         self.columns = ColumnProxy(self)
+
+    @property
+    def dataset(self):
+        return self._dataset
+
+    @dataset.setter
+    def dataset(self, dataset):
+        self._dataset = dataset
+        self._length_original = dataset.row_count
+        self._length_unfiltered = self._length_original
+        self._cached_filtered_length = None
+        self._index_start = 0
+        self._index_end = self._length_original
+        self._invalidate_selection_cache()
 
     def hashed(self) -> DataFrame:
         '''Return a DataFrame with a hashed dataset'''
@@ -5113,7 +5108,8 @@ class DataFrameLocal(DataFrame):
                 df._selection_mask_caches[key].update(self._selection_mask_caches[key])
 
         if copy_all:  # fast path
-            df.dataset = self.dataset
+            # this is ok, we don't have to reset caches and all, since we do this in copy
+            df._dataset = self.dataset
             df.column_names = list(self.column_names)
             df.virtual_columns = self.virtual_columns.copy()
             for name in all_column_names:
@@ -5850,7 +5846,9 @@ class DataFrameLocal(DataFrame):
             # and we only need to merge.
             # if we have an array of lookup indices, we 'take' those
             right_dataset = right_dataset.take(lookup, masked=any(lookup_masked))
-        left.dataset = left.dataset.merged(right_dataset)
+        # row number etc should not have changed, we only append new columns
+        # so no need to reset caches
+        left._dataset = left.dataset.merged(right_dataset)
         return left
 
     def export(self, path, column_names=None, byteorder="=", shuffle=False, selection=False, progress=None, virtual=True, sort=None, ascending=True):
