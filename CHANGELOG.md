@@ -14,6 +14,7 @@
       * Trimming concatenated columns. [#860](https://github.com/vaexio/vaex/pull/860)
       * percentile_approx works for 0 and 100 percentile. [#818](https://github.com/vaexio/vaex/pull/818)
       * Expression containing kwarg=True were treated as invalid. [#861](hhttps://github.com/vaexio/vaex/pull/861)
+      * Unicode column names fully supported [#974](https://github.com/vaexio/vaex/issues/974)
    * Features
       * Datetime floor method [#843](https://github.com/vaexio/vaex/pull/843)
       * dropinf (similar to dropna) [#821](https://github.com/vaexio/vaex/pull/821)

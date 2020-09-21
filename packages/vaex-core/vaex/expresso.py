@@ -97,7 +97,6 @@ def validate_expression(expr, variable_set, function_set=[], names=None):
         else:
             raise ValueError("Unary operator not allowed: %r" % expr.op)
     elif isinstance(expr, _ast.Name):
-        validate_id(expr.id)
         if expr.id not in variable_set:
             matches = difflib.get_close_matches(expr.id, list(variable_set))
             msg = "Column or variable %r does not exist." % expr.id
@@ -612,9 +611,3 @@ def node_to_string(node, pretty=False):
 def validate_func(name, function_set):
     if name.id not in function_set:
         raise NameError("function %r is not defined" % name.id)
-
-
-def validate_id(id):
-    for char in id:
-        if char not in valid_id_characters:
-            raise ValueError("invalid character %r in id %r" % (char, id))
