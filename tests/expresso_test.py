@@ -65,3 +65,6 @@ def test_lists():
 def test_validate():
     validate_expression('x + 1', {'x'})
     validate_expression('x == "1"', {'x'})
+
+def test_unicode():
+    validate_expression('实体 + 1', {'实体'})
