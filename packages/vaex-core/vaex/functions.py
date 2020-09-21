@@ -491,7 +491,7 @@ def dt_month_name(x):
     2  November
     """
     import pandas as pd
-    return pd.Series(_pandas_dt_fix(x)).dt.month_name().values.astype(str)
+    return pa.array(pd.Series(_pandas_dt_fix(x)).dt.month_name())
 
 @register_function(scope='dt', as_property=True)
 def dt_quarter(x):
@@ -578,7 +578,7 @@ def dt_day_name(x):
     2  Thursday
     """
     import pandas as pd
-    return pd.Series(_pandas_dt_fix(x)).dt.day_name().values.astype(str)
+    return pa.array(pd.Series(_pandas_dt_fix(x)).dt.day_name())
 
 @register_function(scope='dt', as_property=True)
 def dt_weekofyear(x):
@@ -723,7 +723,7 @@ def dt_strftime(x, date_format):
     2  2015-11
     """
     import pandas as pd
-    return pd.Series(_pandas_dt_fix(x)).dt.strftime(date_format).values.astype(str)
+    return pa.array(pd.Series(_pandas_dt_fix(x)).dt.strftime(date_format))
 
 @register_function(scope='dt')
 def dt_floor(x, freq, *args):
