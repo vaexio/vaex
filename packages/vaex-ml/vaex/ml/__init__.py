@@ -3,7 +3,8 @@ import warnings
 import vaex
 import vaex.dataframe
 from . import datasets
-from .pipeline import Pipeline
+from . import pipeline
+
 
 from vaex.utils import InnerNamespace
 from vaex.utils import _ensure_strings_from_expressions
