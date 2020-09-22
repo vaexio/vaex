@@ -15,14 +15,14 @@ def test_pipeline_persistence():
     train, test = vaex.ml.datasets.load_iris().split_random(0.5)
     pca = vaex.ml.PCA(features=features, n_components=2)
     train = pca.fit_transform(train)
-    pipeline = train.pipeline(train)  # default way
+    pipeline = train.pipeline(train)
     transformed = pipeline.transform(test)
     assert 'PCA_0' in transformed
     assert 'PCA_1' in transformed
 
     path = tempfile.mktemp('.json')
     pipeline.save(path)
-    pipeline = Pipeline.from_file(path)
+    pipeline = vaex.ml.pipeline.from_file(path)
 
     transformed = pipeline.transform(test)
     assert 'PCA_0' in transformed
@@ -53,7 +53,7 @@ def test_pipeline_predict():
     assert all(pipeline.predict(test) == model.predict(test))
 
 
-def test_pipeline_transform():
+def test_pipeline_predict():
     train, test = vaex.ml.datasets.load_iris().split_random(0.8)
     train = train[train.class_ != 2]
     model = SKLearnPredictor(model=LogisticRegression(), features=features, target='class_')
