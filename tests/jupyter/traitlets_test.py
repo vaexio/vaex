@@ -15,7 +15,7 @@ class SomeWidget(widgets.Widget):
         super().__init__(**kwargs)
 
 
-def test_validate_expression():
+def test_validate_expression(flush_guard):
     df = vaex.example()
     w = SomeWidget(df=df, expression=df.x+1)
     w.expression = '(x + 2)'
@@ -27,7 +27,7 @@ def test_validate_expression():
     assert w.expression.expression == '(x + 2)'
 
 
-def test_observe_expression():
+def test_observe_expression(flush_guard):
     call_counter = MagicMock()
     df = vaex.example()
     w = SomeWidget(df=df, expression=df.x+1)
@@ -36,7 +36,7 @@ def test_observe_expression():
     w.expression = '(x + 2)'
     call_counter.assert_called_once()
 
-def test_to_json():
+def test_to_json(flush_guard):
     df = vaex.example()
     w = SomeWidget(df=df, expression=df.x+1)
     state = w.get_state()
