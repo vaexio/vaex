@@ -71,7 +71,7 @@ class AggregatorDescriptorBasic(AggregatorDescriptor):
             spec['expression'] = self.expression
         else:
             spec['expression'] = [str(k) for k in self.expressions]
-        if self.selection:
+        if self.selection is not None:
             spec['selection'] = self.selection
         if self.edges:
             spec['edges'] = True

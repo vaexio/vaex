@@ -355,7 +355,7 @@ class TaskPartAggregations:
                 agg = aggregation2d[selection_index]
                 all_aggregators.append(agg)
                 selection_mask = None
-                if selection:
+                if not (selection is None or selection is False):
                     selection_mask = self.df.evaluate_selection_mask(selection, i1=i1, i2=i2, cache=True)  # TODO
                     # TODO: we probably want a way to avoid a to numpy conversion?
                     selection_mask = np.asarray(selection_mask)
