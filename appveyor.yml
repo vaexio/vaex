@@ -34,4 +34,4 @@ install:
 
 test_script:
  - python -m vaex.test.dataset TestDataset
- - py.test tests/
+ - py.test tests/ --timeout=1000
