@@ -3,7 +3,7 @@ import threading
 import time
 
 @pytest.mark.asyncio
-async def test_remote(df_remote):
+async def test_remote(df_remote, flush_guard):
     df = df_remote
     current_thread = threading.current_thread()
     called = False
