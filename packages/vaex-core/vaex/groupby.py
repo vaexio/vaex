@@ -170,7 +170,8 @@ class GroupByBase(object):
             grids[column_name] = values
             if isinstance(aggregate, vaex.agg.AggregatorDescriptorBasic)\
                 and aggregate.name == 'AggCount'\
-                and aggregate.expression == "*":
+                and aggregate.expression == "*"\
+                and (aggregate.selection is None or aggregate.selection is False):
                 self.counts = values
 
         for item in actions:
