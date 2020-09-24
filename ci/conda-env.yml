@@ -19,6 +19,7 @@ py-xgboost
 pyqt
 pytest
 pytest-asyncio <0.14
+pytest-timeout
 python-graphviz
 scikit-learn
 scipy
