@@ -10,7 +10,7 @@ from .convert import column_from_arrow_array
 logger = logging.getLogger("vaex.arrow")
 
 
-def from_table(table, as_numpy=True):
+def from_table(table, as_numpy=False):
     columns = dict(zip(table.schema.names, table.columns))
     # TODO: this should be an DatasetArrow and/or DatasetParquet
     dataset = vaex.dataset.DatasetArrays(columns)
@@ -18,7 +18,7 @@ def from_table(table, as_numpy=True):
     return df.as_numpy() if as_numpy else df
 
 
-def open(filename, as_numpy=True):
+def open(filename, as_numpy=False):
     source = pa.memory_map(filename)
     try:
         # first we try if it opens as stream
@@ -35,7 +35,7 @@ def open(filename, as_numpy=True):
     return from_table(table, as_numpy=as_numpy)
 
 
-def open_parquet(filename, as_numpy=True):
+def open_parquet(filename, as_numpy=False):
     table = pq.read_table(filename)
     return from_table(table, as_numpy=as_numpy)
 

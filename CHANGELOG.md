@@ -1,6 +1,7 @@
 # vaex 4.0.0 (unreleased)
    * Breaking changes:
       * Arrow is now a core dependency, vaex-arrow is deprecated. All methods that return string, will return Arrow arrays [#517](https://github.com/vaexio/vaex/pull/517)
+      * Opening an .arrow file will expose the arrays as Apache Arrow arrays, not numpy arrays. [#984](https://github.com/vaexio/vaex/pull/984)
 
 ## vaex-arrow (DEPRECATED)
    This is now part of vaex-core.
