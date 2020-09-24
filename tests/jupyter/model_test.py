@@ -169,9 +169,9 @@ async def test_model_status(df_executor, flush_guard, server_latency):
     assert model.status_text == 'Staged limit computation for x, y'
     assert model.status == model.Status.STAGED_CALCULATING_LIMITS
 
-    if df.is_local():  # due to latency, this cannot be tested reliably
-        # twice Axis.computation + 2x execute_debounced
-        assert len(vaex.jupyter.utils._debounced_execute_queue) == 4
+    # twice Axis.computation + 2x execute_debounced
+    # but, due to latency, sometimes 1 of the executions is already scheduled
+    assert len(vaex.jupyter.utils._debounced_execute_queue) in [3, 4]
 
     await x._allow_state_change_to(x.Status.CALCULATING_LIMITS)
     await y._allow_state_change_to(x.Status.CALCULATING_LIMITS)
@@ -179,9 +179,9 @@ async def test_model_status(df_executor, flush_guard, server_latency):
     assert y.status == x.Status.CALCULATING_LIMITS
     assert model.status == model.Status.CALCULATING_LIMITS
     assert model.status_text == 'Computing limits for x, y'
-    if df.is_local():
-        # -2x execute_debounced
-        assert len(vaex.jupyter.utils._debounced_execute_queue) == 3
+
+    # same
+    assert len(vaex.jupyter.utils._debounced_execute_queue) in [2, 3, 4]
 
     await x._allow_state_change_to(x.Status.CALCULATED_LIMITS)
     await y._allow_state_change_to(x.Status.CALCULATED_LIMITS)
@@ -191,9 +191,8 @@ async def test_model_status(df_executor, flush_guard, server_latency):
     assert y.status == y.Status.READY
     await x.computation._await_last_call()
     await y.computation._await_last_call()
-    # - twice Axis.computation + 1x GridCalculator.computation (for min and max)
-    if df.is_local():
-        assert len(vaex.jupyter.utils._debounced_execute_queue) == 1 # TODO: why 1?
+    # - twice Axis.computation, - all executions, + 1x GridCalculator.computation (for min and max)
+    assert len(vaex.jupyter.utils._debounced_execute_queue) == 1
 
     assert model.status == model.Status.NEEDS_CALCULATING_GRID
     assert model.status_text == 'Grid needs to be calculated'
