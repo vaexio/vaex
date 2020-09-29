@@ -27,6 +27,7 @@ jobs:
       with:
         submodules: true
     - uses: actions/checkout@v2
+      if: ${{ github.event.pull_request.head.repo.full_name == 'vaexio/vaex' }}
       with:
         repository: vaexio/vaex-enterprise
         token: ${{ secrets.PAT_PULL_ENTERPRISE }}
@@ -79,7 +80,7 @@ jobs:
       run: |
         ./ci/03-install-vaex.sh
     - name: Install vaex-enterprise
-      if: matrix.os == 'ubuntu-latest'
+      if: ${{ github.event.pull_request.head.repo.full_name == 'vaexio/vaex' }}
       shell: bash
       run: |
         conda config --set always_yes yes --set changeps1 no
@@ -104,11 +105,11 @@ jobs:
         python -m vaex.ml.spec packages/vaex-ml/vaex/ml/spec_new.json
         diff packages/vaex-ml/vaex/ml/spec_new.json packages/vaex-ml/vaex/ml/spec.json
     - name: Test with pytest (vaex-enterprise)
-      if: matrix.os == 'ubuntu-latest'
+      if: ${{ github.event.pull_request.head.repo.full_name == 'vaexio/vaex' }}
       shell: bash
       run: |
         source activate vaex-dev
-        py.test vaex-enterprise/tests
+        py.test vaex-enterprise/tests --timeout=1000
     - name: Test notebooks
       if: matrix.os != 'windows-latest'
       shell: bash
