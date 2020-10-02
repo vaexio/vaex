@@ -61,6 +61,13 @@ def test_lists():
     print(node)
     assert expr == expr_translate
 
+def test_dicts():
+    expr = "fillmissing(o, {'a': 1})"
+    node = parse_expression(expr)
+    assert node is not None
+    expr_translate = translate(expr, lambda x: None)
+    print(node)
+    assert expr == expr_translate
 
 def test_validate():
     validate_expression('x + 1', {'x'})
