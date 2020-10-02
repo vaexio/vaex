@@ -352,6 +352,14 @@ class ExpressionString(ast.NodeVisitor):
     def visit_NameConstant(self, node):
         return repr(node.value)
 
+    def visit_Dict(self, node):
+        parts = []
+        for key, value in zip(node.keys, node.values):
+            key = self.visit(key)
+            value = self.visit(value)
+            parts.append(f'{key}: {value}')
+        return '{' + ' '.join(parts) + '}'
+
     def visit_Call(self, node):
         args = [self.visit(k) for k in node.args]
         keywords = []
