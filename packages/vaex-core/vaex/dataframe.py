@@ -5066,8 +5066,88 @@ class DataFrameLocal(DataFrame):
             setattr(datas, name, array)
         return datas
 
-    def copy(self, column_names=None, virtual=True):
-        df = DataFrameLocal()
+    def copy(self, column_names=None):
+        copy_all = column_names is None
+        if copy_all:  # fast path
+            df = vaex.from_dataset(self.dataset)
+            df.column_names = list(self.column_names)
+            df.virtual_columns = self.virtual_columns.copy()
+            virtuals = set(df.virtual_columns)
+            for name in df.column_names:
+                if name in virtuals:
+                    df._virtual_expressions[name] = Expression(df, df.virtual_columns[name])
+                df._initialize_column(name)
+            hide = set()
+        else:
+
+            all_column_names = self.get_column_names(hidden=True)
+            if column_names is None:
+                column_names = all_column_names.copy()
+            else:
+                for name in column_names:
+                    self.validate_expression(name)
+
+            # the columns that we require for a copy (superset of column_names)
+            required = set()
+            # expression like 'x/2' that are not (virtual) columns
+            expression_columns = set()
+
+            def track(name):
+                if name in self.dataset:
+                    required.add(name)
+                else:
+                    if name in self.variables:
+                        return  # we don't track variables, we copy all
+                    elif name in self.virtual_columns:
+                        required.add(name)
+                        expr = self._virtual_expressions[name]
+                    else:
+                        # this might be an expression, create a valid name
+                        expression_columns.add(name)
+                        expr = self[name]
+                    deps = set([key for key, value in expr.ast_names.items()])
+                    deps -= {'df'}
+                    deps |= set([key for key, value in expr._ast_slices.items()])
+                    # the columns we didn't know we required yet
+                    missing = deps - required
+                    required.update(deps)
+                    for name in missing:
+                        track(name)
+
+            for name in column_names:
+                track(name)
+
+            # track all selection dependencies, this includes the filters
+            for key, value in self.selection_histories.items():
+                selection = self.get_selection(key)
+                if selection:
+                    for name in selection._depending_columns(self):
+                        track(name)
+
+            # first create the DataFrame with real data (dataset)
+            dataset_columns = {k for k in required if k in self.dataset}
+            dataset = self.dataset.project(*dataset_columns)
+            df = vaex.from_dataset(dataset)
+
+            # and reconstruct the rest (virtual columns and variables)
+            other = {k for k in required if k not in self.dataset}
+            for name in other:
+                if name in self.virtual_columns:
+                    valid_name = vaex.utils.find_valid_name(name)
+                    df.add_virtual_column(valid_name, self.virtual_columns[name])
+                elif name in self.variables:
+                    # no need to do this, since we copy all variables
+                    # df.variables[name] = self.variables[name]
+                    pass
+                else:
+                    raise RuntimeError(f'Oops {name} is not a virtual column or variable??')
+
+            # and extra expressions like 'x/2'
+            for expr in expression_columns:
+                df.add_virtual_column(expr, expr)
+            hide = required - set(column_names) - set(self.variables)
+
+        # restore some metadata
         df._length_unfiltered = self._length_unfiltered
         df._length_original = self._length_original
         df._cached_filtered_length = self._cached_filtered_length
@@ -5078,10 +5158,6 @@ class DataFrameLocal(DataFrame):
         df.units.update(self.units)
         df.variables.update(self.variables)  # we add all, could maybe only copy used
         df._categories.update(self._categories)
-        copy_all = column_names is None
-        all_column_names = self.get_column_names(hidden=True)
-        if column_names is None:
-            column_names = all_column_names.copy()
 
         # put in the selections (thus filters) in place
         # so drop moves instead of really dropping it
@@ -5110,87 +5186,13 @@ class DataFrameLocal(DataFrame):
                 df._selection_mask_caches[key] = collections.defaultdict(dict)
                 df._selection_mask_caches[key].update(self._selection_mask_caches[key])
 
-        if copy_all:  # fast path
-            # this is ok, we don't have to reset caches and all, since we do this in copy
-            df._dataset = self.dataset
-            df.column_names = list(self.column_names)
-            df.virtual_columns = self.virtual_columns.copy()
-            for name in all_column_names:
-                df._initialize_column(name)
-            for name, expression in df.virtual_columns.items():
-                df._virtual_expressions[name] = Expression(df, expression)
-        else:
-            # print("-----", column_names)
-            depending = set()
-            added = set()
-            for name in column_names:
-                # print("add", name)
-                added.add(name)
-                if name in self.columns:
-                    column = self.columns[name]
-                    df.add_column(name, column)
-                    if isinstance(column, ColumnSparse):
-                        df._sparse_matrices[name] = self._sparse_matrices[name]
-                elif name in self.virtual_columns:
-                    if virtual:  # TODO: check if the ast is cached
-                        df.add_virtual_column(name, self.virtual_columns[name])
-                        deps = [key for key, value in df._virtual_expressions[name].ast_names.items()]
-                        deps += [key for key, value in df._virtual_expressions[name]._ast_slices.items()]
-                        # print("add virtual", name, df._virtual_expressions[name].expression, deps)
-                        depending.update(deps)
-                else:
-                    # this might be an expression, create a valid name
-                    valid_name = vaex.utils.find_valid_name(name)
-                    self.validate_expression(name)
-                    # add the expression
-                    df[valid_name] = df._expr(name)
-                    # then get the dependencies
-                    deps = [key for key, value in df._virtual_expressions[valid_name].ast_names.items()]
-                    deps += [key for key, value in df._virtual_expressions[name]._ast_slices.items()]
-                    depending.update(deps)
-                # print(depending, "after add")
-            # depending |= column_names
-            # print(depending)
-            # print(depending, "before filter")
-            if self.filtered:
-                selection = self.get_selection(FILTER_SELECTION_NAME)
-                depending |= selection._depending_columns(self)
-            depending.difference_update(added)  # remove already added
-            # print(depending, "after filter")
-            # return depending_columns
 
-            hide = []
-
-            while depending:
-                new_depending = set()
-                for name in depending:
-                    added.add(name)
-                    if name in self.columns:
-                        # print("add column", name)
-                        df.add_column(name, self.columns[name])
-                        # print("and hide it")
-                        # df._hide_column(name)
-                        hide.append(name)
-                    elif name in self.virtual_columns:
-                        if virtual:  # TODO: check if the ast is cached
-                            df.add_virtual_column(name, self.virtual_columns[name])
-                            deps = [key for key, value in self._virtual_expressions[name].ast_names.items()]
-                            deps += [key for key, value in df._virtual_expressions[name]._ast_slices.items()]
-                            new_depending.update(deps)
-                        # df._hide_column(name)
-                        hide.append(name)
-                    elif name in self.variables:
-                        # if must be a variables?
-                        # TODO: what if the variable depends on other variables
-                        # we already add all variables
-                        # df.add_variable(name, self.variables[name])
-                        pass
-
-                # print("new_depending", new_depending)
-                new_depending.difference_update(added)
-                depending = new_depending
-            for name in hide:
-                df._hide_column(name)
+        for name in hide:
+            df._hide_column(name)
+        if column_names is not None:
+            # make the the column order is as requested by the column_names argument
+            extra = set(df.column_names) - set(column_names)
+            df.column_names = list(column_names) + list(extra)
 
         df.copy_metadata(self)
         return df

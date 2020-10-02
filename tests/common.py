@@ -249,8 +249,8 @@ def create_filtered():
     return ds
 
 def create_base_ds():
-    dataset = vaex.dataframe.DataFrameLocal()
     x = np.arange(-2, 40, dtype=">f8").reshape((-1,21)).T.copy()[:,0]
+    columns = {'x': x}
     y = y = x ** 2
     ints = np.arange(-2,19, dtype="i8")
     ints[0] = 2**62+1
@@ -259,8 +259,8 @@ def create_base_ds():
     ints[0+10] = 2**62+1
     ints[1+10] = -2**62+1
     ints[2+10] = -2**62-1
-    dataset.add_column("x", x)
-    dataset.add_column("y", y)
+    columns["x"] = x
+    columns["y"] = y
     # m = x.copy()
     m = np.arange(-2, 40, dtype=">f8").reshape((-1,21)).T.copy()[:,0]
     ma_value = 77777
@@ -280,25 +280,25 @@ def create_base_ds():
     nm = np.ma.array(nm, mask=nm==ma_value)
 
     mi = np.ma.array(m.data.astype(np.int64), mask=m.data==ma_value, fill_value=88888)
-    dataset.add_column("m", m)
-    dataset.add_column('n', n)
-    dataset.add_column('nm', nm)
-    dataset.add_column("mi", mi)
-    dataset.add_column("ints", ints)
+    columns["m"] = m
+    columns['n'] = n
+    columns['nm'] = nm
+    columns["mi"] = mi
+    columns["ints"] = ints
 
     name = np.array(list(map(lambda x: str(x) + "bla" + ('_' * int(x)), x)), dtype='U') #, dtype=np.string_)
-    dataset.add_column("name", np.array(name))
-    dataset.add_column("name_arrow", vaex.string_column(name))
+    columns["name"] = np.array(name)
+    columns["name_arrow"] = vaex.string_column(name)
 
     obj_data = np.array(['train', 'false' , True, 1, 30., np.nan, 'something', 'something a bit longer resembling a sentence?!', -10000, 'this should be masked'], dtype='object')
     obj_mask = np.array([False] * 9 + [True])
     obj = nm.copy().astype('object')
     obj[2:12] = np.ma.MaskedArray(data=obj_data, mask=obj_mask, dtype='object')
-    dataset.add_column("obj", obj, dtype=np.dtype('O'))
+    columns["obj"] = obj #, dtype=np.dtype('O')
 
     booleans = np.ones(21, dtype=np.bool)
     booleans[[4, 6, 8, 14, 16, 19]] = False
-    dataset.add_column("bool", booleans)
+    columns["bool"] = booleans
 
     datetime = np.array(['2016-02-29T22:02:02.32', '2013-01-17T01:02:03.32', '2017-11-11T08:15:15.00',
                          '1995-04-01T05:55:55.55', '2000-01-01T00:00:00.00', '2019-03-05T09:12:13.51',
@@ -309,11 +309,11 @@ def create_base_ds():
                          '1997-09-04T20:31:00.11', '2004-02-24T04:00:00.00', '2000-06-15T12:30:30.00',
                          ],dtype=np.datetime64)
     timedelta = datetime - np.datetime64('1996-05-17T16:45:00.00')
-    dataset.add_column("datetime", datetime)
-    dataset.add_column("timedelta", timedelta)
-    dataset.add_column("123456", x)  # a column that will have an alias
+    columns["datetime"] = datetime
+    columns["timedelta"] = timedelta
+    columns["123456"] = x  # a column that will have an alias
 
-    dataset.add_virtual_column("z", "x+t*y")
-    dataset.set_variable("t", 1.)
-
-    return dataset._readonly()
+    df = vaex.from_arrays(**columns)
+    df.add_virtual_column("z", "x+t*y")
+    df.set_variable("t", 1.)
+    return df._readonly()
