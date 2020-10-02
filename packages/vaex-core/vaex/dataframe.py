@@ -4942,12 +4942,16 @@ class DataFrameLocal(DataFrame):
         return df
 
     def _readonly(self, inplace=False):
-        # make arrays read only if possib;e
+        # make arrays read only if possible
         df = self if inplace else self.copy()
+        assert isinstance(self.dataset, vaex.dataset.DatasetArrays)
+        columns = {}
         for key, ar in self.columns.items():
+            columns[key] = ar
             if isinstance(ar, np.ndarray):
-                df.columns[key] = ar = ar.view() # make new object so we don't modify others
+                columns[key] = ar = ar.view() # make new object so we don't modify others
                 ar.flags['WRITEABLE'] = False
+        df._dataset = vaex.dataset.DatasetArrays(columns)
         return df
 
     @docsubst
