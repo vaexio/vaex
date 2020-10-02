@@ -3350,7 +3350,7 @@ class DataFrame(object):
             # we only have to do this locally
             # if we don't do this locally, we still store this info
             # in self._renamed_columns, so it will happen at the server
-            self.columns[new] = self.columns.pop(old)
+            self.dataset = self.dataset.renamed({old: new})
         if rename_meta_data:
             for d in [self.ucds, self.units, self.descriptions]:
                 if old in d:
