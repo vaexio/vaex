@@ -4926,12 +4926,13 @@ class DataFrameLocal(DataFrame):
 
     @dataset.setter
     def dataset(self, dataset):
+        if self._dataset.row_count != dataset.row_count:
+            self._length_original = dataset.row_count
+            self._length_unfiltered = self._length_original
+            self._cached_filtered_length = None
+            self._index_start = 0
+            self._index_end = self._length_original
         self._dataset = dataset
-        self._length_original = dataset.row_count
-        self._length_unfiltered = self._length_original
-        self._cached_filtered_length = None
-        self._index_start = 0
-        self._index_end = self._length_original
         self._invalidate_selection_cache()
 
     def hashed(self) -> DataFrame:
