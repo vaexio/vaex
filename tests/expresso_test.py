@@ -57,12 +57,14 @@ def test_lists():
     assert node is not None
 
     expr = "searchsorted(['9E', 'AA', 'AQ', 'AS', 'B6', 'CO', 'DL', 'EV', 'F9', 'FL', 'HA', 'MQ', 'NW', 'OH', 'OO', 'UA', 'US', 'WN', 'XE', 'YV'], UniqueCarrier)"
+    validate_expression(expr, {'UniqueCarrier'}, {'searchsorted'})
     expr_translate = translate(expr, lambda x: None)
     print(node)
     assert expr == expr_translate
 
 def test_dicts():
     expr = "fillmissing(o, {'a': 1})"
+    validate_expression(expr, {'o'}, {'fillmissing'})
     node = parse_expression(expr)
     assert node is not None
     expr_translate = translate(expr, lambda x: None)
