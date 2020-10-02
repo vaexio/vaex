@@ -32,7 +32,7 @@ jobs:
         token: ${{ secrets.PAT_PULL_ENTERPRISE }}
         path: vaex-enterprise
     - name: Install conda with Python ${{ matrix.python-version }}
-      uses: s-weigand/setup-conda@master
+      uses: s-weigand/setup-conda@v1
       with:
         python-version: ${{ matrix.python-version }}
         conda-channels: anaconda, conda-forge
