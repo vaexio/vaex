@@ -18,7 +18,7 @@ def test_sum(df, ds_trimmed):
 
     df.select("x < 5")
     # convert to float
-    x = ds_trimmed.columns["x"]
+    x = ds_trimmed.x.to_numpy()
     y = ds_trimmed.data.y
     x_with_nan = x * 1
     x_with_nan[0] = np.nan

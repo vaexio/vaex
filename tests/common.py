@@ -6,18 +6,26 @@ try:
 except:
     pass
 
+import os
+import sys
+from pathlib import Path
+
 import pytest
+import numpy as np
+import contextlib
+import pyarrow as pa
+import pyarrow.parquet
+
 import vaex
 import vaex.server.service
 import vaex.server.tornado_server
 import vaex.server.dummy
-import numpy as np
-import contextlib
-import pyarrow as pa
 
-import sys
+
+
 test_port = 3911 + sys.version_info[0] * 10 + sys.version_info[1]
 scheme = 'ws'
+HERE = Path(__file__).parent
 
 
 class CallbackCounter(object):
@@ -233,7 +241,7 @@ def df_arrow_raw(df_filtered):
     df = df_filtered.copy()
     df.drop('obj', inplace=True)
     df.drop('timedelta', inplace=True)
-    columns = {k: vaex.array_types.to_arrow(v, convert_to_native=True) for k, v in df.columns.items()}
+    columns = {k: vaex.array_types.to_arrow(v[:], convert_to_native=True) for k, v in df.columns.items()}
     dataset = vaex.dataset.DatasetArrays(columns)
     df.dataset = dataset
     return df

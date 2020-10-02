@@ -332,7 +332,12 @@ class TaskPartAggregations:
                     x = x.view('uint64')
             return x
 
+        N = i2 - i1
+        if filter_mask is not None:
+            N = filter_mask.astype(np.uint8).sum()
         blocks = [array_types.to_numpy(block, strict=False) for block in blocks]
+        for block in blocks:
+            assert len(block) == N, f'Oops, got a block of length {len(block)} while it is expected to be of length {N} (at {i1}-{i2}, filter={filter_mask is not None})'
         block_map = {expr: block for expr, block in zip(self.expressions, blocks)}
         # we need to make sure we keep some objects alive, since the c++ side does not incref
         # on set_data and set_data_mask
@@ -388,9 +393,6 @@ class TaskPartAggregations:
                 if selection_mask is not None:
                     agg.set_data_mask(selection_mask)
                     references.extend([selection_mask])
-        N = i2 - i1
-        if filter_mask is not None:
-            N = filter_mask.astype(np.uint8).sum()
         grid.bin(all_aggregators, N)
         self.has_values = True
 

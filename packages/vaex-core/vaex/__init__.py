@@ -358,6 +358,17 @@ def from_arrow_table(table, as_numpy=True):
     return from_table(table=table, as_numpy=as_numpy)
 
 
+def from_arrow_dataset(arrow_dataset) -> vaex.dataframe.DataFrame:
+    '''Create a DataFrame from an Apache Arrow dataset'''
+    import vaex.arrow.dataset
+    return from_dataset(vaex.arrow.dataset.DatasetArrow(arrow_dataset))
+
+
+def from_dataset(dataset: vaex.dataset.Dataset) -> vaex.dataframe.DataFrame:
+    '''Create a Vaex DataFrame from a Vaex Dataset'''
+    return vaex.dataframe.DataFrameLocal(dataset)
+
+
 def from_scalars(**kwargs):
     """Similar to from_arrays, but convenient for a DataFrame of length 1.
 
