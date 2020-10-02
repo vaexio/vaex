@@ -4911,8 +4911,7 @@ class DataFrameLocal(DataFrame):
         for column_name in self.column_names:
             self._initialize_column(column_name)
         if len(self.dataset):
-            ar = self.dataset[list(self.dataset.keys())[0]]
-            self._length = len(ar)
+            self._length = self.dataset.row_count
             if self._length_unfiltered is None:
                 self._length_unfiltered = self._length
                 self._length_original = self._length
