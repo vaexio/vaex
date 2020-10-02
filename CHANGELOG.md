@@ -1,6 +1,7 @@
 # vaex 4.0.0 (unreleased)
    * Breaking changes:
       * Arrow is now a core dependency, vaex-arrow is deprecated. All methods that return string, will return Arrow arrays [#517](https://github.com/vaexio/vaex/pull/517)
+      * Columns (e.g. df.column['x']) may now return a ColumnProxy, instead of the original data, slice it [:] to get the underlying data (or call .to_numpy()/to_arrow() or try converting it with np.array(..) or pa.array(..)). [#993](https://github.com/vaexio/vaex/pull/993)
 
 ## vaex-arrow (DEPRECATED)
    This is now part of vaex-core.
@@ -20,6 +21,7 @@
       * dropinf (similar to dropna) [#821](https://github.com/vaexio/vaex/pull/821)
       * Support for streaming from Google Cloud Storage. [#898](https://github.com/vaexio/vaex/pull/898)
       * IPython autocomplete support (e.g. `df['hom' (tab)`) [#961](https://github.com/vaexio/vaex/pull/961)
+      * Out of core Parquet support using Arrow Dataset scanning [#993](https://github.com/vaexio/vaex/pull/993)
    * Refactor
       * Use `arrow.compute` for several string functions/kernels. [#885](https://github.com/vaexio/vaex/pull/885)
       * Separate DataFrame and Dataset. [#865](https://github.com/vaexio/vaex/pull/865)

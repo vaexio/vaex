@@ -193,10 +193,16 @@ def df_executor(request, df_trimmed, df_remote):
     return named[request.param]
 
 
-@pytest.fixture(params=['ds_filtered', 'ds_half', 'ds_trimmed', 'ds_remote', 'df_concat', 'df_arrow'])
-def ds(request, ds_filtered, ds_half, ds_trimmed, ds_remote, df_concat, df_arrow):
-    named = dict(ds_filtered=ds_filtered, ds_half=ds_half, ds_trimmed=ds_trimmed, ds_remote=ds_remote, df_concat=df_concat, df_arrow=df_arrow)
-    return named[request.param]
+if os.environ.get('VAEX_TEST_SKIP_REMOTE'):
+    @pytest.fixture(params=['ds_filtered', 'ds_half', 'ds_trimmed', 'df_concat', 'df_arrow', 'df_parquet'])
+    def ds(request, ds_filtered, ds_half, ds_trimmed, ds_remote, df_concat, df_arrow, df_parquet):
+        named = dict(ds_filtered=ds_filtered, ds_half=ds_half, ds_trimmed=ds_trimmed, df_concat=df_concat, df_arrow=df_arrow, df_parquet=df_parquet)
+        return named[request.param]
+else:
+    @pytest.fixture(params=['ds_filtered', 'ds_half', 'ds_trimmed', 'ds_remote', 'df_concat', 'df_arrow', 'df_parquet'])
+    def ds(request, ds_filtered, ds_half, ds_trimmed, ds_remote, df_concat, df_arrow, df_parquet):
+        named = dict(ds_filtered=ds_filtered, ds_half=ds_half, ds_trimmed=ds_trimmed, ds_remote=ds_remote, df_concat=df_concat, df_arrow=df_arrow, df_parquet=df_parquet)
+        return named[request.param]
 
 
 @pytest.fixture
@@ -225,6 +231,23 @@ def df_local(ds_local):
 def df_arrow(df_arrow_cache):
     return df_arrow_cache.copy()
 
+@pytest.fixture()
+def df_parquet(df_parquet_cache):
+    return df_parquet_cache.copy()
+
+@pytest.fixture()
+def df_parquet_cache(scope="session"):
+    df = create_base_ds()
+    df.drop('obj', inplace=True)
+    df.drop('timedelta', inplace=True)
+    df.drop('z')
+    path = HERE / 'data' / 'unittest.parquet'
+    pyarrow.parquet.write_table(df.to_arrow_table(), str(path), row_group_size=2)
+    df = vaex.open(str(path))
+    df.select('(x >= 0) & (x < 10)', name=vaex.dataframe.FILTER_SELECTION_NAME)
+    df.add_virtual_column("z", "x+t*y")
+    df.set_variable("t", 1.)
+    return df
 
 @pytest.fixture
 def df_arrow_cache(df_arrow_raw):
