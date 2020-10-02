@@ -127,6 +127,14 @@ def validate_expression(expr, variable_set, function_set=[], names=None):
         validate_expression(expr.value, variable_set, function_set, names)
     elif isinstance(expr, ast_Constant):
         pass  # like True and False
+    elif isinstance(expr, _ast.List):
+        for el in expr.elts:
+            validate_expression(el, variable_set, function_set, names)
+    elif isinstance(expr, _ast.Dict):
+        for key in expr.keys:
+            validate_expression(key, variable_set, function_set, names)
+        for value in expr.values:
+            validate_expression(value, variable_set, function_set, names)
     elif isinstance(expr, _ast.Subscript):
         validate_expression(expr.value, variable_set, function_set, names)
         if isinstance(expr.slice.value, ast_Num):
