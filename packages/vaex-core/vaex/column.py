@@ -75,6 +75,9 @@ class ColumnSparse(Column):
     def __len__(self):
         return self.shape[0]
 
+    def trim(self, i1, i2):
+        return ColumnSparse(self.matrix[i1:i2], column_index=self.column_index)
+
     def __getitem__(self, slice):
         # not sure if this is the fastest
         return self.matrix[slice, self.column_index].A[:,0]
