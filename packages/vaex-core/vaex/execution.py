@@ -150,7 +150,18 @@ class ExecutorLocal(Executor):
                     parts = list(parts)[::-1]
                 if self.zigzag:
                     self.zig = not self.zig
-                async for element in self.thread_pool.map_async(self.process_part, parts,
+                dataset = run.df.dataset[run.df._index_start:run.df._index_end]
+                # find the columns from the dataset we need
+                variables = set()
+                for expression in run.expressions:
+                    variables |= run.df._expr(expression).variables(ourself=True, include_virtual=False)
+                columns = list(variables - set(run.df.variables) - set(run.df.virtual_columns))
+                logger.debug('Using columns %r from dataset', columns)
+                for column in columns:
+                    if column not in dataset:
+                        raise RuntimeError(f'Oops, requesting column {column} from dataset, but it does not exist')
+                async for element in self.thread_pool.map_async(self.process_part, dataset.chunk_iterator(columns),
+                                                    dataset.row_count,
                                                     progress=lambda p: all(self.signal_progress.emit(p)) and
                                                     all([all(task.signal_progress.emit(p)) for task in tasks]) and
                                                     all([not task.cancelled for task in tasks]),
@@ -191,17 +202,28 @@ class ExecutorLocal(Executor):
         finally:
             self.local.executing = False
 
-    def process_part(self, thread_index, i1, i2, run):
+    def process_part(self, thread_index, i1, i2, chunk_reader, run):
         if not run.cancelled:
             if thread_index >= len(run.block_scopes):
                 raise ValueError(f'thread_index={thread_index} while only having {len(run.block_scopes)} blocks')
             block_scope = run.block_scopes[thread_index]
             block_scope.move(i1, i2)
+            chunks = chunk_reader()
             df = run.df
+            N = i2 - i1
+            for name, chunk in chunks.items():
+                assert len(chunk) == N, f'Oops, got a chunk ({name}) of length {len(chunk)} while it is expected to be of length {N} (at {i1}-{i2}'
             if run.pre_filter:
                 filter_mask = df.evaluate_selection_mask(None, i1=i1, i2=i2, cache=True)
+                chunks = {k:vaex.array_types.filter(v, filter_mask) for k, v, in chunks.items()}
             else:
                 filter_mask = None
+            def wrap(ar):
+                if isinstance(ar, vaex.array_types.supported_arrow_array_types):
+                    ar = vaex.arrow.numpy_dispatch.NumpyDispatch(ar)
+                return ar
+            chunks = {name: wrap(ar) for name, ar in chunks.items()}
+            block_scope.values.update(chunks)
             block_scope.mask = filter_mask
             block_dict = {expression: block_scope.evaluate(expression) for expression in run.expressions}
             for task in run.tasks:
@@ -213,3 +235,4 @@ class ExecutorLocal(Executor):
                         task.reject(e)
                         run.cancelled = True
                         raise
+        return i2 - i1

@@ -69,6 +69,8 @@ def test_array_rename():
     assert ds2['y'] is y
     assert ds2['z'] is x
 
+    assert 'z' in list(ds2.chunk_iterator(['z']))[0][-1]()
+
     assert ds1 != ds2
     assert rebuild(ds1) != rebuild(ds2)
 
@@ -240,3 +242,27 @@ def test_cache_hash():
     ds3 = df3.dataset
     assert ds3._hash_calculations == 0
     assert ds3 == ds2
+
+
+def test_chunk_iterator():
+    x = np.arange(10)
+    y = x**2
+    ds = dataset.DatasetArrays(x=x, y=y)
+    chunk_it = ds.chunk_iterator(['y'], chunk_size=4)
+    i1, i2, reader = next(chunk_it)
+    chunk0 = reader()
+    assert chunk0['y'].tolist() == y[0:4].tolist()
+    assert i1 == 0
+    assert i2 == 4
+
+    i1, i2, reader = next(chunk_it)
+    chunk1 = reader()
+    assert chunk1['y'].tolist() == y[4:8].tolist()
+    assert i1 == 4
+    assert i2 == 8
+
+    i1, i2, reader = next(chunk_it)
+    chunk2 = reader()
+    assert chunk2['y'].tolist() == y[8:].tolist()
+    assert i1 == 8
+    assert i2 == 10

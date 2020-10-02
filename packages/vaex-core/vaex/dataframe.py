@@ -4641,7 +4641,7 @@ class DataFrame(object):
             return df.trim()
 
     def __delitem__(self, item):
-        '''Alias op df.drop(item, inplace=True)'''
+        '''Alias of df.drop(item, inplace=True)'''
         if item in self.columns:
             name = item
             if name in self._depending_columns(columns_exclude=[name]):
@@ -5075,7 +5075,7 @@ class DataFrameLocal(DataFrame):
 
         datas = Datas()
         for name, array in self.columns.items():
-            setattr(datas, name, array)
+            setattr(datas, name, array[:])
         return datas
 
     def copy(self, column_names=None):

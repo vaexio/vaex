@@ -11,9 +11,9 @@ def test_slice_expression(df):
 
 
 def test_slice_against_numpy(df):
-    assert df.x[:2].tolist() == df.x.values[:2].tolist()
-    assert df.x[2:6].tolist() == df.x.values[2:6].tolist()
-    assert df.x[-3:].tolist() == df.x.values[-3:].tolist()
+    assert df.x[:2].tolist() == df.x.to_numpy()[:2].tolist()
+    assert df.x[2:6].tolist() == df.x.to_numpy()[2:6].tolist()
+    assert df.x[-3:].tolist() == df.x.to_numpy()[-3:].tolist()
     # we don't support non 1 steps
     # assert df.x[::-3].tolist() == df.x.values[::-3].tolist()
 
@@ -72,5 +72,5 @@ def test_slice_beyond_end(df):
 
 def test_slice_negative(df):
     df2 = df[:-1]
-    assert df2.x.tolist() == df.x.values[:-1].tolist()
+    assert df2.x.tolist() == df.x.to_numpy()[:-1].tolist()
     assert len(df2) == len(df)-1
