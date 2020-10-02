@@ -272,10 +272,10 @@ class ColumnConcatenatedLazy(Column):
         if shape is not None:
             self.shape = (len(self),) + shape
         else:
-            self.shape = (len(self), ) + self.expressions[0][0:1].to_numpy().shape[1:]
+            self.shape = (len(self), ) + self.expressions[0].evaluate(0, 1, array_type='numpy', parallel=False).shape[1:]
             for i in range(1, len(self.expressions)):
                 expression = self.expressions[i]
-                shape_i = (len(self), ) + expressions[i][0:1].to_numpy().shape[1:]
+                shape_i = (len(self), ) + expressions[i].evaluate(0, 1, array_type='numpy', parallel=False).shape[1:]
                 if self.shape != shape_i:
                     raise ValueError("shape of of expression %s, array index 0, is %r and is incompatible with the shape of the same column of array index %d, %r" % (self.expressions[0], self.shape, i, shape_i))
 

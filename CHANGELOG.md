@@ -25,6 +25,8 @@
    * Refactor
       * Use `arrow.compute` for several string functions/kernels. [#885](https://github.com/vaexio/vaex/pull/885)
       * Separate DataFrame and Dataset. [#865](https://github.com/vaexio/vaex/pull/865)
+   * Performance
+      * concat (vaex.concat or df.concat) is about 100x faster. [#994](https://github.com/vaexio/vaex/pull/994)
 
 ## vaex-distributed (DEPRECATED)
    This is now part of vaex-enterprise (was a proof of content, never functional).
