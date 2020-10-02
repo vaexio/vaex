@@ -395,12 +395,25 @@ class Expression(with_metaclass(Meta)):
                 if (include_virtual and (varname != self.expression)) or (varname == self.expression and ourself):
                     variables.add(varname)
                 if expand_virtual:
-                    expresso.translate(self.ds.virtual_columns[varname], record)
+                    variables.update(self.df[self.df.virtual_columns[varname]].variables(ourself=include_virtual, include_virtual=include_virtual))
             # we usually don't want to record ourself
             elif varname != self.expression or ourself:
                 variables.add(varname)
 
         expresso.translate(self.ast, record)
+        # df is a buildin, don't record it, if df is a column name, it will be collected as
+        # df['df']
+        variables -= {'df'}
+        for varname in self._ast_slices:
+            if varname in self.df.virtual_columns and varname not in variables:
+                if (include_virtual and (f"df['{varname}']" != self.expression)) or (f"df['{varname}']" == self.expression and ourself):
+                    variables.add(varname)
+                if expand_virtual:
+                    if varname in self.df.virtual_columns:
+                        variables |= self.df[self.df.virtual_columns[varname]].variables(ourself=include_virtual, include_virtual=include_virtual)
+            elif f"df['{varname}']" != self.expression or ourself:
+                variables.add(varname)
+
         return variables
 
     def _graph(self):

@@ -4641,6 +4641,14 @@ class DataFrame(object):
             return df.trim()
 
     def __delitem__(self, item):
+        '''Alias op df.drop(item, inplace=True)'''
+        if item in self.columns:
+            name = item
+            if name in self._depending_columns(columns_exclude=[name]):
+                raise ValueError(f'Oops, you are trying to remove column {name} while other columns depend on it (use .drop instead)')
+        self.drop([item], inplace=True)
+
+    def _real_drop(self, item):
         '''Removes a (virtual) column from the DataFrame.
 
         Note: this does not check if the column is used in a virtual expression or in the filter\
@@ -4683,7 +4691,7 @@ class DataFrame(object):
             if check and column in depending_columns:
                 df._hide_column(column)
             else:
-                del df[column]
+                df._real_drop(column)
         return df
 
     def _hide_column(self, column):
@@ -5109,9 +5117,8 @@ class DataFrameLocal(DataFrame):
                         # this might be an expression, create a valid name
                         expression_columns.add(name)
                         expr = self[name]
-                    deps = set([key for key, value in expr.ast_names.items()])
-                    deps -= {'df'}
-                    deps |= set([key for key, value in expr._ast_slices.items()])
+                    # we expand it ourselves
+                    deps = expr.variables(expand_virtual=False)
                     # the columns we didn't know we required yet
                     missing = deps - required
                     required.update(deps)
