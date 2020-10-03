@@ -49,7 +49,7 @@ def test_light_gbm_virtual_columns():
                                              params=params,
                                              features=features,
                                              target='class_')
-    booster.fit(ds_train, copy=False)
+    booster.fit(ds_train)
 
 
 @pytest.mark.skipif(sys.version_info < (3, 6), reason="requires python3.6 or higher")
@@ -60,8 +60,8 @@ def test_lightgbm():
     features = _ensure_strings_from_expressions(features)
     booster = vaex.ml.lightgbm.LightGBMModel(num_boost_round=10, params=params, features=features, target='class_')
 
-    booster.fit(ds_train, copy=True)    # for coverage
-    class_predict_train = booster.predict(ds_train, copy=True)  # for coverage
+    booster.fit(ds_train)    # for coverage
+    class_predict_train = booster.predict(ds_train)
     class_predict_test = booster.predict(ds_test)
     assert np.all(ds_test.col.class_.values == np.argmax(class_predict_test, axis=1))
 
@@ -101,7 +101,7 @@ def test_lightgbm_numerical_validation():
     lgb_pred = lgb_bst.predict(X)
 
     # Vaex.ml.lightgbm
-    booster = ds.ml.lightgbm_model(target=ds.class_, num_boost_round=3, features=features, params=params, copy=False, transform=False)
+    booster = ds.ml.lightgbm_model(target=ds.class_, num_boost_round=3, features=features, params=params, transform=False)
     vaex_pred = booster.predict(ds)
 
     # Comparing the the predictions of lightgbm vs vaex.ml
@@ -121,14 +121,13 @@ def test_lightgbm_validation_set():
     # instantiate the booster model
     booster = vaex.ml.lightgbm.LightGBMModel(features=features, target='E', num_boost_round=10, params=params_reg)
     # fit the booster - including saving the history of the validation sets
-    with pytest.warns(UserWarning):
-        booster.fit(train, valid_sets=[train, test], valid_names=['train', 'test'],
-                    early_stopping_rounds=2, evals_result=history, copy=False)
+
+    booster.fit(train, valid_sets=[train, test], valid_names=['train', 'test'], early_stopping_rounds=2, evals_result=history)
     assert booster.booster.best_iteration == 10
     assert len(history['train']['l2']) == 10
     assert len(history['test']['l2']) == 10
     booster.fit(train, valid_sets=[train, test], valid_names=['train', 'test'],
-                early_stopping_rounds=2, evals_result=history, copy=True)
+                early_stopping_rounds=2, evals_result=history)
     assert booster.booster.best_iteration == 10
     assert len(history['train']['l2']) == 10
     assert len(history['test']['l2']) == 10
