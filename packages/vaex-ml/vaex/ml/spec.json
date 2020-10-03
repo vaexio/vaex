@@ -829,13 +829,6 @@
         "snake_name": "lightgbm_model",
         "traits": [
             {
-                "default": false,
-                "has_default": false,
-                "help": "Copy data or use the modified xgboost library for efficient transfer.",
-                "name": "copy",
-                "type": "Bool"
-            },
-            {
                 "default": null,
                 "has_default": true,
                 "help": "List of features to use when fitting the LightGBMModel.",
