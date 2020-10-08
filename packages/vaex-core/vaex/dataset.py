@@ -251,13 +251,11 @@ class Dataset(collections.abc.Mapping):
         for i in chunks:
             i1 = i * chunk_size
             i2 = min((i + 1) * chunk_size, self.row_count)
-            def reader(i1=i1, i2=i2):
-                length = i2 - i1
-                chunks = {k: array_map[k][i1:i2] for k in columns}
-                for name, chunk in chunks.items():
-                    assert len(chunk) == length, f'Oops, got a chunk ({name}) of length {len(chunk)} while it is expected to be of length {length} (at {i1}-{i2}'
-                return chunks
-            yield i1, i2, reader
+            chunks = {k: array_map[k][i1:i2] for k in columns}
+            length = i2 - i1
+            for name, chunk in chunks.items():
+                assert len(chunk) == length, f'Oops, got a chunk ({name}) of length {len(chunk)} while it is expected to be of length {length} (at {i1}-{i2}'
+            yield i1, i2, chunks
 
     @abstractmethod
     def chunk_iterator(self, columns, chunk_size=None, reverse=False):
@@ -294,20 +292,20 @@ class ColumnProxy(vaex.column.Column):
 
     def __getitem__(self, item):
         if isinstance(item, slice):
-            chunks = []
+            array_chunks = []
             ds = self.ds.__getitem__(item)
-            for chunk_start, chunk_end, reader in ds.chunk_iterator([self.name]):
-                ar = reader()[self.name]
+            for chunk_start, chunk_end, chunks in ds.chunk_iterator([self.name]):
+                ar = chunks[self.name]
                 if isinstance(ar, pa.ChunkedArray):
-                    chunks.extend(ar.chunks)
+                    array_chunks.extend(ar.chunks)
                 else:
-                    chunks.append(ar)
-            if len(chunks) == 1:
-                return chunks[0]
-            if any([isinstance(k, vaex.array_types.supported_arrow_array_types) for k in chunks]):
-                return pa.chunked_array([k for k in chunks])
+                    array_chunks.append(ar)
+            if len(array_chunks) == 1:
+                return array_chunks[0]
+            if any([isinstance(k, vaex.array_types.supported_arrow_array_types) for k in array_chunks]):
+                return pa.chunked_array([k for k in array_chunks])
             else:
-                return np.concatenate(chunks)
+                return np.concatenate(array_chunks)
         else:
             raise NotImplementedError
 
@@ -323,10 +321,8 @@ class DatasetRenamed(Dataset):
 
     def chunk_iterator(self, columns, chunk_size=None, reverse=False):
         columns = [self.reverse.get(name, name) for name in columns]
-        for i1, i2, reader in self.original.chunk_iterator(columns, chunk_size, reverse=reverse):
-            def reader_rename(reader=reader):
-                return {self.renaming.get(name, name): ar for name, ar in reader().items()}
-            yield i1, i2, reader_rename
+        for i1, i2, chunks in self.original.chunk_iterator(columns, chunk_size, reverse=reverse):
+            yield i1, i2, {self.renaming.get(name, name): ar for name, ar in chunks.items()}
 
     def close(self):
         self.original.close()
@@ -528,16 +524,14 @@ class DatasetMerged(Dataset):
         elif not columns_right:
             yield from self.left.chunk_iterator(columns, chunk_size, reverse=reverse)
         else:
-            for (i1, i2, ireader), (j1, j2, jreader) in zip(
+            for (i1, i2, ichunks), (j1, j2, jchunks) in zip(
                 self.left.chunk_iterator(columns_left, chunk_size, reverse=reverse),
                 self.right.chunk_iterator(columns_right, chunk_size, reverse=reverse)):
-                def reader(i1=i1, i2=i2, ireader=ireader, jreader=jreader):
-                    return {**ireader(), **jreader()}
                 # TODO: if one of the datasets does not respect the chunk_size (e.g. parquet)
                 # this might fail
                 assert i1 == j1
                 assert i2 == j2
-                yield i1, i2, reader
+                yield i1, i2, {**ichunks, **jchunks}
 
     def hashed(self):
         if set(self._ids) == set(self):
