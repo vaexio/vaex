@@ -2300,7 +2300,7 @@ def _astype(x, dtype):
     # we rely on numpy for astype conversions (TODO: possible performance hit?)
     if isinstance(x, vaex.column.ColumnString):
         x = x.to_numpy()
-    if isinstance(x, pa.Array):
+    if isinstance(x, vaex.array_types.supported_arrow_array_types):
         x = x.to_pandas().values
     y = x.astype(dtype if dtype not in ['string', 'large_string'] else 'str')
     if vaex.column._is_stringy(y):

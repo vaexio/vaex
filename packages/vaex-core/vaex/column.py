@@ -75,6 +75,9 @@ class ColumnSparse(Column):
     def __len__(self):
         return self.shape[0]
 
+    def trim(self, i1, i2):
+        return ColumnSparse(self.matrix[i1:i2], column_index=self.column_index)
+
     def __getitem__(self, slice):
         # not sure if this is the fastest
         return self.matrix[slice, self.column_index].A[:,0]
@@ -219,9 +222,10 @@ class ColumnIndexed(Column):
 
 
 class ColumnConcatenatedLazy(Column):
-    def __init__(self, expressions, dtype=None):
+    def __init__(self, expressions, dtype=None, shape=None, fill_value=None):
         self.is_masked = any([e.is_masked for e in expressions])
-        if self.is_masked:
+        self.fill_value = fill_value
+        if self.is_masked and fill_value is None:
             for expression in expressions:
                 if expression.is_masked:
                     try:
@@ -265,13 +269,15 @@ class ColumnConcatenatedLazy(Column):
             # if dtype is given, we assume every expression/column is the same dtype
             self.dtype = dtype
             self.expressions = expressions[:]
-        self.shape = (len(self), ) + self.expressions[0][0:1].to_numpy().shape[1:]
-
-        for i in range(1, len(self.expressions)):
-            expression = self.expressions[i]
-            shape_i = (len(self), ) + expressions[i][0:1].to_numpy().shape[1:]
-            if self.shape != shape_i:
-                raise ValueError("shape of of expression %s, array index 0, is %r and is incompatible with the shape of the same column of array index %d, %r" % (self.expressions[0], self.shape, i, shape_i))
+        if shape is not None:
+            self.shape = (len(self),) + shape
+        else:
+            self.shape = (len(self), ) + self.expressions[0][0:1].to_numpy().shape[1:]
+            for i in range(1, len(self.expressions)):
+                expression = self.expressions[i]
+                shape_i = (len(self), ) + expressions[i][0:1].to_numpy().shape[1:]
+                if self.shape != shape_i:
+                    raise ValueError("shape of of expression %s, array index 0, is %r and is incompatible with the shape of the same column of array index %d, %r" % (self.expressions[0], self.shape, i, shape_i))
 
     def to_arrow(self, type=None):
         values = [e.values for e in self.expressions]
@@ -323,7 +329,7 @@ class ColumnConcatenatedLazy(Column):
             # otherwise we only need a slice of the first
             expressions = [self.expressions[i][start-offset:stop-offset]]
 
-        return ColumnConcatenatedLazy(expressions, self.dtype)
+        return ColumnConcatenatedLazy(expressions, self.dtype, self.shape[1:], fill_value=self.fill_value)
 
     def __arrow_array__(self, type=None):
         return pa.array(self[:], type=type)

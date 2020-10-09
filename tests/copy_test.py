@@ -47,3 +47,32 @@ def test_copy_dependencies_invalid_identifier():
     df['@'] = df['y'] + df['$']
     df2 = df.copy(["df['@'] * 2"])
     assert set(df2.get_column_names(hidden=True)) == {"df['@'] * 2", '__@', "__#", "__$", '__y'}
+
+
+def test_copy_filter():
+    df = vaex.from_arrays(x=[0, 1, 2], z=[2, 3, 4])
+    df['y'] = df.x + 1
+    dff = df[df.x < 2]
+    assert dff.x.tolist() == [0, 1]
+    assert dff.y.tolist() == [1, 2]
+    dffy = dff[['z']]
+    assert dffy.z.tolist() == [2, 3]
+    assert dffy.get_column_names() == ['z']
+
+
+def test_copy_selection():
+    # simply selection, that depends on a column
+    df = vaex.from_arrays(x=[0, 1, 2], z=[2, 3, 4])
+    df['y'] = df.x + 1
+    df.select(df.x < 2, name='selection_a')
+    dfc = df.copy(['z'])  # only the selection depends on x
+    dfc._invalidate_caches()
+    assert dfc.z.sum(selection='selection_a') == 5
+
+    # simply selection, that depends on a virtual column
+    df = vaex.from_arrays(x=[0, 1, 2], z=[2, 3, 4])
+    df['y'] = df.x + 1
+    df.select(df.y < 3, name='selection_a')
+    dfc = df.copy(['z'])  # only the selection depends on x
+    dfc._invalidate_caches()
+    assert dfc.z.sum(selection='selection_a') == 5

@@ -39,7 +39,7 @@ def test_drop_autocomplete(ds_local):
     ds['drop'] = ds.m
     ds['columns'] = ds.m
 
-    del ds['x']
+    ds.drop('x', inplace=True)
     assert not hasattr(ds, 'x')
 
     ds.drop('y', inplace=True)

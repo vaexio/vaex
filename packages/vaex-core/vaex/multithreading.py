@@ -35,7 +35,7 @@ class ThreadPoolIndex(concurrent.futures.ThreadPoolExecutor):
         self.nthreads = self._max_workers
         self._debug_sleep = 0
 
-    async def map_async(self, callable, iterator, on_error=None, progress=None, cancel=None, unpack=False, **kwargs_extra):
+    async def map_async(self, callable, iterator, count, on_error=None, progress=None, cancel=None, unpack=False, **kwargs_extra):
         progress = progress or (lambda x: True)
         cancelled = False
 
@@ -51,27 +51,29 @@ class ThreadPoolIndex(concurrent.futures.ThreadPoolExecutor):
                 if self._debug_sleep:
                     # print("SLEEP", self._debug_sleep)
                     time.sleep(self._debug_sleep)
-                callable(self.local.index, *args, **kwargs, **kwargs_extra)
+                return callable(self.local.index, *args, **kwargs, **kwargs_extra)
         # convert to list so we can count
-        values = list(iterator)
-        N = len(values)
         time_last = time.time() - 100
         min_delta_t = 1. / 10  # max 10 per second
         if self.nthreads == 1:  # when using 1 thread, it makes debugging easier (better stacktrace)
-            iterator = self._map_async(wrapped, values)
+            iterator = self._map_async(wrapped, iterator)
         else:
             loop = asyncio.get_event_loop()
-            iterator = [loop.run_in_executor(self, lambda value=value: wrapped(value)) for value in values]
+            iterator = [loop.run_in_executor(self, lambda value=value: wrapped(value)) for value in iterator]
 
+        total = 0
         for i, value in enumerate(iterator):
-            progress_value = (i + 1) / N
+            value = await value
+            if value != None:
+                total += value
+            progress_value = (total) / count
             time_now = time.time()
             if progress_value == 1 or (time_now - time_last) > min_delta_t:
                 time_last = time_now
                 if progress(progress_value) is False:
                     cancelled = True
                     cancel()
-            yield await value
+            yield value
 
     def _map_async(self, callable, iterator):
         for i in iterator:

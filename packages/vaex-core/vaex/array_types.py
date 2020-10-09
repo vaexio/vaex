@@ -10,6 +10,12 @@ supported_array_types = (np.ndarray, ) + supported_arrow_array_types
 string_types = [pa.string(), pa.large_string()]
 
 
+def filter(ar, boolean_mask):
+    if isinstance(ar, supported_arrow_array_types):
+        return ar.filter(pa.array(boolean_mask))
+    else:
+        return ar[boolean_mask]
+
 
 def is_string_type(data_type):
     return not isinstance(data_type, np.dtype) and data_type in string_types

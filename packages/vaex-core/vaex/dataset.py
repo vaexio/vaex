@@ -12,6 +12,7 @@ from frozendict import frozendict
 import pyarrow as pa
 
 import vaex
+from vaex.array_types import data_type
 from .column import Column, ColumnIndexed, ColumnConcatenatedLazy, supported_column_types
 from . import array_types
 
@@ -206,7 +207,7 @@ class Dataset(collections.abc.Mapping):
     def __getitem__(self, item):
         if isinstance(item, slice):
             assert item.step in [1, None]
-            return DatasetSliced(self, item.start or 0, item.stop or self.row_count)
+            return self.slice(item.start or 0, item.stop or self.row_count)
         return self._columns[item]
     
     def __len__(self):
@@ -241,21 +242,104 @@ class Dataset(collections.abc.Mapping):
             raise ValueError(f'Trying to hash a dataset with unhashed columns: {missing} (tip: use dataset.hashed())')
         return hash(self._ids)
 
+    def _default_chunk_iterator(self, array_map, columns, chunk_size, reverse=False):
+        chunk_size = chunk_size or 1024**2
+        chunk_count = (self.row_count + chunk_size - 1) // chunk_size
+        chunks = range(chunk_count)
+        if reverse:
+            chunks = reversed(chunks)
+        for i in chunks:
+            i1 = i * chunk_size
+            i2 = min((i + 1) * chunk_size, self.row_count)
+            def reader(i1=i1, i2=i2):
+                length = i2 - i1
+                chunks = {k: array_map[k][i1:i2] for k in columns}
+                for name, chunk in chunks.items():
+                    assert len(chunk) == length, f'Oops, got a chunk ({name}) of length {len(chunk)} while it is expected to be of length {length} (at {i1}-{i2}'
+                return chunks
+            yield i1, i2, reader
+
+    @abstractmethod
+    def chunk_iterator(self, columns, chunk_size=None, reverse=False):
+        pass
+
     @abstractmethod
     def close(self):
         '''Close file handles or other resources, the DataFrame will not be in a usable state afterwards.'''
         pass
 
+    @abstractmethod
+    def slice(self, start, end):
+        pass
+
+    @abstractmethod
+    def hashed(self):
+        pass
+
+
+class ColumnProxy(vaex.column.Column):
+    '''To give the Dataset._columns object useful containers for debugging'''
+    ds: Dataset
+
+    def __init__(self, ds, name, type):
+        self.ds = ds
+        self.name = name
+        self.dtype = type
+
+    def __len__(self):
+        return self.ds.row_count
+
+    def to_numpy(self):
+        return np.array(self)
+
+    def __getitem__(self, item):
+        if isinstance(item, slice):
+            chunks = []
+            ds = self.ds.__getitem__(item)
+            for chunk_start, chunk_end, reader in ds.chunk_iterator([self.name]):
+                ar = reader()[self.name]
+                if isinstance(ar, pa.ChunkedArray):
+                    chunks.extend(ar.chunks)
+                else:
+                    chunks.append(ar)
+            if len(chunks) == 1:
+                return chunks[0]
+            if any([isinstance(k, vaex.array_types.supported_arrow_array_types) for k in chunks]):
+                return pa.chunked_array([k for k in chunks])
+            else:
+                return np.concatenate(chunks)
+        else:
+            raise NotImplementedError
+
 class DatasetRenamed(Dataset):
     def __init__(self, original, renaming):
         super().__init__()
         self.original = original
+        self.renaming = renaming
+        self.reverse = {v: k for k, v in renaming.items()}
         self._columns = frozendict({renaming.get(name, name): ar for name, ar in original.items()})
         self._ids = frozendict({renaming.get(name, name): ar for name, ar in original._ids.items()})
         self._set_row_count()
 
+    def chunk_iterator(self, columns, chunk_size=None, reverse=False):
+        columns = [self.reverse.get(name, name) for name in columns]
+        for i1, i2, reader in self.original.chunk_iterator(columns, chunk_size, reverse=reverse):
+            def reader_rename(reader=reader):
+                return {self.renaming.get(name, name): ar for name, ar in reader().items()}
+            yield i1, i2, reader_rename
+
     def close(self):
         self.original.close()
+
+    def slice(self, start, end):
+        if start == 0 and end == self.row_count:
+            return self
+        return type(self)(self.original.slice(start, end), self.renaming)
+
+    def hashed(self):
+        if set(self._ids) == set(self):
+            return self
+        return type(self)(self.original.hashed(), self.renaming)
 
 
 class DatasetConcatenated(Dataset):
@@ -281,9 +365,24 @@ class DatasetConcatenated(Dataset):
         self._ids = frozendict(hashes)
         self._set_row_count()
 
+    def chunk_iterator(self, columns, chunk_size=None, reverse=False):
+        # TODO: we should move what ColumnConcatenatedLazy does to this method
+        yield from self._default_chunk_iterator(self._columns, columns, chunk_size, reverse=reverse)
+
     def close(self):
         for ds in self.datasets:
             ds.close()
+
+    def slice(self, start, end):
+        if start == 0 and end == self.row_count:
+            return self
+        # TODO: we can be smarter here, and trim off some datasets
+        return DatasetSliced(self, start=start, end=end)
+
+    def hashed(self):
+        if set(self._ids) == set(self):
+            return self
+        return type(self)([dataset.hashed() for dataset in self.datasets])
 
 
 class DatasetTake(Dataset):
@@ -308,6 +407,16 @@ class DatasetTake(Dataset):
         self._columns = frozendict(columns)
         self._ids = frozendict(hashes)
         self._set_row_count()
+
+    def chunk_iterator(self, columns, chunk_size=None, reverse=False):
+        # TODO: we may be able to do this slightly more efficient by first
+        # materializing the columns
+        yield from self._default_chunk_iterator(self._columns, columns, chunk_size, reverse=reverse)
+
+    def slice(self, start, end):
+        if start == 0 and end == self.row_count:
+            return self
+        return DatasetSliced(self, start=start, end=end)
 
     def hashed(self):
         if set(self._ids) == set(self):
@@ -342,6 +451,9 @@ class DatasetSliced(Dataset):
         self._ids = frozendict({name: hash_slice(hash, start, end) for name, hash in original._ids.items()})
         self._set_row_count()
 
+    def chunk_iterator(self, columns, chunk_size=None, reverse=False):
+        yield from self._default_chunk_iterator(self._columns, columns, chunk_size, reverse=reverse)
+
     def hashed(self):
         if set(self._ids) == set(self):
             return self
@@ -350,23 +462,44 @@ class DatasetSliced(Dataset):
     def close(self):
         self.original.close()
 
+    def slice(self, start, end):
+        if start == 0 and end == self.row_count:
+            return self
+        length = end - start
+        start += self.start
+        end = start + length
+        if end > self.original.row_count:
+            raise IndexError(f'Slice end ({end}) if larger than number of rows: {self.original.row_count}')
+        return type(self)(self.original, start, end)
+
 
 class DatasetDropped(Dataset):
     def __init__(self, original, names):
         super().__init__()
         self.original = original
-        self.names = tuple(names)
+        self._dropped_names = tuple(names)
         self._columns = frozendict({name: ar for name, ar in original.items() if name not in names})
         self._ids = frozendict({name: ar for name, ar in original._ids.items() if name not in names})
         self._set_row_count()
 
+    def chunk_iterator(self, columns, chunk_size=None, reverse=False):
+        for column in columns:
+            if column in self._dropped_names:
+                raise KeyError(f'Oops, you tried to get column {column} while it is actually dropped')
+        yield from self.original.chunk_iterator(columns, chunk_size=chunk_size, reverse=reverse)
+
     def hashed(self):
         if set(self._ids) == set(self):
             return self
-        return type(self)(self.original.hashed(), self.names)
+        return type(self)(self.original.hashed(), self._dropped_names)
 
     def close(self):
         self.original.close()
+
+    def slice(self, start, end):
+        if start == 0 and end == self.row_count:
+            return self
+        return type(self)(self.original.slice(start, end), self._dropped_names)
 
 
 class DatasetMerged(Dataset):
@@ -374,12 +507,37 @@ class DatasetMerged(Dataset):
         super().__init__()
         self.left = left
         self.right = right
+        if self.left.row_count != self.right.row_count:
+            raise ValueError(f'Merging datasets with unequal row counts ({self.left.row_count} != {self.right.row_count})')
+        self._row_count = self.left.row_count
         overlap = set(left) & set(right)
         if overlap:
             raise NameError(f'Duplicate names: {overlap}')
-        self._columns = frozendict({**left._columns, **right._columns})
+        # TODO: for DatasetArray, we might want to just do this?
+        # self._columns = frozendict({**left._columns, **right._columns})
+        self._columns = {**{name: ColumnProxy(self.left, name, data_type(col)) for name, col in self.left._columns.items()},
+                         **{name: ColumnProxy(self.right, name, data_type(col)) for name, col in self.right._columns.items()}}
         self._ids = frozendict({**left._ids, **right._ids})
         self._set_row_count()
+
+    def chunk_iterator(self, columns, chunk_size=None, reverse=False):
+        columns_left = [k for k in columns if k in self.left]
+        columns_right = [k for k in columns if k in self.right]
+        if not columns_left:
+            yield from self.right.chunk_iterator(columns, chunk_size, reverse=reverse)
+        elif not columns_right:
+            yield from self.left.chunk_iterator(columns, chunk_size, reverse=reverse)
+        else:
+            for (i1, i2, ireader), (j1, j2, jreader) in zip(
+                self.left.chunk_iterator(columns_left, chunk_size, reverse=reverse),
+                self.right.chunk_iterator(columns_right, chunk_size, reverse=reverse)):
+                def reader(i1=i1, i2=i2, ireader=ireader, jreader=jreader):
+                    return {**ireader(), **jreader()}
+                # TODO: if one of the datasets does not respect the chunk_size (e.g. parquet)
+                # this might fail
+                assert i1 == j1
+                assert i2 == j2
+                yield i1, i2, reader
 
     def hashed(self):
         if set(self._ids) == set(self):
@@ -390,6 +548,11 @@ class DatasetMerged(Dataset):
         self.left.close()
         self.right.close()
 
+    def slice(self, start, end):
+        if start == 0 and end == self.row_count:
+            return self
+        return type(self)(self.left.slice(start, end), self.right.slice(start, end))
+
 
 class DatasetArrays(Dataset):
     def __init__(self, mapping=None, **kwargs):
@@ -398,9 +561,28 @@ class DatasetArrays(Dataset):
             mapping = {}
         columns = {**mapping, **kwargs}
         columns = {key: to_supported_array(ar) for key, ar in columns.items()}
+        # TODO: we finally want to get rid of datasets with no columns
         self._columns = frozendict(columns)
         self._ids = frozendict()
         self._set_row_count()
+
+    def chunk_iterator(self, columns, chunk_size=None, reverse=False):
+        yield from self._default_chunk_iterator(self._columns, columns, chunk_size, reverse=reverse)
+
+    def merged(self, rhs):
+        # TODO: if we don't allow emtpy datasets, we can remove this method
+        if len(self) == 0:
+            return rhs
+        if len(rhs) == 0:
+            return self
+        # TODO: this is where we want to check if both are array like
+        # and have faster version of merged
+        return DatasetMerged(self, rhs)
+
+    def slice(self, start, end):
+        if start == 0 and end == self.row_count:
+            return self
+        return DatasetSliced(self, start=start, end=end)
 
     def hashed(self):
         if set(self._ids) == set(self):
@@ -429,6 +611,14 @@ class DatasetFile(Dataset):
         self._hash_calculations = 0  # track it for testing purposes
         self._hash_info = {}
         self._read_hashes()
+
+    def chunk_iterator(self, columns, chunk_size=None, reverse=False):
+        yield from self._default_chunk_iterator(self._columns, columns, chunk_size, reverse=reverse)
+
+    def slice(self, start, end):
+        if start == 0 and end == self.row_count:
+            return self
+        return DatasetSliced(self, start=start, end=end)
 
     def _read_hashes(self):
         path_hashes = Path(self.path + '.d') / 'hashes.yaml'

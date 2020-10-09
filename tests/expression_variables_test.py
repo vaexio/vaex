@@ -15,3 +15,21 @@ def test_expression_expand():
     assert ds.t.variables() == {'s', 'r', 'x', 'y'}
     ds['u'] = np.arctan(ds.t)
     assert ds.u.variables() == {'t', 's', 'r', 'x', 'y'}
+
+
+def test_non_identifiers():
+    df = vaex.from_dict({'x': [1], 'y': [2], '#':[1]})
+    df['z'] = df['#'] + 1
+    assert df['z'].variables() == {'#'}
+    assert df._virtual_expressions['z'].variables() == {'#'}
+
+    df['1'] = df.x * df.y
+    df['2'] = df['1'] + df.x
+    assert df['1'].variables(ourself=True) == {'x', 'y', '1'}
+    assert df['1'].variables() == {'x', 'y'}
+    assert df['2'].variables(ourself=True) == {'x', 'y', '2', '1'}
+    assert df['2'].variables(include_virtual=False) == {'x', 'y'}
+
+    df['valid'] = df['2']
+    assert df['valid'].variables(ourself=True) == {'x', 'y', '2', '1', 'valid'}
+    assert df['valid'].variables(include_virtual=False) == {'x', 'y'}

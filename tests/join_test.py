@@ -41,14 +41,14 @@ df_e = vaex.from_arrays(a=np.array(['X', 'Y', 'Z']),
 def test_no_on():
     # just adds the columns
     df = df_a.join(df_b, rsuffix='_r')
-    assert df.columns['b'] is df_b.columns['b']
+    assert df.dataset.right._columns['b'] is df_b.dataset._columns['b']
 
 
 def test_join_masked():
     df = df_a.join(other=df_b, left_on='m', right_on='m', rsuffix='_r')
     assert df.evaluate('m').tolist() == [1, None, 3]
     assert df.evaluate('m_r').tolist() == [1, None, None]
-    assert df.columns['m_r'].indices.dtype == np.int8
+    assert df.dataset.right._columns['m_r'].indices.dtype == np.int8
 
 
 def test_join_nomatch():
@@ -301,7 +301,7 @@ def test_with_masked_no_short_circuit():
     df_right = vaex.from_arrays(i=np.arange(9), j=np.arange(9))
     with small_buffer(df, size=1):
         dfj = df.join(other=df_right, on='i')
-    assert dfj.columns['j'].masked
-    assert dfj[:10].columns['j'].masked
+    assert dfj.dataset.right._columns['j'].masked
+    assert dfj[:10].dataset.right._columns['j'].masked
     assert dfj['j'][:10].tolist() == [0, 1, 2, 3, 4, 5, 6, 7, 8, None]
     dfj['j'].tolist()  # make sure we can evaluate the whole column

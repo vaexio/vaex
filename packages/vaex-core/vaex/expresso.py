@@ -127,6 +127,14 @@ def validate_expression(expr, variable_set, function_set=[], names=None):
         validate_expression(expr.value, variable_set, function_set, names)
     elif isinstance(expr, ast_Constant):
         pass  # like True and False
+    elif isinstance(expr, _ast.List):
+        for el in expr.elts:
+            validate_expression(el, variable_set, function_set, names)
+    elif isinstance(expr, _ast.Dict):
+        for key in expr.keys:
+            validate_expression(key, variable_set, function_set, names)
+        for value in expr.values:
+            validate_expression(value, variable_set, function_set, names)
     elif isinstance(expr, _ast.Subscript):
         validate_expression(expr.value, variable_set, function_set, names)
         if isinstance(expr.slice.value, ast_Num):
@@ -351,6 +359,14 @@ class ExpressionString(ast.NodeVisitor):
 
     def visit_NameConstant(self, node):
         return repr(node.value)
+
+    def visit_Dict(self, node):
+        parts = []
+        for key, value in zip(node.keys, node.values):
+            key = self.visit(key)
+            value = self.visit(value)
+            parts.append(f'{key}: {value}')
+        return '{' + ' '.join(parts) + '}'
 
     def visit_Call(self, node):
         args = [self.visit(k) for k in node.args]
