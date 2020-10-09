@@ -10,6 +10,7 @@ import pyarrow.dataset
 
 import vaex.dataset
 import vaex.file.other
+from ..itertools import buffer
 
 
 logger = logging.getLogger("vaex.arrow.dataset")
@@ -192,7 +193,7 @@ class DatasetArrow(vaex.dataset.Dataset):
                     chunks_current_list.append(chunks_current)
             return chunks_current_list, current_row_count
 
-        for chunks_future in read_ahead(self._chunk_producer(columns, chunk_size, start=start, end=end or self._row_count), thread_count_default_io+3):
+        for chunks_future in buffer(self._chunk_producer(columns, chunk_size, start=start, end=end or self._row_count), thread_count_default_io+3):
             chunks = chunks_future.result()
             chunks_ready_list.append(chunks)
             total_row_count = sum([len(list(k.values())[0]) for k in chunks_ready_list])
@@ -207,19 +208,6 @@ class DatasetArrow(vaex.dataset.Dataset):
             i2 += current_row_count
             yield i1, i2, _concat(chunks_current_list)
             i1 = i2
-
-
-def read_ahead(i, n=1):
-    values = []
-    try:
-        for _ in range(n-1):
-            values.append(next(i))
-        while True:
-            values.append(next(i))
-            yield values.pop(0)
-    except StopIteration:
-        pass
-    yield from values
 
 
 def _concat(list_of_chunks):

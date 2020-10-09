@@ -14,6 +14,8 @@ import concurrent.futures
 import time
 import os
 
+from .itertools import buffer
+
 thread_count_default = os.environ.get('VAEX_NUM_THREADS', multiprocessing.cpu_count())  # * 2 + 1
 thread_count_default = int(thread_count_default)
 logger = logging.getLogger("vaex.multithreading")
@@ -59,10 +61,10 @@ class ThreadPoolIndex(concurrent.futures.ThreadPoolExecutor):
             iterator = self._map_async(wrapped, iterator)
         else:
             loop = asyncio.get_event_loop()
-            iterator = [loop.run_in_executor(self, lambda value=value: wrapped(value)) for value in iterator]
+            iterator = (loop.run_in_executor(self, lambda value=value: wrapped(value)) for value in iterator)
 
         total = 0
-        for i, value in enumerate(iterator):
+        for i, value in buffer(enumerate(iterator), self._max_workers + 3):
             value = await value
             if value != None:
                 total += value
