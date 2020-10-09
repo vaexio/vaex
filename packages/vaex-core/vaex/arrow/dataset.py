@@ -109,7 +109,10 @@ class DatasetArrow(vaex.dataset.Dataset):
                 chunk_start = offset
                 chunk_end = offset + rows
 
+                length = chunk_end - chunk_start  # default length
+
                 if start >= chunk_end:  # we didn't find the beginning yet
+                    offset += length
                     continue
                 if end < chunk_start:  # we are past the end
                     # assert False
@@ -119,7 +122,6 @@ class DatasetArrow(vaex.dataset.Dataset):
                     chunks = dict(zip(table.column_names, table.columns))
                     return chunks
 
-                length = chunk_end - chunk_start  # default length
                 if start > chunk_start:
                     # this means we have to cut off a piece of the beginning
                     if end < chunk_end:
