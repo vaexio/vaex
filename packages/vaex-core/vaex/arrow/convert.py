@@ -130,6 +130,7 @@ def numpy_array_from_arrow_array(arrow_array):
         bitmap = np.frombuffer(bitmap_buffer, np.uint8, len(bitmap_buffer))
         mask = numpy_mask_from_arrow_mask(bitmap, len(arrow_array) + offset)[offset:]
         array = np.ma.MaskedArray(array, mask=mask)
+    assert len(array) == len(arrow_array)
     return array
 
 

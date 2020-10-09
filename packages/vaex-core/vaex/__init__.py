@@ -231,7 +231,9 @@ def open(path, convert=False, shuffle=False, copy_index=False, *args, **kwargs):
                         dfs.append(open(filename, convert=bool(convert), shuffle=shuffle, **kwargs))
                     ds = concat(dfs)
                     if convert:
-                        ds.export_hdf5(filename_hdf5, shuffle=shuffle)
+                        if shuffle:
+                            ds = ds.shuffle()
+                        ds.export_hdf5(filename_hdf5)
                         ds = vaex.file.open(filename_hdf5)
 
         if ds is None:
@@ -348,7 +350,8 @@ def from_arrays(**arrays):
     dataset = vaex.dataset.DatasetArrays(arrays)
     return vaex.dataframe.DataFrameLocal(dataset)
 
-def from_arrow_table(table, as_numpy=True):
+
+def from_arrow_table(table, as_numpy=True) -> vaex.dataframe.DataFrame:
     """Creates a vaex DataFrame from an arrow Table.
 
     :param as_numpy: Will lazily cast columns to a NumPy ndarray.
@@ -555,7 +558,7 @@ def _from_csv_convert_and_read(filename_or_buffer, copy_index, maybe_convert_pat
     for i, df_pandas in enumerate(csv_reader):
         df = from_pandas(df_pandas, copy_index=copy_index)
         filename_hdf5 = _convert_name(csv_path, suffix='_chunk%d' % i)
-        df.export_hdf5(filename_hdf5, shuffle=False)
+        df.export_hdf5(filename_hdf5)
         converted_paths.append(filename_hdf5)
         logger.info('saved chunk #%d to %s' % (i, filename_hdf5))
 
@@ -567,7 +570,7 @@ def _from_csv_convert_and_read(filename_or_buffer, copy_index, maybe_convert_pat
         logger.info('converting %d chunks into single HDF5 file %s' % (len(converted_paths), combined_hdf5))
         dfs = [vaex.file.open(p) for p in converted_paths]
         df_combined = vaex.concat(dfs)
-        df_combined.export_hdf5(combined_hdf5, shuffle=False)
+        df_combined.export_hdf5(combined_hdf5)
 
         logger.info('deleting %d chunk files' % len(converted_paths))
         for df, df_path in zip(dfs, converted_paths):

@@ -54,7 +54,7 @@ sys_is_le = sys.byteorder == 'little'
 logger = logging.getLogger("vaex")
 lock = threading.Lock()
 default_shape = 128
-default_chunk_size = 1_000_000
+default_chunk_size = 1024**2
 # executor = concurrent.futures.ThreadPoolExecutor(max_workers=2)
 # executor = vaex.execution.default_executor
 
@@ -2883,18 +2883,17 @@ class DataFrame(object):
         :param chunk_size: {chunk_size}
         :return: pyarrow.Table object or iterator of
         """
-        from vaex.arrow.convert import arrow_array_from_numpy_array
         import pyarrow as pa
         column_names = column_names or self.get_column_names(strings=strings, virtual=virtual)
         if chunk_size is not None:
             def iterator():
                 for i1, i2, chunks in self.evaluate_iterator(column_names, selection=selection, parallel=parallel, chunk_size=chunk_size):
-                    chunks = list(map(arrow_array_from_numpy_array, chunks))
+                    chunks = list(map(vaex.array_types.to_arrow, chunks))
                     yield i1, i2, pa.Table.from_arrays(chunks, column_names)
             return iterator()
         else:
             chunks = self.evaluate(column_names, selection=selection, parallel=parallel)
-            chunks = list(map(arrow_array_from_numpy_array, chunks))
+            chunks = list(map(vaex.array_types.to_arrow, chunks))
             return pa.Table.from_arrays(chunks, column_names)
 
     @docsubst
@@ -5877,70 +5876,64 @@ class DataFrameLocal(DataFrame):
         left._dataset = left.dataset.merged(right_dataset)
         return left
 
-    def export(self, path, column_names=None, byteorder="=", shuffle=False, selection=False, progress=None, virtual=True, sort=None, ascending=True):
-        """Exports the DataFrame to a file written with arrow
+    def export(self, path, progress=None, chunk_size=default_chunk_size, parallel=True):
+        """Exports the DataFrame to a file depending on the file extension.
 
-        :param DataFrameLocal df: DataFrame to export
+        E.g if the filename ends on .parquet, `df.export_parquet` is called.
+
         :param str path: path for file
-        :param lis[str] column_names: list of column names to export or None for all columns
-        :param str byteorder: = for native, < for little endian and > for big endian (not supported for fits)
-        :param bool shuffle: export rows in random order
-        :param bool selection: export selection or not
+        :param int chunk_size: Passed to the exporter method, if supported.
         :param progress: progress callback that gets a progress fraction as argument and should return True to continue,
                 or a default progress bar when progress=True
-        :param: bool virtual: When True, export virtual columns
-        :param str sort: expression used for sorting the output
-        :param bool ascending: sort ascending (True) or descending
         :return:
         """
         if path.endswith('.arrow'):
-            self.export_arrow(path)
+            self.export_arrow(path, chunk_size=chunk_size, parallel=parallel)
         elif path.endswith('.hdf5'):
-            self.export_hdf5(path, column_names, byteorder, shuffle, selection, progress=progress, virtual=virtual, sort=sort, ascending=ascending)
+            self.export_hdf5(path, progress=progress)
         elif path.endswith('.fits'):
-            self.export_fits(path, column_names, shuffle, selection, progress=progress, virtual=virtual, sort=sort, ascending=ascending)
+            self.export_fits(path, progress=progress)
         elif path.endswith('.parquet'):
-            self.export_parquet(path, column_names, shuffle, selection, progress=progress, virtual=virtual, sort=sort, ascending=ascending)
+            self.export_parquet(path, progress=progress, parallel=parallel, chunk_size=chunk_size)
         elif path.endswith('.csv'):
-            self.export_csv(path, selection=selection, progress=progress, virtual=virtual)
+            self.export_csv(path, progress=progress, parallel=parallel, chunk_size=chunk_size)
         else:
             raise ValueError('''Unrecognized file extension. Please use .arrow, .hdf5, .parquet, .fits, or .csv to export to the particular file format.''')
 
-    def export_arrow(self, path, column_names=None, byteorder="=", shuffle=False, selection=False, progress=None, virtual=True, sort=None, ascending=True):
+    def export_arrow(self, path, progress=None, chunk_size=default_chunk_size, parallel=True):
         """Exports the DataFrame to a file written with arrow
-        :param DataFrameLocal df: DataFrame to export
+
         :param str path: path for file
-        :param lis[str] column_names: list of column names to export or None for all columns
-        :param str byteorder: = for native, < for little endian and > for big endian
-        :param bool shuffle: export rows in random order
-        :param bool selection: export selection or not
+        :param int chunk_size: Number of rows in each chunked array, set to None to create a contiguous array (requires memory!)
         :param progress: progress callback that gets a progress fraction as argument and should return True to continue,
                 or a default progress bar when progress=True
-        :param: bool virtual: When True, export virtual columns
-        :param str sort: expression used for sorting the output
-        :param bool ascending: sort ascending (True) or descending
         :return:
         """
-        import vaex.arrow.export
-        vaex.arrow.export.export(self, path, column_names, byteorder, shuffle, selection, progress=progress, virtual=virtual, sort=sort, ascending=ascending)
+        self.export_arrow_stream(path, progress=progress, chunk_size=chunk_size, parallel=parallel)
 
-    def export_arrow_stream(self, path_or_writer, progress=None, chunk_size=default_chunk_size):
-        """Exports the DataFrame as Arrow stream
+    def export_arrow_stream(self, path_or_writer, progress=None, chunk_size=default_chunk_size, parallel=True):
+        """Exports the DataFrame as Arrow stream to a file or arrow writer
 
         :param path_or_writer path: path for file or :py:data:`pyarrow.RecordBatchStreamWriter`
         :param progress: progress callback that gets a progress fraction as argument and should return True to continue,
                 or a default progress bar when progress=True
+        :param int chunk_size: Number of rows for each table to write
+        :param bool parallel: {evaluate_parallel}
         :return:
         """
-        schema = self[0:1].to_arrow_table().schema
+        schema = self[0:1].to_arrow_table(parallel=False).schema
         progressbar = vaex.utils.progressbars(progress)
         def write(writer):
             progressbar(0)
             N = len(self)
-            for i1, i2, table in self.to_arrow_table(chunk_size=chunk_size):
+            if chunk_size:
+                for i1, i2, table in self.to_arrow_table(chunk_size=chunk_size, parallel=parallel):
+                    writer.write_table(table)
+                    progressbar(i2/N)
+                progressbar(1.)
+            else:
+                table = self.to_arrow_table(chunk_size=chunk_size, parallel=parallel)
                 writer.write_table(table)
-                progressbar(i2/N)
-            progressbar(1.)
         if isinstance(path_or_writer, str):
             with pa.OSFile(path_or_writer, 'wb') as sink:
                 writer = pa.RecordBatchStreamWriter(sink, schema)
@@ -5948,82 +5941,98 @@ class DataFrameLocal(DataFrame):
         else:
             write(path_or_writer)
 
-    def export_parquet(self, path, column_names=None, byteorder="=", shuffle=False, selection=False, progress=None, virtual=True, sort=None, ascending=True):
-        """Exports the DataFrame to a parquet file
+    @docsubst
+    def export_parquet(self, path, progress=None, parallel=True, **kwargs):
+        """Exports the DataFrame to a parquet file.
 
-        :param DataFrameLocal df: DataFrame to export
+        Note: This may require that all of the data fits into memory (mmapped data is an exception).
+            Use :py:`DataFrame.export_chunks` to write to multiple files in parallel.
+
         :param str path: path for file
-        :param lis[str] column_names: list of column names to export or None for all columns
-        :param str byteorder: = for native, < for little endian and > for big endian
-        :param bool shuffle: export rows in random order
-        :param bool selection: export selection or not
         :param progress: progress callback that gets a progress fraction as argument and should return True to continue,
                 or a default progress bar when progress=True
-        :param: bool virtual: When True, export virtual columns
-        :param str sort: expression used for sorting the output
-        :param bool ascending: sort ascending (True) or descending
+        :param bool parallel: {evaluate_parallel}
+        :param **kwargs: Extra keyword arguments to be passed on to pyarrow.parquet.write_table
         :return:
         """
-        import vaex.arrow.export
-        vaex.arrow.export.export_parquet(self, path, column_names, byteorder, shuffle, selection, progress=progress, virtual=virtual, sort=sort, ascending=ascending)
-
-    def export_hdf5(self, path, column_names=None, byteorder="=", shuffle=False, selection=False, progress=None, virtual=True, sort=None, ascending=True):
-        """Exports the DataFrame to a vaex hdf5 file
-
-        :param DataFrameLocal df: DataFrame to export
-        :param str path: path for file
-        :param lis[str] column_names: list of column names to export or None for all columns
-        :param str byteorder: = for native, < for little endian and > for big endian
-        :param bool shuffle: export rows in random order
-        :param bool selection: export selection or not
-        :param progress: progress callback that gets a progress fraction as argument and should return True to continue,
-                or a default progress bar when progress=True
-        :param: bool virtual: When True, export virtual columns
-        :param str sort: expression used for sorting the output
-        :param bool ascending: sort ascending (True) or descending
-        :return:
-        """
-        import vaex.export
-        vaex.export.export_hdf5(self, path, column_names, byteorder, shuffle, selection, progress=progress, virtual=virtual, sort=sort, ascending=ascending)
-
-    def export_fits(self, path, column_names=None, shuffle=False, selection=False, progress=None, virtual=True, sort=None, ascending=True):
-        """Exports the DataFrame to a fits file that is compatible with TOPCAT colfits format
-
-        :param DataFrameLocal df: DataFrame to export
-        :param str path: path for file
-        :param lis[str] column_names: list of column names to export or None for all columns
-        :param bool shuffle: export rows in random order
-        :param bool selection: export selection or not
-        :param progress: progress callback that gets a progress fraction as argument and should return True to continue,
-                or a default progress bar when progress=True
-        :param: bool virtual: When True, export virtual columns
-        :param str sort: expression used for sorting the output
-        :param bool ascending: sort ascending (True) or descending
-        :return:
-        """
-        import vaex.export
-        vaex.export.export_fits(self, path, column_names, shuffle, selection, progress=progress, virtual=virtual, sort=sort, ascending=ascending)
+        import pyarrow.parquet as pq
+        table = self.to_arrow_table(chunk_size=None, parallel=False)
+        pq.write_table(table, path, **kwargs)
 
     @docsubst
-    def export_csv(self, path, virtual=True, selection=False, progress=None, chunk_size=1_000_000, **kwargs):
+    def export_chunked(self, path, progress=None, chunk_size=default_chunk_size, parallel=True):
+        """Export the DataFrame to multiple files in parallel.
+
+        :param str path: Path for file, formatted by chunk index i (e.g. 'chunk-{{i:05}}.parquet')
+        :param int chunk_size: Number of rows for each file (except possibly the last)
+        :param bool parallel: {evaluate_parallel}
+        """
+        from .itertools import pmap, pwait, buffer, consume
+        path1 = str(path).format(i=0, i1=1, i2=2)
+        path2 = str(path).format(i=1, i1=2, i2=3)
+        if path1 == path2:
+            raise ValueError('The path argument should be a format string such that all path names are unique, e.g. \'chunk-{i:05}.parquet\'')
+        input = self.to_dict(chunk_size=chunk_size, parallel=True)
+        column_names = self.get_column_names()
+        def write(i, item):
+            i1, i2, chunks = item
+            p = str(path).format(i=i, i1=i2, i2=i2)
+            df = vaex.from_dict(chunks)
+            print(f'{len(df):,}', p)
+            df.export(p, chunk_size=None, parallel=False)
+            return i2
+        progressbar = vaex.utils.progressbars(progress)
+        length = len(self)
+        def update_progress(offset):
+            progressbar(offset / length)
+        pool = concurrent.futures.ThreadPoolExecutor()
+        workers = pool._max_workers
+        consume(map(update_progress, pwait(buffer(pmap(write, enumerate(input), pool=pool), workers+3))))
+
+
+
+    def export_hdf5(self, path, byteorder="=", progress=None):
+        """Exports the DataFrame to a vaex hdf5 file
+
+        :param str path: path for file
+        :param str byteorder: = for native, < for little endian and > for big endian
+        :param progress: progress callback that gets a progress fraction as argument and should return True to continue,
+                or a default progress bar when progress=True
+        :return:
+        """
+        import vaex.export
+        vaex.export.export_hdf5(self, path, byteorder=byteorder, progress=progress)
+
+    def export_fits(self, path, progress=None):
+        """Exports the DataFrame to a fits file that is compatible with TOPCAT colfits format
+
+        :param str path: path for file
+        :param progress: progress callback that gets a progress fraction as argument and should return True to continue,
+                or a default progress bar when progress=True
+        :return:
+        """
+        import vaex.export
+        vaex.export.export_fits(self, path, progress=progress)
+
+    @docsubst
+    def export_csv(self, path, progress=None, chunk_size=default_chunk_size, parallel=True, **kwargs):
         """ Exports the DataFrame to a CSV file.
 
         :param str path: Path for file
-        :param bool virtual: If True, export virtual columns as well
-        :param bool selection: {selection1}
         :param progress: {progress}
         :param int chunk_size: {chunk_size_export}
+        :param parallel: {evaluate_parallel}
         :param **kwargs: Extra keyword arguments to be passed on pandas.DataFrame.to_csv()
         :return:
         """
         import pandas as pd
 
-        expressions = self.get_column_names(virtual=virtual)
+        expressions = self.get_column_names()
         progressbar = vaex.utils.progressbars(progress)
         dtypes = self[expressions].dtypes
         n_samples = len(self)
 
-        for i1, i2, chunks in self.evaluate_iterator(expressions, chunk_size=chunk_size, selection=selection):
+        for i1, i2, chunks in self.evaluate_iterator(expressions, chunk_size=chunk_size, parallel=parallel):
             progressbar( i1 / n_samples)
             chunk_dict = {col: values for col, values in zip(expressions, chunks)}
             chunk_pdf = pd.DataFrame(chunk_dict)

@@ -267,7 +267,7 @@ def export_fits(dataset, path, column_names=None, shuffle=False, selection=False
     ucds = []
     units = []
     for column_name in column_names:
-        if column_name in dataset.get_column_names(strings=True):
+        if column_name in dataset.get_column_names(strings=True, virtual=False):
             column = dataset.columns[column_name]
             shape = (N,) + column.shape[1:]
             dtype = column.dtype
