@@ -54,7 +54,7 @@ class Predictor(state.HasState):
     snake_name = 'sklearn_predictor'
     model = traitlets.Any(default_value=None, allow_none=True, help='A scikit-learn estimator.').tag(**serialize_pickle)
     features = traitlets.List(traitlets.Unicode(), help='List of features to use.')
-    target = traitlets.Unicode(allow_none=False, help='The name of the target column.')
+    target = traitlets.Unicode(default_value=None, allow_none=True, help='The name of the target column.')
     prediction_name = traitlets.Unicode(default_value='prediction', help='The name of the virtual column housing the predictions.')
     prediction_type = traitlets.Enum(values=['predict', 'predict_proba', 'predict_log_proba'], default_value='predict',
                                      help='Which method to use to get the predictions. \
@@ -103,7 +103,10 @@ class Predictor(state.HasState):
         '''
 
         X = df[self.features].values
-        y = df.evaluate(self.target)
+        if self.target is not None:
+            y = df.evaluate(self.target)
+        else:
+            y = None
         self.model.fit(X=X, y=y, **kwargs)
 
 
