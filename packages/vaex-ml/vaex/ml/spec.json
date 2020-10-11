@@ -655,7 +655,7 @@
                 "type": "Enum"
             },
             {
-                "default": "",
+                "default": null,
                 "has_default": false,
                 "help": "The name of the target column.",
                 "name": "target",
