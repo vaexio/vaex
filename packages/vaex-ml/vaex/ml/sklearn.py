@@ -51,7 +51,6 @@ class Predictor(state.HasState):
      1             6.1            3               4.6            1.4         1  1.56469
      2             6.6            2.9             4.6            1.3         1  1.44276
     '''
-    snake_name = 'sklearn_predictor'
     model = traitlets.Any(default_value=None, allow_none=True, help='A scikit-learn estimator.').tag(**serialize_pickle)
     features = traitlets.List(traitlets.Unicode(), help='List of features to use.')
     target = traitlets.Unicode(default_value=None, allow_none=True, help='The name of the target column.')
@@ -73,21 +72,21 @@ class Predictor(state.HasState):
             return self.model.predict_log_proba(X)
 
     def predict(self, df):
-        '''Get an in-memory numpy array with the predictions of the SKLearnPredictor.self
+        '''Get an in-memory numpy array with the predictions of the Predictor.
 
         :param df: A vaex DataFrame, containing the input features.
-        :returns: A in-memory numpy array containing the SKLearnPredictor predictions.
+        :returns: A in-memory numpy array containing the Predictor predictions.
         :rtype: numpy.array
         '''
         return self.transform(df)[self.prediction_name].values
 
     def transform(self, df):
-        '''Transform a DataFrame such that it contains the predictions of the SKLearnPredictor.
+        '''Transform a DataFrame such that it contains the predictions of the Predictor.
         in form of a virtual column.
 
         :param df: A vaex DataFrame.
 
-        :return copy: A shallow copy of the DataFrame that includes the SKLearnPredictor prediction as a virtual column.
+        :return copy: A shallow copy of the DataFrame that includes the Predictor prediction as a virtual column.
         :rtype: DataFrame
         '''
         copy = df.copy()
@@ -97,7 +96,7 @@ class Predictor(state.HasState):
         return copy
 
     def fit(self, df, **kwargs):
-        '''Fit the SKLearnPredictor to the DataFrame.
+        '''Fit the Predictor to the DataFrame.
 
         :param df: A vaex DataFrame containing the features and target on which to train the model.
         '''
@@ -190,10 +189,10 @@ class IncrementalPredictor(state.HasState):
             return self.model.predict_log_proba(X)
 
     def predict(self, df):
-        '''Get an in-memory numpy array with the predictions of the SKLearnPredictor.self
+        '''Get an in-memory numpy array with the predictions of the Predictor
 
         :param df: A vaex DataFrame, containing the input features.
-        :returns: A in-memory numpy array containing the SKLearnPredictor predictions.
+        :returns: A in-memory numpy array containing the Predictor predictions.
         :rtype: numpy.array
         '''
 
