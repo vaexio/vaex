@@ -3041,15 +3041,14 @@ class DataFrame(object):
         else:
             raise ValueError('only scipy.sparse.csr_matrix is supported')
 
-    def _save_assign_expression(self, name, expression=None, check=False):
+    def _save_assign_expression(self, name, expression=None):
         obj = getattr(self, name, None)
         # it's ok to set it if it does not exist, or we overwrite an older expression
         if obj is None or isinstance(obj, Expression):
             if expression is None:
                 expression = name
             if isinstance(expression, str):
-                if check:
-                    expression = vaex.utils.valid_expression(self.get_column_names(hidden=True), expression)
+                expression = vaex.utils.valid_expression(self.get_column_names(hidden=True), expression)
                 expression = Expression(self, expression)
             setattr(self, name, expression)
 
@@ -5358,7 +5357,7 @@ class DataFrameLocal(DataFrame):
             else:
                 df_concat.columns[name] = ColumnConcatenatedLazy([df[name] for df in dfs])
                 df_concat.column_names.append(name)
-            df_concat._save_assign_expression(name, check=False)
+            df_concat._save_assign_expression(name)
 
         for df in dfs:
             for name, value in list(df.variables.items()):
