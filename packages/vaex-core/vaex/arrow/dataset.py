@@ -1,14 +1,32 @@
 __author__ = 'maartenbreddels'
 import collections
+import concurrent.futures
 import logging
+import multiprocessing
+import os
 
 import pyarrow as pa
 import pyarrow.dataset
 
 import vaex.dataset
 import vaex.file.other
-from .convert import column_from_arrow_array
-logger = logging.getLogger("vaex.arrow")
+from ..itertools import buffer
+
+
+logger = logging.getLogger("vaex.arrow.dataset")
+
+thread_count_default_io = os.environ.get('VAEX_NUM_THREADS_IO', multiprocessing.cpu_count() * 2 + 1)
+thread_count_default_io = int(thread_count_default_io)
+main_io_pool = None
+
+logger = logging.getLogger("vaex.multithreading")
+
+
+def get_main_io_pool():
+    global main_io_pool
+    if main_io_pool is None:
+        main_io_pool = concurrent.futures.ThreadPoolExecutor(max_workers=thread_count_default_io)
+    return main_io_pool
 
 
 class DatasetSliced(vaex.dataset.Dataset):
@@ -22,50 +40,7 @@ class DatasetSliced(vaex.dataset.Dataset):
         self._ids = {}
 
     def chunk_iterator(self, columns, chunk_size=None, reverse=False):
-        chunk_size = chunk_size or 1024*1024
-        dict_or_list_of_arrays = collections.defaultdict(list)
-        i1 = i2 = 0
-        for chunk_start, chunk_end, reader in self.original.chunk_iterator(columns, chunk_size=chunk_size):
-            if self.start >= chunk_end:  # we didn't find the beginning yet
-                continue
-            if self.end < chunk_start:  # we are past the end
-                break
-            slice_reader = reader  # default case, if we don't have to slice
-            length = chunk_end - chunk_start  # default length
-            if self.start > chunk_start:
-                # this means we have to cut off a piece of the beginning
-                if self.end < chunk_end:
-                    # AND the end
-                    length = self.end - chunk_start  # without the start cut off
-                    length -= self.start - chunk_start  # correcting for the start cut off
-                    def slice_reader(chunk_start=chunk_start, reader=reader, length=length):
-                        chunks = reader()
-                        chunks = {name: ar.slice(self.start - chunk_start, length) for name, ar in chunks.items()}
-                        for name, ar in chunks.items():
-                            assert len(ar) == length, f'Oops, array was expected to be of length {length} but was {len(ar)}'
-                        return chunks
-                else:
-                    length -= self.start - chunk_start  # correcting for the start cut off
-                    def slice_reader(chunk_start=chunk_start, reader=reader, length=length):
-                        chunks = reader()
-                        chunks = {name: ar.slice(self.start - chunk_start) for name, ar in chunks.items()}
-                        for name, ar in chunks.items():
-                            assert len(ar) == length, f'Oops, array was expected to be of length {length} but was {len(ar)}'
-                        return chunks
-            else:
-                if self.end < chunk_end:
-                    # we only need to cut off a piece of the end
-                    length = self.end - chunk_start
-                    def slice_reader(chunk_start=chunk_start, reader=reader, length=length):
-                        chunks = reader()
-                        chunks = {name: ar.slice(0, length) for name, ar in chunks.items()}
-                        for name, ar in chunks.items():
-                            assert len(ar) == length, f'Oops, array was expected to be of length {length} but was {len(ar)}'
-                        return chunks
-                # else, the defaults apply
-            i2 = i1 + length
-            yield i1, i2, slice_reader
-            i1 = i2
+        yield from self.original.chunk_iterator(columns, chunk_size=chunk_size, reverse=reverse, start=self.start, end=self.end)
 
     def hashed(self):
         raise NotImplementedError
@@ -88,7 +63,8 @@ class DatasetArrow(vaex.dataset.Dataset):
         self._arrow_ds = ds
         row_count = 0
         for fragment in self._arrow_ds.get_fragments():
-            fragment.ensure_complete_metadata()
+            if hasattr(fragment, "ensure_complete_metadata"):
+                fragment.ensure_complete_metadata()
             for rg in fragment.row_groups:
                 row_count += rg.num_rows
         self._row_count = row_count
@@ -115,56 +91,134 @@ class DatasetArrow(vaex.dataset.Dataset):
         # no need to close it, it seem
         pass
 
-    def chunk_iterator(self, columns, chunk_size=None, reverse=False):
-        chunk_size = chunk_size or 1024*1024
-        i1 = 0
-        # Instead of looping over all fragments, they might be too big, so...
+    def _chunk_producer(self, columns, chunk_size=None, reverse=False, start=0, end=None):
+        pool = get_main_io_pool()
+        offset = 0
         for fragment_large in self._arrow_ds.get_fragments():
             fragment_large_rows = sum([rg.num_rows for rg in fragment_large.row_groups])
-            # then we split them up
-            if fragment_large_rows > chunk_size:
-                fragments = fragment_large.split_by_row_group()
-            else:
-                # or not
-                fragments = [fragment_large]
-            # now we collect fragments, until we hit the chunk_size
-            rows_planned = 0
-            fragments_planned = []
+            # when do we want to split up? File size? max chunk size?
+            # if fragment_large_rows > chunk_size:
+            #     fragments = fragment_large.split_by_row_group()
+            # else:
+            #     # or not
+            #     fragments = [fragment_large]
+            import pyarrow.parquet
+            fragments = [fragment_large]
             for fragment in fragments:
-                fragment_rows = sum([rg.num_rows for rg in fragment.row_groups])
-                # if adding the current fragment would make the chunk too large
-                # and we already have some fragments
-                if rows_planned + fragment_rows > chunk_size and rows_planned > 0:
-                    i2 = i1 + rows_planned
-                    yield i1, i2, self._make_reader(fragments_planned, chunk_size, columns, rows_planned)
-                    i1 = i2
-                    rows_planned = 0
-                    fragments_planned = []
-                fragments_planned.append(fragment)
-                rows_planned += fragment_rows
-            if rows_planned:
-                i2 = i1 + rows_planned
-                yield i1, i2, self._make_reader(fragments_planned, chunk_size, columns, rows_planned)
-                i1 = i2
-                rows_planned = 0
-                fragments_planned = []
+                rows = sum([rg.num_rows for rg in fragment.row_groups])
+                chunk_start = offset
+                chunk_end = offset + rows
 
-    def _make_reader(self, fragments, chunk_size, columns, rows_planned):
-        def reader():
-            record_batches = []
-            for fragment in fragments:
-                for scan_task in fragment.scan(batch_size=chunk_size, use_threads=False, columns=columns):
-                    for record_batch in scan_task.execute():
-                        record_batches.append((record_batch))
-            dict_or_list_of_arrays = collections.defaultdict(list)
-            for rb in record_batches:
-                for name, array in zip(rb.schema.names, rb.columns):
-                    dict_or_list_of_arrays[name].append(array)
-            chunks = {name: pa.chunked_array(arrays) for name, arrays in dict_or_list_of_arrays.items()}
-            for name, chunk in chunks.items():
-                assert len(chunk) == rows_planned, f'Oops, got a chunk ({name}) of length {len(chunk)} while it is expected to be of length {rows_planned}'
-            return chunks
-        return reader
+                length = chunk_end - chunk_start  # default length
+
+                if start >= chunk_end:  # we didn't find the beginning yet
+                    offset += length
+                    continue
+                if end < chunk_start:  # we are past the end
+                    # assert False
+                    break
+                def reader(fragment=fragment):
+                    table = fragment.to_table(columns=columns, use_threads=False)
+                    chunks = dict(zip(table.column_names, table.columns))
+                    return chunks
+
+                if start > chunk_start:
+                    # this means we have to cut off a piece of the beginning
+                    if end < chunk_end:
+                        # AND the end
+                        length = end - chunk_start  # without the start cut off
+                        length -= start - chunk_start  # correcting for the start cut off
+                        def slicer(chunk_start=chunk_start, reader=reader, length=length):
+                            chunks = reader()
+                            chunks = {name: ar.slice(start - chunk_start, length) for name, ar in chunks.items()}
+                            for name, ar in chunks.items():
+                                assert len(ar) == length, f'Oops, array was expected to be of length {length} but was {len(ar)}'
+                            return chunks
+                        reader = slicer
+                    else:
+                        length -= start - chunk_start  # correcting for the start cut off
+                        def slicer(chunk_start=chunk_start, reader=reader, length=length):
+                            chunks = reader()
+                            chunks = {name: ar.slice(start - chunk_start) for name, ar in chunks.items()}
+                            for name, ar in chunks.items():
+                                assert len(ar) == length, f'Oops, array was expected to be of length {length} but was {len(ar)}'
+                            return chunks
+                        reader = slicer
+                else:
+                    if end < chunk_end:
+                        # we only need to cut off a piece of the end
+                        length = end - chunk_start
+                        def slicer(chunk_start=chunk_start, reader=reader, length=length):
+                            chunks = reader()
+                            chunks = {name: ar.slice(0, length) for name, ar in chunks.items()}
+                            for name, ar in chunks.items():
+                                assert len(ar) == length, f'Oops, array was expected to be of length {length} but was {len(ar)}'
+                            return chunks
+                        reader = slicer
+                offset += length
+                yield pool.submit(reader)
+
+    def chunk_iterator(self, columns, chunk_size=None, reverse=False, start=0, end=None):
+        chunk_size = chunk_size or 1024*1024
+        i1 = 0
+        lenghts = set()
+        cuts = 0
+        chunks_ready_list = []
+        i1 = i2 = 0
+        def get(chunks_ready_list):
+            nonlocal cuts
+            current_row_count = 0
+            chunks_current_list = []
+            while current_row_count < chunk_size and chunks_ready_list:
+                chunks_current = chunks_ready_list.pop(0)
+                chunk = list(chunks_current.values())[0]
+                # chunks too large, split, and put back a part
+                if current_row_count + len(chunk) > chunk_size:
+                    strict = True
+                    if strict:
+                        needed_length = chunk_size - current_row_count
+                        current_row_count += needed_length
+                        assert current_row_count == chunk_size
+                        if needed_length not in lenghts:
+                            lenghts.add(needed_length)
+                        cuts += 1
+
+                        chunks_head = {name: chunk.slice(0, needed_length) for name, chunk in chunks_current.items()}
+                        chunks_current_list.append(chunks_head)
+                        chunks_extra = {name: chunk.slice(needed_length) for name, chunk in chunks_current.items()}
+                        chunks_ready_list.insert(0, chunks_extra)  # put back the extra in front
+                    else:
+                        current_row_count += len(chunk)
+                        chunks_current_list.append(chunks_current)
+                else:
+                    current_row_count += len(chunk)
+                    chunks_current_list.append(chunks_current)
+            return chunks_current_list, current_row_count
+
+        for chunks_future in buffer(self._chunk_producer(columns, chunk_size, start=start, end=end or self._row_count), thread_count_default_io+3):
+            chunks = chunks_future.result()
+            chunks_ready_list.append(chunks)
+            total_row_count = sum([len(list(k.values())[0]) for k in chunks_ready_list])
+            if total_row_count > chunk_size:
+                chunks_current_list, current_row_count = get(chunks_ready_list)
+                i2 += current_row_count
+                yield i1, i2, _concat(chunks_current_list)
+                i1 = i2
+
+        while chunks_ready_list:
+            chunks_current_list, current_row_count = get(chunks_ready_list)
+            i2 += current_row_count
+            yield i1, i2, _concat(chunks_current_list)
+            i1 = i2
+
+
+def _concat(list_of_chunks):
+    dict_of_list_of_arrays = collections.defaultdict(list)
+    for chunks in list_of_chunks:
+        for name, array in chunks.items():
+            dict_of_list_of_arrays[name].extend(array.chunks)
+    chunks = {name: pa.chunked_array(arrays) for name, arrays in dict_of_list_of_arrays.items()}
+    return chunks
 
 
 def from_table(table, as_numpy=False):

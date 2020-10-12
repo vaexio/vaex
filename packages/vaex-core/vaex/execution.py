@@ -202,13 +202,12 @@ class ExecutorLocal(Executor):
         finally:
             self.local.executing = False
 
-    def process_part(self, thread_index, i1, i2, chunk_reader, run):
+    def process_part(self, thread_index, i1, i2, chunks, run):
         if not run.cancelled:
             if thread_index >= len(run.block_scopes):
                 raise ValueError(f'thread_index={thread_index} while only having {len(run.block_scopes)} blocks')
             block_scope = run.block_scopes[thread_index]
             block_scope.move(i1, i2)
-            chunks = chunk_reader()
             df = run.df
             N = i2 - i1
             for name, chunk in chunks.items():
