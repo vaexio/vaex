@@ -4937,7 +4937,7 @@ class DataFrameLocal(DataFrame):
             self._index_start = 0
             self._index_end = self._length_original
         self._dataset = dataset
-        self._invalidate_selection_cache()
+        self._invalidate_caches()
 
     def hashed(self) -> DataFrame:
         '''Return a DataFrame with a hashed dataset'''
@@ -5386,7 +5386,7 @@ class DataFrameLocal(DataFrame):
     def _invalidate_selection_cache(self):
         self._selection_mask_caches.clear()
         for key in self._selection_masks.keys():
-            self._selection_masks[key] = vaex.superutils.Mask(self._length_unfiltered)
+            self._selection_masks[key] = vaex.superutils.Mask(self._length_original)
 
     def _filtered_range_to_unfiltered_indices(self, i1, i2):
         assert self.filtered
@@ -5563,11 +5563,12 @@ class DataFrameLocal(DataFrame):
                 if _DEBUG:
                     if i1 == 0 and i2 == count_check:
                         # we cannot check it if we just evaluate a portion
-                        assert not mask.is_dirty()
+                        assert not mask.view(self._index_start, self._index_end).is_dirty()
                         # assert mask.count() == count_check
-                i1, i2 = mask.indices(i1, i2-1) # -1 since it is inclusive
-                assert i1 != -1
-                assert i2 != -1
+                ni1, ni2 = mask.indices(i1, i2-1) # -1 since it is inclusive
+                assert ni1 != -1
+                assert ni2 != -1
+                i1, i2 = ni1, ni2
                 i2 = i2+1  # +1 to make it inclusive
             values = []
             for expression in expressions:
