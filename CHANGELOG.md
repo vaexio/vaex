@@ -3,6 +3,7 @@
       * Arrow is now a core dependency, vaex-arrow is deprecated. All methods that return string, will return Arrow arrays [#517](https://github.com/vaexio/vaex/pull/517)
       * Opening an .arrow file will expose the arrays as Apache Arrow arrays, not numpy arrays. [#984](https://github.com/vaexio/vaex/pull/984)
       * Columns (e.g. df.column['x']) may now return a ColumnProxy, instead of the original data, slice it [:] to get the underlying data (or call .to_numpy()/to_arrow() or try converting it with np.array(..) or pa.array(..)). [#993](https://github.com/vaexio/vaex/pull/993)
+      * All plot methods went into the df.viz accesssor [#923](https://github.com/vaexio/vaex/pull/923)
 
 ## vaex-arrow (DEPRECATED)
    This is now part of vaex-core.
