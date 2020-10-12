@@ -716,8 +716,8 @@ class Expression(with_metaclass(Meta)):
         """Returns the number of missing values in the expression."""
         return self.ismissing().astype('int').sum().item()  # so the output is int, not array
 
-    def evaluate(self, i1=None, i2=None, out=None, selection=None, parallel=True):
-        return self.ds.evaluate(self, i1, i2, out=out, selection=selection, parallel=parallel)
+    def evaluate(self, i1=None, i2=None, out=None, selection=None, parallel=True, array_type=None):
+        return self.ds.evaluate(self, i1, i2, out=out, selection=selection, array_type=array_type, parallel=parallel)
 
     # TODO: it is not so elegant we need to have a custom version of this
     # it now also misses the docstring, reconsider how the the meta class auto
