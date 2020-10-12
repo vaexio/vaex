@@ -3955,6 +3955,10 @@ class DataFrame(object):
         else:
             return trimmed
 
+    def shuffle(self):
+        '''Shuffle order of rows (equivalent to df.sample(frac=1))'''
+        return self.sample(frac=1)
+
     @docsubst
     def sample(self, n=None, frac=None, replace=False, weights=None, random_state=None):
         '''Returns a DataFrame with a random set of rows
