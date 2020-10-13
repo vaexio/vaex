@@ -138,8 +138,11 @@ def test_fillna_string_dtype():
 
     # Originally - the column "name" is string
     assert df['name'].is_string()
+    assert df['name'].dtype == 'str'
 
     df['name'] = df['name'].fillna('missing')
 
     # Confirm that the column "name" is still of type string after fillna
     assert df['name'].is_string()
+    # However the df['name'].dtype is 'O'
+    assert df['name'].dtype == 'str'
