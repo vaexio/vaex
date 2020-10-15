@@ -13,7 +13,7 @@ import pyarrow as pa
 
 import vaex
 from vaex.array_types import data_type
-from .column import Column, ColumnIndexed, ColumnConcatenatedLazy, supported_column_types
+from .column import Column, ColumnIndexed, supported_column_types
 from . import array_types
 
 logger = logging.getLogger('vaex.dataset')
@@ -122,7 +122,10 @@ def hash_array(ar, hash_info=None, return_info=False):
 def to_supported_array(ar):
     if not isinstance(ar, supported_column_types):
         ar = np.asanyarray(ar)
-    if isinstance(ar, np.ndarray) and ar.dtype.kind == 'O':
+
+    if isinstance(ar, np.ndarray) and ar.dtype.kind == 'U':
+        ar = vaex.column.ColumnArrowLazyCast(ar, pa.string())
+    elif isinstance(ar, np.ndarray) and ar.dtype.kind == 'O':
         ar_data = ar
         if np.ma.isMaskedArray(ar):
             ar_data = ar.data
@@ -154,11 +157,56 @@ def to_supported_array(ar):
     return ar
 
 
+def _concat_chunk_list(list_of_chunks):
+    dict_of_list_of_arrays = collections.defaultdict(list)
+    for chunks in list_of_chunks:
+        for name, array in chunks.items():
+            if isinstance(array, pa.ChunkedArray):
+                dict_of_list_of_arrays[name].extend(array.chunks)
+            else:
+                dict_of_list_of_arrays[name].append(array)
+    chunks = {name: vaex.array_types.concat(arrays) for name, arrays in dict_of_list_of_arrays.items()}
+    return chunks
+
+
+def _slice_of_chunks(chunks_ready_list, chunk_size):
+    current_row_count = 0
+    chunks_current_list = []
+    while current_row_count < chunk_size and chunks_ready_list:
+        chunks_current = chunks_ready_list.pop(0)
+        chunk = list(chunks_current.values())[0]
+        # chunks too large, split, and put back a part
+        if current_row_count + len(chunk) > chunk_size:
+            strict = True
+            if strict:
+                needed_length = chunk_size - current_row_count
+                current_row_count += needed_length
+                assert current_row_count == chunk_size
+
+
+                chunks_head = {name: vaex.array_types.slice(chunk, 0, needed_length) for name, chunk in chunks_current.items()}
+                chunks_current_list.append(chunks_head)
+                chunks_extra = {name: vaex.array_types.slice(chunk, needed_length) for name, chunk in chunks_current.items()}
+                chunks_ready_list.insert(0, chunks_extra)  # put back the extra in front
+            else:
+                current_row_count += len(chunk)
+                chunks_current_list.append(chunks_current)
+        else:
+            current_row_count += len(chunk)
+            chunks_current_list.append(chunks_current)
+    return chunks_current_list, current_row_count
+
 class Dataset(collections.abc.Mapping):
     def __init__(self):
         super().__init__()
         self._columns = frozendict()
         self._row_count = None
+
+    def schema(self, array_type=None):
+        return {name: vaex.array_types.data_type(col) for name, col in self.items()}
+
+    def shapes(self):
+        return {name: self.shape(name) for name, col in self.items()}
 
     def _set_row_count(self):
         if not self._columns:
@@ -176,10 +224,9 @@ class Dataset(collections.abc.Mapping):
     def project(self, *names):
         all = set(self)
         drop = all - set(names)
-        print(drop)
         return self.dropped(*list(drop))
 
-    def concat(self, *others):
+    def concat(self, *others, resolver='flexible'):
         datasets = []
         if isinstance(self, DatasetConcatenated):
             datasets.extend(self.datasets)
@@ -190,7 +237,7 @@ class Dataset(collections.abc.Mapping):
                 datasets.extend(other.datasets)
             else:
                 datasets.extend([other])
-        return DatasetConcatenated(datasets)
+        return DatasetConcatenated(datasets, resolver=resolver)
 
     def take(self, indices, masked=False):
         return DatasetTake(self, indices, masked=masked)
@@ -262,6 +309,14 @@ class Dataset(collections.abc.Mapping):
         pass
 
     @abstractmethod
+    def is_masked(self, column):
+        pass
+
+    @abstractmethod
+    def shape(self, column):
+        pass
+
+    @abstractmethod
     def close(self):
         '''Close file handles or other resources, the DataFrame will not be in a usable state afterwards.'''
         pass
@@ -302,12 +357,10 @@ class ColumnProxy(vaex.column.Column):
                     array_chunks.append(ar)
             if len(array_chunks) == 1:
                 return array_chunks[0]
-            if any([isinstance(k, vaex.array_types.supported_arrow_array_types) for k in array_chunks]):
-                return pa.chunked_array([k for k in array_chunks])
-            else:
-                return np.concatenate(array_chunks)
+            return vaex.array_types.concat(array_chunks)
         else:
             raise NotImplementedError
+
 
 class DatasetRenamed(Dataset):
     def __init__(self, original, renaming):
@@ -324,6 +377,12 @@ class DatasetRenamed(Dataset):
         for i1, i2, chunks in self.original.chunk_iterator(columns, chunk_size, reverse=reverse):
             yield i1, i2, {self.renaming.get(name, name): ar for name, ar in chunks.items()}
 
+    def is_masked(self, column):
+        return self.original.is_masked(self.reverse.get(column, column))
+
+    def shape(self, column):
+        return self.original.shape(self.reverse.get(column, column))
+
     def close(self):
         self.original.close()
 
@@ -339,31 +398,152 @@ class DatasetRenamed(Dataset):
 
 
 class DatasetConcatenated(Dataset):
-    def __init__(self, datasets):
+    def __init__(self, datasets, resolver):
         self.datasets = datasets
-        for dataset in datasets[1:]:
-            if set(dataset) != set(datasets[0]):
-                l = set(dataset)
-                r = set(datasets[0])
-                diff = l ^ r
-                raise NameError(f'Concatenating datasets with different names: {l} and {r} (difference: {diff})')
-        # we need to work with a dataframe :( because the column expects that
-        # maybe we should split the column into a lazy evaluate (virtual column -> column)
-        # and a concatenated one (that only works with columns)
-        dfs = [vaex.dataframe.DataFrameLocal(ds) for ds in datasets]
+        self.resolver = resolver
+        if self.resolver == 'strict':
+            for dataset in datasets[1:]:
+                if set(dataset) != set(datasets[0]):
+                    l = set(dataset)
+                    r = set(datasets[0])
+                    diff = l ^ r
+                    raise NameError(f'Concatenating datasets with different names: {l} and {r} (difference: {diff})')
+            self._schema = datasets[0].schema()
+        elif self.resolver == 'flexible':
+            schemas = [ds.schema() for ds in datasets]
+            shapes = [ds.shapes() for ds in datasets]
+            # try to keep the order of the original dataset
+            schema_list_map = {}
+            for schema in schemas:
+                for name, type in schema.items():
+                    if name not in schema_list_map:
+                        schema_list_map[name] = []
+            for name, type_list in schema_list_map.items():
+                for schema in schemas:
+                    # None means it is means the column is missing
+                    type_list.append(schema.get(name))
+            from .schema import resolver_flexible
+
+            # shapes
+            shape_list_map = {}
+            for shape in shapes:
+                for name, type in shape.items():
+                    if name not in shape_list_map:
+                        shape_list_map[name] = []
+            for name, shape_list in shape_list_map.items():
+                for shapes_ in shapes:
+                    # None means it is means the column is missing
+                    shape_list.append(shapes_.get(name))
+            self._schema = {}
+            self._shapes = {}
+
+            for name in shape_list_map:
+                self._schema[name], self._shapes[name] = resolver_flexible.resolve(schema_list_map[name], shape_list_map[name])
+        else:
+            raise ValueError(f'Invalid resolver {resolver}, choose between "strict" or "flexible"')
+
         columns = {}
         hashes = {}
-        for name in datasets[0]:
-            columns[name] = ColumnConcatenatedLazy([df[name] for df in dfs])
+        for name in self._schema:
+            columns[name] = ColumnProxy(self, name, self._schema[name])
             if all(name in ds._ids for ds in datasets):
                 hashes[name] = hash_combine(*[ds._ids[name] for ds in datasets])
         self._columns = frozendict(columns)
         self._ids = frozendict(hashes)
         self._set_row_count()
 
-    def chunk_iterator(self, columns, chunk_size=None, reverse=False):
-        # TODO: we should move what ColumnConcatenatedLazy does to this method
-        yield from self._default_chunk_iterator(self._columns, columns, chunk_size, reverse=reverse)
+    def is_masked(self, column):
+        return any(k.is_masked(column) for k in self.datasets)
+
+    def shape(self, column):
+        return self._shapes[column]
+
+    def _set_row_count(self):
+        self._row_count = sum(ds.row_count for ds in self.datasets)
+
+    def schema(self, array_type=None):
+        return {name: col.data_type() for name, col in self.items()}
+
+    def _chunk_iterator_non_strict(self, columns, chunk_size=None, reverse=False, start=0, end=None):
+        end = self.row_count if end is None else end
+        offset = 0
+        for dataset in self.datasets:
+            present = [k for k in columns if k in dataset]
+            # skip over whole datasets
+            if start >= offset + dataset.row_count:
+                offset += dataset.row_count
+                continue
+            # we are past the end
+            if end < offset:
+                break
+            for i1, i2, chunks in dataset.chunk_iterator(present, chunk_size=chunk_size, reverse=reverse):
+                # chunks = {name: vaex.array_types.to_arrow(ar) for name, ar in chunks.items()}
+                length = i2 - i1
+                chunk_start = offset
+                chunk_end = offset + length
+                if start >= chunk_end:  # we didn't find the beginning yet
+                    offset += length
+                    continue
+                if end < chunk_start:  # we are past the end
+                    # assert False
+                    break
+
+                if start > chunk_start:
+                    # this means we have to cut off a piece of the beginning
+                    if end < chunk_end:
+                        # AND the end
+                        length = end - chunk_start  # without the start cut off
+                        length -= start - chunk_start  # correcting for the start cut off
+                        chunks = {name: vaex.array_types.slice(ar, start - chunk_start, length) for name, ar in chunks.items()}
+                        for name, ar in chunks.items():
+                            assert len(ar) == length, f'Oops, array was expected to be of length {length} but was {len(ar)}'
+                    else:
+                        length -= start - chunk_start  # correcting for the start cut off
+                        chunks = {name: vaex.array_types.slice(ar, start - chunk_start) for name, ar in chunks.items()}
+                        for name, ar in chunks.items():
+                            assert len(ar) == length, f'Oops, array was expected to be of length {length} but was {len(ar)}'
+                else:
+                    if end < chunk_end:
+                        # we only need to cut off a piece of the end
+                        length = end - chunk_start
+                        chunks = {name: vaex.array_types.slice(ar, 0, length) for name, ar in chunks.items()}
+                        for name, ar in chunks.items():
+                            assert len(ar) == length, f'Oops, array was expected to be of length {length} but was {len(ar)}'
+
+                from .schema import resolver_flexible
+                allchunks = {name: resolver_flexible.align(length, chunks.get(name), self._schema[name], self._shapes[name]) for name in columns}
+                yield {k: allchunks[k] for k in columns}
+                offset += (i2 - i1)
+
+    def chunk_iterator(self, columns, chunk_size=None, reverse=False, start=0, end=None):
+        chunk_size = chunk_size or 1024*1024
+        i1 = 0
+        chunks_ready_list = []
+        i1 = i2 = 0
+        if not columns:
+            end = self.row_count if end is None else end
+            length = end - start
+            i2 = min(length, i1 + chunk_size)
+            while i1 < end:
+                yield i1, i2, {}
+                i1 = i2
+                i2 = min(length, i1 + chunk_size)
+            return
+
+        for chunks in self._chunk_iterator_non_strict(columns, chunk_size, reverse=reverse, start=start, end=self.row_count if end is None else end):
+            chunks_ready_list.append(chunks)
+            total_row_count = sum([len(list(k.values())[0]) for k in chunks_ready_list])
+            if total_row_count > chunk_size:
+                chunks_current_list, current_row_count = vaex.dataset._slice_of_chunks(chunks_ready_list, chunk_size)
+                i2 += current_row_count
+                yield i1, i2, vaex.dataset._concat_chunk_list(chunks_current_list)
+                i1 = i2
+
+        while chunks_ready_list:
+            chunks_current_list, current_row_count = vaex.dataset._slice_of_chunks(chunks_ready_list, chunk_size)
+            i2 += current_row_count
+            yield i1, i2, vaex.dataset._concat_chunk_list(chunks_current_list)
+            i1 = i2
 
     def close(self):
         for ds in self.datasets:
@@ -404,6 +584,12 @@ class DatasetTake(Dataset):
         self._ids = frozendict(hashes)
         self._set_row_count()
 
+    def is_masked(self, column):
+        return self.original.is_masked(column)
+
+    def shape(self, column):
+        return self.original.shape(column)
+
     def chunk_iterator(self, columns, chunk_size=None, reverse=False):
         # TODO: we may be able to do this slightly more efficient by first
         # materializing the columns
@@ -412,7 +598,7 @@ class DatasetTake(Dataset):
     def slice(self, start, end):
         if start == 0 and end == self.row_count:
             return self
-        return DatasetSliced(self, start=start, end=end)
+        return DatasetSlicedArrays(self, start=start, end=end)
 
     def hashed(self):
         if set(self._ids) == set(self):
@@ -424,6 +610,40 @@ class DatasetTake(Dataset):
 
 
 class DatasetSliced(Dataset):
+    def __init__(self, original, start, end):
+        super().__init__()
+        self.original = original
+        self.start = start
+        self.end = end
+        self._row_count = end - start
+        self._columns = {name: vaex.dataset.ColumnProxy(self, name, col.dtype) for name, col in self.original._columns.items()}
+        self._ids = {}
+
+    def chunk_iterator(self, columns, chunk_size=None, reverse=False):
+        yield from self.original.chunk_iterator(columns, chunk_size=chunk_size, reverse=reverse, start=self.start, end=self.end)
+
+    def is_masked(self, column):
+        return self.original.is_masked(column)
+
+    def shape(self, column):
+        return self.origina.shape(column)
+
+    def hashed(self):
+        raise NotImplementedError
+
+    def close(self):
+        self.original.close()
+
+    def slice(self, start, end):
+        length = end - start
+        start += self.start
+        end = start + length
+        if end > self.original.row_count:
+            raise IndexError(f'Slice end ({end}) if larger than number of rows: {self.original.row_count}')
+        return type(self)(self.original, start, end)
+
+
+class DatasetSlicedArrays(Dataset):
     def __init__(self, original, start, end):
         super().__init__()
         # maybe we want to avoid slicing twice, and collapse it to 1?
@@ -449,6 +669,12 @@ class DatasetSliced(Dataset):
 
     def chunk_iterator(self, columns, chunk_size=None, reverse=False):
         yield from self._default_chunk_iterator(self._columns, columns, chunk_size, reverse=reverse)
+
+    def is_masked(self, column):
+        return self.original.is_masked(column)
+
+    def shape(self, column):
+        return self.original.shape(column)
 
     def hashed(self):
         if set(self._ids) == set(self):
@@ -483,6 +709,12 @@ class DatasetDropped(Dataset):
             if column in self._dropped_names:
                 raise KeyError(f'Oops, you tried to get column {column} while it is actually dropped')
         yield from self.original.chunk_iterator(columns, chunk_size=chunk_size, reverse=reverse)
+
+    def is_masked(self, column):
+        return self.original.is_masked(column)
+
+    def shape(self, column):
+        return self.origina.shape(column)
 
     def hashed(self):
         if set(self._ids) == set(self):
@@ -533,6 +765,18 @@ class DatasetMerged(Dataset):
                 assert i2 == j2
                 yield i1, i2, {**ichunks, **jchunks}
 
+    def is_masked(self, column):
+        if column in self.left:
+            return self.left.is_masked(column)
+        else:
+            return self.right.is_masked(column)
+
+    def shape(self, column):
+        if column in self.left:
+            return self.left.shape(column)
+        else:
+            return self.right.shape(column)
+
     def hashed(self):
         if set(self._ids) == set(self):
             return self
@@ -563,6 +807,24 @@ class DatasetArrays(Dataset):
     def chunk_iterator(self, columns, chunk_size=None, reverse=False):
         yield from self._default_chunk_iterator(self._columns, columns, chunk_size, reverse=reverse)
 
+    def is_masked(self, column):
+        ar = self._columns[column]
+        if not isinstance(ar, np.ndarray):
+            ar = ar[0:1]  # take a small piece
+        if isinstance(ar, np.ndarray):
+            return np.ma.isMaskedArray(ar)
+        else:
+            return False  # an arrow array always has null value options
+
+    def shape(self, column):
+        ar = self._columns[column]
+        if not isinstance(ar, np.ndarray):
+            ar = ar[0:1]  # take a small piece
+        if isinstance(ar, vaex.array_types.supported_arrow_array_types):
+            return tuple()
+        else:
+            return ar.shape[1:]
+
     def merged(self, rhs):
         # TODO: if we don't allow emtpy datasets, we can remove this method
         if len(self) == 0:
@@ -576,7 +838,7 @@ class DatasetArrays(Dataset):
     def slice(self, start, end):
         if start == 0 and end == self.row_count:
             return self
-        return DatasetSliced(self, start=start, end=end)
+        return DatasetSlicedArrays(self, start=start, end=end)
 
     def hashed(self):
         if set(self._ids) == set(self):
@@ -609,10 +871,28 @@ class DatasetFile(Dataset):
     def chunk_iterator(self, columns, chunk_size=None, reverse=False):
         yield from self._default_chunk_iterator(self._columns, columns, chunk_size, reverse=reverse)
 
+    def is_masked(self, column):
+        ar = self._columns[column]
+        if not isinstance(ar, np.ndarray):
+            ar = ar[0:1]  # take a small piece
+        if isinstance(ar, np.ndarray):
+            return np.ma.isMaskedArray(ar)
+        else:
+            return False  # an arrow array always has null value options
+
+    def shape(self, column):
+        ar = self._columns[column]
+        if not isinstance(ar, np.ndarray):
+            ar = ar[0:1]  # take a small piece
+        if isinstance(ar, vaex.array_types.supported_arrow_array_types):
+            return tuple()
+        else:
+            return ar.shape[1:]
+
     def slice(self, start, end):
         if start == 0 and end == self.row_count:
             return self
-        return DatasetSliced(self, start=start, end=end)
+        return DatasetSlicedArrays(self, start=start, end=end)
 
     def _read_hashes(self):
         path_hashes = Path(self.path + '.d') / 'hashes.yaml'

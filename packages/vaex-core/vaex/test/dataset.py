@@ -1156,20 +1156,6 @@ class TestDataset(unittest.TestCase):
 				#print a, b
 				np.testing.assert_array_almost_equal(a, b)
 
-		def concat(*types):
-			arrays = [np.arange(3, dtype=dtype) for dtype in types]
-			N = len(arrays)
-			dfs = [vx.dataframe.DataFrameLocal()  for i in range(N)]
-			for dataset, array in zip(dfs, arrays):
-				dataset.add_column("x", array)
-			dataset_concat = vaex.concat(dfs)
-			return dataset_concat
-
-		self.assertEqual(concat(np.float32, np.float64).columns["x"].dtype, np.float64)
-		self.assertEqual(concat(np.float32, np.int64).columns["x"].dtype, np.float64)
-		self.assertEqual(concat(np.float32, np.byte).columns["x"].dtype, np.float32)
-		self.assertEqual(concat(np.float64, np.byte, np.int64).columns["x"].dtype, np.float64)
-
 		ar1 = np.zeros((10, 2))
 		ar2 = np.zeros((20))
 		arrays = [ar1, ar2]
@@ -1237,7 +1223,7 @@ class TestDataset(unittest.TestCase):
 		#with self.assertRaises(AssertionError):
 		#	self.dataset.export_hdf5(path, selection=True)
 
-		for dataset in [self.dataset_concat_dup, self.dataset]:
+		for dataset in [self.dataset, self.dataset_concat_dup]:
 			#print dataset.virtual_columns
 			for fraction in [1, 0.5]:
 				dataset.set_active_fraction(fraction)

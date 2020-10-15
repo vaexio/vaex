@@ -348,3 +348,37 @@ def create_base_ds():
     df.add_virtual_column("z", "x+t*y")
     df.set_variable("t", 1.)
     return df._readonly()
+
+
+@pytest.fixture(params=['df_factory_numpy', 'df_factory_arrow'])#, 'df_factory_parquet'])
+def df_factory(request, df_factory_numpy, df_factory_arrow):#, df_factory_parquet):
+    named = dict(df_factory_numpy=df_factory_numpy, df_factory_arrow=df_factory_arrow)#, df_factory_parquet=df_factory_parquet)
+    return named[request.param]
+
+
+@pytest.fixture
+def df_factory_numpy():
+    return vaex.from_arrays
+
+
+
+@pytest.fixture
+def df_factory_arrow():
+    def create(**arrays):
+        def try_convert(ar):
+            try:
+                return pa.array(ar)
+            except:
+                return ar
+        return vaex.from_dict({k: try_convert(v) for k, v in arrays.items()})
+    return create
+
+
+@pytest.fixture
+def df_factory_parquet(tmpdir):
+    def create(**arrays):
+        df = vaex.from_dict({k: pa.array(v) for k, v in arrays.items()})
+        path = str(tmpdir / 'test.parquet')
+        df.export(path)
+        return vaex.open(path)
+    return create

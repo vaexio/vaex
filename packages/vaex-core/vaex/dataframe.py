@@ -647,7 +647,6 @@ class DataFrame(object):
     def nearest_bin(self, value, limits, shape):
         bins = self.bins('', limits=limits, edges=False, shape=shape)
         index = np.argmin(np.abs(bins - value))
-        print(bins, value, index)
         return index
 
     def _compute_agg(self, name, expression, binby=[], limits=None, shape=default_shape, selection=False, delay=False, edges=False, progress=None, extra_expressions=None, array_type=None):
@@ -2084,14 +2083,8 @@ class DataFrame(object):
     def is_masked(self, column):
         '''Return if a column is a masked (numpy.ma) column.'''
         column = _ensure_string_from_expression(column)
-        if column in self.columns:
-            column = self.columns[column]
-            if isinstance(column, np.ndarray):
-                return np.ma.isMaskedArray(column)
-            else:
-                # in case the column is not a numpy array, we take a small slice
-                # which should return a numpy array
-                return np.ma.isMaskedArray(column[0:1])
+        if column in self.dataset:
+            return self.dataset.is_masked(column)
         else:
             ar = self.evaluate(column, i1=0, i2=1, parallel=False)
             if isinstance(ar, np.ndarray) and np.ma.isMaskedArray(ar):
@@ -4202,12 +4195,12 @@ class DataFrame(object):
     def _lazy_materialize(self, *virtual_columns):
         '''Returns a new DataFrame where the virtual column is turned into an lazily evaluated column.'''
         df = self.trim()
-        virtual_columns = _ensure_strings_from_expression(virtual_columns)
+        virtual_columns = _ensure_strings_from_expressions(virtual_columns)
         for name in virtual_columns:
             if name not in df.virtual_columns:
-                raise KeyError('Virtual column not found: %r' % virtual_column)
-            column = ColumnConcatenatedLazy(self[name])
-            del df[virtual_column]
+                raise KeyError('Virtual column not found: %r' % name)
+            column = ColumnConcatenatedLazy([self[name]])
+            del df[name]
             df.add_column(name, column)
         return df
 
@@ -4590,7 +4583,7 @@ class DataFrame(object):
         """
         if isinstance(item, int):
             names = self.get_column_names()
-            return [self.evaluate(name, item, item+1)[0] for name in names]
+            return [self.evaluate(name, item, item+1, array_type='python')[0] for name in names]
         elif isinstance(item, six.string_types):
             if hasattr(self, item) and isinstance(getattr(self, item), Expression):
                 return getattr(self, item)
@@ -4724,7 +4717,7 @@ class DataFrame(object):
     def iterrows(self):
         columns = self.get_column_names()
         for i in range(len(self)):
-            yield i, {key: self.evaluate(key, i, i+1)[0] for key in columns}
+            yield i, {key: self.evaluate(key, i, i+1, array_type='python')[0] for key in columns}
             #return self[i]
 
     def __iter__(self):
@@ -5323,41 +5316,59 @@ class DataFrameLocal(DataFrame):
                 new_name = name
             self.add_column(new_name, other.columns[name])
 
-    def concat(self, *others):
+    def concat(self, *others, resolver='flexible') -> DataFrame:
         """Concatenates multiple DataFrames, adding the rows of the other DataFrame to the current, returned in a new DataFrame.
 
-        No copy of the data is made.
+        In the case of resolver='flexible', when not all columns has the same names, the missing data is filled with missing values.
+
+        In the case of resolver='strict' all datasets need to have matching column names.
 
         :param others: The other DataFrames that are concatenated with this DataFrame
+        :param str resolver: How to resolve schema conflicts, 'flexible' or 'strict'.
         :return: New DataFrame with the rows concatenated
-        :rtype: DataFrameLocal
         """
         # to reduce complexity, we 'extract' the dataframes (i.e. remove filter)
         dfs = [self, *others]
         dfs = [df.extract() for df in dfs]
-        first, *tail = dfs
         common = []
-        df_column_names = [df.get_column_names(virtual=False, hidden=True) for df in dfs]  # for performance
-        df_all_column_names = [df.get_column_names(virtual=True, hidden=True) for df in dfs]  # for performance
-        for name in df_column_names[0]:
-            for df, column_names in zip(tail, df_column_names[1:]):
-                if name not in column_names:
-                    if name in df_all_column_names:  # it's a virtual column, while in first a real column
+        dfs_real_column_names = [df.get_column_names(virtual=False, hidden=True) for df in dfs]  # for performance
+        dfs_all_column_names = [df.get_column_names(virtual=True, hidden=True) for df in dfs]  # for performance
+        # because set does not preserve order, we use a list
+        all_column_names = []
+        for column_names in dfs_all_column_names:
+            for name in column_names:
+                if name not in all_column_names:
+                    all_column_names.append(name)
+        real_column_names = []
+        for column_names in dfs_real_column_names:
+            for name in column_names:
+                if name not in real_column_names:
+                    real_column_names.append(name)
+        for name in all_column_names:
+            if name in real_column_names:
+                # first we look for virtual colums, that are real columns in other dataframes
+                for df, df_real_column_names, df_all_column_names in zip(dfs, dfs_real_column_names, dfs_all_column_names):
+                    if name in df_all_column_names and name not in df_real_column_names:
                         # upgrade to a column, so Dataset's concat works
                         dfs[dfs.index(df)] = df._lazy_materialize(name)
-                    else:
-                        pass  # TODO: add columns with empty/null values
+            else:
+                # check virtual column
+                expressions = [df.virtual_columns.get(name, None) for df in dfs]
+                test_expression = [k for k in expressions if k][0]
+                if any([test_expression != k for k in expressions]):
+                    # we have a mismatching virtual column, materialize it
+                    for df in dfs:
+                        # upgrade to a column, so Dataset's concat can concat
+                        dfs[dfs.index(df)] = df._lazy_materialize(name)
+
+        first, *tail = dfs
         # concatenate all datasets
-        dataset = first.dataset.concat(*[df.dataset for df in tail])
+        dataset = first.dataset.concat(*[df.dataset for df in tail], resolver=resolver)
         df_concat = vaex.dataframe.DataFrameLocal(dataset)
 
         for name in list(first.virtual_columns.keys()):
-            if all([first.virtual_columns[name] == df.virtual_columns.get(name, None) for df in tail]):
-                df_concat.add_virtual_column(name, first.virtual_columns[name])
-            else:
-                df_concat.columns[name] = ColumnConcatenatedLazy([df[name] for df in dfs])
-                df_concat.column_names.append(name)
-            df_concat._save_assign_expression(name)
+            assert all([first.virtual_columns[name] == df.virtual_columns.get(name, None) for df in tail]), 'Virtual column expression mismatch for column {name}'
+            df_concat.add_virtual_column(name, first.virtual_columns[name])
 
         for df in dfs:
             for name, value in list(df.variables.items()):
@@ -5538,9 +5549,7 @@ class DataFrameLocal(DataFrame):
                     return values
                 else:
                     return array_types.convert(arrays[expression], array_type)
-            # print("dsadsa", chunks_map, arrays)
             result = [finalize_result(k) for k in expressions]
-            # print("Result", result)
             if not was_list:
                 result = result[0]
             return result

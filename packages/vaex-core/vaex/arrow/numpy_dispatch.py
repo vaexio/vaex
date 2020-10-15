@@ -15,6 +15,15 @@ class NumpyDispatch:
             self._numpy_array = vaex.array_types.to_numpy(self.arrow_array)
         return self._numpy_array
 
+    def __eq__(self, rhs):
+        if vaex.array_types.is_string(self.arrow_array):
+            # this does not support scalar input
+            # return pc.equal(self.arrow_array, rhs)
+            return NumpyDispatch(pa.array(vaex.functions.str_equals(self.arrow_array, rhs)))
+        else:
+            if isinstance(rhs, NumpyDispatch):
+                rhs = rhs.numpy_array
+            return NumpyDispatch(pa.array(self.numpy_array == rhs))
 
 for op in _binary_ops:
     def closure(op=op):
@@ -26,8 +35,9 @@ for op in _binary_ops:
             return NumpyDispatch(pa.array(op['op'](a, b)))
         return operator
     method_name = '__%s__' % op['name']
-    setattr(NumpyDispatch, method_name, closure())
-    # to support e.g. (1 + ...)
+    if op['name'] != "eq":
+        setattr(NumpyDispatch, method_name, closure())
+     # to support e.g. (1 + ...)    # to support e.g. (1 + ...)
     if op['name'] in reversable:
         def closure(op=op):
             def operator(b, a):

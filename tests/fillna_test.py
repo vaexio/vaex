@@ -118,11 +118,11 @@ def test_fillna_array():
     df['x_2'] = df.x.fillna(np.array(2.0))
     assert df.x_2.tolist() == [1, 2, 3, 2]
 
-def test_fillna_dataframe():
+def test_fillna_dataframe(df_factory):
     x = np.array([3, 1, np.nan, 10, np.nan])
     y = np.array([None, 1, True, '10street', np.nan], dtype='object')
     z = np.ma.array(data=[5, 7, 3, 1, -10], mask=[False, False, True, False, True])
-    df = vaex.from_arrays(x=x, y=y, z=z)
+    df = df_factory(x=x, y=y, z=z)
 
     df_filled = df.fillna(value=-1)
 

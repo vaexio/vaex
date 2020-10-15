@@ -476,11 +476,11 @@ class Expression(with_metaclass(Meta)):
     #     '''
     #     return self.ds.evaluate(self)
 
-    def tolist(self):
+    def tolist(self, i1=None, i2=None):
         '''Short for expr.evaluate().tolist()'''
-        values = self.evaluate()
+        values = self.evaluate(i1=i1, i2=i2)
         if isinstance(values, (pa.Array, pa.ChunkedArray)):
-            return values.to_pandas().values.tolist()
+            return values.to_pylist()
         return values.tolist()
 
     if not os.environ.get('VAEX_DEBUG', ''):
@@ -1168,6 +1168,7 @@ class FunctionToScalar(FunctionSerializablePickle):
                 return v.decode('utf8')
             else:
                 return v
+        args = [vaex.array_types.tolist(k) for k in args]
         for i in range(length):
             scalar_result = self.f(*[fix_type(k[i]) for k in args], **{key: value[i] for key, value in kwargs.items()})
             result.append(scalar_result)

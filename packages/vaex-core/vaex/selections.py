@@ -86,11 +86,11 @@ class SelectionDropNa(Selection):
         for name in self.column_names:
             data = df._evaluate(name, i1, i2, filter_mask=filter_mask)
             if self.drop_nan and self.drop_masked:
-                mask &= ~vaex.functions.isna(data)
+                mask &= ~vaex.array_types.to_numpy(vaex.functions.isna(data))
             elif self.drop_nan:
-                mask &= ~vaex.functions.isnan(data)
+                mask &= ~vaex.array_types.to_numpy(vaex.functions.isnan(data))
             elif self.drop_masked:
-                mask &= ~vaex.functions.ismissing(data)
+                mask &= ~vaex.array_types.to_numpy(vaex.functions.ismissing(data))
         if previous_mask is None:
             logger.debug("setting mask")
         else:

@@ -29,34 +29,6 @@ def get_main_io_pool():
     return main_io_pool
 
 
-class DatasetSliced(vaex.dataset.Dataset):
-    def __init__(self, original, start, end):
-        super().__init__()
-        self.original = original
-        self.start = start
-        self.end = end
-        self._row_count = end - start
-        self._columns = {name: vaex.dataset.ColumnProxy(self, col.name, col.dtype) for name, col in self.original._columns.items()}
-        self._ids = {}
-
-    def chunk_iterator(self, columns, chunk_size=None, reverse=False):
-        yield from self.original.chunk_iterator(columns, chunk_size=chunk_size, reverse=reverse, start=self.start, end=self.end)
-
-    def hashed(self):
-        raise NotImplementedError
-
-    def close(self):
-        self.original.close()
-
-    def slice(self, start, end):
-        length = end - start
-        start += self.start
-        end = start + length
-        if end > self.original.row_count:
-            raise IndexError(f'Slice end ({end}) if larger than number of rows: {self.original.row_count}')
-        return type(self)(self.original, start, end)
-
-
 class DatasetArrow(vaex.dataset.Dataset):
     def __init__(self, ds):
         super().__init__()
@@ -79,12 +51,18 @@ class DatasetArrow(vaex.dataset.Dataset):
         # TODO: we can be smarter here, and trim off some fragments
         if start == 0 and end == self.row_count:
             return self
-        return DatasetSliced(self, start=start, end=end)
+        return vaex.dataset.DatasetSliced(self, start=start, end=end)
+
+    def is_masked(self, column):
+        return False
+
+    def shape(self, column):
+        return tuple()
 
     def __getitem__(self, item):
         if isinstance(item, slice):
             assert item.step in [1, None]
-            return DatasetSliced(self, item.start or 0, item.stop or self.row_count)
+            return vaex.dataset.DatasetSliced(self, item.start or 0, item.stop or self.row_count)
         return self._columns[item]
 
     def close(self):
@@ -155,70 +133,31 @@ class DatasetArrow(vaex.dataset.Dataset):
                                 assert len(ar) == length, f'Oops, array was expected to be of length {length} but was {len(ar)}'
                             return chunks
                         reader = slicer
-                offset += length
+                offset += rows
                 yield pool.submit(reader)
 
     def chunk_iterator(self, columns, chunk_size=None, reverse=False, start=0, end=None):
         chunk_size = chunk_size or 1024*1024
         i1 = 0
-        lenghts = set()
-        cuts = 0
         chunks_ready_list = []
         i1 = i2 = 0
-        def get(chunks_ready_list):
-            nonlocal cuts
-            current_row_count = 0
-            chunks_current_list = []
-            while current_row_count < chunk_size and chunks_ready_list:
-                chunks_current = chunks_ready_list.pop(0)
-                chunk = list(chunks_current.values())[0]
-                # chunks too large, split, and put back a part
-                if current_row_count + len(chunk) > chunk_size:
-                    strict = True
-                    if strict:
-                        needed_length = chunk_size - current_row_count
-                        current_row_count += needed_length
-                        assert current_row_count == chunk_size
-                        if needed_length not in lenghts:
-                            lenghts.add(needed_length)
-                        cuts += 1
-
-                        chunks_head = {name: chunk.slice(0, needed_length) for name, chunk in chunks_current.items()}
-                        chunks_current_list.append(chunks_head)
-                        chunks_extra = {name: chunk.slice(needed_length) for name, chunk in chunks_current.items()}
-                        chunks_ready_list.insert(0, chunks_extra)  # put back the extra in front
-                    else:
-                        current_row_count += len(chunk)
-                        chunks_current_list.append(chunks_current)
-                else:
-                    current_row_count += len(chunk)
-                    chunks_current_list.append(chunks_current)
-            return chunks_current_list, current_row_count
 
         for chunks_future in buffer(self._chunk_producer(columns, chunk_size, start=start, end=end or self._row_count), thread_count_default_io+3):
             chunks = chunks_future.result()
             chunks_ready_list.append(chunks)
             total_row_count = sum([len(list(k.values())[0]) for k in chunks_ready_list])
             if total_row_count > chunk_size:
-                chunks_current_list, current_row_count = get(chunks_ready_list)
+                chunks_current_list, current_row_count = vaex.dataset._slice_of_chunks(chunks_ready_list, chunk_size)
                 i2 += current_row_count
-                yield i1, i2, _concat(chunks_current_list)
+                yield i1, i2, vaex.dataset._concat_chunk_list(chunks_current_list)
                 i1 = i2
 
         while chunks_ready_list:
-            chunks_current_list, current_row_count = get(chunks_ready_list)
+            chunks_current_list, current_row_count = vaex.dataset._slice_of_chunks(chunks_ready_list, chunk_size)
             i2 += current_row_count
-            yield i1, i2, _concat(chunks_current_list)
+            yield i1, i2, vaex.dataset._concat_chunk_list(chunks_current_list)
             i1 = i2
 
-
-def _concat(list_of_chunks):
-    dict_of_list_of_arrays = collections.defaultdict(list)
-    for chunks in list_of_chunks:
-        for name, array in chunks.items():
-            dict_of_list_of_arrays[name].extend(array.chunks)
-    chunks = {name: pa.chunked_array(arrays) for name, arrays in dict_of_list_of_arrays.items()}
-    return chunks
 
 
 def from_table(table, as_numpy=False):

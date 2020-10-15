@@ -195,6 +195,7 @@ def fillnan(ar, value):
     # they will never contain nan
     if not _is_stringy(ar):
         ar = ar if not isinstance(ar, column.Column) else ar.to_numpy()
+        ar = vaex.array_types.to_numpy(ar, strict=True)
         if ar.dtype.kind in 'fO':
             mask = isnan(ar)
             if np.any(mask):
@@ -210,7 +211,7 @@ def fillna(ar, value):
 
     '''
     # TODO: should use arrow fill_null in the future
-    if vaex.array_types.is_string(ar):
+    if isinstance(ar, vaex.array_types.supported_arrow_array_types):
         ar = fillna(vaex.array_types.to_numpy(ar, strict=True), value)
         return vaex.array_types.to_arrow(ar)
     ar = ar if not isinstance(ar, column.Column) else ar.to_numpy()
@@ -235,7 +236,9 @@ def ismissing(x):
         else:
             return x.mask == 1
     else:
-        if not isinstance(x, np.ndarray) or x.dtype.kind in 'US':
+        if isinstance(x, vaex.array_types.supported_arrow_array_types):
+            return pa.compute.is_null(x)
+        elif not isinstance(x, np.ndarray) or x.dtype.kind in 'US':
             x = _to_string_sequence(x)
             mask = x.mask()
             if mask is None:
@@ -255,6 +258,8 @@ def notmissing(x):
 @register_function()
 def isnan(x):
     """Returns an array where there are NaN values"""
+    if isinstance(x, vaex.array_types.supported_arrow_array_types):
+        x = vaex.array_types.to_numpy(x)
     if isinstance(x, np.ndarray):
         if np.ma.isMaskedArray(x):
             # we don't want a masked arrays

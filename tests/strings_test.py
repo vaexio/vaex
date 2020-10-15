@@ -37,6 +37,19 @@ def test_dtype_object_string(tmpdir):
     assert df_read.compare(df) == ([], [], ['x'], [])
 
 
+def test_dtype_unicode_string(tmpdir):
+    # CHANGE: before vaex v4 we worked with unicode, now we lazily cast to arrow
+    x = np.arange(8, 12)
+    s = np.array(list(map(str, x)), dtype='U')
+    df = vaex.from_arrays(x=x, s=s)
+    assert df.columns['s'].type == pa.string()
+    path = str(tmpdir.join('test.arrow'))
+    df.export(path)
+    df_read = vaex.open(path, as_numpy=False)
+    # the data type of x is different (arrow vs numpy)
+    assert df_read.compare(df) == ([], [], ['x'], [])
+
+
 def test_export_arrow_strings_to_hdf5(tmpdir):
     df = vaex.from_arrays(names=np.array(['hi', 'is', 'l2', np.nan], dtype='O'))
     path = str(tmpdir.join('test.arrow'))
