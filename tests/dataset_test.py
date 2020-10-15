@@ -4,6 +4,7 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+import pyarrow.parquet
 
 import vaex
 import vaex.dataset as dataset
@@ -263,3 +264,86 @@ def test_chunk_iterator():
     assert chunk2['y'].tolist() == y[8:].tolist()
     assert i1 == 8
     assert i2 == 10
+
+
+@pytest.mark.parametrize("l1", list(range(1, 3)))
+@pytest.mark.parametrize("l2", list(range(1, 3)))
+def test_concat_chunk_iterator(l1, l2):
+    i1 = 0
+    i2 = i1 + l1
+    i3 = i2 + l2
+    x = np.arange(10)
+    y = x**2
+    g = x // 3
+    ds = vaex.dataset.DatasetArrays(x=x, y=y, g=g)
+    df_original = df = vaex.from_dataset(ds)
+    df1 = df[i1:i2]
+    df2 = df[i2:i3]
+    df3 = df[i3:]
+    df = vaex.concat([df1, df2, df3])
+    ds_full = ds = df.dataset
+
+    # very similar to the arrow/datase_test.py parquet test
+    iter = ds.chunk_iterator(['x', 'y'], chunk_size=2)
+    for i in range(5):
+        i1, i2, chunks = next(iter)
+        assert i1 == i*2
+        assert i2 == (i + 1) * 2
+        chunks['x'].tolist() == x[i1:i2].tolist()
+        chunks['y'].tolist() == y[i1:i2].tolist()
+
+
+    # no columns
+    iter = ds.chunk_iterator([], chunk_size=2)
+    for i in range(5):
+        i1, i2, chunks = next(iter)
+        assert i1 == i*2
+        assert i2 == (i + 1) * 2
+
+    ds = ds[1:10]
+    assert 'x' in ds
+    assert ds.row_count == 9
+    iter = ds.chunk_iterator(['x', 'y'], chunk_size=2)
+    for i in range(5):
+        i1, i2, chunks = next(iter)
+        if i == 4:
+            assert i1 == 8
+            assert i2 == 9
+        else:
+            assert i1 == i*2
+            assert i2 == (i + 1) * 2
+        # chunks = chunks
+        chunks['x'].tolist() == x[i1:i2].tolist()
+        chunks['y'].tolist() == y[i1:i2].tolist()
+
+    ds = ds[1:9]
+    assert ds.row_count == 8
+    iter = ds.chunk_iterator(['x', 'y'], chunk_size=2)
+    for i in range(4):
+        i1, i2, chunks = next(iter)
+        assert i1 == i*2
+        assert i2 == (i + 1) * 2
+        chunks['x'].tolist() == x[i1:i2].tolist()
+        chunks['y'].tolist() == y[i1:i2].tolist()
+
+    # no columns
+    iter = ds.chunk_iterator([], chunk_size=2)
+    for i in range(4):
+        i1, i2, chunks = next(iter)
+        assert i1 == i*2
+        assert i2 == (i + 1) * 2
+
+    for i in range(9):
+        for j in range(i+1, 10):
+            ds = ds_full.slice(i, j)
+            values = []
+            for i1, i2, chunks in ds.chunk_iterator(['x']):
+                values.extend(chunks['x'].tolist())
+            assert x[i:j].tolist() == values
+
+    assert df.x.tolist() == x.tolist()
+    assert df.g.tolist() == g.tolist()
+
+    ds_dropped = ds.dropped('x')
+    assert 'x' not in ds_dropped
+

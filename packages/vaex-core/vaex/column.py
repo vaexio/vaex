@@ -109,6 +109,10 @@ class ColumnArrowLazyCast(Column):
         self.type = type
 
     @property
+    def nbytes(self):
+        return self.ar.nbytes
+
+    @property
     def dtype(self):
         return vaex.array_types.to_numpy_type(self.type)
 

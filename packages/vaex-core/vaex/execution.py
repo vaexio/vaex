@@ -154,7 +154,7 @@ class ExecutorLocal(Executor):
                 # find the columns from the dataset we need
                 variables = set()
                 for expression in run.expressions:
-                    variables |= run.df._expr(expression).variables(ourself=True, include_virtual=False)
+                    variables |= run.df._expr(expression).expand().variables(ourself=True)
                 columns = list(variables - set(run.df.variables) - set(run.df.virtual_columns))
                 logger.debug('Using columns %r from dataset', columns)
                 for column in columns:

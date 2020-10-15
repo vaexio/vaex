@@ -991,7 +991,7 @@ class GroupByTransformer(Transformer):
         # We effectively want to do a join, but since that is not part of the state, it will not be state
         # transferrable, instead we implement this with map
         # df = df.join(other=self.df_group_, on=self.by, how='left', rprefix=self.rprefix, rsuffix=self.rsuffix)
-        key_values = self.df_group_[self.by].values
+        key_values = self.df_group_[self.by].tolist()
         for name in self.df_group_.get_column_names():
             if name == self.by:
                 continue  # we don't need to include the column we group/join on

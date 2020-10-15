@@ -3,9 +3,18 @@ import numpy as np
 
 def test_expression_expand():
     ds = vaex.from_scalars(x=1, y=2)
+
+    ds['g'] = ds.x
+    assert ds.g.expression == 'g'
+    assert ds.g.variables() == {'x'}
+    # TODO: this doesn't work, because outself and include_virtual contradict eachother
+    # but we don't use this interally
+    # assert ds.g.variables(ourself=True, include_virtual=False) == {'g', 'x'}
+
     ds['r'] = ds.x * ds.y
     assert ds.r.expression == 'r'
     assert ds.r.variables() == {'x', 'y'}
+    assert ds.r.variables(ourself=True, include_virtual=False) == {'r', 'x', 'y'}
     ds['s'] = ds.r + ds.x
     assert ds.s.variables() == {'r', 'x', 'y'}
     assert ds.s.variables(ourself=True) == {'s', 'r', 'x', 'y'}

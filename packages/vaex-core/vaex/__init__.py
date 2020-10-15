@@ -813,13 +813,13 @@ for entry in pkg_resources.iter_entry_points(group='vaex.plugin'):
         logger.exception('issue loading ' + entry.name)
 
 
-def concat(dfs):
+def concat(dfs, resolver='flexible') -> vaex.dataframe.DataFrame:
     '''Concatenate a list of DataFrames.
 
-    :rtype: DataFrame
+    :param resolver: How to resolve schema conflicts, see :meth:`DataFrame.concat`.
     '''
     df, *tail = dfs
-    return df.concat(*tail)
+    return df.concat(*tail, resolver=resolver)
 
 def vrange(start, stop, step=1, dtype='f8'):
     """Creates a virtual column which is the equivalent of numpy.arange, but uses 0 memory"""

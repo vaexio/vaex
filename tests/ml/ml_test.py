@@ -205,13 +205,13 @@ def test_one_hot_encoding():
     # transform the test set
     test = onehot.transform(test)
     # asses the success of the test
-    np.testing.assert_equal(test.kids_boy.values, np.array([1 if i == 'boy' else 0 for i in test.kids.values]))
-    np.testing.assert_equal(test.kids_girl.values, np.array([0 if i == 'boy' else 1 for i in test.kids.values]))
-    np.testing.assert_equal(test.animals_dog.values, np.array([1 if i == 'dog' else 0 for i in test.animals.values]))
-    np.testing.assert_equal(test.animals_cat.values, np.array([1 if i == 'cat' else 0 for i in test.animals.values]))
-    np.testing.assert_equal(test.animals_mouse.values, np.array([1 if i == 'mouse' else 0 for i in test.animals.values]))
-    np.testing.assert_equal(test.numbers_0.values, np.array([1 if i == 0 else 0 for i in test.numbers.values]))
-    np.testing.assert_equal(test.numbers_1.values, np.array([0 if i == 0 else 1 for i in test.numbers.values]))
+    np.testing.assert_equal(test.kids_boy.tolist(), np.array([1 if i == 'boy' else 0 for i in test.kids.tolist()]))
+    np.testing.assert_equal(test.kids_girl.tolist(), np.array([0 if i == 'boy' else 1 for i in test.kids.tolist()]))
+    np.testing.assert_equal(test.animals_dog.tolist(), np.array([1 if i == 'dog' else 0 for i in test.animals.tolist()]))
+    np.testing.assert_equal(test.animals_cat.tolist(), np.array([1 if i == 'cat' else 0 for i in test.animals.tolist()]))
+    np.testing.assert_equal(test.animals_mouse.tolist(), np.array([1 if i == 'mouse' else 0 for i in test.animals.tolist()]))
+    np.testing.assert_equal(test.numbers_0.tolist(), np.array([1 if i == 0 else 0 for i in test.numbers.tolist()]))
+    np.testing.assert_equal(test.numbers_1.tolist(), np.array([0 if i == 0 else 1 for i in test.numbers.tolist()]))
     # Fit-transform
     ohe = vaex.ml.OneHotEncoder(features=['kids', 'animals', 'numbers'])
     ohe.fit_transform(ds)

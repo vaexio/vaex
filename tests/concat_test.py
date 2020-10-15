@@ -1,6 +1,14 @@
 import pytest
 import vaex
+import vaex.schema
 import numpy as np
+import pyarrow as pa
+
+
+def test_concat_endianness(df_concat, df_trimmed):
+    assert df_trimmed.data_type('x').byteorder == '>'
+    # since df_concat will concate, we will lose the byteorder
+    assert df_concat.data_type('x').byteorder in '<='
 
 
 def test_concat():
@@ -54,6 +62,23 @@ def test_concat_unequals_virtual_columns():
     assert ds.z.tolist() == [1+2, 2*3]
 
 
+def test_concat_keep_virtual():
+    df1 = vaex.from_scalars(x=1, y=2)
+    df2 = vaex.from_scalars(x=2, y=3)
+    # w has same expression
+    df1['w'] = df1.x + df1.y
+    df2['w'] = df2.x + df2.y
+    df = vaex.concat([df1, df2])
+    assert 'w' in df.virtual_columns
+    assert 'w' not in df.get_column_names(virtual=False)
+    assert 'w' not in df.dataset
+
+
+def test_concat_dtype_object(df_concat):
+    df = df_concat
+    assert df.obj.tolist()
+
+
 def test_concat_arrow_strings():
     df1 = vaex.from_arrays(x=vaex.string_column(['aap', 'noot', 'mies']))
     df2 = vaex.from_arrays(x=vaex.string_column(['a', 'b', 'c']))
@@ -103,14 +128,14 @@ def test_sliced_concat(i1, length, df_concat):
     i2 = i1 + length
     x = df_concat.x.tolist()
     df = df_concat[i1:i2]
-    assert len(df_concat.columns['x'].trim(0, length)) == length
+    assert len(df_concat[:length]['x'].values) == length
     assert df.x.tolist() == x[i1:i2]
 
 
 def test_concat_masked_values(df_concat):
     df = df_concat
     # evaluate a piece not containing masked values
-    assert df.m.evaluate(0, 3).tolist() == df.x[:3].tolist()
+    assert df.m.tolist(0, 3) == df.x[:3].tolist()
 
 
 def test_concat_masked_with_unmasked():
@@ -119,6 +144,7 @@ def test_concat_masked_with_unmasked():
     df2 = vaex.from_arrays(x=np.ma.masked_all(2, dtype='f8'))
     df = df1.concat(df2)
     assert df.x.tolist() == [0, 1, 2, None, None]
+    assert df.is_masked('x')
 
 
 def test_concat_virtual_column_names():
@@ -140,3 +166,71 @@ def test_concat_missing_values():
     repr(df.head(4))
     repr(df.tail(4))
     assert len(df) == 6
+
+
+def test_schema_flexible():
+    assert vaex.schema.resolver_flexible.resolve([np.dtype('f8'), np.dtype('f8')], [()]) == (np.dtype('f8'), ())
+    assert vaex.schema.resolver_flexible.resolve([np.dtype('f8'), np.dtype('f4')], [()]) == (np.dtype('f8'), ())
+    assert vaex.schema.resolver_flexible.resolve([np.dtype('f8'), np.dtype('i4')], [()]) == (np.dtype('f8'), ())
+    assert vaex.schema.resolver_flexible.resolve([np.dtype('i4'), np.dtype('i2')], [()]) == (np.dtype('i4'), ())
+    # eagerly upcast to arrow
+    assert vaex.schema.resolver_flexible.resolve([pa.float64(), np.dtype('i2')], [()]) == (pa.float64(), ())
+
+
+def test_mixed_type_numpy():
+    def concat(*types):
+        dfs = [vaex.from_arrays(x=np.arange(3, dtype=dtype)) for dtype in types]
+        dataset_concat = vaex.concat(dfs)
+        return dataset_concat
+
+    assert concat(np.float32, np.float64).columns["x"].dtype == np.float64
+    assert concat(np.float32, np.int64).columns["x"].dtype == np.float64
+    assert concat(np.float32, np.byte).columns["x"].dtype == np.float32
+    assert concat(np.float64, np.byte, np.int64).columns["x"].dtype == np.float64
+
+
+@pytest.mark.parametrize("arrow", [True, False])
+def test_concat_unaligned_schema(arrow):
+    x = pa.array([1, 2], type=pa.float32()) if arrow else np.array([1, 2], dtype=np.float32())
+    df1 = vaex.from_arrays(x=x)
+    df2 = vaex.from_arrays(y=['d', 'e'])
+    # flexible should be the default
+    df = df1.concat(df2, resolver='flexible')
+    df = df1.concat(df2)
+    assert df.x.tolist() == [1, 2, None, None]
+    assert df.y.tolist() == [None, None, 'd', 'e']
+    # always 'upcast' to Arrow arrays
+    # # rationale: Arrow will use use less memory, numpy has no efficient way to represent all missing data
+    assert df.x.data_type() == pa.float32()
+
+    # strict resolver to now allows mismatched schemas (pre v4.0 behaviour)
+    with pytest.raises(NameError):
+        df = df1.concat(df2, resolver='strict')
+
+
+@pytest.mark.parametrize("typed", [True, False])
+def test_concat_with_null_type(typed):
+    # when concatting an Arrow float32 column with a null type, resulting type should be Arrow float32
+    arrow_type = pa.float32()
+    x1 = pa.array([1, 2], type=arrow_type)
+    x2 = pa.nulls(2, type=arrow_type if typed else None)
+    df1 = vaex.from_arrays(x=x1)
+    df2 = vaex.from_arrays(x=x2)
+    df = df1.concat(df2)
+    assert df.x.data_type() == arrow_type
+    assert df.x.tolist() == [1, 2, None, None]
+
+
+@pytest.mark.parametrize("typed", [True, False])
+def test_concat_with_null_type_numpy_and_arrow(typed):
+    # when concatting a numpy float32 column with a null type, resulting type should be Arrow float32
+    # rationale: Arrow will use use less memory, numpy has no efficient way to represent all missing data
+    numpy_type = np.float32()
+    arrow_type = pa.float32()
+    x1 = np.array([1, 2], dtype=numpy_type)
+    x2 = pa.nulls(2, type=arrow_type if typed else None)
+    df1 = vaex.from_arrays(x=x1)
+    df2 = vaex.from_arrays(x=x2)
+    df = df1.concat(df2)
+    assert df.x.data_type() == arrow_type
+    assert df.x.tolist() == [1, 2, None, None]

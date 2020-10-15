@@ -17,6 +17,31 @@ def filter(ar, boolean_mask):
         return ar[boolean_mask]
 
 
+def slice(ar, offset, length=None):
+    if isinstance(ar, supported_arrow_array_types):
+        return ar.slice(offset, length)
+    else:
+        if length is not None:
+            return ar[offset:offset + length]
+        else:
+            return ar[offset:]
+
+
+def concat(arrays):
+    if len(arrays) == 1:
+        return arrays[0]
+    if any([isinstance(k, vaex.array_types.supported_arrow_array_types) for k in arrays]):
+        return pa.chunked_array(arrays)
+    else:
+        ar = np.ma.concatenate(arrays)
+        # avoid useless masks
+        if ar.mask is False:
+            ar = ar.data
+        if ar.mask is np.False_:
+            ar = ar.data
+        return ar
+
+
 def is_string_type(data_type):
     return not isinstance(data_type, np.dtype) and data_type in string_types
 
@@ -72,7 +97,7 @@ def to_numpy(x, strict=False):
     return np.asanyarray(x)
 
 
-def to_arrow(x, convert_to_native=False):
+def to_arrow(x, convert_to_native=True):
     if isinstance(x, supported_arrow_array_types):
         return x
     if convert_to_native and isinstance(x, np.ndarray):
@@ -99,7 +124,7 @@ def convert(x, type, default_type="numpy"):
             return to_arrow(x)
     elif type == "xarray":
         return to_xarray(x)
-    elif type == "list":
+    elif type in ['list', 'python']:
         return convert(x, 'numpy').tolist()
     elif type is None:
         if isinstance(x, (list, tuple)):
@@ -170,3 +195,37 @@ def arrow_type_from_numpy_dtype(dtype):
 def numpy_dtype_from_arrow_type(arrow_type):
     data = pa.array([], type=arrow_type)
     return numpy_dtype(data)
+
+
+def type_promote(t1, t2):
+    # when two ndarrays, we keep it like it
+    if isinstance(t1, np.dtype) and isinstance(t2, np.dtype):
+        return np.promote_types(t1, t2)
+    # otherwise we go to arrow
+    t1 = to_arrow_type(t1)
+    t2 = to_arrow_type(t2)
+
+    if pa.types.is_null(t1):
+        return t2
+    if pa.types.is_null(t2):
+        return t1
+
+    if t1 == t2:
+        return t1
+
+
+    # TODO: so far we only use this in in code that converts to arrow
+    # if we want to support numpy, we have to check it types were numpy types
+    is_numerics = [pa.types.is_floating, pa.types.is_integer]
+    if any(test(t1) for test in is_numerics) and any(test(t2) for test in is_numerics):
+        # leverage numpy for type promotion
+        dtype1 = numpy_dtype_from_arrow_type(t1)
+        dtype2 = numpy_dtype_from_arrow_type(t2)
+        dtype = np.promote_types(dtype1, dtype2)
+        return arrow_type_from_numpy_dtype(dtype)
+    elif is_string_type(t1):
+        return t1
+    elif is_string_type(t2):
+        return t2
+    else:
+        raise TypeError(f'Cannot promote {t1} and {t2} to a common type')
