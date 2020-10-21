@@ -1,3 +1,4 @@
+import datetime
 from common import *
 import numpy as np
 
@@ -144,3 +145,25 @@ def test_create_str_column_from_datetime64():
     date_format = "%Y/%m/%d"
 
     assert df.date.dt.strftime(date_format).values.tolist() == pandas_df.date.dt.strftime(date_format).values.tolist()
+
+
+def test_datetime_arithmetics_w_constant():
+    x = [1, 2, 3, 1, 1]
+    date = [np.datetime64('2020-01-01'), np.datetime64('2020-01-02'), np.datetime64('2020-01-03'),
+            np.datetime64('2020-01-01'), np.datetime64('2020-01-01')]
+    df = vaex.from_arrays(x=x, date=date)
+    constant = np.datetime64('2020-01-01')
+
+    df['delta_1'] = df.date - constant
+    assert df.delta_1.tolist() == [datetime.timedelta(0),
+                                   datetime.timedelta(days=1),
+                                   datetime.timedelta(days=2),
+                                   datetime.timedelta(0),
+                                   datetime.timedelta(0)]
+
+    df['delta_2'] = np.datetime64('2020-01-01') - df.date
+    assert df.delta_2.tolist() == [datetime.timedelta(0),
+                                   datetime.timedelta(days=-1),
+                                   datetime.timedelta(days=-2),
+                                   datetime.timedelta(0),
+                                   datetime.timedelta(0)]
