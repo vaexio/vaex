@@ -5884,7 +5884,7 @@ class DataFrameLocal(DataFrame):
     def export(self, path, progress=None, chunk_size=default_chunk_size, parallel=True):
         """Exports the DataFrame to a file depending on the file extension.
 
-        E.g if the filename ends on .parquet, `df.export_parquet` is called.
+        E.g if the filename ends on .hdf5, `df.export_hdf5` is called.
 
         :param str path: path for file
         :param int chunk_size: Passed to the exporter method, if supported.
@@ -5950,7 +5950,7 @@ class DataFrameLocal(DataFrame):
     def export_parquet(self, path, progress=None, parallel=True, **kwargs):
         """Exports the DataFrame to a parquet file.
 
-        Note: This may require that all of the data fits into memory (mmapped data is an exception).
+        Note: This may require that all of the data fits into memory (memory mapped data is an exception).
             Use :py:`DataFrame.export_chunks` to write to multiple files in parallel.
 
         :param str path: path for file
@@ -5968,6 +5968,10 @@ class DataFrameLocal(DataFrame):
     def export_chunked(self, path, progress=None, chunk_size=default_chunk_size, parallel=True):
         """Export the DataFrame to multiple files in parallel.
 
+        The path will be formatted using the i parameter (which is the chunk index).
+
+        TODO: example
+
         :param str path: Path for file, formatted by chunk index i (e.g. 'chunk-{{i:05}}.parquet')
         :param int chunk_size: Number of rows for each file (except possibly the last)
         :param bool parallel: {evaluate_parallel}
@@ -5976,7 +5980,8 @@ class DataFrameLocal(DataFrame):
         path1 = str(path).format(i=0, i1=1, i2=2)
         path2 = str(path).format(i=1, i1=2, i2=3)
         if path1 == path2:
-            raise ValueError('The path argument should be a format string such that all path names are unique, e.g. \'chunk-{i:05}.parquet\'')
+            name, ext = os.path.splitext(path)
+            path = f'{name}-{{i:05}}{ext}'
         input = self.to_dict(chunk_size=chunk_size, parallel=True)
         column_names = self.get_column_names()
         def write(i, item):

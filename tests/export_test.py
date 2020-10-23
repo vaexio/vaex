@@ -16,10 +16,13 @@ def test_export_empty_string(tmpdir, filename):
     repr(df)
 
 
-def test_export_chunked(df_local, tmpdir):
+def test_export_chunked_name(df_local, tmpdir):
     df = df_local[['x']]
-    with pytest.raises(match='.*same.*'):
-        df.export_chunked(tmpdir / 'chunk.parquet', chunk_size=3)
+    df.export_chunked(tmpdir / 'chunk.parquet', chunk_size=3)
+    assert (tmpdir / 'chunk-00001.parquet').exists()
+    assert (tmpdir / 'chunk-00002.parquet').exists()
+    assert (tmpdir / 'chunk-00003.parquet').exists()
+    assert not (tmpdir / 'chunk-00004.parquet').exists()
 
 
 def test_export_chunked(df_local, tmpdir):
