@@ -229,3 +229,9 @@ def type_promote(t1, t2):
         return t2
     else:
         raise TypeError(f'Cannot promote {t1} and {t2} to a common type')
+
+
+def arrow_reduce_large(arrow_array):
+    if arrow_array.type == pa.large_string():
+        return vaex.arrow.convert.large_string_to_string(arrow_array)
+    return arrow_array

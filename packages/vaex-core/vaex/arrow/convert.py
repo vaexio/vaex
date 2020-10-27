@@ -159,3 +159,35 @@ def arrow_table_from_vaex_df(ds, column_names=None, selection=None, strings=True
 def vaex_df_from_arrow_table(table):
     from .dataset import DatasetArrow
     return DatasetArrow(table=table)
+
+
+def trim_buffers(ar):
+    # there are cases where memcopy are made, of modifications are mode (large_string_to_string)
+    # in those cases, we don't want to work on the full array, and get rid of the offset if possible
+    if ar.type == pa.string() or ar.type == pa.large_string():
+        null_bitmap, offsets_buffer, bytes = ar.buffers()
+        if ar.type == pa.string():
+            offsets = np.frombuffer(offsets_buffer, np.int32, len(ar) + 1 + ar.offset)
+        else:
+            offsets = np.frombuffer(offsets_buffer, np.int64, len(ar) + 1 + ar.offset)
+        # because it is difficult to slice bits
+        new_offset = ar.offset % 8
+        remove_offset = (ar.offset // 8) * 8
+        first_offset = offsets[remove_offset]
+        new_offsets = offsets[remove_offset:] - first_offset
+        if null_bitmap:
+            null_bitmap = null_bitmap.slice(ar.offset // 8)
+        new_offsets_buffer = pa.py_buffer(new_offsets)
+        bytes = bytes.slice(first_offset)
+        ar = pa.Array.from_buffers(ar.type, len(ar), [null_bitmap, new_offsets_buffer, bytes], offset=new_offset)
+    return ar
+
+
+def large_string_to_string(ar):
+    ar = trim_buffers(ar)
+    offset = ar.offset
+    null_bitmap, offsets_buffer, bytes = ar.buffers()
+    offsets = np.frombuffer(offsets_buffer, np.int64, len(ar)+1 + ar.offset)
+    offsets = offsets.astype(np.int32)
+    offsets_buffer = pa.py_buffer(offsets)
+    return pa.Array.from_buffers(pa.string(), len(ar), [null_bitmap, offsets_buffer, bytes], offset=ar.offset)

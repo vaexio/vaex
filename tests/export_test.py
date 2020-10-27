@@ -25,6 +25,11 @@ def test_export_chunked_name(df_local, tmpdir):
     assert not (tmpdir / 'chunk-00004.parquet').exists()
 
 
+def test_export_large_string_parquet(tmpdir):
+    s = pa.array(['aap', 'noot', 'mies'], type=pa.large_string())
+    df = vaex.from_arrays(s=s)
+    df.export_parquet(tmpdir / 'chunk.parquet')
+
 def test_export_chunked(df_local, tmpdir):
     df = df_local
     df = df.drop('datetime')

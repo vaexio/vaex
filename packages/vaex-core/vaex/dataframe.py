@@ -2740,6 +2740,7 @@ class DataFrame(object):
         :return: list of (name, ndarray) pairs or iterator of
         """
         column_names = column_names or self.get_column_names(strings=strings, virtual=virtual)
+        column_names = _ensure_strings_from_expressions(column_names)
         if chunk_size is not None:
             def iterator():
                 for i1, i2, chunks in self.evaluate_iterator(column_names, selection=selection, parallel=parallel, chunk_size=chunk_size):
@@ -2762,6 +2763,7 @@ class DataFrame(object):
         :return: list of arrays
         """
         column_names = column_names or self.get_column_names(strings=strings, virtual=virtual)
+        column_names = _ensure_strings_from_expressions(column_names)
         if chunk_size is not None:
             def iterator():
                 for i1, i2, chunks in self.evaluate_iterator(column_names, selection=selection, parallel=parallel, chunk_size=chunk_size):
@@ -2783,6 +2785,7 @@ class DataFrame(object):
         :return: dict
         """
         column_names = column_names or self.get_column_names(strings=strings, virtual=virtual)
+        column_names = _ensure_strings_from_expressions(column_names)
         if chunk_size is not None:
             def iterator():
                 for i1, i2, chunks in self.evaluate_iterator(column_names, selection=selection, parallel=parallel, chunk_size=chunk_size):
@@ -2851,6 +2854,7 @@ class DataFrame(object):
         """
         import pandas as pd
         column_names = column_names or self.get_column_names(strings=strings, virtual=virtual)
+        column_names = _ensure_strings_from_expressions(column_names)
         if index_name not in column_names and index_name is not None:
             column_names = column_names + [index_name]
 
@@ -2872,7 +2876,7 @@ class DataFrame(object):
             return create_pdf(self.to_dict(column_names=column_names, selection=selection, parallel=parallel))
 
     @docsubst
-    def to_arrow_table(self, column_names=None, selection=None, strings=True, virtual=True, parallel=True, chunk_size=None):
+    def to_arrow_table(self, column_names=None, selection=None, strings=True, virtual=True, parallel=True, chunk_size=None, reduce_large=False):
         """Returns an arrow Table object containing the arrays corresponding to the evaluated data
 
         :param column_names: list of column names, to export, when None DataFrame.get_column_names(strings=strings, virtual=virtual) is used
@@ -2881,19 +2885,25 @@ class DataFrame(object):
         :param virtual: argument passed to DataFrame.get_column_names when column_names is None
         :param parallel: {evaluate_parallel}
         :param chunk_size: {chunk_size}
+        :param bool reduce_large: If possible, cast large_string to normal string
         :return: pyarrow.Table object or iterator of
         """
         import pyarrow as pa
         column_names = column_names or self.get_column_names(strings=strings, virtual=virtual)
+        column_names = _ensure_strings_from_expressions(column_names)
         if chunk_size is not None:
             def iterator():
                 for i1, i2, chunks in self.evaluate_iterator(column_names, selection=selection, parallel=parallel, chunk_size=chunk_size):
                     chunks = list(map(vaex.array_types.to_arrow, chunks))
+                    if reduce_large:
+                        chunks = list(map(vaex.array_types.arrow_reduce_large, chunks))
                     yield i1, i2, pa.Table.from_arrays(chunks, column_names)
             return iterator()
         else:
             chunks = self.evaluate(column_names, selection=selection, parallel=parallel)
             chunks = list(map(vaex.array_types.to_arrow, chunks))
+            if reduce_large:
+                chunks = list(map(vaex.array_types.arrow_reduce_large, chunks))
             return pa.Table.from_arrays(chunks, column_names)
 
     @docsubst
@@ -3801,9 +3811,9 @@ class DataFrame(object):
             if not hidden and name.startswith('__'):
                 return False
             return True
-        if hidden and virtual and regex is None:
+        if hidden and virtual and regex is None and strings is True:
             return list(self.column_names)  # quick path
-        if not hidden and virtual and regex is None:
+        if not hidden and virtual and regex is None and strings is True:
             return [k for k in self.column_names if not k.startswith('__')]  # also a quick path
         return [name for name in self.column_names if column_filter(name)]
 
@@ -5961,11 +5971,11 @@ class DataFrameLocal(DataFrame):
         :return:
         """
         import pyarrow.parquet as pq
-        table = self.to_arrow_table(chunk_size=None, parallel=False)
+        table = self.to_arrow_table(chunk_size=None, parallel=parallel, reduce_large=True)
         pq.write_table(table, path, **kwargs)
 
     @docsubst
-    def export_chunked(self, path, progress=None, chunk_size=default_chunk_size, parallel=True):
+    def export_chunked(self, path, progress=None, chunk_size=default_chunk_size, parallel=True, max_workers=None):
         """Export the DataFrame to multiple files in parallel.
 
         The path will be formatted using the i parameter (which is the chunk index).
@@ -5988,16 +5998,17 @@ class DataFrameLocal(DataFrame):
             i1, i2, chunks = item
             p = str(path).format(i=i, i1=i2, i2=i2)
             df = vaex.from_dict(chunks)
-            print(f'{len(df):,}', p)
             df.export(p, chunk_size=None, parallel=False)
             return i2
         progressbar = vaex.utils.progressbars(progress)
+        progressbar(0)
         length = len(self)
         def update_progress(offset):
             progressbar(offset / length)
-        pool = concurrent.futures.ThreadPoolExecutor()
+        pool = concurrent.futures.ThreadPoolExecutor(max_workers)
         workers = pool._max_workers
         consume(map(update_progress, pwait(buffer(pmap(write, enumerate(input), pool=pool), workers+3))))
+        progressbar(1)
 
 
 
@@ -6041,6 +6052,8 @@ class DataFrameLocal(DataFrame):
         progressbar = vaex.utils.progressbars(progress)
         dtypes = self[expressions].dtypes
         n_samples = len(self)
+        if chunk_size is None:
+            chunk_size = len(self)
 
         for i1, i2, chunks in self.evaluate_iterator(expressions, chunk_size=chunk_size, parallel=parallel):
             progressbar( i1 / n_samples)

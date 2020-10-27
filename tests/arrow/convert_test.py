@@ -1,5 +1,7 @@
+import pytest
 import numpy as np
 from vaex.arrow import convert
+import pyarrow as pa
 
 bools = [False, True, True]
 
@@ -19,3 +21,16 @@ def test_bool_sliced():
     b_arrow = b_arrow[1:]
     b = convert.numpy_array_from_arrow_array(b_arrow)
     assert b.tolist() == bools[1:]
+
+
+@pytest.mark.parametrize("offset", list(range(1, 17)))
+def test_large_string_to_string(offset):
+    s = pa.array(['aap', 'noot', None, 'mies'] * 3, type=pa.large_string())
+    ns = convert.large_string_to_string(s)
+    assert s.type != ns.type
+    assert s.tolist() == ns.tolist()
+
+    s = s.slice(offset)
+    ns = convert.large_string_to_string(s)
+    assert ns.offset < 8
+    assert s.tolist() == ns.tolist()
