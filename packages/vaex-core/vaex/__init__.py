@@ -531,10 +531,31 @@ def from_records(records : List[Dict], array_type="arrow", defaults={}) -> vaex.
     return vaex.from_dict(arrays)
 
 
-@docsubst
-def from_csv(filename_or_buffer, copy_index=False, chunk_size=None, convert=False, fs_options={}, fs=None, progress=None, **kwargs):
+def from_csv_arrow(file, read_options=None, parse_options=None, convert_options=None, lazy=False, chunk_size="10MiB", newline_readahead="64kiB"):
+    """ Fast CSV reader using Apache Arrow. Support for lazy reading of CSV files (experimental).
+
+    :param file: file path or file-like object
+    :param read_options: PyArrow CSV read options, see https://arrow.apache.org/docs/python/generated/pyarrow.csv.ReadOptions.html
+    :param parse_options: PyArrow CSV parse options, see https://arrow.apache.org/docs/python/generated/pyarrow.csv.ParseOptions.html
+    :param convert_options: PyArrow CSV convert options, see https://arrow.apache.org/docs/python/generated/pyarrow.csv.ConvertOptions.html
+    :param lazy: If True, the CSV file is lazily read, and the DataFrame is not stored in memory.
+    :param chunk_size: The CSV is read in chunks of the specified size. Relevant only if lazy=True.
+    :param newline_readahead: The size of the readahead buffer for newline detection. Relevant only if lazy=True.
+    :return: DataFrame
     """
-    Read a CSV file as a DataFrame, and optionally convert to an hdf5 file.
+    import vaex.csv
+    if lazy is True:
+        ds = vaex.csv.DatasetCsvLazy(file, chunk_size=chunk_size, read_options=read_options, parse_options=parse_options, convert_options=convert_options, newline_readahead=newline_readahead)
+        return vaex.from_dataset(ds)
+    else:
+        ds = vaex.csv.DatasetCsv(file, read_options=read_options, parse_options=parse_options, convert_options=convert_options)
+        return vaex.from_dataset(ds)
+
+
+@docsubst
+def from_csv(filename_or_buffer, copy_index=False, chunk_size=None, convert=False, fs_options={}, progress=None, fs=None, **kwargs):
+    """
+    Load a CSV file as a DataFrame, and optionally convert to an HDF5 file.
 
     :param str or file filename_or_buffer: CSV file path or file-like
     :param bool copy_index: copy index when source is read via Pandas
@@ -542,7 +563,7 @@ def from_csv(filename_or_buffer, copy_index=False, chunk_size=None, convert=Fals
         CSV file in chunks. For example:
 
         >>> import vaex
-        >>> for i, df in enumerate(vaex.from_csv('taxi.csv', chunk_size=100_000)):
+        >>> for i, df in enumerate(vaex.read_csv('taxi.csv', chunk_size=100_000)):
         >>>     df = df[df.passenger_count < 6]
         >>>     df.export_hdf5(f'taxi_{{i:02}}.hdf5')
 
@@ -557,7 +578,7 @@ def from_csv(filename_or_buffer, copy_index=False, chunk_size=None, convert=Fals
     :returns: DataFrame
     """
     if not convert:
-        return _from_csv_read(filename_or_buffer=filename_or_buffer, copy_index=copy_index,
+        return _read_csv_read(filename_or_buffer=filename_or_buffer, copy_index=copy_index,
                               fs_options=fs_options, fs=fs, chunk_size=chunk_size, **kwargs)
     else:
         if chunk_size is None:
@@ -576,10 +597,23 @@ def from_csv(filename_or_buffer, copy_index=False, chunk_size=None, convert=Fals
         return open(path_output, fs_options=fs_options, fs=fs)
 
 
-def _from_csv_read(filename_or_buffer, copy_index, chunk_size, fs_options={}, fs=None, **kwargs):
+def _read_csv_read(filename_or_buffer, copy_index, chunk_size, fs_options={}, fs=None, **kwargs):
     import pandas as pd
     if not chunk_size:
         with vaex.file.open(filename_or_buffer, fs_options=fs_options, fs=fs, for_arrow=True) as f:
+            if "compression" not in kwargs:
+                try:
+                    path = vaex.file.stringyfy(filename_or_buffer)
+                except:
+                    path = None
+                if path:
+                    parts = path.rsplit('.', 3)
+                    if len(parts) == 3:
+                        # we need to do infer here, because pandas does not look at the fileobj.name
+                        # to infer the compression
+                        extension_to_compression = {"gz": "gzip", "bz2": "bz2", "zip": "zip", "xz": "xz"}
+                        if parts[-1] in extension_to_compression:
+                            kwargs = {"compression": extension_to_compression[parts[-1]], **kwargs}
             full_df = pd.read_csv(f, **kwargs)
             return from_pandas(full_df, copy_index=copy_index)
     else:

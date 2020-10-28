@@ -6959,7 +6959,38 @@ class DataFrameLocal(DataFrame):
         export_fits(self, path, progress=progress)
 
     @docsubst
-    def export_csv(self, path, progress=None, chunk_size=default_chunk_size, parallel=True, **kwargs):
+    def export_csv(self, path, progress=None, chunk_size=default_chunk_size, parallel=True, backend="pandas", **kwargs):
+        if backend == "arrow":
+            self.export_csv_arrow(path, progress=progress, chunk_size=chunk_size, parallel=parallel, **kwargs)
+        elif backend == "pandas":
+            self.export_csv_pandas(path, progress=progress, chunk_size=chunk_size, parallel=parallel, **kwargs)
+        else:
+            raise ValueError(f"Unknown backend {backend}, should be 'arrow' or 'pandas'")
+
+    @docsubst
+    def export_csv_arrow(self, to, progress=None, chunk_size=default_chunk_size, parallel=True, fs_options=None, fs=None):
+        import pyarrow.csv as csv
+
+        write_options = csv.WriteOptions(include_header=True)
+
+        def write(writer: csv.CSVWriter):
+            N = len(self)
+            with vaex.progress.tree(progress, title="export(csv)") as progressbar:
+                for i1, i2, table in self.to_arrow_table(chunk_size=chunk_size, parallel=parallel):
+                    writer.write(table)
+                    progressbar(i2 / N)
+                progressbar(1.0)
+
+        if vaex.file.is_path_like(to) or vaex.file.is_file_object(to):
+            schema = self.schema_arrow()
+            with vaex.file.open(path=to, mode="wb", fs_options=fs_options, fs=fs) as sink:
+                with csv.CSVWriter(sink, schema, write_options=write_options) as writer:
+                    write(writer)
+        else:
+            write(to)
+
+    @docsubst
+    def export_csv_pandas(self, path, progress=None, chunk_size=default_chunk_size, parallel=True, **kwargs):
         """ Exports the DataFrame to a CSV file.
 
         :param str path: Path for file

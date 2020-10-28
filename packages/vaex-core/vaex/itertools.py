@@ -28,6 +28,12 @@ def consume(i):
         pass
 
 
+def filter_none(i):
+    for item in i:
+        if item is not None:
+            yield item
+
+
 def chunked(i, count):
     '''Yield list 'subslices' of iterator i with max length count.
 

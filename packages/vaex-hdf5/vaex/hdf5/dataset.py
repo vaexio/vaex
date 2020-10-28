@@ -87,14 +87,9 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
             self.file_map[self.path] = file
         self.h5file = h5py.File(file, "r+" if self.write else "r")
 
-
-    @classmethod
-    def decode(cls, encoding, spec):
-        ds = cls(**spec)
-        return ds
-
     def __getstate__(self):
-        return {'group': self.group, **super().__getstate__()}
+        state = {'group': self.group, **super().__getstate__()}
+        return state
 
     def __setstate__(self, state):
         self.group = state.pop('group')
