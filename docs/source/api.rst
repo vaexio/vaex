@@ -17,6 +17,7 @@ Opening/reading in your data.
     vaex.from_ascii
     vaex.from_astropy_table
     vaex.from_csv
+    vaex.from_csv_arrow
     vaex.from_dataset
     vaex.from_dict
     vaex.from_items

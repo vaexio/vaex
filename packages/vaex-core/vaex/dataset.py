@@ -1,4 +1,5 @@
 from abc import  abstractmethod, abstractproperty
+import difflib
 import os
 from pathlib import Path
 import collections.abc
@@ -320,6 +321,15 @@ class Dataset(collections.abc.Mapping):
         self._id = str(uuid.uuid4())
         self._cached_fingerprint = None
 
+    def _check_existence(self, column_name):
+        matches = difflib.get_close_matches(column_name, list(self._columns))
+        msg = "Column or variable %r does not exist." % column_name
+        if matches:
+            msg += ' Did you mean: ' + " or ".join(map(repr, matches))
+        else:
+            msg += ' Available columns or variables: ' + ", ".join(map(repr, list(self._columns)))
+        raise KeyError(msg)
+
     def __repr__(self):
         import yaml
         data = self.__repr_data__()
@@ -386,7 +396,7 @@ class Dataset(collections.abc.Mapping):
         return state
 
     def __setstate__(self, state):
-        self.__dict__.update(state)
+        self.__dict__.update(state.copy())
         self._cached_fingerprint = None
         self._create_columns()
 
@@ -1464,7 +1474,7 @@ class DatasetFile(Dataset):
         return DatasetSlicedArrays(self, start=start, end=end)
 
     def _read_hashes(self):
-        path_hashes = Path(self.path + '.d') / 'hashes.yaml'
+        path_hashes = Path(str(self.path )+ '.d') / 'hashes.yaml'
         try:
             exists = path_hashes.exists()
         except OSError:  # happens for windows py<38
@@ -1484,24 +1494,28 @@ class DatasetFile(Dataset):
         if self._hash_cache_needs_write:
             self._write_hash_info()
 
-    def encode(self, encoding, skip=set()):
-        spec = {'dataset_type': self.snake_name,
-                'write': self.write,
-                'path': self.path,
+    def _encode(self, encoding):
+        spec = {'write': self.write,
+                'path': str(self.path),
                 'fs_options': self.fs_options,
                 'fs': self.fs}
         return spec
 
+    @classmethod
+    def _decode(cls, encoding, spec):
+        return cls(**spec)
+
     def __getstate__(self):
         # we don't have the columns in the state, since we should be able
         # to get them from disk again
-        return {
+        state = {
             'write': self.write,
             'path': self.path,
             'fs_options': self.fs_options,
             'fs': self.fs,
             '_ids': dict(self._ids)  # serialize the hases as non-frozen dict
         }
+        return state
 
     def __setstate__(self, state):
         super().__setstate__(state)

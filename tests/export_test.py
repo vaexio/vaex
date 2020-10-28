@@ -126,7 +126,7 @@ def test_export_open_csv(ds_local, tmpdir):
     df = ds_local
     path = str(tmpdir.join('test.csv'))
     df.export_csv(path, chunk_size=3)
-    df_opened = vaex.from_csv(path)
+    df_opened = vaex.read_csv(path)
     assert list(df) == list(df_opened)
     assert df.shape == df_opened.shape
 

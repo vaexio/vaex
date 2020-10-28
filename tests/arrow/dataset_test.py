@@ -17,6 +17,21 @@ def test_arrow(tmpdir, as_stream, rebuild_dataset):
     assert rebuild_dataset(df.dataset) == df.dataset
 
 
+@pytest.mark.parametrize("lazy", [False, True])
+def test_csv(tmpdir, df_filtered, rebuild_dataframe, lazy):
+    path = tmpdir / "test.csv"
+    df_filtered.drop('obj', inplace=True)
+    df_filtered.drop('datetime', inplace=True)
+    df_filtered.drop('timedelta', inplace=True)
+    df_filtered.export_csv(path)
+    df = vaex.from_csv_arrow(path, lazy=lazy)
+
+    df2 = rebuild_dataframe(df)
+    assert df2.dataset == df.dataset
+    assert df2.dataset.fingerprint == df.dataset.fingerprint
+    assert df2.x.tolist() == df.x.tolist()
+
+
 @pytest.mark.parametrize("l1", list(range(1, 6)))
 @pytest.mark.parametrize("l2", list(range(1, 6)))
 def test_parquet(l1, l2, rebuild_dataset):
@@ -90,8 +105,8 @@ def test_parquet(l1, l2, rebuild_dataset):
             for i1, i2, chunks in ds.chunk_iterator(['x']):
                 values.extend(chunks['x'].to_pylist())
             assert x[i:j].tolist() == values
-            
-    
+
+
 
     assert df.x.tolist() == x.tolist()
     assert df.g.tolist() == g.tolist()
