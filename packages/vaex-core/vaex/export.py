@@ -33,7 +33,7 @@ progress_lock = threading.Lock()
 class ProgressStatus(object):
     pass
 
-def _export(dataset_input, dataset_output, random_index_column, path, column_names=None, byteorder="=", shuffle=False, selection=False, progress=None, virtual=True, sort=None, ascending=True):
+def _export(dataset_input, dataset_output, random_index_column, path, column_names=None, byteorder="=", shuffle=False, selection=False, progress=None, virtual=True, sort=None, ascending=True, parallel=True):
     """
     :param DatasetLocal dataset: dataset to export
     :param str path: path for file
@@ -131,7 +131,7 @@ def _export(dataset_input, dataset_output, random_index_column, path, column_nam
                 continue
             logger.debug("  exporting column: %s " % column_name)
             future = thread_pool.submit(_export_column, dataset_input, dataset_output, column_name,
-                shuffle, sort, selection, N, order_array, order_array_inverse, progress_status)
+                shuffle, sort, selection, N, order_array, order_array_inverse, progress_status, parallel=parallel)
             futures.append(future)
 
     done = False
@@ -147,6 +147,8 @@ def _export(dataset_input, dataset_output, random_index_column, path, column_nam
         if not done:
             if not progress(progress_status.value / float(progress_total)):
                 progress_status.cancelled = True
+    if not progress_status.cancelled:
+        progress(1)
 
     for sparse_matrix_id, column_names in sparse_groups.items():
         sparse_matrix = sparse_matrices[sparse_matrix_id]
@@ -160,7 +162,7 @@ def _export(dataset_input, dataset_output, random_index_column, path, column_nam
     return column_names
 
 def _export_column(dataset_input, dataset_output, column_name, shuffle, sort, selection, N,
-    order_array, order_array_inverse, progress_status):
+    order_array, order_array_inverse, progress_status, parallel=True):
 
         if 1:
             block_scope = dataset_input._block_scope(0, vaex.execution.buffer_size_default)
@@ -187,9 +189,8 @@ def _export_column(dataset_input, dataset_output, column_name, shuffle, sort, se
             # TODO: if no filter, selection or mask, we can choose the quick path for str
             string_byte_offset = 0
 
-            for i1, i2 in vaex.utils.subdivide(count, max_length=max_length):
+            for i1, i2, values in dataset_input.evaluate(column_name, chunk_size=max_length, filtered=True, parallel=parallel, selection=selection, array_type='numpy-arrow'):
                 logger.debug("from %d to %d (total length: %d, output length: %d)", i1, i2, len(dataset_input), N)
-                values = dataset_input.evaluate(column_name, i1=i1, i2=i2, filtered=True, parallel=False, selection=selection, array_type='numpy')
                 no_values = len(values)
                 if no_values:
                     if is_string:
@@ -312,7 +313,7 @@ def export_hdf5_v1(dataset, path, column_names=None, byteorder="=", shuffle=Fals
     vaex.hdf5.export.export_hdf5_v1(**kwargs)
 
 
-def export_hdf5(dataset, path, column_names=None, byteorder="=", shuffle=False, selection=False, progress=None, virtual=True, sort=None, ascending=True):
+def export_hdf5(dataset, path, column_names=None, byteorder="=", shuffle=False, selection=False, progress=None, virtual=True, sort=None, ascending=True, parallel=True):
     kwargs = locals()
     import vaex.hdf5.export
     vaex.hdf5.export.export_hdf5(**kwargs)

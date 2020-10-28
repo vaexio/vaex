@@ -5905,7 +5905,7 @@ class DataFrameLocal(DataFrame):
         if path.endswith('.arrow'):
             self.export_arrow(path, chunk_size=chunk_size, parallel=parallel)
         elif path.endswith('.hdf5'):
-            self.export_hdf5(path, progress=progress)
+            self.export_hdf5(path, progress=progress, parallel=parallel)
         elif path.endswith('.fits'):
             self.export_fits(path, progress=progress)
         elif path.endswith('.parquet'):
@@ -6004,7 +6004,7 @@ class DataFrameLocal(DataFrame):
 
 
 
-    def export_hdf5(self, path, byteorder="=", progress=None):
+    def export_hdf5(self, path, byteorder="=", progress=None, parallel=True):
         """Exports the DataFrame to a vaex hdf5 file
 
         :param str path: path for file
@@ -6014,7 +6014,7 @@ class DataFrameLocal(DataFrame):
         :return:
         """
         import vaex.export
-        vaex.export.export_hdf5(self, path, byteorder=byteorder, progress=progress)
+        vaex.export.export_hdf5(self, path, byteorder=byteorder, progress=progress, parallel=parallel)
 
     def export_fits(self, path, progress=None):
         """Exports the DataFrame to a fits file that is compatible with TOPCAT colfits format

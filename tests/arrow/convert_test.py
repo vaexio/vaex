@@ -23,6 +23,7 @@ def test_bool_sliced():
     assert b.tolist() == bools[1:]
 
 
+@pytest.mark.skipif(pa.__version__.split(".")[0] != '1', reason="segfaults in arrow v1")
 @pytest.mark.parametrize("offset", list(range(1, 17)))
 def test_large_string_to_string(offset):
     s = pa.array(['aap', 'noot', None, 'mies'] * 3, type=pa.large_string())

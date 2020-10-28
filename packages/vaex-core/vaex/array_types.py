@@ -90,6 +90,8 @@ def to_numpy(x, strict=False):
     elif isinstance(x, np.ndarray):
         return x
     elif isinstance(x, supported_arrow_array_types):
+        if not strict and is_string(x):
+            return x
         x = vaex.arrow.convert.column_from_arrow_array(x)
         return to_numpy(x, strict=strict)
     elif hasattr(x, "to_numpy"):
@@ -117,6 +119,8 @@ def convert(x, type, default_type="numpy"):
             return np.concatenate([convert(k, type) for k in x])
         else:
             return to_numpy(x, strict=True)
+    if type == "numpy-arrow":  # used internally, numpy if possible, otherwise arrow
+        return to_numpy(x, strict=False)
     elif type == "arrow":
         if isinstance(x, (list, tuple)):
             return pa.chunked_array([convert(k, type) for k in x])
