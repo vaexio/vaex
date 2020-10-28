@@ -188,6 +188,8 @@ def large_string_to_string(ar):
     offset = ar.offset
     null_bitmap, offsets_buffer, bytes = ar.buffers()
     offsets = np.frombuffer(offsets_buffer, np.int64, len(ar)+1 + ar.offset)
+    if offsets[-1] > (2**31-1):
+        raise ValueError('pa.large_string cannot be converted to pa.string')
     offsets = offsets.astype(np.int32)
     offsets_buffer = pa.py_buffer(offsets)
     return pa.Array.from_buffers(pa.string(), len(ar), [null_bitmap, offsets_buffer, bytes], offset=ar.offset)

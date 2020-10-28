@@ -5915,49 +5915,38 @@ class DataFrameLocal(DataFrame):
         else:
             raise ValueError('''Unrecognized file extension. Please use .arrow, .hdf5, .parquet, .fits, or .csv to export to the particular file format.''')
 
-    def export_arrow(self, path, progress=None, chunk_size=default_chunk_size, parallel=True):
-        """Exports the DataFrame to a file written with arrow
+    def export_arrow(self, to, progress=None, chunk_size=default_chunk_size, parallel=True, reduce_large=True):
+        """Exports the DataFrame to a file of stream written with arrow 
 
-        :param str path: path for file
+        :param to: filename, file object, or :py:data:`pyarrow.RecordBatchStreamWriter`, py:data:`pyarrow.RecordBatchFileWriter` or :py:data:`pyarrow.parquet.ParquetWriter`
         :param int chunk_size: Number of rows in each chunked array, set to None to create a contiguous array (requires memory!)
         :param progress: progress callback that gets a progress fraction as argument and should return True to continue,
                 or a default progress bar when progress=True
-        :return:
-        """
-        self.export_arrow_stream(path, progress=progress, chunk_size=chunk_size, parallel=parallel)
-
-    def export_arrow_stream(self, path_or_writer, progress=None, chunk_size=default_chunk_size, parallel=True):
-        """Exports the DataFrame as Arrow stream to a file or arrow writer
-
-        :param path_or_writer path: path for file or :py:data:`pyarrow.RecordBatchStreamWriter`
-        :param progress: progress callback that gets a progress fraction as argument and should return True to continue,
-                or a default progress bar when progress=True
-        :param int chunk_size: Number of rows for each table to write
         :param bool parallel: {evaluate_parallel}
         :return:
         """
-        schema = self[0:1].to_arrow_table(parallel=False).schema
         progressbar = vaex.utils.progressbars(progress)
         def write(writer):
             progressbar(0)
             N = len(self)
             if chunk_size:
-                for i1, i2, table in self.to_arrow_table(chunk_size=chunk_size, parallel=parallel):
+                for i1, i2, table in self.to_arrow_table(chunk_size=chunk_size, parallel=parallel, reduce_large=reduce_large):
                     writer.write_table(table)
                     progressbar(i2/N)
                 progressbar(1.)
             else:
-                table = self.to_arrow_table(chunk_size=chunk_size, parallel=parallel)
+                table = self.to_arrow_table(chunk_size=chunk_size, parallel=parallel, reduce_large=reduce_large)
                 writer.write_table(table)
-        if isinstance(path_or_writer, str):
-            with pa.OSFile(path_or_writer, 'wb') as sink:
+        if isinstance(to, str):
+            schema = self[0:1].to_arrow_table(parallel=False, reduce_large=reduce_large).schema
+            with pa.OSFile(to, 'wb') as sink:
                 writer = pa.RecordBatchStreamWriter(sink, schema)
                 write(writer)
         else:
-            write(path_or_writer)
+            write(to)
 
     @docsubst
-    def export_parquet(self, path, progress=None, parallel=True, **kwargs):
+    def export_parquet(self, path, progress=None, chunk_size=default_chunk_size, parallel=True, **kwargs):
         """Exports the DataFrame to a parquet file.
 
         Note: This may require that all of the data fits into memory (memory mapped data is an exception).
@@ -5967,12 +5956,14 @@ class DataFrameLocal(DataFrame):
         :param progress: progress callback that gets a progress fraction as argument and should return True to continue,
                 or a default progress bar when progress=True
         :param bool parallel: {evaluate_parallel}
-        :param **kwargs: Extra keyword arguments to be passed on to pyarrow.parquet.write_table
+        :param **kwargs: Extra keyword arguments to be passed on to py:data:`pyarrow.parquet.ParquetWriter`.
         :return:
         """
         import pyarrow.parquet as pq
-        table = self.to_arrow_table(chunk_size=None, parallel=parallel, reduce_large=True)
-        pq.write_table(table, path, **kwargs)
+        schema = self[0:1].to_arrow_table(parallel=False, reduce_large=True).schema
+        with pa.OSFile(str(path), 'wb') as sink:
+            with pq.ParquetWriter(sink, schema, **kwargs) as writer:
+                self.export_arrow(writer, progress=progress, chunk_size=chunk_size, parallel=parallel, reduce_large=True)
 
     @docsubst
     def export_chunked(self, path, progress=None, chunk_size=default_chunk_size, parallel=True, max_workers=None):
@@ -5984,6 +5975,7 @@ class DataFrameLocal(DataFrame):
 
         :param str path: Path for file, formatted by chunk index i (e.g. 'chunk-{{i:05}}.parquet')
         :param int chunk_size: Number of rows for each file (except possibly the last)
+        :param int max_workers: Number of workers/threads to use for writing in parallel
         :param bool parallel: {evaluate_parallel}
         """
         from .itertools import pmap, pwait, buffer, consume
