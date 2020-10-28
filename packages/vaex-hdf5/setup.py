@@ -13,7 +13,7 @@ author_email = "maartenbreddels@gmail.com"
 license = 'MIT'
 version = version.__version__
 url = 'https://www.github.com/maartenbreddels/vaex'
-install_requires_hdf5 = ["vaex-core>=4.0.0-alpha.3,<5", "h5py>=2.9", "s3fs<0.3", "gcsfs>=0.6.2"]
+install_requires_hdf5 = ["vaex-core>=4.0.0-alpha.4,<5", "h5py>=2.9", "s3fs<0.3", "gcsfs>=0.6.2"]
 
 setup(name=name + '-hdf5',
       version=version,

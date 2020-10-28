@@ -16,7 +16,7 @@ version = version.__version__
 url = 'https://www.github.com/maartenbreddels/vaex'
 
 install_requires = [
-      'vaex-core>=4.0.0-alpha.3,<5',
+      'vaex-core>=4.0.0-alpha.4,<5',
       'vaex-viz>=0.5.0-dev.0,<0.6',
       'vaex-server>=0.4.0-dev.0,<0.5',
       'vaex-hdf5>=0.7.0-alpha.1,<0.8',
