@@ -1,55 +1,106 @@
 __author__ = 'breddels'
+import pathlib
 import logging
+import os
+import sys
+from urllib.parse import urlparse, parse_qs
+
+import vaex.file.cache
+
+
+normal_open = open
 logger = logging.getLogger("vaex.file")
 
-opener_classes = []
-normal_open = open
 
-def register(cls):
-    opener_classes.append(cls)
+class FileProxy:
+    '''Wraps a file object, giving it a name a dup() method
+    
+    The dup is needed since a file is stateful, and needs to be duplicated in threads
+    '''
+    def __init__(self, file, name, dup):
+        self.file = file
+        self.name = name
+        self.dup = dup
 
-import vaex.file.other
-try:
-    import vaex.hdf5 as hdf5
-except ImportError:
-    hdf5 = None
-if hdf5:
-    import vaex.hdf5.dataset
+    def read(self, *args):
+        return self.file.read(*args)
 
-def can_open(path, *args, **kwargs):
-    for name, class_ in list(vaex.file.other.dataset_type_map.items()):
-        if class_.can_open(path, *args):
-            return True
+    def seek(self, *args):
+        return self.file.seek(*args)
+
+    def tell(self):
+        return self.file.tell()
+
+    def close(self):
+        return self.file.close()
+
+    def __enter__(self, *args):
+        pass
+
+    def __exit__(self, *args):
+        self.file.close()
 
 
-def open(path, *args, **kwargs):
-    dataset_class = None
-    openers = []
-    for opener in opener_classes:
-        if opener.can_open(path, *args, **kwargs):
-            return opener.open(path, *args, **kwargs)
-    if hdf5:
-        openers.extend(hdf5.dataset.dataset_type_map.items())
-    openers.extend(vaex.file.other.dataset_type_map.items())
-    for name, class_ in list(openers):
-        logger.debug("trying %r with class %r" % (path, class_))
-        if class_.can_open(path, *args, **kwargs):
-            logger.debug("can open!")
-            dataset_class = class_
-            break
-    if dataset_class:
-        dataset = dataset_class(path, *args, **kwargs)
-        return vaex.dataframe.DataFrameLocal(dataset)
-        return dataset
+def is_file_object(file):
+    return hasattr(file, 'read')
+
+
+def stringyify(path):
+    if hasattr(path, 'name'):  # passed in a file 
+        path = path.name
+    try:
+        # Pathlib support
+        path = path.__fspath__()
+    except AttributeError:
+        pass
+    return path
+
+
+def memory_mappable(path):
+    path = stringyify(path)
+    o = urlparse(path)
+    return o.scheme == ''
+
+
+def split_options(path, **kwargs):
+    o = urlparse(path)
+    naked_path = path
+    if '?' in naked_path:
+        naked_path = naked_path[:naked_path.index('?')]
+    options = dict(kwargs)
+    options.update({key: values[0] for key, values in parse_qs(o.query).items()})
+    return naked_path, options
+
+
+def open_google_cloud(path, mode, **kwargs):
+    from .gcs import open
+    return vaex.file.gcs.open(path, mode, **kwargs)
+
+
+def open_s3_arrow(path, mode, **kwargs):
+    from .arrow import open_s3
+    return open_s3(path, mode, **kwargs)
+
+
+scheme_opener = {
+    '': normal_open,
+    's3': open_s3_arrow,
+    'gs': open_google_cloud
+}
+
+
+def open(path, mode='rb', **kwargs):
+    path = stringyify(path)
+    o = urlparse(path)
+    opener = scheme_opener.get(o.scheme)
+    if not opener:
+        raise ValueError(f'Do not know how to open {path}')
+    return opener(path, mode, **kwargs)
 
 
 def dup(file):
     """Duplicate a file like object, s3 or cached file supported"""
-    if isinstance(file, vaex.file.cache.CachedFile):
+    if isinstance(file, (vaex.file.cache.CachedFile, FileProxy)):
         return file.dup()
-    elif vaex.file.s3.s3fs is not None and isinstance(file, vaex.file.s3.s3fs.core.S3File):
-        return vaex.file.s3.dup(file)
-    elif vaex.file.gcs.gcsfs is not None and isinstance(file, vaex.file.gcs.gcsfs.core.GCSFile):
-        return vaex.file.gcs.dup(file)
     else:
         return normal_open(file.name, file.mode)

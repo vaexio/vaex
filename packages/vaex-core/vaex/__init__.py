@@ -191,7 +191,7 @@ def open(path, convert=False, shuffle=False, copy_index=False, *args, **kwargs):
                 else:
                     # sort to get predictable behaviour (useful for testing)
                     filenames.extend(list(sorted(glob.glob(path))))
-            ds = None
+            df = None
             if len(filenames) == 0:
                 raise IOError('Could not open file: {}, it does not exist'.format(path))
             filename_hdf5 = _convert_name(filenames, shuffle=shuffle)
@@ -203,17 +203,22 @@ def open(path, convert=False, shuffle=False, copy_index=False, *args, **kwargs):
                     naked_path = naked_path[:naked_path.index('?')]
                 ext = os.path.splitext(naked_path)[1]
                 if os.path.exists(filename_hdf5) and convert:  # also check mtime?
-                    ds = vaex.file.open(filename_hdf5)
+                    ds = vaex.dataset.open(filename_hdf5)
+                    if ds is not None:
+                        df = vaex.from_dataset(ds)
                 else:
                     if ext == '.csv' or naked_path.endswith(".csv.bz2"):  # special support for csv.. should probably approach it a different way
                         csv_convert = filename_hdf5 if convert else False
-                        ds = from_csv(path, copy_index=copy_index, convert=csv_convert, **kwargs)
+                        df = from_csv(path, copy_index=copy_index, convert=csv_convert, **kwargs)
                     else:
-                        ds = vaex.file.open(path, *args, **kwargs)
-                        if convert and ds:
-                            ds.export_hdf5(filename_hdf5, shuffle=shuffle)
-                            ds = vaex.file.open(filename_hdf5)  # argument were meant for pandas?
-                if ds is None:
+                        ds = vaex.dataset.open(path, *args, **kwargs)
+                        if ds is not None:
+                            df = vaex.from_dataset(ds)
+                        if convert and ds is not None:
+                            df = vaex.from_dataset(ds)
+                            df.export_hdf5(filename_hdf5, shuffle=shuffle)
+                            df = vaex.open(filename_hdf5)
+                if df is None:
                     if os.path.exists(path):
                         raise IOError('Could not open file: {}, did you install vaex-hdf5? Is the format supported?'.format(path))
             elif len(filenames) > 1:
@@ -222,21 +227,19 @@ def open(path, convert=False, shuffle=False, copy_index=False, *args, **kwargs):
                 else:
                     filename_hdf5 = _convert_name(filenames, shuffle=shuffle)
                 if os.path.exists(filename_hdf5) and convert:  # also check mtime
-                    ds = open(filename_hdf5)
+                    df = vaex.open(filename_hdf5)
                 else:
                     dfs = []
                     for filename in filenames:
-                        dfs.append(open(filename, convert=bool(convert), shuffle=shuffle, **kwargs))
-                    ds = concat(dfs)
+                        dfs.append(vaex.open(filename, convert=bool(convert), shuffle=shuffle, **kwargs))
+                    df = vaex.concat(dfs)
                     if convert:
-                        if shuffle:
-                            ds = ds.shuffle()
-                        ds.export_hdf5(filename_hdf5)
-                        ds = vaex.file.open(filename_hdf5)
+                        df.export_hdf5(filename_hdf5, shuffle=shuffle)
+                        df = vaex.open(filename_hdf5)
 
-        if ds is None:
+        if df is None:
             raise IOError('Unknown error opening: {}'.format(path))
-        return ds
+        return df
     except:
         logging.getLogger("vaex").error("error opening %r" % path)
         raise
@@ -547,7 +550,7 @@ def _from_csv_convert_and_read(filename_or_buffer, copy_index, maybe_convert_pat
     import vaex.file
     combined_hdf5 = _convert_name(csv_path)
     if os.path.exists(combined_hdf5):
-        return vaex.file.open(combined_hdf5)
+        return vaex.open(combined_hdf5)
 
     # convert CSV chunks to separate HDF5 files
     import pandas as pd
@@ -566,7 +569,7 @@ def _from_csv_convert_and_read(filename_or_buffer, copy_index, maybe_convert_pat
         os.rename(converted_paths[0], combined_hdf5)
     else:
         logger.info('converting %d chunks into single HDF5 file %s' % (len(converted_paths), combined_hdf5))
-        dfs = [vaex.file.open(p) for p in converted_paths]
+        dfs = [vaex.open(p) for p in converted_paths]
         df_combined = vaex.concat(dfs)
         df_combined.export_hdf5(combined_hdf5)
 
@@ -579,7 +582,7 @@ def _from_csv_convert_and_read(filename_or_buffer, copy_index, maybe_convert_pat
                 logger.error('Could not close or delete intermediate hdf5 file %s used to convert %s to hdf5: %s' % (
                     df_path, csv_path, e))
 
-    return vaex.file.open(combined_hdf5)
+    return vaex.open(combined_hdf5)
 
 
 def read_csv(filepath_or_buffer, **kwargs):

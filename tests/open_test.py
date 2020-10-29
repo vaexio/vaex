@@ -56,7 +56,7 @@ def test_open():
     _cleanup_generated_files()
 
     # be nice to users when converting from unsupported format
-    with tempfile.NamedTemporaryFile(suffix='json') as in_f:
+    with tempfile.NamedTemporaryFile(suffix='.json') as in_f:
         in_f.write(b'[]')
         in_f.flush()
         with pytest.raises(IOError) as exc:

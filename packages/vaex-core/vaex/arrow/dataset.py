@@ -163,10 +163,10 @@ class DatasetArrow(vaex.dataset.Dataset):
 
 def from_table(table, as_numpy=False):
     columns = dict(zip(table.schema.names, table.columns))
-    # TODO: this should be an DatasetArrow and/or DatasetParquet
     dataset = vaex.dataset.DatasetArrays(columns)
-    df = vaex.dataframe.DataFrameLocal(dataset)
-    return df.as_numpy() if as_numpy else df
+    if as_numpy:
+        dataset = dataset.as_numpy()
+    return dataset
 
 
 def open(filename, as_numpy=False):
@@ -188,9 +188,5 @@ def open(filename, as_numpy=False):
 
 def open_parquet(filename, as_numpy=False):
     arrow_ds = pyarrow.dataset.dataset(filename)
-    ds = DatasetArrow(arrow_ds)
-    return vaex.from_dataset(ds)
-
-# vaex.file.other.dataset_type_map["arrow"] = DatasetArrow
-# vaex.file.other.dataset_type_map["parquet"] = DatasetParquet
+    return DatasetArrow(arrow_ds)
 

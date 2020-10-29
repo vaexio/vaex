@@ -28,5 +28,11 @@ setup(
     entry_points={
         'vaex.plugin': ['astro = vaex.astro.legacy:add_plugin'],
         'vaex.dataframe.accessor': ['astro = vaex.astro.transformations:DataFrameAccessorAstro'],
+        'vaex.dataset.opener': [
+                'fits = vaex.astro.fits:FitsBinTable',
+                'gadget = vaex.astro.gadget:MemoryMappedGadget',
+                'votable = vaex.astro.votable:VOTable',
+                'tap = vaex.astro.tap:DatasetTap',
+        ],
     },
 )

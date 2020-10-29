@@ -1,7 +1,4 @@
-try:
-    from urllib.parse import urlparse, parse_qs
-except ImportError:
-    from urlparse import urlparse, parse_qs
+from urllib.parse import urlparse, parse_qs
 
 try:
     import gcsfs
@@ -10,7 +7,7 @@ except Exception as e:
     gcsfs = None
 
 import vaex.file.cache
-
+from . import FileProxy
 
 normal_open = open
 
@@ -41,8 +38,12 @@ def open(path, mode='rb', **kwargs):
         del options['cache']
     fs = gcsfs.GCSFileSystem(**options)
     if use_cache:
-        fp = lambda: fs.open(naked_path, mode)
+        def gcs_open():
+            return fs.open(naked_path, mode)
+        fp = lambda: FileProxy(gcs_open(), naked_path, dup=gcs_open)
         fp = vaex.file.cache.CachedFile(fp, naked_path)
     else:
-        fp = fs.open(naked_path, mode)
+        def gcs_open():
+            return fs.open(naked_path, mode)
+        fp = FileProxy(gcs_open(), naked_path, dup=gcs_open)
     return fp

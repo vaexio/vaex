@@ -3,6 +3,7 @@ import os
 from pathlib import Path
 import collections.abc
 import logging
+import pkg_resources
 import uuid
 from urllib.parse import urlparse
 
@@ -18,8 +19,27 @@ from . import array_types
 
 logger = logging.getLogger('vaex.dataset')
 
-
+opener_classes = []
 HASH_VERSION = "1"
+
+
+def open(path, *args, **kwargs):
+    if not opener_classes:
+        for entry in pkg_resources.iter_entry_points(group='vaex.dataset.opener'):
+            logger.debug('trying opener: ' + entry.name)
+            try:
+                opener = entry.load()
+                opener_classes.append(opener)
+            except Exception:
+                logger.exception('issue loading ' + entry.name)
+
+    for opener in opener_classes:
+        if opener.quick_test(path, *args, **kwargs):
+            return opener.open(path, *args, **kwargs)
+
+    for opener in opener_classes:
+        if opener.can_open(path, *args, **kwargs):
+            return opener.open(path, *args, **kwargs)
 
 
 def _to_bytes(ar):
@@ -870,6 +890,14 @@ class DatasetFile(Dataset):
         self._hash_calculations = 0  # track it for testing purposes
         self._hash_info = {}
         self._read_hashes()
+
+    @classmethod
+    def quick_test(cls, path, *args, **kwargs):
+        return False
+
+    @classmethod
+    def open(cls, path, *args, **kwargs):
+        return cls(path, *args, **kwargs)
 
     def chunk_iterator(self, columns, chunk_size=None, reverse=False):
         yield from self._default_chunk_iterator(self._columns, columns, chunk_size, reverse=reverse)

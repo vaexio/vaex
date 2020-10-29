@@ -145,6 +145,9 @@ setup(name=name + '-core',
           'console_scripts': ['vaex = vaex.__main__:main'],
           'gui_scripts': ['vaexgui = vaex.__main__:main'],  # sometimes in osx, you need to run with this
           'vaex.dataframe.accessor': ['geo = vaex.geo:DataFrameAccessorGeo'],
-          'vaex.plugin': ['arrow = vaex.arrow.opener:register_opener'],
+          'vaex.dataset.opener': [
+              'arrow = vaex.arrow.opener:ArrowOpener',
+              'parquet = vaex.arrow.opener:ParquetOpener',
+          ],
       }
       )

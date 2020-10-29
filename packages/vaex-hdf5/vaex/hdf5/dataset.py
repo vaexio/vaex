@@ -61,11 +61,8 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
     """Implements the vaex hdf5 file format"""
 
     def __init__(self, path, write=False):
-        if isinstance(path, six.string_types):
-            nommap = s3.is_s3_path(path) or gcs.is_gs_path(path)
-            super(Hdf5MemoryMapped, self).__init__(path, write=write, nommap=nommap)
-        else:
-            super(Hdf5MemoryMapped, self).__init__(path.name, write=write, nommap=True)
+        nommap = not vaex.file.memory_mappable(path)
+        super(Hdf5MemoryMapped, self).__init__(vaex.file.stringyify(path), write=write, nommap=nommap)
         self._all_mmapped = True
         self._open(path)
         self.units = {}
@@ -78,25 +75,14 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
             self.h5file.close()
 
     def _open(self, path):
-        if hasattr(path, 'read'):
-            fp = path  # support file handle for testing
-            self.file_map[self.path] = fp
+        if vaex.file.is_file_object(path):
+            file = path  # support file handle for testing
+            self.file_map[self.path] = file
         else:
             mode = 'rb+' if self.write else 'rb'
-            if s3.is_s3_path(path):
-                fp = s3.open(self.path)
-                self.file_map[self.path] = fp
-            elif gcs.is_gs_path(path):
-                fp = gcs.open(self.path)
-                self.file_map[self.path] = fp
-            else:
-                if self.nommap:
-                    fp = open(self.path, mode)
-                    self.file_map[self.path] = fp
-                else:
-                    # this is the only path that will have regular mmapping
-                    fp = self.path
-        self.h5file = h5py.File(fp, "r+" if self.write else "r")
+            file = vaex.file.open(self.path, mode=mode)
+            self.file_map[self.path] = file
+        self.h5file = h5py.File(file, "r+" if self.write else "r")
 
 
     def __getstate__(self):
@@ -171,54 +157,22 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
         return Hdf5MemoryMapped(path, write=write)
 
     @classmethod
+    def quick_test(cls, path, *args, **kwargs):
+        path, options = vaex.file.split_options(path)
+        return path.endswith('.hdf5') or path.endswith('.h5')
+
+    @classmethod
     def can_open(cls, path, *args, **kwargs):
-        h5file = None
-        # before we try to open it with h5py, we check the signature (quicker)
-        if path.startswith('gs://'):
-            try:
-                with gcs.open(path, "rb") as f:
-                    signature = f.read(4)
-                    hdf5file = signature == b"\x89\x48\x44\x46"
-            except:
-                logger.exception("could not read 4 bytes from %r", path)
-                return
-        else:
-            try:
-                with s3.open(path, "rb") as f:
-                    signature = f.read(4)
-                    hdf5file = signature == b"\x89\x48\x44\x46"
-            except:
-                logger.exception("could not read 4 bytes from %r", path)
-                return
-        if hdf5file:
-            if path.startswith('gs://'):
-                with gcs.open(path, "rb") as f:
-                    try:
-                        h5file = h5py.File(f, "r")
-                    except:
-                        logger.exception("could not open file as hdf5")
-                        return False
-                    if h5file is not None:
-                        with h5file:
-                            root_datasets = [dataset for name, dataset in h5file.items() if isinstance(dataset, h5py.Dataset)]
-                            return ("data" in h5file) or ("columns" in h5file) or ("table" in h5file) or \
+        if not cls.quick_test(path, *Args, **kwargs):
+            return False
+        with vaex.file.open(path):
+            signature = f.read(4)
+            if signature != b"\x89\x48\x44\x46":
+                return False
+            with h5py.File(f, "r") as h5file:
+                root_datasets = [dataset for name, dataset in h5file.items() if isinstance(dataset, h5py.Dataset)]
+                return ("data" in h5file) or ("columns" in h5file) or ("table" in h5file) or \
                                 len(root_datasets) > 0
-                    else:
-                        logger.debug("file %s has no data or columns group" % path)
-            else:
-                with s3.open(path, "rb") as f:
-                    try:
-                        h5file = h5py.File(f, "r")
-                    except:
-                        logger.exception("could not open file as hdf5")
-                        return False
-                    if h5file is not None:
-                        with h5file:
-                            root_datasets = [dataset for name, dataset in h5file.items() if isinstance(dataset, h5py.Dataset)]
-                            return ("data" in h5file) or ("columns" in h5file) or ("table" in h5file) or \
-                                len(root_datasets) > 0
-                    else:
-                        logger.debug("file %s has no data or columns group" % path)
         return False
 
     @classmethod
