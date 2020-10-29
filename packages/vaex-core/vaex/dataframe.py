@@ -5891,15 +5891,16 @@ class DataFrameLocal(DataFrame):
         left._dataset = left.dataset.merged(right_dataset)
         return left
 
+    @docsubst
     def export(self, path, progress=None, chunk_size=default_chunk_size, parallel=True):
         """Exports the DataFrame to a file depending on the file extension.
 
         E.g if the filename ends on .hdf5, `df.export_hdf5` is called.
 
         :param str path: path for file
-        :param int chunk_size: Passed to the exporter method, if supported.
-        :param progress: progress callback that gets a progress fraction as argument and should return True to continue,
-                or a default progress bar when progress=True
+        :param progress: {progress}
+        :param int chunk_size: {chunk_size_export}, if supported.
+        :param bool parallel: {evaluate_parallel}
         :return:
         """
         if path.endswith('.arrow'):
@@ -5915,14 +5916,15 @@ class DataFrameLocal(DataFrame):
         else:
             raise ValueError('''Unrecognized file extension. Please use .arrow, .hdf5, .parquet, .fits, or .csv to export to the particular file format.''')
 
+    @docsubst
     def export_arrow(self, to, progress=None, chunk_size=default_chunk_size, parallel=True, reduce_large=True):
-        """Exports the DataFrame to a file of stream written with arrow 
+        """Exports the DataFrame to a file of stream written with arrow
 
         :param to: filename, file object, or :py:data:`pyarrow.RecordBatchStreamWriter`, py:data:`pyarrow.RecordBatchFileWriter` or :py:data:`pyarrow.parquet.ParquetWriter`
-        :param int chunk_size: Number of rows in each chunked array, set to None to create a contiguous array (requires memory!)
-        :param progress: progress callback that gets a progress fraction as argument and should return True to continue,
-                or a default progress bar when progress=True
+        :param progress: {progress}
+        :param int chunk_size: {chunk_size_export}
         :param bool parallel: {evaluate_parallel}
+        :param bool reduce_large: If True, convert arrow large_string type to string type
         :return:
         """
         progressbar = vaex.utils.progressbars(progress)
@@ -5953,8 +5955,8 @@ class DataFrameLocal(DataFrame):
             Use :py:`DataFrame.export_chunks` to write to multiple files in parallel.
 
         :param str path: path for file
-        :param progress: progress callback that gets a progress fraction as argument and should return True to continue,
-                or a default progress bar when progress=True
+        :param progress: {progress}
+        :param int chunk_size: {chunk_size_export}
         :param bool parallel: {evaluate_parallel}
         :param **kwargs: Extra keyword arguments to be passed on to py:data:`pyarrow.parquet.ParquetWriter`.
         :return:
@@ -5966,17 +5968,31 @@ class DataFrameLocal(DataFrame):
                 self.export_arrow(writer, progress=progress, chunk_size=chunk_size, parallel=parallel, reduce_large=True)
 
     @docsubst
-    def export_chunked(self, path, progress=None, chunk_size=default_chunk_size, parallel=True, max_workers=None):
-        """Export the DataFrame to multiple files in parallel.
+    def export_many(self, path, progress=None, chunk_size=default_chunk_size, parallel=True, max_workers=None):
+        """Export the DataFrame to multiple files of the same type in parallel.
 
         The path will be formatted using the i parameter (which is the chunk index).
 
-        TODO: example
+        Example:
+
+        >>> import vaex
+        >>> df = vaex.open('my_big_dataset.hdf5')
+        >>> print(f'number of rows: {len(df):,}')
+        number of rows: 193,938,982
+        >>> df.export_many(path='my/destination/folder/chunk-{i:03}.arrow')
+        >>> df_single_chunk = vaex.open('my/destination/folder/chunk-00001.arrow')
+        >>> print(f'number of rows: {len(df_single_chunk):,}')
+        number of rows: 1,048,576
+        >>> df_all_chunks = vaex.open('my/destination/folder/chunk-*.arrow')
+        >>> print(f'number of rows: {len(df_all_chunks):,}')
+        number of rows: 193,938,982
+
 
         :param str path: Path for file, formatted by chunk index i (e.g. 'chunk-{{i:05}}.parquet')
-        :param int chunk_size: Number of rows for each file (except possibly the last)
-        :param int max_workers: Number of workers/threads to use for writing in parallel
+        :param progress: {progress}
+        :param int chunk_size: {chunk_size_export}
         :param bool parallel: {evaluate_parallel}
+        :param int max_workers: Number of workers/threads to use for writing in parallel
         """
         from .itertools import pmap, pwait, buffer, consume
         path1 = str(path).format(i=0, i1=1, i2=2)
@@ -6002,26 +6018,25 @@ class DataFrameLocal(DataFrame):
         consume(map(update_progress, pwait(buffer(pmap(write, enumerate(input), pool=pool), workers+3))))
         progressbar(1)
 
-
-
+    @docsubst
     def export_hdf5(self, path, byteorder="=", progress=None, parallel=True):
         """Exports the DataFrame to a vaex hdf5 file
 
         :param str path: path for file
         :param str byteorder: = for native, < for little endian and > for big endian
-        :param progress: progress callback that gets a progress fraction as argument and should return True to continue,
-                or a default progress bar when progress=True
+        :param progress: {progress}
+        :param bool parallel: {evaluate_parallel}
         :return:
         """
         import vaex.export
         vaex.export.export_hdf5(self, path, byteorder=byteorder, progress=progress, parallel=parallel)
 
+    @docsubst
     def export_fits(self, path, progress=None):
         """Exports the DataFrame to a fits file that is compatible with TOPCAT colfits format
 
         :param str path: path for file
-        :param progress: progress callback that gets a progress fraction as argument and should return True to continue,
-                or a default progress bar when progress=True
+        :param progress: {progress}
         :return:
         """
         import vaex.export
