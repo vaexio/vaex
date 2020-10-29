@@ -16,9 +16,9 @@ def test_export_empty_string(tmpdir, filename):
     repr(df)
 
 
-def test_export_chunked_name(df_local, tmpdir):
+def test_export_many_name(df_local, tmpdir):
     df = df_local[['x']]
-    df.export_chunked(tmpdir / 'chunk.parquet', chunk_size=3)
+    df.export_many(tmpdir / 'chunk.parquet', chunk_size=3)
     assert (tmpdir / 'chunk-00001.parquet').exists()
     assert (tmpdir / 'chunk-00002.parquet').exists()
     assert (tmpdir / 'chunk-00003.parquet').exists()
@@ -30,14 +30,14 @@ def test_export_large_string_parquet(tmpdir):
     df = vaex.from_arrays(s=s)
     df.export_parquet(tmpdir / 'chunk.parquet')
 
-def test_export_chunked(df_local, tmpdir):
+def test_export_many(df_local, tmpdir):
     df = df_local
     df = df.drop('datetime')
     if 'timedelta' in df:
         df = df.drop('timedelta')
     if 'obj' in df:
         df = df.drop(['obj'])
-    df.export_chunked(tmpdir / 'chunk_{i:05}.parquet', chunk_size=3)
+    df.export_many(tmpdir / 'chunk_{i:05}.parquet', chunk_size=3)
     df_copy = vaex.open(str(tmpdir / 'chunk_*.parquet'))
     assert df_copy.x.tolist() == df.x.tolist()
 

@@ -5977,14 +5977,14 @@ class DataFrameLocal(DataFrame):
 
         >>> import vaex
         >>> df = vaex.open('my_big_dataset.hdf5')
-        >>> print(f'number of rows: {len(df):,}')
+        >>> print(f'number of rows: {{len(df):,}}')
         number of rows: 193,938,982
-        >>> df.export_many(path='my/destination/folder/chunk-{i:03}.arrow')
+        >>> df.export_many(path='my/destination/folder/chunk-{{i:03}}.arrow')
         >>> df_single_chunk = vaex.open('my/destination/folder/chunk-00001.arrow')
-        >>> print(f'number of rows: {len(df_single_chunk):,}')
+        >>> print(f'number of rows: {{len(df_single_chunk):,}}')
         number of rows: 1,048,576
         >>> df_all_chunks = vaex.open('my/destination/folder/chunk-*.arrow')
-        >>> print(f'number of rows: {len(df_all_chunks):,}')
+        >>> print(f'number of rows: {{len(df_all_chunks):,}}')
         number of rows: 193,938,982
 
 
