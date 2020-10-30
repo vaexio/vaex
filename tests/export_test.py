@@ -15,6 +15,33 @@ def test_export_empty_string(tmpdir, filename):
     df = vaex.open(path)
     repr(df)
 
+
+def test_export_many_name(df_local, tmpdir):
+    df = df_local[['x']]
+    df.export_many(tmpdir / 'chunk.parquet', chunk_size=3)
+    assert (tmpdir / 'chunk-00001.parquet').exists()
+    assert (tmpdir / 'chunk-00002.parquet').exists()
+    assert (tmpdir / 'chunk-00003.parquet').exists()
+    assert not (tmpdir / 'chunk-00004.parquet').exists()
+
+
+def test_export_large_string_parquet(tmpdir):
+    s = pa.array(['aap', 'noot', 'mies'], type=pa.large_string())
+    df = vaex.from_arrays(s=s)
+    df.export_parquet(tmpdir / 'chunk.parquet')
+
+def test_export_many(df_local, tmpdir):
+    df = df_local
+    df = df.drop('datetime')
+    if 'timedelta' in df:
+        df = df.drop('timedelta')
+    if 'obj' in df:
+        df = df.drop(['obj'])
+    df.export_many(tmpdir / 'chunk_{i:05}.parquet', chunk_size=3)
+    df_copy = vaex.open(str(tmpdir / 'chunk_*.parquet'))
+    assert df_copy.x.tolist() == df.x.tolist()
+
+
 def test_export(ds_local, tmpdir):
     ds = ds_local
     # TODO: we eventually want to support dtype=object, but not for hdf5
@@ -46,7 +73,7 @@ def test_export_open_hdf5(ds_local):
 def test_export_open_csv(ds_local, tmpdir):
     df = ds_local
     path = str(tmpdir.join('test.csv'))
-    df.export_csv(path, chunk_size=3, virtual=True)
+    df.export_csv(path, chunk_size=3)
     df_opened = vaex.from_csv(path)
     assert list(df) == list(df_opened)
     assert df.shape == df_opened.shape

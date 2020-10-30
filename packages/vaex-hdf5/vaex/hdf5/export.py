@@ -105,7 +105,7 @@ def export_hdf5_v1(dataset, path, column_names=None, byteorder="=", shuffle=Fals
     return
 
 
-def export_hdf5(dataset, path, column_names=None, byteorder="=", shuffle=False, selection=False, progress=None, virtual=True, sort=None, ascending=True):
+def export_hdf5(dataset, path, column_names=None, byteorder="=", shuffle=False, selection=False, progress=None, virtual=True, sort=None, ascending=True, parallel=True):
     """
     :param DatasetLocal dataset: dataset to export
     :param str path: path for file
@@ -241,7 +241,7 @@ def export_hdf5(dataset, path, column_names=None, byteorder="=", shuffle=False, 
 
     column_names = vaex.export._export(dataset_input=dataset, dataset_output=df_output, path=path, random_index_column=random_index_name,
                                        column_names=column_names, selection=selection, shuffle=shuffle, byteorder=byteorder,
-                                       progress=progress, sort=sort, ascending=ascending)
+                                       progress=progress, sort=sort, ascending=ascending, parallel=parallel)
     dataset_output._freeze()
     # We aren't really making use of the metadata, we could put this back in some form in the future
     # import getpass
