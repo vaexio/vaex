@@ -7,6 +7,7 @@ import pyarrow.dataset
 
 import vaex.dataset
 from ..itertools import buffer
+from vaex.multithreading import get_main_io_pool
 
 
 logger = logging.getLogger("vaex.multithreading")
@@ -126,7 +127,8 @@ class DatasetArrow(vaex.dataset.Dataset):
         chunks_ready_list = []
         i1 = i2 = 0
 
-        for chunks_future in buffer(self._chunk_producer(columns, chunk_size, start=start, end=end or self._row_count), thread_count_default_io+3):
+        workers = get_main_io_pool()._max_workers
+        for chunks_future in buffer(self._chunk_producer(columns, chunk_size, start=start, end=end or self._row_count), workers+3):
             chunks = chunks_future.result()
             chunks_ready_list.append(chunks)
             total_row_count = sum([len(list(k.values())[0]) for k in chunks_ready_list])

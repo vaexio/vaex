@@ -234,7 +234,9 @@ def open(path, convert=False, shuffle=False, copy_index=False, *args, **kwargs):
                         dfs.append(vaex.open(filename, convert=bool(convert), shuffle=shuffle, **kwargs))
                     df = vaex.concat(dfs)
                     if convert:
-                        df.export_hdf5(filename_hdf5, shuffle=shuffle)
+                        if shuffle:
+                            df = df.shuffle()
+                        df.export_hdf5(filename_hdf5)
                         df = vaex.open(filename_hdf5)
 
         if df is None:
