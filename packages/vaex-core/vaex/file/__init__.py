@@ -4,7 +4,7 @@ import logging
 from glob import glob as local_glob
 import os
 import sys
-from urllib.parse import urlparse, parse_qs
+from urllib.parse import parse_qs
 
 import vaex.file.cache
 
@@ -72,19 +72,28 @@ def stringyfy(path):
         return path
 
 
+def split_scheme(path):
+    if '://' in path:
+        schema, path = path[:path.index('://')], path[path.index('://')+3:]
+    else:
+        schema = None
+    return schema, path
+
+
 def memory_mappable(path):
     path = stringyfy(path)
-    o = urlparse(path)
-    return o.scheme == ''
+    scheme, _ = split_scheme(path)
+    return scheme is None
 
 
 def split_options(path, **kwargs):
-    o = urlparse(path)
     naked_path = path
+    query = ''
     if '?' in naked_path:
-        naked_path = naked_path[:naked_path.index('?')]
+        i = naked_path.index('?')
+        naked_path, query = naked_path[:i], naked_path[i+1:]
     options = dict(kwargs)
-    options.update({key: values[0] for key, values in parse_qs(o.query).items()})
+    options.update({key: values[0] for key, values in parse_qs(query).items()})
     return naked_path, options
 
 
@@ -104,7 +113,7 @@ def open_s3fs(path, mode, **kwargs):
 
 
 scheme_opener = {
-    '': normal_open,
+    None: normal_open,
     's3': open_s3_arrow,
     's3fs': open_s3fs,
     'gs': open_google_cloud
@@ -115,8 +124,8 @@ def open(path, mode='rb', **kwargs):
     if is_file_object(path):
         return path
     path = stringyfy(path)
-    o = urlparse(path)
-    opener = scheme_opener.get(o.scheme)
+    scheme, _ = split_scheme(path)
+    opener = scheme_opener.get(scheme)
     if not opener:
         raise ValueError(f'Do not know how to open {path}')
     return opener(path, mode, **kwargs)
@@ -131,14 +140,15 @@ def open_for_arrow(path, mode, **kwargs):
     if is_file_object(path):
         return path
     path = stringyfy(path)
-    o = urlparse(path)
-    if not o.scheme:
+    scheme, _ = split_scheme(path)
+    if scheme is None:
         return pa.OSFile(path, mode)
     else:
-        opener = scheme_opener.get(o.scheme)
+        opener = scheme_opener.get(scheme)
         if not opener:
             raise ValueError(f'Do not know how to open {path}')
         return opener(path, mode, **kwargs).file
+
 
 def dup(file):
     """Duplicate a file like object, s3 or cached file supported"""
@@ -159,7 +169,7 @@ def glob_google_cloud(path, **kwargs):
 
 
 globber_map = {
-    '': local_glob,
+    None: local_glob,
     's3': glob_s3,
     's3fs': glob_s3,
     'gs': glob_google_cloud
@@ -167,9 +177,8 @@ globber_map = {
 
 def glob(path, **kwargs):
     path = stringyfy(path)
-    o = urlparse(path)
-    # path, kwargs = split_kwargs(path)
-    globber = globber_map.get(o.scheme)
+    scheme, _ = split_scheme(path)
+    globber = globber_map.get(scheme)
     if not globber:
         raise ValueError(f'Do not know how to glob {path}')
     return globber(path, **kwargs)

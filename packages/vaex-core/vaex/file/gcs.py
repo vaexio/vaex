@@ -1,5 +1,3 @@
-from urllib.parse import urlparse, parse_qs
-
 try:
     import gcsfs
 except Exception as e:
@@ -32,6 +30,7 @@ def glob(path, **kwargs):
     anom = (options.pop('anon', None) in ['true', 'True', '1']) or (options.pop('anonymous', None) in ['true', 'True', '1'])
     fs = gcsfs.GCSFileSystem(**options)
     return ['gs://' + k + query for k in fs.glob(path)]
+
 
 def open(path, mode='rb', **kwargs):
     if gcsfs is None:

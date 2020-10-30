@@ -21,6 +21,21 @@ def test_stringify(tmpdir):
         assert vaex.file.stringyfy(f) is None
 
 
+def test_stringify(tmpdir):
+    assert vaex.file.stringyfy('bla') == 'bla'
+    assert vaex.file.stringyfy(Path('bla')) == 'bla'
+    path = (tmpdir / 'test.txt')
+    with path.open('wb') as f:
+        assert vaex.file.stringyfy(path) == str(path)
+    with pa.OSFile(str(path), 'wb') as f:
+        assert vaex.file.stringyfy(f) is None
+
+
+def test_split_scheme(tmpdir):
+    assert vaex.file.split_scheme('s3://vaex/testing/xys.hdf5') == ('s3', 'vaex/testing/xys.hdf5')
+    assert vaex.file.split_scheme('/vaex/testing/xys.hdf5') == (None, '/vaex/testing/xys.hdf5')
+
+
 def test_memory_mappable():
     assert not vaex.file.memory_mappable('s3://vaex/testing/xys.hdf5')
     assert vaex.file.memory_mappable('/vaex/testing/xys.hdf5')

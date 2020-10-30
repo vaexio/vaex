@@ -1,9 +1,4 @@
 try:
-    from urllib.parse import urlparse, parse_qs
-except ImportError:
-    from urlparse import urlparse, parse_qs
-
-try:
     import s3fs
 except Exception as e:
     import_exception = e

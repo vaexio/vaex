@@ -1,12 +1,11 @@
 import iniconfig
-from urllib.parse import urlparse, parse_qs
 import os
 import io
 
 import pyarrow as pa
 import pyarrow.fs
 
-from . import split_options, FileProxy
+from . import split_options, FileProxy, split_scheme
 from .cache import CachedFile
 
 
@@ -40,8 +39,8 @@ def open_s3(path, mode='rb', **kwargs):
 
 def parse(path, **kwargs):
     path, options = split_options(path, **kwargs)
-    o = urlparse(path)
-    if o.scheme == 's3':
+    scheme, _ = split_scheme(path)
+    if scheme == 's3':
         # anon is for backwards compatibility
         options['anonymous'] = (options.pop('anon', None) in ['true', 'True', '1']) or (options.pop('anonymous', None) in ['true', 'True', '1'])
         if 'profile' in options:
