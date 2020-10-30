@@ -128,6 +128,12 @@ def open(path, mode='rb', **kwargs):
     opener = scheme_opener.get(scheme)
     if not opener:
         raise ValueError(f'Do not know how to open {path}')
+    if scheme == 's3':
+        # fallback to s3fs for windows
+        try:
+            return opener(path, mode, **kwargs)
+        except pyarrow.lib.ArrowNotImplementedError:
+            opener = scheme_opener['s3fs']
     return opener(path, mode, **kwargs)
 
 

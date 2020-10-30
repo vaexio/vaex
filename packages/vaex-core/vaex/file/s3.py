@@ -5,7 +5,7 @@ except Exception as e:
     s3fs = None
 
 import vaex.file.cache
-from . import split_options, FileProxy
+from . import split_options, FileProxy, split_scheme
 
 
 normal_open = open
@@ -23,6 +23,7 @@ def glob(path, **kwargs):
         __, query = path[:path.index('?')], path[path.index('?'):]
     else:
         query = ''
+    scheme, _ = split_scheme(path)
     path = path.replace('s3fs://', 's3://')
     path, options = split_options(path, **kwargs)
     if s3fs is None:
@@ -32,7 +33,7 @@ def glob(path, **kwargs):
         del options['cache']
     anon = (options.pop('anon', None) in ['true', 'True', '1']) or (options.pop('anonymous', None) in ['true', 'True', '1'])
     s3 = s3fs.S3FileSystem(anon=anon, **options)
-    return ['s3://' + k + query for k in s3.glob(path)]
+    return [f'{scheme}://' + k + query for k in s3.glob(path)]
 
 
 def open(path, mode='rb', **kwargs):
