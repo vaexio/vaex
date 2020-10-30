@@ -12,8 +12,7 @@ import pyarrow as pa
 import vaex
 import vaex.utils
 import vaex.execution
-import vaex.file.colfits
-import vaex.file.other
+# import vaex.file.colfits
 from vaex.column import ColumnStringArrow, _to_string_sequence
 
 
@@ -243,70 +242,6 @@ def _export_column(dataset_input, dataset_output, column_name, shuffle, sort, se
                         to_array_disk[:] = to_array
 
 
-def export_fits(dataset, path, column_names=None, shuffle=False, selection=False, progress=None, virtual=True, sort=None, ascending=True):
-    """
-    :param DatasetLocal dataset: dataset to export
-    :param str path: path for file
-    :param lis[str] column_names: list of column names to export or None for all columns
-    :param bool shuffle: export rows in random order
-    :param bool selection: export selection or not
-    :param progress: progress callback that gets a progress fraction as argument and should return True to continue,
-            or a default progress bar when progress=True
-    :param: bool virtual: When True, export virtual columns
-    :return:
-    """
-    if shuffle:
-        random_index_name = "random_index"
-        while random_index_name in dataset.get_column_names():
-            random_index_name += "_new"
-
-    column_names = column_names or dataset.get_column_names(virtual=virtual, strings=True)
-    logger.debug("exporting columns(fits): %r" % column_names)
-    N = len(dataset) if not selection else dataset.selected_length(selection)
-    data_types = []
-    data_shapes = []
-    ucds = []
-    units = []
-    for column_name in column_names:
-        if column_name in dataset.get_column_names(strings=True, virtual=False):
-            column = dataset.columns[column_name]
-            shape = (N,) + column.shape[1:]
-            dtype = column.dtype
-            if dataset.is_string(column_name):
-                max_length = dataset[column_name].apply(lambda x: len(x)).max(selection=selection)
-                dtype = np.dtype('S'+str(int(max_length)))
-        else:
-            dtype = np.float64().dtype
-            shape = (N,)
-        ucds.append(dataset.ucds.get(column_name))
-        units.append(dataset.units.get(column_name))
-        data_types.append(dtype)
-        data_shapes.append(shape)
-
-    if shuffle:
-        column_names.append(random_index_name)
-        data_types.append(np.int64().dtype)
-        data_shapes.append((N,))
-        ucds.append(None)
-        units.append(None)
-    else:
-        random_index_name = None
-
-    # TODO: all expressions can have missing values.. how to support that?
-    null_values = {key: dataset.columns[key].fill_value for key in dataset.get_column_names() if dataset.is_masked(key) and dataset.data_type(key).kind != "f"}
-    vaex.file.colfits.empty(path, N, column_names, data_types, data_shapes, ucds, units, null_values=null_values)
-    if shuffle:
-        del column_names[-1]
-        del data_types[-1]
-        del data_shapes[-1]
-    dataset_output = vaex.file.other.FitsBinTable(path, write=True)
-    df_output = vaex.dataframe.DataFrameLocal(dataset_output)
-    _export(dataset_input=dataset, dataset_output=df_output, path=path, random_index_column=random_index_name,
-            column_names=column_names, selection=selection, shuffle=shuffle,
-            progress=progress, sort=sort, ascending=ascending)
-    dataset_output.close()
-
-
 def export_hdf5_v1(dataset, path, column_names=None, byteorder="=", shuffle=False, selection=False, progress=None, virtual=True):
     kwargs = locals()
     import vaex.hdf5.export
@@ -372,7 +307,7 @@ def main(argv):
         if vaex.utils.check_memory_usage(4 * 8 * 2**args.max_level, vaex.utils.confirm_on_console):
             if not args.quiet:
                 print("generating soneira peebles dataset...")
-            dataset = vaex.file.other.SoneiraPeebles(args.dimension, 2, args.max_level, args.lambdas)
+            dataset = vaex.dataset_misc.SoneiraPeebles(args.dimension, 2, args.max_level, args.lambdas)
             dataset = vaex.dataframe.DataFrameLocal(dataset)
         else:
             return 1
@@ -425,7 +360,7 @@ def main(argv):
                         numerics.append(False)
                 names_numeric = [name for name, numeric in zip(names, numerics) if numeric]
                 print(names_numeric)
-                output = vaex.file.other.Hdf5MemoryMapped.create(args.output, row_count, names_numeric)
+                output = vaex.dataset_misc.Hdf5MemoryMapped.create(args.output, row_count, names_numeric)
                 Ncols = len(names)
                 cols = [output.columns[name] if numeric else None for name, numeric in zip(names, numerics)]
 

@@ -35,7 +35,7 @@ class FileProxy:
         return self.file.close()
 
     def __enter__(self, *args):
-        pass
+        return self
 
     def __exit__(self, *args):
         self.file.close()

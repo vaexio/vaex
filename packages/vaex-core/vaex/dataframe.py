@@ -6039,8 +6039,8 @@ class DataFrameLocal(DataFrame):
         :param progress: {progress}
         :return:
         """
-        import vaex.export
-        vaex.export.export_fits(self, path, progress=progress)
+        from vaex.astro.fits import export_fits
+        export_fits(self, path, progress=progress)
 
     @docsubst
     def export_csv(self, path, progress=None, chunk_size=default_chunk_size, parallel=True, **kwargs):

@@ -1,7 +1,7 @@
 import astropy.io.votable
 
 from vaex.dataset import DatasetFile
-
+from vaex.dataset_misc import _try_unit
 
 class VOTable(DatasetFile):
 	def __init__(self, filename):

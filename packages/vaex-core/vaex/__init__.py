@@ -272,8 +272,8 @@ def from_samp(username=None, password=None):
 
 def from_astropy_table(table):
     """Create a vaex DataFrame from an Astropy Table."""
-    import vaex.file.other
-    ds = vaex.file.other.DatasetAstropyTable(table=table)
+    from vaex.astro.astropy_table import DatasetAstropyTable
+    ds = DatasetAstropyTable(table=table)
     return vaex.dataframe.DataFrameLocal(ds)
 
 
@@ -359,7 +359,7 @@ def from_arrow_table(table, as_numpy=True) -> vaex.dataframe.DataFrame:
     :rtype: DataFrame
     """
     from vaex.arrow.dataset import from_table
-    return from_table(table=table, as_numpy=as_numpy)
+    return from_dataset(from_table(table=table, as_numpy=as_numpy))
 
 
 def from_arrow_dataset(arrow_dataset) -> vaex.dataframe.DataFrame:

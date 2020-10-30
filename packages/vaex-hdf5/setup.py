@@ -28,6 +28,7 @@ setup(name=name + '-hdf5',
       entry_points={
         'vaex.dataset.opener': [
             'hdf5 = vaex.hdf5.dataset:Hdf5MemoryMapped',
+            'hdf5-amuse = vaex.hdf5.dataset:AmuseHdf5MemoryMapped',
         ],
       }
 )

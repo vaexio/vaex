@@ -9,7 +9,6 @@ import pyarrow as pa
 import pyarrow.dataset
 
 import vaex.dataset
-import vaex.file.other
 from ..itertools import buffer
 
 
