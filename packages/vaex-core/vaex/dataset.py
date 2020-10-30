@@ -33,10 +33,13 @@ def open(path, *args, **kwargs):
             except Exception:
                 logger.exception('issue loading ' + entry.name)
 
+    # first the quick path
     for opener in opener_classes:
         if opener.quick_test(path, *args, **kwargs):
-            return opener.open(path, *args, **kwargs)
+            if opener.can_open(path, *args, **kwargs):
+                return opener.open(path, *args, **kwargs)
 
+    # otherwise try all openers
     for opener in opener_classes:
         if opener.can_open(path, *args, **kwargs):
             return opener.open(path, *args, **kwargs)
