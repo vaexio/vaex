@@ -183,17 +183,10 @@ def open(path, convert=False, shuffle=False, copy_index=False, *args, **kwargs):
                 paths = path
             filenames = []
             for path in paths:
-                # TODO: can we do glob with s3?
-                if path.startswith('s3://'):
-                    filenames.append(path)
-                elif path.startswith('gs://'):
-                    filenames.append(path)
-                else:
-                    # sort to get predictable behaviour (useful for testing)
-                    filenames.extend(list(sorted(glob.glob(path))))
+                filenames.extend(list(sorted(vaex.file.glob(path, **kwargs))))
             df = None
             if len(filenames) == 0:
-                raise IOError('Could not open file: {}, it does not exist'.format(path))
+                raise IOError(f'File pattern did not match anything {path}')
             filename_hdf5 = _convert_name(filenames, shuffle=shuffle)
             filename_hdf5_noshuffle = _convert_name(filenames, shuffle=False)
             if len(filenames) == 1:
@@ -361,7 +354,7 @@ def from_arrow_table(table) -> vaex.dataframe.DataFrame:
     :rtype: DataFrame
     """
     from vaex.arrow.dataset import from_table
-    df = from_dataset(from_table(table=table))
+    return from_dataset(from_table(table=table))
 
 
 def from_arrow_dataset(arrow_dataset) -> vaex.dataframe.DataFrame:

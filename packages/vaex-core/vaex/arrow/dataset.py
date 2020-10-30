@@ -169,7 +169,9 @@ def open(filename):
     return from_table(table)
 
 
-def open_parquet(filename):
-    arrow_ds = pyarrow.dataset.dataset(filename)
+def open_parquet(path):
+    import vaex.file.arrow
+    file_system, path = vaex.file.arrow.parse(path)
+    arrow_ds = pyarrow.dataset.dataset(path, filesystem=file_system)
     return DatasetArrow(arrow_ds)
 

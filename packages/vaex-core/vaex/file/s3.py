@@ -10,41 +10,50 @@ except Exception as e:
     s3fs = None
 
 import vaex.file.cache
+from . import split_options, FileProxy
 
 
 normal_open = open
 
 
 def is_s3_path(path):
-    return path.startswith('s3://')
+    return path.startswith('s3fs://')
 
 def dup(f):
     return f.s3.open(f.path, f.mode)
 
-def open(path, mode='rb', **kwargs):
-    if not is_s3_path(path):
-        return normal_open(path, mode)
+
+def glob(path, **kwargs):
+    if '?' in path:
+        __, query = path[:path.index('?')], path[path.index('?'):]
+    else:
+        query = ''
+    path = path.replace('s3fs://', 's3://')
+    path, options = split_options(path, **kwargs)
     if s3fs is None:
         raise import_exception
-    o = urlparse(path)
-    assert o.scheme == 's3'
-    naked_path = path
-    if '?' in naked_path:
-        naked_path = naked_path[:naked_path.index('?')]
-    # only use the first item
-    options = {key: values[0] for key, values in parse_qs(o.query).items()}
-    options.update(kwargs)
-    use_cache = options.get('cache', 'true') in ['true', 'True', '1']
+    # anon is for backwards compatibility
     if 'cache' in options:
         del options['cache']
-    anon = options.get('anon', 'false') in ['true', 'True', '1']
-    if 'anon' in options:
-        del options['anon']
-    s3 = s3fs.S3FileSystem(anon=anon, default_block_size=1,
-                           default_fill_cache=False, **options)
+    anon = (options.pop('anon', None) in ['true', 'True', '1']) or (options.pop('anonymous', None) in ['true', 'True', '1'])
+    s3 = s3fs.S3FileSystem(anon=anon, **options)
+    return ['s3://' + k + query for k in s3.glob(path)]
+
+
+def open(path, mode='rb', **kwargs):
+    path = path.replace('s3fs://', 's3://')
+    path, options = split_options(path, **kwargs)
+    if s3fs is None:
+        raise import_exception
+    use_cache = options.pop('cache', 'true' if mode == 'rb' else 'false') in ['true', 'True', '1']
+    # anon is for backwards compatibility
+    anon = (options.pop('anon', None) in ['true', 'True', '1']) or (options.pop('anonymous', None) in ['true', 'True', '1'])
+    s3 = s3fs.S3FileSystem(anon=anon, default_fill_cache=False, **options)
+    def open():
+        return s3.open(path, mode)
     if use_cache:
-        fp = lambda: s3.open(naked_path, mode)
-        fp = vaex.file.cache.CachedFile(fp, naked_path)
+        fp = lambda: FileProxy(open, path, open)
+        fp = vaex.file.cache.CachedFile(fp, path)
     else:
-        fp = s3.open(naked_path, mode)
+        fp = FileProxy(open(), path, dup=open)
     return fp

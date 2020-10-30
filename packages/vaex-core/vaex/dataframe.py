@@ -5903,15 +5903,16 @@ class DataFrameLocal(DataFrame):
         :param bool parallel: {evaluate_parallel}
         :return:
         """
-        if path.endswith('.arrow'):
+        naked_path, options = vaex.file.split_options(path)
+        if naked_path.endswith('.arrow'):
             self.export_arrow(path, chunk_size=chunk_size, parallel=parallel)
-        elif path.endswith('.hdf5'):
+        elif naked_path.endswith('.hdf5'):
             self.export_hdf5(path, progress=progress, parallel=parallel)
-        elif path.endswith('.fits'):
+        elif naked_path.endswith('.fits'):
             self.export_fits(path, progress=progress)
-        elif path.endswith('.parquet'):
+        elif naked_path.endswith('.parquet'):
             self.export_parquet(path, progress=progress, parallel=parallel, chunk_size=chunk_size)
-        elif path.endswith('.csv'):
+        elif naked_path.endswith('.csv'):
             self.export_csv(path, progress=progress, parallel=parallel, chunk_size=chunk_size)
         else:
             raise ValueError('''Unrecognized file extension. Please use .arrow, .hdf5, .parquet, .fits, or .csv to export to the particular file format.''')
@@ -5941,7 +5942,7 @@ class DataFrameLocal(DataFrame):
                 writer.write_table(table)
         if isinstance(to, str):
             schema = self[0:1].to_arrow_table(parallel=False, reduce_large=reduce_large).schema
-            with pa.OSFile(to, 'wb') as sink:
+            with vaex.file.open_for_arrow(to, 'wb') as sink:
                 writer = pa.RecordBatchStreamWriter(sink, schema)
                 write(writer)
         else:
@@ -5963,7 +5964,7 @@ class DataFrameLocal(DataFrame):
         """
         import pyarrow.parquet as pq
         schema = self[0:1].to_arrow_table(parallel=False, reduce_large=True).schema
-        with pa.OSFile(str(path), 'wb') as sink:
+        with vaex.file.open_for_arrow(path, 'wb') as sink:
             with pq.ParquetWriter(sink, schema, **kwargs) as writer:
                 self.export_arrow(writer, progress=progress, chunk_size=chunk_size, parallel=parallel, reduce_large=True)
 

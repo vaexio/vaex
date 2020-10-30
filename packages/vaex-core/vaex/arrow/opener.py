@@ -3,7 +3,7 @@ import vaex.file
 class ArrowOpener:
     @classmethod
     def quick_test(cls, path, *args, **kwargs):
-        return path.rpartition('.')[2] == 'arrow'
+        return vaex.file.ext(path) == '.arrow'
 
     @classmethod
     def can_open(cls, path, *args, **kwargs):
@@ -17,7 +17,7 @@ class ArrowOpener:
 class ParquetOpener:
     @classmethod
     def quick_test(cls, path, *args, **kwargs):
-        return path.rpartition('.')[2] == 'parquet'
+        return vaex.file.ext(path) == '.parquet'
 
     @classmethod
     def can_open(cls, path, *args, **kwargs):

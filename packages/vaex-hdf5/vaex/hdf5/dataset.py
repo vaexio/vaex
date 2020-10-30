@@ -60,8 +60,9 @@ def _try_unit(unit):
 class Hdf5MemoryMapped(DatasetMemoryMapped):
     """Implements the vaex hdf5 file format"""
 
-    def __init__(self, path, write=False):
+    def __init__(self, path, write=False, **open_options):
         nommap = not vaex.file.memory_mappable(path)
+        self.open_options = open_options
         super(Hdf5MemoryMapped, self).__init__(vaex.file.stringyfy(path), write=write, nommap=nommap)
         self._all_mmapped = True
         self._open(path)
@@ -80,7 +81,7 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
             self.file_map[self.path] = file
         else:
             mode = 'rb+' if self.write else 'rb'
-            file = vaex.file.open(self.path, mode=mode)
+            file = vaex.file.open(self.path, mode=mode, **self.open_options)
             self.file_map[self.path] = file
         self.h5file = h5py.File(file, "r+" if self.write else "r")
 
@@ -88,7 +89,8 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
     def __getstate__(self):
         return {
             **super().__getstate__(),
-            'nommap': self.nommap
+            'nommap': self.nommap,
+            'open_options': self.open_options,
         }
 
     def __setstate__(self, state):

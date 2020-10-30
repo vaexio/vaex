@@ -528,7 +528,7 @@ class ColumnStringArrow(ColumnString):
         buffers = [None, pa.py_buffer(_asnumpy(indices).copy() - self.offset), pa.py_buffer(_asnumpy(self.bytes).view(np.uint8).copy()), ]
         if self.null_bitmap is not None:
             assert self.null_offset == 0 #self.offset
-            buffers[0] = pa.py_buffer(self.null_bitmap.copy())
+            buffers[0] = pa.py_buffer(_asnumpy(self.null_bitmap).copy())
         arrow_array = pa.Array.from_buffers(type, self.length, buffers=buffers)
         return arrow_array
 

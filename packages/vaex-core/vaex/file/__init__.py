@@ -1,6 +1,7 @@
 __author__ = 'breddels'
 import pathlib
 import logging
+from glob import glob as local_glob
 import os
 import sys
 from urllib.parse import urlparse, parse_qs
@@ -48,7 +49,7 @@ class FileProxy:
 
 
 def is_file_object(file):
-    return hasattr(file, 'read')
+    return hasattr(file, 'read') and hasattr(file, 'seek')
 
 
 def file_and_path(file, mode='r'):
@@ -97,9 +98,15 @@ def open_s3_arrow(path, mode, **kwargs):
     return open_s3(path, mode, **kwargs)
 
 
+def open_s3fs(path, mode, **kwargs):
+    from .s3 import open
+    return open(path, mode, **kwargs)
+
+
 scheme_opener = {
     '': normal_open,
     's3': open_s3_arrow,
+    's3fs': open_s3fs,
     'gs': open_google_cloud
 }
 
@@ -115,9 +122,60 @@ def open(path, mode='rb', **kwargs):
     return opener(path, mode, **kwargs)
 
 
+def open_for_arrow(path, mode, **kwargs):
+    '''When the file will be passed to arrow, we want file object arrow likes.
+
+    This might avoid peformance issues with GIL, or call overhead.
+    '''
+    import pyarrow as pa
+    if is_file_object(path):
+        return path
+    path = stringyfy(path)
+    o = urlparse(path)
+    if not o.scheme:
+        return pa.OSFile(path, mode)
+    else:
+        opener = scheme_opener.get(o.scheme)
+        if not opener:
+            raise ValueError(f'Do not know how to open {path}')
+        return opener(path, mode, **kwargs).file
+
 def dup(file):
     """Duplicate a file like object, s3 or cached file supported"""
     if isinstance(file, (vaex.file.cache.CachedFile, FileProxy)):
         return file.dup()
     else:
         return normal_open(file.name, file.mode)
+
+
+def glob_s3(path, **kwargs):
+    from .s3 import glob
+    return glob(path, **kwargs)
+
+
+def glob_google_cloud(path, **kwargs):
+    from .gcs import glob
+    return glob(path, **kwargs)
+
+
+globber_map = {
+    '': local_glob,
+    's3': glob_s3,
+    's3fs': glob_s3,
+    'gs': glob_google_cloud
+}
+
+def glob(path, **kwargs):
+    path = stringyfy(path)
+    o = urlparse(path)
+    # path, kwargs = split_kwargs(path)
+    globber = globber_map.get(o.scheme)
+    if not globber:
+        raise ValueError(f'Do not know how to glob {path}')
+    return globber(path, **kwargs)
+
+
+def ext(path):
+    path = stringyfy(path)
+    path, options = split_options(path)
+    return os.path.splitext(path)[1]

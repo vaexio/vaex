@@ -13,19 +13,7 @@ from .cache import CachedFile
 def open_s3(path, mode='rb', **kwargs):
     path, options = split_options(path, **kwargs)
     use_cache = options.pop('cache', 'true' if mode == 'rb' else 'false') in ['true', 'True', '1']
-    # anon is for backwards compatibility
-    options['anonymous'] = (options.pop('anon', None) in ['true', 'True', '1']) or (options.pop('anonymous', None) in ['true', 'True', '1'])
-    if 'profile' in options:
-        # TODO: ideally, Apache Arrow should take a profile argument
-        profile = options.pop('profile')
-        ic = iniconfig.IniConfig(os.path.expanduser('~/.aws/credentials'))
-        options['access_key'] = ic[profile]['aws_access_key_id']
-        options['secret_key'] = ic[profile]['aws_secret_access_key']
-    if 'region' not in options:
-        # we use this to get the default region
-        file_system, path = pa.fs.FileSystem.from_uri(path)
-        options['region'] = file_system.region
-    file_system = pa.fs.S3FileSystem(**options)
+    file_system, path = parse(path, **options)
     if use_cache:
         # we lazily open the file, if all is cached, we don't need to connect to s3
         if mode != "rb":
@@ -48,3 +36,25 @@ def open_s3(path, mode='rb', **kwargs):
             else:
                 raise ValueError(f'Only mode=rb/bw/r/w are supported, not {mode}')
         return FileProxy(arrow_open(), path, dup=arrow_open)
+
+
+def parse(path, **kwargs):
+    path, options = split_options(path, **kwargs)
+    o = urlparse(path)
+    if o.scheme == 's3':
+        # anon is for backwards compatibility
+        options['anonymous'] = (options.pop('anon', None) in ['true', 'True', '1']) or (options.pop('anonymous', None) in ['true', 'True', '1'])
+        if 'profile' in options:
+            # TODO: ideally, Apache Arrow should take a profile argument
+            profile = options.pop('profile')
+            ic = iniconfig.IniConfig(os.path.expanduser('~/.aws/credentials'))
+            options['access_key'] = ic[profile]['aws_access_key_id']
+            options['secret_key'] = ic[profile]['aws_secret_access_key']
+        if 'region' not in options:
+            # we use this to get the default region
+            file_system, path = pa.fs.FileSystem.from_uri(path)
+            options['region'] = file_system.region
+        file_system = pa.fs.S3FileSystem(**options)
+    else:
+        file_system = None
+    return file_system, path

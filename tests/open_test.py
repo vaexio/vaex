@@ -35,7 +35,7 @@ def test_open():
     _cleanup_generated_files()
 
     # convert and open several "big" CSVs
-    vaex.open(os.path.join(path, 'data', 'small*.csv'), convert=True, chunk_size=2)
+    vaex.open(os.path.join(path, 'data', 'small*.csv'), convert=True)
     assert os.path.exists(target)
     _cleanup_generated_files()
 
