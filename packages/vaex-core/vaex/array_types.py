@@ -90,6 +90,8 @@ def to_numpy(x, strict=False):
     elif isinstance(x, np.ndarray):
         return x
     elif isinstance(x, supported_arrow_array_types):
+        if not strict and is_string(x):
+            return x
         x = vaex.arrow.convert.column_from_arrow_array(x)
         return to_numpy(x, strict=strict)
     elif hasattr(x, "to_numpy"):
@@ -117,6 +119,8 @@ def convert(x, type, default_type="numpy"):
             return np.concatenate([convert(k, type) for k in x])
         else:
             return to_numpy(x, strict=True)
+    if type == "numpy-arrow":  # used internally, numpy if possible, otherwise arrow
+        return to_numpy(x, strict=False)
     elif type == "arrow":
         if isinstance(x, (list, tuple)):
             return pa.chunked_array([convert(k, type) for k in x])
@@ -229,3 +233,9 @@ def type_promote(t1, t2):
         return t2
     else:
         raise TypeError(f'Cannot promote {t1} and {t2} to a common type')
+
+
+def arrow_reduce_large(arrow_array):
+    if arrow_array.type == pa.large_string():
+        return vaex.arrow.convert.large_string_to_string(arrow_array)
+    return arrow_array

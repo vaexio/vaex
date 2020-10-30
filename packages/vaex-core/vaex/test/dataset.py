@@ -260,7 +260,7 @@ class TestDataset(unittest.TestCase):
 	def test_masked_array_output(self):
 		fn = tempfile.mktemp(".hdf5")
 		print(fn)
-		self.dataset.export_hdf5(fn, sort="x")
+		self.dataset.sort('x').export_hdf5(fn)
 		output = vaex.open(fn)
 		self.assertEqual(self.dataset.sum("m"), output.sum("m"))
 
@@ -715,18 +715,18 @@ class TestDataset(unittest.TestCase):
 		# TODO: concatenated dfs with strings of different length
 		self.assertEqual(["x", "y", "m", "mi", "ints", "f"], self.dataset.get_column_names(virtual=False, strings=False))
 
-		names = ["x", "y", "m", "mi", "ints", "f", "name", "name_arrow"]
-		self.assertEqual(names, self.dataset.get_column_names(strings=True, virtual=False))
+		names = ["x", "y", "m", "mi", "ints", "f", "name", "name_arrow", "z"]
+		self.assertEqual(names, self.dataset.get_column_names())
 
 		if self.dataset.is_local():
 			# check if strings are exported
 			path_hdf5 = tempfile.mktemp(".hdf5")
-			self.dataset.export_hdf5(path_hdf5, virtual=False)
+			self.dataset.export_hdf5(path_hdf5)
 			exported_dataset = vx.open(path_hdf5)
-			self.assertEqual(names, exported_dataset.get_column_names(strings=True))
+			self.assertEqual(names, exported_dataset.get_column_names())
 
 			path_arrow = tempfile.mktemp(".arrow")
-			self.dataset.export_arrow(path_arrow, virtual=False)
+			self.dataset.export_arrow(path_arrow)
 			exported_dataset = vx.open(path_arrow)
 			self.assertEqual(names, exported_dataset.get_column_names(strings=True))
 
@@ -737,7 +737,7 @@ class TestDataset(unittest.TestCase):
 			names.remove("name_arrow")
 			names.remove("name")
 			path_fits = tempfile.mktemp(".fits")
-			self.dataset.export_fits(path_fits, virtual=False)
+			self.dataset.export_fits(path_fits)
 			exported_dataset = vx.open(path_fits)
 			self.assertEqual(names, exported_dataset.get_column_names(strings=True))
 
@@ -1203,14 +1203,14 @@ class TestDataset(unittest.TestCase):
 	def test_export_sorted(self):
 		self.dataset.add_column("s", 100-self.dataset.data.x)
 		path_hdf5 = tempfile.mktemp(".hdf5")
-		self.dataset.export_hdf5(path_hdf5, sort="s")
+		self.dataset.sort("s").export_hdf5(path_hdf5)
 		ds2 = vaex.open(path_hdf5)
 		np.testing.assert_array_equal(self.dataset.data.x[self.zero_index:self.zero_index+10], ds2.data.x[::-1])
 
 	def test_export_sorted_arrow(self):
 		self.dataset.add_column("s", 100-self.dataset.data.x)
 		path_arrow = tempfile.mktemp(".arrow")
-		self.dataset.export_arrow(path_arrow, sort="s")
+		self.dataset.sort("s").export_arrow(path_arrow)
 		ds2 = vaex.open(path_arrow, as_numpy=False)
 		np.testing.assert_array_equal(self.dataset.data.x[self.zero_index:self.zero_index+10], np.array(ds2.data.x)[::-1])
 
@@ -1218,109 +1218,81 @@ class TestDataset(unittest.TestCase):
 		path = path_hdf5 = tempfile.mktemp(".hdf5")
 		path_fits = tempfile.mktemp(".fits")
 		path_fits_astropy = tempfile.mktemp(".fits")
-		#print path
 
-		#with self.assertRaises(AssertionError):
-		#	self.dataset.export_hdf5(path, selection=True)
-
-		for dataset in [self.dataset, self.dataset_concat_dup]:
-			#print dataset.virtual_columns
+		for dataset in [self.dataset_concat_dup, self.dataset]:
 			for fraction in [1, 0.5]:
 				dataset.set_active_fraction(fraction)
 				dataset.select("x > 3")
 				dataset.select("x > 2", name="named")
 				length = len(dataset)
-				for column_names in [["x", "y", "z"], ["x"], ["y"], ["z"], None]:
+				for column_names in [["x", "y", "z"], ["x"], ["y"], ["z"], dataset.get_column_names()]:
 					for byteorder in "<=>":
 						for shuffle in [False, True]:
-							for selection in [False, True, "named"]:
-								for virtual in [False, True]:
-									for export in [dataset.export_fits, dataset.export_hdf5, dataset.export_arrow, dataset.export_parquet]: #if byteorder == ">" else [dataset.export_hdf5]:
-										#print (">>>", dataset, path, column_names, byteorder, shuffle, selection, fraction, dataset.length_unfiltered(), virtual)
-										#byteorder = "<"
-										if export == dataset.export_fits and byteorder != ">":
-											#print("skip", export == dataset.export_fits, byteorder != ">", byteorder)
-											continue # fits only does big endian
-										if export == dataset.export_fits and byteorder == ">":
-											continue # arrow only little endian
-										if vx.utils.osname == "windows" and export == dataset.export_hdf5 and byteorder == ">":
-											#print("skip", vx.utils.osname)
-											continue # TODO: IS this a bug for h5py on win32?, leads to an open file
-										# same issue on windows for arrow, closing the mmapped file does not help
-										# for the moment we create a new temp file
-										path_arrow = tempfile.mktemp(".arrow")
-										path_parquet = tempfile.mktemp(".parquet")
-										#print dataset.length_unfiltered()
-										#print len(dataset)
-										if export == dataset.export_hdf5:
-											path = path_hdf5
-											export(path, column_names=column_names, byteorder=byteorder, shuffle=shuffle, selection=selection, progress=False, virtual=virtual)
-										elif export == dataset.export_arrow:
-											path = path_arrow
-											export(path, column_names=column_names, byteorder=byteorder, shuffle=shuffle, selection=selection, progress=False, virtual=virtual)
-										elif export == dataset.export_parquet:
-											path = path_parquet
-											export(path, column_names=column_names, byteorder=byteorder, shuffle=shuffle, selection=selection, progress=False, virtual=virtual)
-										else:
-											path = path_fits
-											export(path, column_names=column_names, shuffle=shuffle, selection=selection, progress=False, virtual=virtual)
-											with astropy.io.fits.open(path) as fitsfile:
-												# make sure astropy can read the data
-												bla = fitsfile[1].data
-												try:
-													fitsfile.writeto(path_fits_astropy)
-												finally:
-													os.remove(path_fits_astropy)
-										if path.endswith('arrow') or path.endswith('parquet'):
-											compare = vx.open(path, as_numpy=False)
-										else:
-											compare = vx.open(path)
-										if column_names is None:
-											column_names = ["x", "y", "m", "mi", "ints", "f", "z", "name", "name_arrow"] if virtual else ["x", "y", "m", "mi", "ints", "f", "name", "name_arrow"]
-										#if not virtual:
-										#	if "z" in column_names:
-										#		column_names.remove("z")
-										# TODO: does the order matter?
-										self.assertEqual((compare.get_column_names(strings=True)), (column_names + (["random_index"] if shuffle else [])))
-										def make_masked(ar):
-											if export == dataset.export_fits: # for fits the missing values will be filled in with nan
-												if ar.dtype.kind == "f":
-													nanmask = np.isnan(ar)
-													if np.any(nanmask):
-														ar = np.ma.array(ar, mask=nanmask)
-											return ar
+							for export in [dataset.__class__.export_fits, dataset.__class__.export_hdf5, dataset.__class__.export_arrow, dataset.__class__.export_parquet]: #if byteorder == ">" else [dataset.export_hdf5]:
+								# print (">>>", dataset, path, column_names, byteorder, shuffle, selection, fraction, dataset.length_unfiltered())#, virtual)
+								#byteorder = "<"
+								if export == dataset.__class__.export_fits and byteorder != ">":
+									#print("skip", export == dataset.export_fits, byteorder != ">", byteorder)
+									continue # fits only does big endian
+								if export == dataset.__class__.export_fits and byteorder == ">":
+									continue # arrow only little endian
+								if vx.utils.osname == "windows" and export == dataset.export_hdf5 and byteorder == ">":
+									#print("skip", vx.utils.osname)
+									continue # TODO: IS this a bug for h5py on win32?, leads to an open file
+								# same issue on windows for arrow, closing the mmapped file does not help
+								# for the moment we create a new temp file
+								path_arrow = tempfile.mktemp(".arrow")
+								path_parquet = tempfile.mktemp(".parquet")
+								#print dataset.length_unfiltered()
+								#print len(dataset)
+								df = dataset[column_names]
+								if shuffle:
+									df = df.shuffle()
+								if export == df.__class__.export_hdf5:
+									path = path_hdf5
+									export(df, path, byteorder=byteorder, progress=False)
+								elif export == df.__class__.export_arrow:
+									path = path_arrow
+									export(df, path, progress=False)
+								elif export == df.__class__.export_parquet:
+									path = path_parquet
+									export(df, path, progress=False)
+								else:
+									path = path_fits
+									export(df, path, progress=False)
+									with astropy.io.fits.open(path) as fitsfile:
+										# make sure astropy can read the data
+										bla = fitsfile[1].data
+										try:
+											fitsfile.writeto(path_fits_astropy)
+										finally:
+											os.remove(path_fits_astropy)
+								if path.endswith('arrow') or path.endswith('parquet'):
+									compare = vx.open(path, as_numpy=False)
+								else:
+									compare = vx.open(path)
+								if column_names is None:
+									column_names = ["x", "y", "m", "mi", "ints", "f", "z", "name", "name_arrow"]
+								self.assertEqual(compare.get_column_names(), column_names)
+								def make_masked(ar):
+									if export == dataset.export_fits: # for fits the missing values will be filled in with nan
+										if ar.dtype.kind == "f":
+											nanmask = np.isnan(ar)
+											if np.any(nanmask):
+												ar = np.ma.array(ar, mask=nanmask)
+									return ar
 
-										for column_name in column_names:
-											#values = dataset.columns[column_name][dataset._index_start:dataset._index_end] if column_name in dataset.get_column_names(virtual=False) else dataset.evaluate(column_name)
-											values = dataset.evaluate(column_name, filtered=False)
-											if selection:
-												values = dataset.evaluate(column_name, array_type="numpy")
-												mask = dataset.evaluate_selection_mask(selection)#, 0, len(dataset))
-												if len(values[::]) != len(mask):
-													import pdb
-													pdb.set_trace()
-												# for concatenated columns, we get a plain numpy array copy using [::]
-												a = np.ma.compressed(make_masked(compare.evaluate(column_name, array_type="numpy")))
-												b = np.ma.compressed(make_masked(values[::][mask]))
-												if len(a) != len(b):
-													import pdb
-													pdb.set_trace()
-												self.assertEqual(sorted(a), sorted(b))
-											else:
-												values = dataset.evaluate(column_name, array_type="numpy")
-												if shuffle:
-													indices = compare.columns["random_index"][:]
-													a = np.ma.compressed(make_masked(compare.evaluate(column_name, array_type="numpy")))
-													b = np.ma.compressed(make_masked(values[::][indices]))
-													self.assertEqual(sorted(a), sorted(b))
-												else:
-													dtype = np.array(compare.columns[column_name][:]).dtype # we don't want any casting
-													compare_values = compare.columns[column_name][:]
-													if isinstance(compare_values, vaex.column.Column):
-														compare_values = compare_values.to_numpy()
-													np.testing.assert_array_equal(compare_values, values[:length].astype(dtype))
-										compare.close()
-										#os.remove(path)
+								for column_name in column_names:
+									values = dataset.evaluate(column_name, filtered=False)
+									values = dataset.evaluate(column_name, array_type="numpy")
+									if not shuffle:
+										dtype = np.array(compare.columns[column_name][:]).dtype # we don't want any casting
+										compare_values = compare.columns[column_name][:]
+										if isinstance(compare_values, vaex.column.Column):
+											compare_values = compare_values.to_numpy()
+										np.testing.assert_array_equal(compare_values, values[:length].astype(dtype))
+								compare.close()
+								#os.remove(path)
 
 				# self.dataset_concat_dup references self.dataset, so set it's active_fraction to 1 again
 				dataset.set_active_fraction(1)
