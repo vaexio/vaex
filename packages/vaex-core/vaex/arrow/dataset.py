@@ -146,15 +146,13 @@ class DatasetArrow(vaex.dataset.Dataset):
 
 
 
-def from_table(table, as_numpy=False):
+def from_table(table):
     columns = dict(zip(table.schema.names, table.columns))
     dataset = vaex.dataset.DatasetArrays(columns)
-    if as_numpy:
-        dataset = dataset.as_numpy()
     return dataset
 
 
-def open(filename, as_numpy=False):
+def open(filename):
     source = pa.memory_map(filename)
     try:
         # first we try if it opens as stream
@@ -168,10 +166,10 @@ def open(filename, as_numpy=False):
         # if a stream, we're good
         batches = reader  # this reader is iterable
     table = pa.Table.from_batches(batches)
-    return from_table(table, as_numpy=as_numpy)
+    return from_table(table)
 
 
-def open_parquet(filename, as_numpy=False):
+def open_parquet(filename):
     arrow_ds = pyarrow.dataset.dataset(filename)
     return DatasetArrow(arrow_ds)
 

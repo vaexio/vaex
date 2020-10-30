@@ -62,7 +62,7 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
 
     def __init__(self, path, write=False):
         nommap = not vaex.file.memory_mappable(path)
-        super(Hdf5MemoryMapped, self).__init__(vaex.file.stringyify(path), write=write, nommap=nommap)
+        super(Hdf5MemoryMapped, self).__init__(vaex.file.stringyfy(path), write=write, nommap=nommap)
         self._all_mmapped = True
         self._open(path)
         self.units = {}

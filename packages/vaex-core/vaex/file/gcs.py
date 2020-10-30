@@ -33,7 +33,7 @@ def open(path, mode='rb', **kwargs):
     # only use the first item
     options = {key: values[0] for key, values in parse_qs(o.query).items()}
     options.update(kwargs)
-    use_cache = options.get('cache', 'true') in ['true', 'True', '1']
+    use_cache = options.pop('cache', 'true' if mode == 'rb' else 'false') in ['true', 'True', '1']
     if 'cache' in options:
         del options['cache']
     fs = gcsfs.GCSFileSystem(**options)

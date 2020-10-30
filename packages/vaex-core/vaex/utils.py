@@ -23,6 +23,7 @@ import six
 import yaml
 
 from .json import VaexJsonEncoder, VaexJsonDecoder
+import vaex.file
 
 
 is_frozen = getattr(sys, 'frozen', False)
@@ -418,28 +419,38 @@ def yaml_load(f):
     return yaml.safe_load(f)
 
 
-def write_json_or_yaml(filename, data):
-    base, ext = os.path.splitext(filename)
-    if ext == ".json":
-        with open(filename, "w") as f:
-            json.dump(data, f, indent=2, cls=VaexJsonEncoder)
-    elif ext == ".yaml":
-        with open(filename, "w") as f:
-            yaml_dump(f, data)
-    else:
-        raise ValueError("file should end in .json or .yaml (not %s)" % ext)
+def write_json_or_yaml(file, data):
+    file, path = vaex.file.file_and_path(file, mode='w')
+    try:
+        if path:
+            base, ext = os.path.splitext(path)
+        else:
+            ext = '.json'  # default
+        if ext == ".json":
+            json.dump(data, file, indent=2, cls=VaexJsonEncoder)
+        elif ext == ".yaml":
+            yaml_dump(file, data)
+        else:
+            raise ValueError("file should end in .json or .yaml (not %s)" % ext)
+    finally:
+        file.close()
 
 
-def read_json_or_yaml(filename):
-    base, ext = os.path.splitext(filename)
-    if ext == ".json":
-        with open(filename, "r") as f:
-            return json.load(f, cls=VaexJsonDecoder) or {}
-    elif ext == ".yaml":
-        with open(filename, "r") as f:
-            return yaml_load(f) or {}
-    else:
-        raise ValueError("file should end in .json or .yaml (not %s)" % ext)
+def read_json_or_yaml(file):
+    file, path = vaex.file.file_and_path(file)
+    try:
+        if path:
+            base, ext = os.path.splitext(path)
+        else:
+            ext = '.json'  # default
+        if ext == ".json":
+            return json.load(file, cls=VaexJsonDecoder) or {}
+        elif ext == ".yaml":
+            return yaml_load(file) or {}
+        else:
+            raise ValueError("file should end in .json or .yaml (not %s)" % ext)
+    finally:
+        file.close()
 
 
 # from http://stackoverflow.com/questions/5121931/in-python-how-can-you-load-yaml-mappings-as-ordereddicts

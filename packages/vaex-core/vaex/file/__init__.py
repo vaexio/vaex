@@ -22,6 +22,9 @@ class FileProxy:
         self.name = name
         self.dup = dup
 
+    def write(self, *args):
+        return self.file.write(*args)
+
     def read(self, *args):
         return self.file.read(*args)
 
@@ -48,7 +51,15 @@ def is_file_object(file):
     return hasattr(file, 'read')
 
 
-def stringyify(path):
+def file_and_path(file, mode='r'):
+    if is_file_object(file):
+        return file, stringyfy(file)
+    else:
+        file = open(file, mode=mode)
+        return file, stringyfy(file)
+
+
+def stringyfy(path):
     if hasattr(path, 'name'):  # passed in a file 
         path = path.name
     try:
@@ -56,11 +67,12 @@ def stringyify(path):
         path = path.__fspath__()
     except AttributeError:
         pass
-    return path
+    if isinstance(path, str):
+        return path
 
 
 def memory_mappable(path):
-    path = stringyify(path)
+    path = stringyfy(path)
     o = urlparse(path)
     return o.scheme == ''
 
@@ -93,7 +105,9 @@ scheme_opener = {
 
 
 def open(path, mode='rb', **kwargs):
-    path = stringyify(path)
+    if is_file_object(path):
+        return path
+    path = stringyfy(path)
     o = urlparse(path)
     opener = scheme_opener.get(o.scheme)
     if not opener:

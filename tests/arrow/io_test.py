@@ -28,6 +28,6 @@ def test_chunks(df_trimmed, tmpdir):
     path = str(tmpdir.join('test.arrow'))
     df = df_trimmed[['x', 'y', 'name']]
     df.export_arrow(path, chunk_size=2)
-    df_read = vaex.open(path, as_numpy=False)
+    df_read = vaex.open(path)
     assert isinstance(df_read.columns['x'], pa.ChunkedArray)
     assert df_read.x.tolist() == df.x.tolist()

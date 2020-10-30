@@ -354,14 +354,14 @@ def from_arrays(**arrays):
     return vaex.dataframe.DataFrameLocal(dataset)
 
 
-def from_arrow_table(table, as_numpy=True) -> vaex.dataframe.DataFrame:
+def from_arrow_table(table) -> vaex.dataframe.DataFrame:
     """Creates a vaex DataFrame from an arrow Table.
 
     :param as_numpy: Will lazily cast columns to a NumPy ndarray.
     :rtype: DataFrame
     """
     from vaex.arrow.dataset import from_table
-    return from_dataset(from_table(table=table, as_numpy=as_numpy))
+    df = from_dataset(from_table(table=table))
 
 
 def from_arrow_dataset(arrow_dataset) -> vaex.dataframe.DataFrame:

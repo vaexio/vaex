@@ -1,3 +1,4 @@
+from pathlib import Path
 import pytest
 
 import vaex.file
@@ -8,6 +9,16 @@ def test_open_s3():
     with vaex.file.open('s3://vaex/testing/xys.hdf5') as f:
         signature = f.read(4)
         assert signature == b"\x89\x48\x44\x46"
+
+
+def test_stringify(tmpdir):
+    assert vaex.file.stringyfy('bla') == 'bla'
+    assert vaex.file.stringyfy(Path('bla')) == 'bla'
+    path = (tmpdir / 'test.txt')
+    with path.open('wb') as f:
+        assert vaex.file.stringyfy(path) == str(path)
+    with pa.OSFile(str(path), 'wb') as f:
+        assert vaex.file.stringyfy(f) is None
 
 
 def test_memory_mappable():
