@@ -2343,7 +2343,7 @@ class DataFrame(object):
             for name, value in state['virtual_columns'].items():
                 self[name] = self._expr(value)
         self.variables = state['variables']
-        import astropy  # TODO: make this dep optional?
+        import astropy.units  # TODO: make this dep optional?
         units = {key: astropy.units.Unit(value) for key, value in state["units"].items()}
         self.units.update(units)
         for name, selection_dict in state['selections'].items():
