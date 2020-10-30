@@ -397,14 +397,14 @@ class DataFrame(object):
         arguments = _ensure_strings_from_expressions(arguments)
         return lazy_function(*arguments)
 
-    def nop(self, expression, progress=False, delay=False):
+    def nop(self, expression=None, progress=False, delay=False):
         """Evaluates expression, and drop the result, usefull for benchmarking, since vaex is usually lazy"""
-        expression = _ensure_string_from_expression(expression)
-        def map(ar):
+        expressions = _ensure_strings_from_expressions(expression) or self.get_column_names()
+        def map(*ar):
             pass
         def reduce(a, b):
             pass
-        return self.map_reduce(map, reduce, [expression], delay=delay, progress=progress, name='nop', to_numpy=False)
+        return self.map_reduce(map, reduce, expressions, delay=delay, progress=progress, name='nop', to_numpy=False)
 
     def _set(self, expression, progress=False, selection=None, delay=False):
         column = _ensure_string_from_expression(expression)

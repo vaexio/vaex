@@ -13,7 +13,7 @@ import vaex.file
 
 
 DEFAULT_BLOCK_SIZE = 1024*1024*1  # 1mb by default
-logger = logging.getLogger("vaex.file")
+logger = logging.getLogger("vaex.file.cache")
 
 
 class MMappedFile:
@@ -34,7 +34,11 @@ class MMappedFile:
         else:
             kwargs["prot"] = mmap.PROT_WRITE
         self.mmap = mmap.mmap(self.fp.fileno(), self.length)
+        self.memoryview = memoryview(self.mmap)
         self.data = np.frombuffer(self.mmap, dtype=dtype, count=self.length)
+
+    def __getitem__(self, item):
+        return self.memoryview.__getitem__(item)
 
 
 def _to_block_ceil(index, block_size):
@@ -105,7 +109,7 @@ class CachedFile:
         if callable(self.file):
             file = self.file
         else:
-            file = vaex.file.dup(self.file)
+            file = lambda: vaex.file.dup(self.file)
         return CachedFile(file, self.path, self.cache_dir, self.block_size, data_file=self.data_file, mask_file=self.mask_file)
 
     def tell(self):
@@ -143,35 +147,39 @@ class CachedFile:
         self._ensure_cached(offset, offset+byte_length)
         return self.data_file.data[offset:offset+byte_length].view(dtype)
 
+    def _fetch_blocks(self, block_start, block_end):
+        start_blocked = _to_index(block_start, self.block_size)
+        end_blocked = min(self.length, _to_index(block_end, self.block_size))
+        self._use_file()
+        self.file.seek(start_blocked)
+        bytes_read = self.file.readinto(self.data_file[start_blocked:end_blocked])
+        expected = (end_blocked - start_blocked)
+        assert bytes_read == expected, f'Read {bytes_read}, expected {expected} ({start_blocked}-{end_blocked} out of {self.length})'
+        self.mask_file.data[block_start:block_end] = 1
+        self.reads += 1
+        self.block_reads += block_end - block_start
+
     def _ensure_cached(self, start, end):
         block_start = _to_block_floor(start, self.block_size)
         block_end = _to_block_ceil(end, self.block_size)
         missing = self.mask_file.data[block_start:block_end] == 0
-        # TODO: we could do the reading using multithreading or multiprocessing (processes)
         if np.all(missing):
-            start_blocked = _to_index(block_start, self.block_size)
-            end_blocked = _to_index(block_end, self.block_size)
-            self._use_file()
-            self.file.seek(start_blocked)
-            data = self.file.read(end_blocked - start_blocked)
-            self.data_file.data[start_blocked:end_blocked] = np.frombuffer(data, dtype=np.uint8)
-            self.mask_file.data[block_start:block_end] = 1
-            self.reads += 1
-            self.block_reads += block_end - block_start
+            self._fetch_blocks(block_start, block_end)
         elif np.any(missing):
-            block_indices = np.arange(block_start, block_end, dtype=np.int64)
-            missing_blocks = block_indices[missing]
-            # TODO: we can group multiple blocks into 1 read
-            for block_index in missing_blocks:
-                start_blocked = _to_index(block_index, self.block_size)
-                end_blocked = _to_index(block_index+1, self.block_size)
-                self._use_file()
-                self.file.seek(start_blocked)
-                data = self.file.read(self.block_size)
-                self.data_file.data[start_blocked:end_blocked] = np.frombuffer(data, dtype=np.uint8)
-                self.mask_file.data[block_index] = 1
-                self.reads += 1
-                self.block_reads += 1
+            i = block_start
+            done = False
+            while not done:
+                # find first block that is not cached
+                while i < block_end and self.mask_file.data[i] == 1:
+                    i += 1
+                if i == block_end:
+                    break
+                # find block that *is* cached
+                j = i + 1
+                while j < block_end and self.mask_file.data[j] == 0:
+                    j += 1
+                self._fetch_blocks(i, j)
+                i = j
 
     def close(self):
         # if it is callable, the file is never opened

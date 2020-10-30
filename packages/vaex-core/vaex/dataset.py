@@ -312,7 +312,7 @@ class Dataset(collections.abc.Mapping):
             raise ValueError(f'Trying to hash a dataset with unhashed columns: {missing} (tip: use dataset.hashed())')
         return hash(self._ids)
 
-    def _default_chunk_iterator(self, array_map, columns, chunk_size, reverse=False):
+    def _default_lazy_chunk_iterator(self, array_map, columns, chunk_size, reverse=False):
         chunk_size = chunk_size or 1024**2
         chunk_count = (self.row_count + chunk_size - 1) // chunk_size
         chunks = range(chunk_count)
@@ -321,11 +321,17 @@ class Dataset(collections.abc.Mapping):
         for i in chunks:
             i1 = i * chunk_size
             i2 = min((i + 1) * chunk_size, self.row_count)
-            chunks = {k: array_map[k][i1:i2] for k in columns}
-            length = i2 - i1
-            for name, chunk in chunks.items():
-                assert len(chunk) == length, f'Oops, got a chunk ({name}) of length {len(chunk)} while it is expected to be of length {length} (at {i1}-{i2}'
-            yield i1, i2, chunks
+            def reader(i1=i1, i2=i2):
+                chunks = {k: array_map[k][i1:i2] for k in columns}
+                length = i2 - i1
+                for name, chunk in chunks.items():
+                    assert len(chunk) == length, f'Oops, got a chunk ({name}) of length {len(chunk)} while it is expected to be of length {length} (at {i1}-{i2}'
+                return chunks
+            yield i1, i2, reader
+
+    def _default_chunk_iterator(self, array_map, columns, chunk_size, reverse=False):
+        for i1, i2, reader in self._default_lazy_chunk_iterator(array_map, columns, chunk_size, reverse):
+            yield i1, i2, reader()
 
     @abstractmethod
     def chunk_iterator(self, columns, chunk_size=None, reverse=False):

@@ -12,7 +12,6 @@ import pyarrow as pa
 import vaex
 import vaex.utils
 import vaex.execution
-# import vaex.file.colfits
 from vaex.column import ColumnStringArrow, _to_string_sequence
 
 

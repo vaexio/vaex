@@ -28,6 +28,9 @@ class FileProxy:
     def seek(self, *args):
         return self.file.seek(*args)
 
+    def readinto(self, *args):
+        return self.file.readinto(*args)
+
     def tell(self):
         return self.file.tell()
 

@@ -1,5 +1,4 @@
 import vaex
-import vaex.file.other
 import numpy as np
 
 def test_open():

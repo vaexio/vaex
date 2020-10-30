@@ -12,7 +12,7 @@ from vaex.dataset_mmap import DatasetMemoryMapped
 import vaex.export
 
 
-logger = logging.getLogger("vaex.file.colfits")
+logger = logging.getLogger("vaex.astro.fits")
 
 
 class FitsBinTable(DatasetMemoryMapped):

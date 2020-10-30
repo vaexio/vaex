@@ -1,9 +1,6 @@
 __author__ = 'maartenbreddels'
 import collections
-import concurrent.futures
 import logging
-import multiprocessing
-import os
 
 import pyarrow as pa
 import pyarrow.dataset
@@ -12,20 +9,7 @@ import vaex.dataset
 from ..itertools import buffer
 
 
-logger = logging.getLogger("vaex.arrow.dataset")
-
-thread_count_default_io = os.environ.get('VAEX_NUM_THREADS_IO', multiprocessing.cpu_count() * 2 + 1)
-thread_count_default_io = int(thread_count_default_io)
-main_io_pool = None
-
 logger = logging.getLogger("vaex.multithreading")
-
-
-def get_main_io_pool():
-    global main_io_pool
-    if main_io_pool is None:
-        main_io_pool = concurrent.futures.ThreadPoolExecutor(max_workers=thread_count_default_io)
-    return main_io_pool
 
 
 class DatasetArrow(vaex.dataset.Dataset):

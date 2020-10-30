@@ -32,13 +32,16 @@ F_NOCACHE = 48
 
 
 class ColumnFile(vaex.column.Column):
-    def __init__(self, file, byte_offset, length, dtype, write=False, path=None):
+    def __init__(self, file, byte_offset, length, dtype, write=False, path=None, tls=None):
         self.path = path or file.name
         self.file = file
-        self.tls = threading.local()
+        # we can share the thread local storage for file handles, since each thread only needs
+        # one file handle per thread for all columns, so we have max #threads * #files amount
+        # of open file handles
+        self.tls = threading.local() if tls is None else tls
         # keep a record of all duplicate file handles to we can close them
         self.file_handles = []
-        self.tls.file = vaex.file.dup(file)
+        # self.tls.file = vaex.file.dup(file)
         self.file_handles.append(file)
         self.native = False
         # if hasattr(self.file, 'fileno') and osname
@@ -54,7 +57,11 @@ class ColumnFile(vaex.column.Column):
 
     def __del__(self):
         for f in self.file_handles:
-            f.close()
+            try:
+                # can be closed by another instance
+                f.close()
+            except:
+                pass
 
     def __len__(self):
         return self.length
@@ -67,7 +74,7 @@ class ColumnFile(vaex.column.Column):
         itemsize = self.dtype.itemsize
         byte_offset = self.byte_offset + i1 * itemsize
         length = i2 - i1
-        return ColumnFile(self.file, byte_offset, length, self.dtype, self.write, path=self.path)
+        return ColumnFile(self.file, byte_offset, length, self.dtype, self.write, path=self.path, tls=self.tls)
 
     def to_numpy(self):
         return self[0:self.length]
