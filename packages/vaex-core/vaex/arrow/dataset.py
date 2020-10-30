@@ -30,8 +30,9 @@ def get_main_io_pool():
 
 
 class DatasetArrow(vaex.dataset.Dataset):
-    def __init__(self, ds):
+    def __init__(self, ds, max_rows_read=1024**2*10):
         super().__init__()
+        self.max_rows_read = max_rows_read
         self._arrow_ds = ds
         row_count = 0
         for fragment in self._arrow_ds.get_fragments():
@@ -70,18 +71,15 @@ class DatasetArrow(vaex.dataset.Dataset):
         pass
 
     def _chunk_producer(self, columns, chunk_size=None, reverse=False, start=0, end=None):
+        import pyarrow.parquet
         pool = get_main_io_pool()
         offset = 0
         for fragment_large in self._arrow_ds.get_fragments():
             fragment_large_rows = sum([rg.num_rows for rg in fragment_large.row_groups])
-            # when do we want to split up? File size? max chunk size?
-            # if fragment_large_rows > chunk_size:
-            #     fragments = fragment_large.split_by_row_group()
-            # else:
-            #     # or not
-            #     fragments = [fragment_large]
-            import pyarrow.parquet
             fragments = [fragment_large]
+            # when do we want to split up? File size? max chunk size?
+            if fragment_large_rows > self.max_rows_read:
+                fragments = fragment_large.split_by_row_group()
             for fragment in fragments:
                 rows = sum([rg.num_rows for rg in fragment.row_groups])
                 chunk_start = offset
