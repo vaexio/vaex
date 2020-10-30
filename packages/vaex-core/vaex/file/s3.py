@@ -48,7 +48,7 @@ def open(path, mode='rb', **kwargs):
     def open():
         return s3.open(path, mode)
     if use_cache:
-        fp = lambda: FileProxy(open, path, open)
+        fp = lambda: FileProxy(open(), path, open)
         fp = vaex.file.cache.CachedFile(fp, path)
     else:
         fp = FileProxy(open(), path, dup=open)
