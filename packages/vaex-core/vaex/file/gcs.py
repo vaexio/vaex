@@ -27,7 +27,8 @@ def glob(path, **kwargs):
     if gcsfs is None:
         raise import_exception
     # anon is for backwards compatibility
-    anom = (options.pop('anon', None) in ['true', 'True', '1']) or (options.pop('anonymous', None) in ['true', 'True', '1'])
+    if (options.pop('anon', None) in [True, 'true', 'True', '1']) or (options.pop('anonymous', None) in [True, 'true', 'True', '1']):
+        options['token'] = 'anon'
     fs = gcsfs.GCSFileSystem(**options)
     return ['gs://' + k + query for k in fs.glob(path)]
 
@@ -38,7 +39,7 @@ def open(path, mode='rb', **kwargs):
     path, options = split_options(path, **kwargs)
     use_cache = options.pop('cache', 'true' if mode == 'rb' else 'false') in ['true', 'True', '1']
     # common iterface between s3 and gcs
-    if (options.pop('anon', None) in ['true', 'True', '1']) or (options.pop('anonymous', None) in ['true', 'True', '1']):
+    if (options.pop('anon', None) in [True, 'true', 'True', '1']) or (options.pop('anonymous', None) in [True, 'true', 'True', '1']):
         options['token'] = 'anon'
     fs = gcsfs.GCSFileSystem(**options)
     if use_cache:

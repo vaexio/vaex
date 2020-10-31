@@ -11,7 +11,7 @@ from .cache import CachedFile
 
 def open_s3(path, mode='rb', **kwargs):
     path, options = split_options(path, **kwargs)
-    use_cache = options.pop('cache', 'true' if mode == 'rb' else 'false') in ['true', 'True', '1']
+    use_cache = options.pop('cache', 'true' if mode == 'rb' else 'false') in [True, 'true', 'True', '1']
     file_system, path = parse(path, **options)
     if use_cache:
         # we lazily open the file, if all is cached, we don't need to connect to s3
@@ -42,7 +42,7 @@ def parse(path, **kwargs):
     scheme, _ = split_scheme(path)
     if scheme == 's3':
         # anon is for backwards compatibility
-        options['anonymous'] = (options.pop('anon', None) in ['true', 'True', '1']) or (options.pop('anonymous', None) in ['true', 'True', '1'])
+        options['anonymous'] = (options.pop('anon', None) in [True, 'true', 'True', '1']) or (options.pop('anonymous', None) in [True, 'true', 'True', '1'])
         if 'profile' in options:
             # TODO: ideally, Apache Arrow should take a profile argument
             profile = options.pop('profile')

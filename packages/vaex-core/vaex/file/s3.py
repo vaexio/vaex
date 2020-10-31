@@ -31,7 +31,7 @@ def glob(path, **kwargs):
     # anon is for backwards compatibility
     if 'cache' in options:
         del options['cache']
-    anon = (options.pop('anon', None) in ['true', 'True', '1']) or (options.pop('anonymous', None) in ['true', 'True', '1'])
+    anon = (options.pop('anon', None) in [True, 'true', 'True', '1']) or (options.pop('anonymous', None) in [True, 'true', 'True', '1'])
     s3 = s3fs.S3FileSystem(anon=anon, **options)
     return [f'{scheme}://' + k + query for k in s3.glob(path)]
 
@@ -43,8 +43,9 @@ def open(path, mode='rb', **kwargs):
         raise import_exception
     use_cache = options.pop('cache', 'true' if mode == 'rb' else 'false') in ['true', 'True', '1']
     # anon is for backwards compatibility
-    anon = (options.pop('anon', None) in ['true', 'True', '1']) or (options.pop('anonymous', None) in ['true', 'True', '1'])
+    anon = (options.pop('anon', None) in [True, 'true', 'True', '1']) or (options.pop('anonymous', None) in [True, 'true', 'True', '1'])
     s3 = s3fs.S3FileSystem(anon=anon, default_fill_cache=False, **options)
+
     def open():
         return s3.open(path, mode)
     if use_cache:
