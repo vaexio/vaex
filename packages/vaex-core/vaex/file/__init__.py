@@ -3,6 +3,7 @@ import pathlib
 import logging
 from glob import glob as local_glob
 import os
+import re
 import sys
 from urllib.parse import parse_qs
 
@@ -87,11 +88,12 @@ def memory_mappable(path):
 
 
 def split_options(path, **kwargs):
-    naked_path = path
-    query = ''
-    if '?' in naked_path:
-        i = naked_path.rindex('?')
-        naked_path, query = naked_path[:i], naked_path[i+1:]
+    match = re.match(r'(.*?)\?((&?[^=&?]+=[^=&?]+)+)', path)
+    if match:
+        naked_path, query = match.groups()[:2]
+    else:
+        naked_path = path
+        query = ''
     options = dict(kwargs)
     options.update({key: values[0] for key, values in parse_qs(query).items()})
     return naked_path, options

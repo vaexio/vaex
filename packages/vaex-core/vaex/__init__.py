@@ -183,7 +183,6 @@ def open(path, convert=False, shuffle=False, copy_index=False, *args, **kwargs):
                 paths = path
             filenames = []
             for path in paths:
-                # this means that ? in glob is not supported
                 naked_path, options = vaex.file.split_options(path)
                 if glob.has_magic(naked_path):
                     filenames.extend(list(sorted(vaex.file.glob(path, **kwargs))))
