@@ -183,7 +183,12 @@ def open(path, convert=False, shuffle=False, copy_index=False, *args, **kwargs):
                 paths = path
             filenames = []
             for path in paths:
-                filenames.extend(list(sorted(vaex.file.glob(path, **kwargs))))
+                # this means that ? in glob is not supported
+                naked_path, options = vaex.file.split_options(path)
+                if glob.has_magic(naked_path):
+                    filenames.extend(list(sorted(vaex.file.glob(path, **kwargs))))
+                else:
+                    filenames.append(path)
             df = None
             if len(filenames) == 0:
                 raise IOError(f'File pattern did not match anything {path}')
