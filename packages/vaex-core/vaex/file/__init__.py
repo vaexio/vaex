@@ -90,7 +90,7 @@ def split_options(path, **kwargs):
     naked_path = path
     query = ''
     if '?' in naked_path:
-        i = naked_path.index('?')
+        i = naked_path.rindex('?')
         naked_path, query = naked_path[:i], naked_path[i+1:]
     options = dict(kwargs)
     options.update({key: values[0] for key, values in parse_qs(query).items()})
@@ -181,6 +181,7 @@ globber_map = {
     's3fs': glob_s3,
     'gs': glob_google_cloud
 }
+
 
 def glob(path, **kwargs):
     path = stringyfy(path)

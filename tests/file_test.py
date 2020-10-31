@@ -36,6 +36,12 @@ def test_split_scheme(tmpdir):
     assert vaex.file.split_scheme('/vaex/testing/xys.hdf5') == (None, '/vaex/testing/xys.hdf5')
 
 
+def test_split_options(tmpdir):
+    assert vaex.file.split_options('s3://vaex/testing/xys.hdf5?a=1&b=2') == ('s3://vaex/testing/xys.hdf5', {'a': '1', 'b': '2'})
+    assert vaex.file.split_options('s3://vaex/testing/*.hdf5?a=1&b=2') == ('s3://vaex/testing/*.hdf5', {'a': '1', 'b': '2'})
+    assert vaex.file.split_options('s3://vaex/testing/??.hdf5?a=1&b=2') == ('s3://vaex/testing/??.hdf5', {'a': '1', 'b': '2'})
+
+
 def test_memory_mappable():
     assert not vaex.file.memory_mappable('s3://vaex/testing/xys.hdf5')
     assert vaex.file.memory_mappable('/vaex/testing/xys.hdf5')

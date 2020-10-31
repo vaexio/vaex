@@ -1,4 +1,4 @@
-import iniconfig
+import configparser
 import os
 import io
 
@@ -46,9 +46,10 @@ def parse(path, **kwargs):
         if 'profile' in options:
             # TODO: ideally, Apache Arrow should take a profile argument
             profile = options.pop('profile')
-            ic = iniconfig.IniConfig(os.path.expanduser('~/.aws/credentials'))
-            options['access_key'] = ic[profile]['aws_access_key_id']
-            options['secret_key'] = ic[profile]['aws_secret_access_key']
+            config = configparser.ConfigParser()
+            config.read('~/.aws/credentials')
+            options['access_key'] = config[profile]['aws_access_key_id']
+            options['secret_key'] = config[profile]['aws_secret_access_key']
         if 'region' not in options:
             # we use this to get the default region
             file_system, path = pa.fs.FileSystem.from_uri(path)
