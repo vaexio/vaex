@@ -2354,7 +2354,7 @@ class DataFrame(object):
                 selection = selections.selection_from_dict(selection_dict)
             self.set_selection(selection, name=name)
 
-    def state_write(self, f):
+    def state_write(self, f, **kwargs):
         """Write the internal state to a json or yaml file (see :meth:`DataFrame.state_get`)
 
         Example
@@ -2420,11 +2420,11 @@ class DataFrame(object):
 
         :param str f: filename (ending in .json or .yaml)
         """
-        vaex.utils.write_json_or_yaml(f, self.state_get())
+        vaex.utils.write_json_or_yaml(f, self.state_get(), **kwargs)
 
-    def state_load(self, f, use_active_range=False):
+    def state_load(self, f, use_active_range=False, **kwargs):
         """Load a state previously stored by :meth:`DataFrame.state_write`, see also :meth:`DataFrame.state_set`."""
-        state = vaex.utils.read_json_or_yaml(f)
+        state = vaex.utils.read_json_or_yaml(f, **kwargs)
         self.state_set(state, use_active_range=use_active_range)
 
     def remove_virtual_meta(self):

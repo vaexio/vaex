@@ -419,8 +419,8 @@ def yaml_load(f):
     return yaml.safe_load(f)
 
 
-def write_json_or_yaml(file, data):
-    file, path = vaex.file.file_and_path(file, mode='w')
+def write_json_or_yaml(file, data, **kwargs):
+    file, path = vaex.file.file_and_path(file, mode='w', **kwargs)
     try:
         if path:
             base, ext = os.path.splitext(path)
@@ -436,8 +436,8 @@ def write_json_or_yaml(file, data):
         file.close()
 
 
-def read_json_or_yaml(file):
-    file, path = vaex.file.file_and_path(file)
+def read_json_or_yaml(file, **kwargs):
+    file, path = vaex.file.file_and_path(file, **kwargs)
     try:
         if path:
             base, ext = os.path.splitext(path)

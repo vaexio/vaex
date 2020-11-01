@@ -16,7 +16,7 @@ logger = logging.getLogger("vaex.file")
 
 class FileProxy:
     '''Wraps a file object, giving it a name a dup() method
-    
+
     The dup is needed since a file is stateful, and needs to be duplicated in threads
     '''
     def __init__(self, file, name, dup):
@@ -53,16 +53,16 @@ def is_file_object(file):
     return hasattr(file, 'read') and hasattr(file, 'seek')
 
 
-def file_and_path(file, mode='r'):
+def file_and_path(file, mode='r', **kwargs):
     if is_file_object(file):
         return file, stringyfy(file)
     else:
-        file = open(file, mode=mode)
+        file = open(file, mode=mode, **kwargs)
         return file, stringyfy(file)
 
 
 def stringyfy(path):
-    if hasattr(path, 'name'):  # passed in a file 
+    if hasattr(path, 'name'):  # passed in a file
         path = path.name
     try:
         # Pathlib support
