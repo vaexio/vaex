@@ -167,7 +167,7 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
     def can_open(cls, path, *args, **kwargs):
         if not cls.quick_test(path, *args, **kwargs):
             return False
-        with vaex.file.open(path) as f:
+        with vaex.file.open(path, **kwargs) as f:
             signature = f.read(4)
             if signature != b"\x89\x48\x44\x46":
                 return False
