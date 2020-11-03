@@ -90,20 +90,21 @@ class DatasetArrow(vaex.dataset.Dataset):
                 if start >= chunk_end:  # we didn't find the beginning yet
                     offset += length
                     continue
-                if end < chunk_start:  # we are past the end
+                if end <= chunk_start:  # we are past the end
                     # assert False
                     break
                 def reader(fragment=fragment):
                     table = fragment.to_table(columns=columns, use_threads=False)
                     chunks = dict(zip(table.column_names, table.columns))
                     return chunks
-
+                assert length > 0
                 if start > chunk_start:
                     # this means we have to cut off a piece of the beginning
                     if end < chunk_end:
                         # AND the end
                         length = end - chunk_start  # without the start cut off
                         length -= start - chunk_start  # correcting for the start cut off
+                        assert length > 0
                         def slicer(chunk_start=chunk_start, reader=reader, length=length):
                             chunks = reader()
                             chunks = {name: ar.slice(start - chunk_start, length) for name, ar in chunks.items()}
@@ -113,6 +114,7 @@ class DatasetArrow(vaex.dataset.Dataset):
                         reader = slicer
                     else:
                         length -= start - chunk_start  # correcting for the start cut off
+                        assert length > 0
                         def slicer(chunk_start=chunk_start, reader=reader, length=length):
                             chunks = reader()
                             chunks = {name: ar.slice(start - chunk_start) for name, ar in chunks.items()}
@@ -124,6 +126,7 @@ class DatasetArrow(vaex.dataset.Dataset):
                     if end < chunk_end:
                         # we only need to cut off a piece of the end
                         length = end - chunk_start
+                        assert length > 0
                         def slicer(chunk_start=chunk_start, reader=reader, length=length):
                             chunks = reader()
                             chunks = {name: ar.slice(0, length) for name, ar in chunks.items()}

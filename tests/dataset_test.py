@@ -266,8 +266,8 @@ def test_chunk_iterator():
     assert i2 == 10
 
 
-@pytest.mark.parametrize("l1", list(range(1, 3)))
-@pytest.mark.parametrize("l2", list(range(1, 3)))
+@pytest.mark.parametrize("l1", list(range(1, 6)))
+@pytest.mark.parametrize("l2", list(range(1, 6)))
 def test_concat_chunk_iterator(l1, l2):
     i1 = 0
     i2 = i1 + l1
@@ -332,6 +332,19 @@ def test_concat_chunk_iterator(l1, l2):
         i1, i2, chunks = next(iter)
         assert i1 == i*2
         assert i2 == (i + 1) * 2
+
+    # again, but here we skip of total of a chunk_size at the end
+    ds = ds_full[:8]
+    # import pdb; pdb.set_trace()
+    assert ds.row_count == 8
+    iter = ds.chunk_iterator(['x', 'y'], chunk_size=2)
+    for i in range(4):
+        i1, i2, chunks = next(iter)
+        assert i1 == i*2
+        assert i2 == (i + 1) * 2
+        chunks['x'].tolist() == x[i1:i2].tolist()
+        chunks['y'].tolist() == y[i1:i2].tolist()
+
 
     for i in range(9):
         for j in range(i+1, 10):
