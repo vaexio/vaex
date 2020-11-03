@@ -93,7 +93,7 @@ class AggregatorDescriptorBasic(AggregatorDescriptor):
             if self.short_name == "count":
                 self.dtype_out = np.dtype('int64')
             if self.short_name in ['sum', 'summoment']:
-                self.dtype_out = vaex.utils.upcast(self.dtype_in)
+                self.dtype_out = vaex.array_types.upcast(self.dtype_in)
 
     def add_operations(self, agg_task, **kwargs):
         df = agg_task.df

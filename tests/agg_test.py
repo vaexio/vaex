@@ -388,8 +388,8 @@ def test_agg_selection_nodata():
     assert df_grouped['counts'].tolist() == [3, 2, 2]
     assert df_grouped['dog_counts'].tolist() == [1, 2, 0]
 
-def test_upcast():
-    df = vaex.from_arrays(b=[False, True, True], i8=np.array([120, 121, 122], dtype=np.int8),
+def test_upcast(df_factory):
+    df = df_factory(b=[False, True, True], i8=np.array([120, 121, 122], dtype=np.int8),
         f4=np.array([1, 1e-13, 1], dtype=np.float32))
     assert df.b.sum() == 2
     assert df.i8.sum() == 120*3 + 3

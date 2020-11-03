@@ -918,22 +918,6 @@ def unmask_selection_mask(selection_mask):
     return selection_mask
 
 
-def upcast(dtype):
-    if isinstance(dtype, np.dtype):
-        if dtype.kind == "b":
-            return np.dtype('int64')
-        if dtype.kind == "i":
-            return np.dtype('int64')
-        if dtype.kind == "u":
-            return np.dtype('uint64')
-        if dtype.kind == "f":
-            return np.dtype('float64')
-    else:
-        # TODO: arrow
-        pass
-    return dtype
-
-
 def wrap_future_with_promise(future):
     from vaex.promise import Promise
     if isinstance(future, Promise):  # TODO: not so nice, sometimes we pass a promise

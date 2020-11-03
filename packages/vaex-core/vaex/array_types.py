@@ -234,6 +234,24 @@ def type_promote(t1, t2):
         raise TypeError(f'Cannot promote {t1} and {t2} to a common type')
 
 
+def upcast(type):
+    if isinstance(type, np.dtype):
+        if type.kind == "b":
+            return np.dtype('int64')
+        if type.kind == "i":
+            return np.dtype('int64')
+        if type.kind == "u":
+            return np.dtype('uint64')
+        if type.kind == "f":
+            return np.dtype('float64')
+    else:
+        dtype = numpy_dtype_from_arrow_type(type)
+        dtype = upcast(dtype)
+        type = arrow_type_from_numpy_dtype(dtype)
+
+    return type
+
+
 def arrow_reduce_large(arrow_array):
     if arrow_array.type == pa.large_string():
         import vaex.arrow.convert
