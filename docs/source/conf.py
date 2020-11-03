@@ -380,6 +380,9 @@ intersphinx_mapping = {
     's3fs': ('https://s3fs.readthedocs.io/en/latest', None),
     'numpy': ('http://docs.scipy.org/doc/numpy/', None),
     'dask': ('http://docs.dask.org/en/latest/', None),
+    'gcsfs': ('https://gcsfs.readthedocs.io/en/latest/', None),
+    's3fs': ('https://s3fs.readthedocs.io/en/latest/', None),
+    'arrow': ('https://arrow.readthedocs.io/en/stable/', None)
 }
 
 nbsphinx_thumbnails = {
