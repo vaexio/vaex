@@ -28,9 +28,9 @@ def test_parquet(l1, l2):
     pyarrow.parquet.write_table(df[i1:i2].to_arrow_table(), str(path1), row_group_size=2)
     pyarrow.parquet.write_table(df[i2:i3].to_arrow_table(), str(path2), row_group_size=2)
     pyarrow.parquet.write_table(df[i3:].to_arrow_table(), str(path3), row_group_size=2)
-    df = vaex.arrow.dataset.open_parquet([str(path1), str(path2), str(path3)])
+    ds = vaex.arrow.dataset.open_parquet([str(path1), str(path2), str(path3)])
     # TODO: future PR will require this:
-    # df = vaex.from_dataset(ds)
+    df = vaex.from_dataset(ds)
     ds_full = ds = df.dataset
 
     iter = ds.chunk_iterator(['x', 'y'], chunk_size=2)

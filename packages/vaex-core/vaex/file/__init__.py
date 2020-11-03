@@ -88,6 +88,19 @@ def memory_mappable(path):
 
 
 def split_options(path, fs_options={}):
+    if isinstance(path, list):
+        paths = []
+        previous_options = None
+        for path in path:
+            path, options = split_options(path, fs_options)
+            if previous_options is not None:
+                if previous_options != options:
+                    raise ValueError(f'Inconsistent set of fs_options given: {previous_options} {options}')
+            else:
+                previous_options = options
+            paths.append(path)
+        return paths, previous_options
+
     match = re.match(r'(.*?)\?((&?[^=&?]+=[^=&?]+)+)', path)
     if match:
         naked_path, query = match.groups()[:2]
