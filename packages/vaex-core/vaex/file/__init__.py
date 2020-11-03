@@ -158,7 +158,7 @@ def open_for_arrow(path, mode='rb', fs_options={}, mmap=False):
         if fs_options:
             raise ValueError(f'fs_options not supported for local files. You passed: {repr(fs_options)}.')
         if mmap:
-            return pa.memory_map(filename, mode)
+            return pa.memory_map(path, mode)
         else:
             return pa.OSFile(path, mode)
     else:
