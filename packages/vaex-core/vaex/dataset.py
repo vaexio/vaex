@@ -462,7 +462,7 @@ class DatasetConcatenated(Dataset):
         self._row_count = sum(ds.row_count for ds in self.datasets)
 
     def schema(self, array_type=None):
-        return {name: col.data_type() for name, col in self.items()}
+        return self._schema.copy()
 
     def _chunk_iterator_non_strict(self, columns, chunk_size=None, reverse=False, start=0, end=None):
         end = self.row_count if end is None else end
@@ -474,7 +474,7 @@ class DatasetConcatenated(Dataset):
                 offset += dataset.row_count
                 continue
             # we are past the end
-            if end < offset:
+            if end <= offset:
                 break
             for i1, i2, chunks in dataset.chunk_iterator(present, chunk_size=chunk_size, reverse=reverse):
                 # chunks = {name: vaex.array_types.to_arrow(ar) for name, ar in chunks.items()}
@@ -484,7 +484,7 @@ class DatasetConcatenated(Dataset):
                 if start >= chunk_end:  # we didn't find the beginning yet
                     offset += length
                     continue
-                if end < chunk_start:  # we are past the end
+                if end <= chunk_start:  # we are past the end
                     # assert False
                     break
 
@@ -494,11 +494,13 @@ class DatasetConcatenated(Dataset):
                         # AND the end
                         length = end - chunk_start  # without the start cut off
                         length -= start - chunk_start  # correcting for the start cut off
+                        assert length > 0
                         chunks = {name: vaex.array_types.slice(ar, start - chunk_start, length) for name, ar in chunks.items()}
                         for name, ar in chunks.items():
                             assert len(ar) == length, f'Oops, array was expected to be of length {length} but was {len(ar)}'
                     else:
                         length -= start - chunk_start  # correcting for the start cut off
+                        assert length > 0
                         chunks = {name: vaex.array_types.slice(ar, start - chunk_start) for name, ar in chunks.items()}
                         for name, ar in chunks.items():
                             assert len(ar) == length, f'Oops, array was expected to be of length {length} but was {len(ar)}'
@@ -506,6 +508,7 @@ class DatasetConcatenated(Dataset):
                     if end < chunk_end:
                         # we only need to cut off a piece of the end
                         length = end - chunk_start
+                        assert length > 0
                         chunks = {name: vaex.array_types.slice(ar, 0, length) for name, ar in chunks.items()}
                         for name, ar in chunks.items():
                             assert len(ar) == length, f'Oops, array was expected to be of length {length} but was {len(ar)}'

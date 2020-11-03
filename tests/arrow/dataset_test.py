@@ -1,25 +1,36 @@
+import pytest
 from pathlib import Path
 
 import pyarrow.parquet
 import numpy as np
 import vaex
-
+import vaex.arrow.dataset
 
 HERE = Path(__file__).parent
 
+@pytest.mark.parametrize("l1", list(range(1, 6)))
+@pytest.mark.parametrize("l2", list(range(1, 6)))
+def test_parquet(l1, l2):
+    i1 = 0
+    i2 = i1 + l1
+    i3 = i2 + l2
 
-def test_parquet():
     x = np.arange(10)
     y = x**2
     g = x // 3
     ds = vaex.dataset.DatasetArrays(x=x, y=y, g=g)
     df = vaex.from_dataset(ds)
-    path = HERE.parent / 'data' / 'parquet' / 'test.parquet'
-    path.parent.mkdir(exist_ok=True)
+    path1 = HERE.parent / 'data' / 'parquet' / 'test1.parquet'
+    path2 = HERE.parent / 'data' / 'parquet' / 'test2.parquet'
+    path3 = HERE.parent / 'data' / 'parquet' / 'test3.parquet'
+    path1.parent.mkdir(exist_ok=True)
     # df.export(str(path))
-    pyarrow.parquet.write_table(df.to_arrow_table(), str(path), row_group_size=2)
-
-    df = vaex.open(str(path))
+    pyarrow.parquet.write_table(df[i1:i2].to_arrow_table(), str(path1), row_group_size=2)
+    pyarrow.parquet.write_table(df[i2:i3].to_arrow_table(), str(path2), row_group_size=2)
+    pyarrow.parquet.write_table(df[i3:].to_arrow_table(), str(path3), row_group_size=2)
+    df = vaex.arrow.dataset.open_parquet([str(path1), str(path2), str(path3)])
+    # TODO: future PR will require this:
+    # df = vaex.from_dataset(ds)
     ds_full = ds = df.dataset
 
     iter = ds.chunk_iterator(['x', 'y'], chunk_size=2)
