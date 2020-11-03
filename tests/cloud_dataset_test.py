@@ -22,6 +22,10 @@ def test_cloud_dataset_basics(base_url, cache):
 @pytest.mark.parametrize("cache", ["true", "false"])
 @pytest.mark.parametrize("file_format", ["hdf5", "arrow", "parquet"])  # to-do: add csv
 def test_cloud_dataset_masked(base_url, file_format, cache):
+    # For now, caching of arrow & parquet is not supported
+    if (file_format != 'hdf5') & (cache == 'true'):
+        pytest.xfail("Caching is not supported for arrow & parquet files.")
+
     df = vaex.open(f'{base_url}/testing/xys-masked.{file_format}?cache={cache}', fs_options=fs_options)
     assert df.x.tolist() == [1, None]
     assert df.y.tolist() == [None, 4]
