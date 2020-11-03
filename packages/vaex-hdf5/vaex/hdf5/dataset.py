@@ -60,12 +60,10 @@ def _try_unit(unit):
 class Hdf5MemoryMapped(DatasetMemoryMapped):
     """Implements the vaex hdf5 file format"""
 
-    def __init__(self, path, write=False):
-        if isinstance(path, six.string_types):
-            nommap = s3.is_s3_path(path) or gcs.is_gs_path(path)
-            super(Hdf5MemoryMapped, self).__init__(path, write=write, nommap=nommap)
-        else:
-            super(Hdf5MemoryMapped, self).__init__(path.name, write=write, nommap=True)
+    def __init__(self, path, write=False, fs_options={}):
+        nommap = not vaex.file.memory_mappable(path)
+        self.fs_options = fs_options
+        super(Hdf5MemoryMapped, self).__init__(vaex.file.stringyfy(path), write=write, nommap=nommap)
         self._all_mmapped = True
         self._open(path)
         self.units = {}
@@ -78,31 +76,21 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
             self.h5file.close()
 
     def _open(self, path):
-        if hasattr(path, 'read'):
-            fp = path  # support file handle for testing
-            self.file_map[self.path] = fp
+        if vaex.file.is_file_object(path):
+            file = path  # support file handle for testing
+            self.file_map[self.path] = file
         else:
             mode = 'rb+' if self.write else 'rb'
-            if s3.is_s3_path(path):
-                fp = s3.open(self.path)
-                self.file_map[self.path] = fp
-            elif gcs.is_gs_path(path):
-                fp = gcs.open(self.path)
-                self.file_map[self.path] = fp
-            else:
-                if self.nommap:
-                    fp = open(self.path, mode)
-                    self.file_map[self.path] = fp
-                else:
-                    # this is the only path that will have regular mmapping
-                    fp = self.path
-        self.h5file = h5py.File(fp, "r+" if self.write else "r")
+            file = vaex.file.open(self.path, mode=mode, fs_options=self.fs_options)
+            self.file_map[self.path] = file
+        self.h5file = h5py.File(file, "r+" if self.write else "r")
 
 
     def __getstate__(self):
         return {
             **super().__getstate__(),
-            'nommap': self.nommap
+            'nommap': self.nommap,
+            'fs_options': self.fs_options,
         }
 
     def __setstate__(self, state):
@@ -171,54 +159,22 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
         return Hdf5MemoryMapped(path, write=write)
 
     @classmethod
-    def can_open(cls, path, *args, **kwargs):
-        h5file = None
-        # before we try to open it with h5py, we check the signature (quicker)
-        if path.startswith('gs://'):
-            try:
-                with gcs.open(path, "rb") as f:
-                    signature = f.read(4)
-                    hdf5file = signature == b"\x89\x48\x44\x46"
-            except:
-                logger.exception("could not read 4 bytes from %r", path)
-                return
-        else:
-            try:
-                with s3.open(path, "rb") as f:
-                    signature = f.read(4)
-                    hdf5file = signature == b"\x89\x48\x44\x46"
-            except:
-                logger.exception("could not read 4 bytes from %r", path)
-                return
-        if hdf5file:
-            if path.startswith('gs://'):
-                with gcs.open(path, "rb") as f:
-                    try:
-                        h5file = h5py.File(f, "r")
-                    except:
-                        logger.exception("could not open file as hdf5")
-                        return False
-                    if h5file is not None:
-                        with h5file:
-                            root_datasets = [dataset for name, dataset in h5file.items() if isinstance(dataset, h5py.Dataset)]
-                            return ("data" in h5file) or ("columns" in h5file) or ("table" in h5file) or \
+    def quick_test(cls, path):
+        path, options = vaex.file.split_options(path)
+        return path.endswith('.hdf5') or path.endswith('.h5')
+
+    @classmethod
+    def can_open(cls, path, fs_options={}):
+        if not cls.quick_test(path):
+            return False
+        with vaex.file.open(path, fs_options=fs_options) as f:
+            signature = f.read(4)
+            if signature != b"\x89\x48\x44\x46":
+                return False
+            with h5py.File(f, "r") as h5file:
+                root_datasets = [dataset for name, dataset in h5file.items() if isinstance(dataset, h5py.Dataset)]
+                return ("data" in h5file) or ("columns" in h5file) or ("table" in h5file) or \
                                 len(root_datasets) > 0
-                    else:
-                        logger.debug("file %s has no data or columns group" % path)
-            else:
-                with s3.open(path, "rb") as f:
-                    try:
-                        h5file = h5py.File(f, "r")
-                    except:
-                        logger.exception("could not open file as hdf5")
-                        return False
-                    if h5file is not None:
-                        with h5file:
-                            root_datasets = [dataset for name, dataset in h5file.items() if isinstance(dataset, h5py.Dataset)]
-                            return ("data" in h5file) or ("columns" in h5file) or ("table" in h5file) or \
-                                len(root_datasets) > 0
-                    else:
-                        logger.debug("file %s has no data or columns group" % path)
         return False
 
     @classmethod
@@ -448,8 +404,8 @@ dataset_type_map["h5vaex"] = Hdf5MemoryMapped
 class AmuseHdf5MemoryMapped(Hdf5MemoryMapped):
     """Implements reading Amuse hdf5 files `amusecode.org <http://amusecode.org/>`_"""
 
-    def __init__(self, path, write=False):
-        super(AmuseHdf5MemoryMapped, self).__init__(path, write=write)
+    def __init__(self, path, write=False, fs_options={}):
+        super(AmuseHdf5MemoryMapped, self).__init__(path, write=write, fs_options=fs_options)
 
     @classmethod
     def can_open(cls, path, *args, **kwargs):
@@ -489,7 +445,7 @@ gadget_particle_names = "gas halo disk bulge stars dm".split()
 class Hdf5MemoryMappedGadget(DatasetMemoryMapped):
     """Implements reading `Gadget2 <http://wwwmpa.mpa-garching.mpg.de/gadget/>`_ hdf5 files """
 
-    def __init__(self, path, particle_name=None, particle_type=None):
+    def __init__(self, path, particle_name=None, particle_type=None, fs_options={}):
         if "#" in path:
             path, index = path.split("#")
             index = int(index)
@@ -506,7 +462,7 @@ class Hdf5MemoryMappedGadget(DatasetMemoryMapped):
                 raise ValueError("particle name not supported: %r, expected one of %r" % (particle_name, " ".join(gadget_particle_names)))
         else:
             raise Exception("expected particle type or name as argument, or #<nr> behind path")
-        super(Hdf5MemoryMappedGadget, self).__init__(path)
+        super(Hdf5MemoryMappedGadget, self).__init__(path, fs_options=fs_options)
         self.particle_type = particle_type
         self.particle_name = particle_name
         self.name = self.name + "-" + self.particle_name

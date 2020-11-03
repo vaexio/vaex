@@ -16,9 +16,31 @@ import os
 
 from .itertools import buffer
 
-thread_count_default = os.environ.get('VAEX_NUM_THREADS', multiprocessing.cpu_count())  # * 2 + 1
-thread_count_default = int(thread_count_default)
 logger = logging.getLogger("vaex.multithreading")
+
+thread_count_default = os.environ.get('VAEX_NUM_THREADS', multiprocessing.cpu_count())
+thread_count_default = int(thread_count_default)
+thread_count_default_io = os.environ.get('VAEX_NUM_THREADS_IO', multiprocessing.cpu_count() + 1)
+thread_count_default_io = int(thread_count_default_io)
+main_pool = None
+main_io_pool = None
+
+
+def get_main_pool():
+    global main_pool
+    if main_pool is None:
+        main_pool = ThreadPoolIndex()
+    return main_pool
+
+
+def get_main_io_pool():
+    global main_io_pool
+    if main_io_pool is None:
+        main_io_pool = concurrent.futures.ThreadPoolExecutor(max_workers=thread_count_default_io)
+    return main_io_pool
+
+
+
 
 
 class ThreadPoolIndex(concurrent.futures.ThreadPoolExecutor):
@@ -82,14 +104,3 @@ class ThreadPoolIndex(concurrent.futures.ThreadPoolExecutor):
             future = asyncio.Future()
             future.set_result(callable(i))
             yield future
-
-
-
-main_pool = None  # ThreadPoolIndex()
-
-
-def get_main_pool():
-    global main_pool
-    if main_pool is None:
-        main_pool = ThreadPoolIndex()
-    return main_pool

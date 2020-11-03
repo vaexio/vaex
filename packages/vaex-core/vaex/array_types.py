@@ -3,7 +3,6 @@ import numpy as np
 import pyarrow as pa
 import vaex.utils
 
-
 supported_arrow_array_types = (pa.Array, pa.ChunkedArray)
 supported_array_types = (np.ndarray, ) + supported_arrow_array_types
 
@@ -237,5 +236,6 @@ def type_promote(t1, t2):
 
 def arrow_reduce_large(arrow_array):
     if arrow_array.type == pa.large_string():
+        import vaex.arrow.convert
         return vaex.arrow.convert.large_string_to_string(arrow_array)
     return arrow_array

@@ -3,6 +3,7 @@ import os
 from pathlib import Path
 import collections.abc
 import logging
+import pkg_resources
 import uuid
 from urllib.parse import urlparse
 
@@ -18,8 +19,37 @@ from . import array_types
 
 logger = logging.getLogger('vaex.dataset')
 
-
+opener_classes = []
 HASH_VERSION = "1"
+
+
+def open(path, *args, **kwargs):
+    failures = []
+    if not opener_classes:
+        for entry in pkg_resources.iter_entry_points(group='vaex.dataset.opener'):
+            logger.debug('trying opener: ' + entry.name)
+            try:
+                opener = entry.load()
+                opener_classes.append(opener)
+            except Exception as e:
+                logger.exception('issue loading ' + entry.name)
+                failures.append(e)
+
+    # first the quick path
+    for opener in opener_classes:
+        if opener.quick_test(path):
+            if opener.can_open(path, *args, **kwargs):
+                return opener.open(path, *args, **kwargs)
+
+    # otherwise try all openers
+    for opener in opener_classes:
+        if opener.can_open(path, *args, **kwargs):
+            return opener.open(path, *args, **kwargs)
+
+    if failures:
+        raise IOError(f'Cannot open {path}, failures: {failures}.')
+    else:
+        raise IOError(f'Cannot open {path} nobody knows how to read it.')
 
 
 def _to_bytes(ar):
@@ -256,7 +286,7 @@ class Dataset(collections.abc.Mapping):
             assert item.step in [1, None]
             return self.slice(item.start or 0, item.stop or self.row_count)
         return self._columns[item]
-    
+
     def __len__(self):
         return len(self._columns)
 
@@ -289,7 +319,7 @@ class Dataset(collections.abc.Mapping):
             raise ValueError(f'Trying to hash a dataset with unhashed columns: {missing} (tip: use dataset.hashed())')
         return hash(self._ids)
 
-    def _default_chunk_iterator(self, array_map, columns, chunk_size, reverse=False):
+    def _default_lazy_chunk_iterator(self, array_map, columns, chunk_size, reverse=False):
         chunk_size = chunk_size or 1024**2
         chunk_count = (self.row_count + chunk_size - 1) // chunk_size
         chunks = range(chunk_count)
@@ -298,11 +328,17 @@ class Dataset(collections.abc.Mapping):
         for i in chunks:
             i1 = i * chunk_size
             i2 = min((i + 1) * chunk_size, self.row_count)
-            chunks = {k: array_map[k][i1:i2] for k in columns}
-            length = i2 - i1
-            for name, chunk in chunks.items():
-                assert len(chunk) == length, f'Oops, got a chunk ({name}) of length {len(chunk)} while it is expected to be of length {length} (at {i1}-{i2}'
-            yield i1, i2, chunks
+            def reader(i1=i1, i2=i2):
+                chunks = {k: array_map[k][i1:i2] for k in columns}
+                length = i2 - i1
+                for name, chunk in chunks.items():
+                    assert len(chunk) == length, f'Oops, got a chunk ({name}) of length {len(chunk)} while it is expected to be of length {length} (at {i1}-{i2}'
+                return chunks
+            yield i1, i2, reader
+
+    def _default_chunk_iterator(self, array_map, columns, chunk_size, reverse=False):
+        for i1, i2, reader in self._default_lazy_chunk_iterator(array_map, columns, chunk_size, reverse):
+            yield i1, i2, reader()
 
     @abstractmethod
     def chunk_iterator(self, columns, chunk_size=None, reverse=False):
@@ -870,6 +906,14 @@ class DatasetFile(Dataset):
         self._hash_calculations = 0  # track it for testing purposes
         self._hash_info = {}
         self._read_hashes()
+
+    @classmethod
+    def quick_test(cls, path, fs_options=None, *args, **kwargs):
+        return False
+
+    @classmethod
+    def open(cls, path, *args, **kwargs):
+        return cls(path, *args, **kwargs)
 
     def chunk_iterator(self, columns, chunk_size=None, reverse=False):
         yield from self._default_chunk_iterator(self._columns, columns, chunk_size, reverse=reverse)

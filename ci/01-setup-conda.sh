@@ -15,3 +15,4 @@ export PATH="$HOME/miniconda/bin:$PATH"
 hash -r
 # conda config --set always_yes yes --set changeps1 no
 conda install -y -q -c conda-forge mamba -y;
+conda init

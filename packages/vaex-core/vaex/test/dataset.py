@@ -347,7 +347,7 @@ class TestDataset(unittest.TestCase):
 		test_equal(self.dataset, ds2)
 
 		# as arrow table
-		ds2 = vx.from_arrow_table(self.dataset.to_arrow_table(), as_numpy=False)
+		ds2 = vx.from_arrow_table(self.dataset.to_arrow_table())
 		test_equal(self.dataset, ds2, ucds=False, units=False, description=False, descriptions=False, )
 
 		# return a copy
@@ -1211,7 +1211,7 @@ class TestDataset(unittest.TestCase):
 		self.dataset.add_column("s", 100-self.dataset.data.x)
 		path_arrow = tempfile.mktemp(".arrow")
 		self.dataset.sort("s").export_arrow(path_arrow)
-		ds2 = vaex.open(path_arrow, as_numpy=False)
+		ds2 = vaex.open(path_arrow)
 		np.testing.assert_array_equal(self.dataset.data.x[self.zero_index:self.zero_index+10], np.array(ds2.data.x)[::-1])
 
 	def test_export(self):
@@ -1268,7 +1268,7 @@ class TestDataset(unittest.TestCase):
 										finally:
 											os.remove(path_fits_astropy)
 								if path.endswith('arrow') or path.endswith('parquet'):
-									compare = vx.open(path, as_numpy=False)
+									compare = vx.open(path)
 								else:
 									compare = vx.open(path)
 								if column_names is None:

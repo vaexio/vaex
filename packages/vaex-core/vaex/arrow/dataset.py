@@ -1,32 +1,16 @@
 __author__ = 'maartenbreddels'
 import collections
-import concurrent.futures
 import logging
-import multiprocessing
-import os
 
 import pyarrow as pa
 import pyarrow.dataset
 
 import vaex.dataset
-import vaex.file.other
 from ..itertools import buffer
+from vaex.multithreading import get_main_io_pool
 
-
-logger = logging.getLogger("vaex.arrow.dataset")
-
-thread_count_default_io = os.environ.get('VAEX_NUM_THREADS_IO', multiprocessing.cpu_count() * 2 + 1)
-thread_count_default_io = int(thread_count_default_io)
-main_io_pool = None
 
 logger = logging.getLogger("vaex.multithreading")
-
-
-def get_main_io_pool():
-    global main_io_pool
-    if main_io_pool is None:
-        main_io_pool = concurrent.futures.ThreadPoolExecutor(max_workers=thread_count_default_io)
-    return main_io_pool
 
 
 class DatasetArrow(vaex.dataset.Dataset):
@@ -143,7 +127,8 @@ class DatasetArrow(vaex.dataset.Dataset):
         chunks_ready_list = []
         i1 = i2 = 0
 
-        for chunks_future in buffer(self._chunk_producer(columns, chunk_size, start=start, end=end or self._row_count), thread_count_default_io+3):
+        workers = get_main_io_pool()._max_workers
+        for chunks_future in buffer(self._chunk_producer(columns, chunk_size, start=start, end=end or self._row_count), workers+3):
             chunks = chunks_future.result()
             chunks_ready_list.append(chunks)
             total_row_count = sum([len(list(k.values())[0]) for k in chunks_ready_list])
@@ -161,16 +146,14 @@ class DatasetArrow(vaex.dataset.Dataset):
 
 
 
-def from_table(table, as_numpy=False):
+def from_table(table):
     columns = dict(zip(table.schema.names, table.columns))
-    # TODO: this should be an DatasetArrow and/or DatasetParquet
     dataset = vaex.dataset.DatasetArrays(columns)
-    df = vaex.dataframe.DataFrameLocal(dataset)
-    return df.as_numpy() if as_numpy else df
+    return dataset
 
 
-def open(filename, as_numpy=False):
-    source = pa.memory_map(filename)
+def open(path, fs_options):
+    source = vaex.file.open_for_arrow(path=path, mode='rb', fs_options=fs_options, mmap=True)
     try:
         # first we try if it opens as stream
         reader = pa.ipc.open_stream(source)
@@ -183,14 +166,12 @@ def open(filename, as_numpy=False):
         # if a stream, we're good
         batches = reader  # this reader is iterable
     table = pa.Table.from_batches(batches)
-    return from_table(table, as_numpy=as_numpy)
+    return from_table(table)
 
 
-def open_parquet(filename, as_numpy=False):
-    arrow_ds = pyarrow.dataset.dataset(filename)
-    ds = DatasetArrow(arrow_ds)
-    return vaex.from_dataset(ds)
-
-# vaex.file.other.dataset_type_map["arrow"] = DatasetArrow
-# vaex.file.other.dataset_type_map["parquet"] = DatasetParquet
+def open_parquet(path, fs_options={}):
+    import vaex.file.arrow
+    file_system, path = vaex.file.arrow.parse(path, fs_options)
+    arrow_ds = pyarrow.dataset.dataset(path, filesystem=file_system)
+    return DatasetArrow(arrow_ds)
 

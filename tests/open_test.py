@@ -35,7 +35,7 @@ def test_open():
     _cleanup_generated_files()
 
     # convert and open several "big" CSVs
-    vaex.open(os.path.join(path, 'data', 'small*.csv'), convert=True, chunk_size=2)
+    vaex.open(os.path.join(path, 'data', 'small*.csv'), convert=True)
     assert os.path.exists(target)
     _cleanup_generated_files()
 
@@ -56,12 +56,12 @@ def test_open():
     _cleanup_generated_files()
 
     # be nice to users when converting from unsupported format
-    with tempfile.NamedTemporaryFile(suffix='json') as in_f:
+    with tempfile.NamedTemporaryFile(suffix='.json') as in_f:
         in_f.write(b'[]')
         in_f.flush()
         with pytest.raises(IOError) as exc:
             vaex.open(in_f.name, convert=target)
-        assert 'format supported' in str(exc.value)
+        assert 'Cannot open' in str(exc.value)
     assert not os.path.exists(target)
 
 
