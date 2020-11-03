@@ -20,8 +20,9 @@ def test_cloud_dataset_basics(base_url, cache):
 @pytest.mark.skipif(vaex.utils.devmode, reason='runs too slow when developing')
 @pytest.mark.parametrize("base_url", ["gs://vaex-data", "s3://vaex"])
 @pytest.mark.parametrize("cache", ["true", "false"])
-def test_cloud_dataset_masked(base_url, cache):
-    df = vaex.open(f'{base_url}/testing/xys-masked.hdf5?cache={cache}', fs_options=fs_options)
+@pytest.mark.parametrize("file_format", ["hdf5", "arrow", "parquet"])  # to-do: add csv
+def test_cloud_dataset_masked(base_url, file_format, cache):
+    df = vaex.open(f'{base_url}/testing/xys-masked.{file_format}?cache={cache}', fs_options=fs_options)
     assert df.x.tolist() == [1, None]
     assert df.y.tolist() == [None, 4]
     assert df.s.tolist() == ['5', None]
