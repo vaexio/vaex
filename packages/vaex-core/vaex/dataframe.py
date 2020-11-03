@@ -2422,7 +2422,7 @@ class DataFrame(object):
         :param dict fs_options: arguments to pass the the file system handler (s3fs or gcsfs)
         """
         fs_options = fs_options or {}
-        vaex.utils.write_json_or_yaml(f, self.state_get(), fs_options=fs_options)
+        vaex.utils.write_json_or_yaml(file, self.state_get(), fs_options=fs_options)
 
     def state_load(self, file, use_active_range=False, fs_options=None):
         """Load a state previously stored by :meth:`DataFrame.state_write`, see also :meth:`DataFrame.state_set`.

@@ -61,7 +61,7 @@ def test_open():
         in_f.flush()
         with pytest.raises(IOError) as exc:
             vaex.open(in_f.name, convert=target)
-        assert 'format supported' in str(exc.value)
+        assert 'Cannot open' in str(exc.value)
     assert not os.path.exists(target)
 
 

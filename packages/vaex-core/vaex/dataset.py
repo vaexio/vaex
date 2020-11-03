@@ -23,26 +23,33 @@ opener_classes = []
 HASH_VERSION = "1"
 
 
-def open(path, *args, fs_options={}):
+def open(path, *args, **kwargs):
+    failures = []
     if not opener_classes:
         for entry in pkg_resources.iter_entry_points(group='vaex.dataset.opener'):
             logger.debug('trying opener: ' + entry.name)
             try:
                 opener = entry.load()
                 opener_classes.append(opener)
-            except Exception:
+            except Exception as e:
                 logger.exception('issue loading ' + entry.name)
+                failures.append(e)
 
     # first the quick path
     for opener in opener_classes:
         if opener.quick_test(path):
-            if opener.can_open(path, fs_options=fs_options):
-                return opener.open(path, fs_options=fs_options)
+            if opener.can_open(path, *args, **kwargs):
+                return opener.open(path, *args, **kwargs)
 
     # otherwise try all openers
     for opener in opener_classes:
-        if opener.can_open(path, fs_options=fs_options):
-            return opener.open(path, fs_options=fs_options)
+        if opener.can_open(path, *args, **kwargs):
+            return opener.open(path, *args, **kwargs)
+
+    if failures:
+        raise IOError(f'Cannot open {path}, failures: {failures}.')
+    else:
+        raise IOError(f'Cannot open {path} nobody knows how to read it.')
 
 
 def _to_bytes(ar):

@@ -144,7 +144,7 @@ def open(path, mode='rb', fs_options={}):
     return opener(path, mode, fs_options=fs_options)
 
 
-def open_for_arrow(path, mode, fs_options={}):
+def open_for_arrow(path, mode='rb', fs_options={}, mmap=False):
     '''When the file will be passed to arrow, we want file object arrow likes.
 
     This might avoid peformance issues with GIL, or call overhead.
@@ -155,7 +155,12 @@ def open_for_arrow(path, mode, fs_options={}):
     path = stringyfy(path)
     scheme, _ = split_scheme(path)
     if scheme is None:
-        return pa.OSFile(path, mode)
+        if fs_options:
+            raise ValueError(f'fs_options not supported for local files. You passed: {repr(fs_options)}.')
+        if mmap:
+            return pa.memory_map(filename, mode)
+        else:
+            return pa.OSFile(path, mode)
     else:
         opener = scheme_opener.get(scheme)
         if not opener:

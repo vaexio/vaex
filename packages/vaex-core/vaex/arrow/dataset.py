@@ -152,8 +152,8 @@ def from_table(table):
     return dataset
 
 
-def open(filename):
-    source = pa.memory_map(filename)
+def open(path, fs_options):
+    source = vaex.file.open_for_arrow(path=path, mode='rb', fs_options=fs_options, mmap=True)
     try:
         # first we try if it opens as stream
         reader = pa.ipc.open_stream(source)
@@ -169,9 +169,9 @@ def open(filename):
     return from_table(table)
 
 
-def open_parquet(path):
+def open_parquet(path, fs_options):
     import vaex.file.arrow
-    file_system, path = vaex.file.arrow.parse(path)
+    file_system, path = vaex.file.arrow.parse(path, fs_options)
     arrow_ds = pyarrow.dataset.dataset(path, filesystem=file_system)
     return DatasetArrow(arrow_ds)
 

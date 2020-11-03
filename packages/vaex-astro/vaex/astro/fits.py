@@ -16,7 +16,7 @@ logger = logging.getLogger("vaex.astro.fits")
 
 
 class FitsBinTable(DatasetMemoryMapped):
-    def __init__(self, filename, write=False):
+    def __init__(self, filename, write=False, fs_options={}):
         super(FitsBinTable, self).__init__(filename, write=write)
         self.ucds = {}
         self.units = {}
