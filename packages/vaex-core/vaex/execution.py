@@ -209,6 +209,8 @@ class ExecutorLocal(Executor):
             block_scope = run.block_scopes[thread_index]
             block_scope.move(i1, i2)
             df = run.df
+            if i1 == i2:
+                raise RuntimeError(f'Oops, get an empty chunk, from {i1} to {i2}, that should not happen')
             N = i2 - i1
             for name, chunk in chunks.items():
                 assert len(chunk) == N, f'Oops, got a chunk ({name}) of length {len(chunk)} while it is expected to be of length {N} (at {i1}-{i2}'

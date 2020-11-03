@@ -524,7 +524,7 @@ class DatasetConcatenated(Dataset):
             end = self.row_count if end is None else end
             length = end - start
             i2 = min(length, i1 + chunk_size)
-            while i1 < end:
+            while i1 < length:
                 yield i1, i2, {}
                 i1 = i2
                 i2 = min(length, i1 + chunk_size)

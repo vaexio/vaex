@@ -191,6 +191,10 @@ def test_concat():
     assert ds.row_count == dsc.row_count
     assert dsc.row_count == ds1.row_count + ds2.row_count
 
+    # an empty list of columns follows a different codepath
+    assert list(dsc.chunk_iterator([])) == [(0, 10, {})]
+    assert list(dsc.chunk_iterator([], start=5, end=10)) == [(0, 5, {})]
+
 
 def test_example():
     df = vaex.example().hashed()
