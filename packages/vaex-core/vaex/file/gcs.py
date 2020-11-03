@@ -18,29 +18,23 @@ def dup(f):
     return f.gcsfs.open(f.path, f.mode)
 
 
-def glob(path, **kwargs):
+def glob(path, fs_options={}):
     if '?' in path:
         __, query = path[:path.index('?')], path[path.index('?'):]
     else:
         query = ''
-    path, options = split_options(path, **kwargs)
+    path, options = split_options(path, fs_options)
     if gcsfs is None:
         raise import_exception
-    # anon is for backwards compatibility
-    if (options.pop('anon', None) in [True, 'true', 'True', '1']) or (options.pop('anonymous', None) in [True, 'true', 'True', '1']):
-        options['token'] = 'anon'
     fs = gcsfs.GCSFileSystem(**options)
     return ['gs://' + k + query for k in fs.glob(path)]
 
 
-def open(path, mode='rb', **kwargs):
+def open(path, mode='rb', fs_options={}):
     if gcsfs is None:
         raise import_exception
-    path, options = split_options(path, **kwargs)
+    path, options = split_options(path, fs_options)
     use_cache = options.pop('cache', 'true' if mode == 'rb' else 'false') in ['true', 'True', '1']
-    # common iterface between s3 and gcs
-    if (options.pop('anon', None) in [True, 'true', 'True', '1']) or (options.pop('anonymous', None) in [True, 'true', 'True', '1']):
-        options['token'] = 'anon'
     fs = gcsfs.GCSFileSystem(**options)
     if use_cache:
         def gcs_open():

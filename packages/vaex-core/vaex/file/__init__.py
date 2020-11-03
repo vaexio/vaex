@@ -53,11 +53,11 @@ def is_file_object(file):
     return hasattr(file, 'read') and hasattr(file, 'seek')
 
 
-def file_and_path(file, mode='r', **kwargs):
+def file_and_path(file, mode='r', fs_options={}):
     if is_file_object(file):
         return file, stringyfy(file)
     else:
-        file = open(file, mode=mode, **kwargs)
+        file = open(file, mode=mode, fs_options=fs_options)
         return file, stringyfy(file)
 
 
@@ -87,31 +87,31 @@ def memory_mappable(path):
     return scheme is None
 
 
-def split_options(path, **kwargs):
+def split_options(path, fs_options={}):
     match = re.match(r'(.*?)\?((&?[^=&?]+=[^=&?]+)+)', path)
     if match:
         naked_path, query = match.groups()[:2]
     else:
         naked_path = path
         query = ''
-    options = dict(kwargs)
+    options = fs_options.copy()
     options.update({key: values[0] for key, values in parse_qs(query).items()})
     return naked_path, options
 
 
-def open_google_cloud(path, mode, **kwargs):
+def open_google_cloud(path, mode, fs_options={}):
     from .gcs import open
-    return vaex.file.gcs.open(path, mode, **kwargs)
+    return vaex.file.gcs.open(path, mode, fs_options=fs_options)
 
 
-def open_s3_arrow(path, mode, **kwargs):
+def open_s3_arrow(path, mode, fs_options={}):
     from .arrow import open_s3
-    return open_s3(path, mode, **kwargs)
+    return open_s3(path, mode, fs_options=fs_options)
 
 
-def open_s3fs(path, mode, **kwargs):
+def open_s3fs(path, mode, fs_options={}):
     from .s3 import open
-    return open(path, mode, **kwargs)
+    return open(path, mode, fs_options=fs_options)
 
 
 scheme_opener = {
@@ -122,7 +122,7 @@ scheme_opener = {
 }
 
 
-def open(path, mode='rb', **kwargs):
+def open(path, mode='rb', fs_options={}):
     if is_file_object(path):
         return path
     path = stringyfy(path)
@@ -130,17 +130,21 @@ def open(path, mode='rb', **kwargs):
     opener = scheme_opener.get(scheme)
     if not opener:
         raise ValueError(f'Do not know how to open {path}')
+    if scheme is None:
+        if fs_options:
+            raise ValueError(f'fs_options not supported for local files. You passed: {repr(fs_options)}.')
+        return opener(path, mode)
     if scheme == 's3':
         # fallback to s3fs for windows
         import pyarrow as pa
         try:
-            return opener(path, mode, **kwargs)
+            return opener(path, mode, fs_options=fs_options)
         except pa.lib.ArrowNotImplementedError:
             opener = scheme_opener['s3fs']
-    return opener(path, mode, **kwargs)
+    return opener(path, mode, fs_options=fs_options)
 
 
-def open_for_arrow(path, mode, **kwargs):
+def open_for_arrow(path, mode, fs_options={}):
     '''When the file will be passed to arrow, we want file object arrow likes.
 
     This might avoid peformance issues with GIL, or call overhead.
@@ -156,7 +160,7 @@ def open_for_arrow(path, mode, **kwargs):
         opener = scheme_opener.get(scheme)
         if not opener:
             raise ValueError(f'Do not know how to open {path}')
-        return opener(path, mode, **kwargs).file
+        return opener(path, mode, fs_options=fs_options).file
 
 
 def dup(file):
@@ -167,14 +171,14 @@ def dup(file):
         return normal_open(file.name, file.mode)
 
 
-def glob_s3(path, **kwargs):
+def glob_s3(path, fs_options={}):
     from .s3 import glob
-    return glob(path, **kwargs)
+    return glob(path, fs_options=fs_options)
 
 
-def glob_google_cloud(path, **kwargs):
+def glob_google_cloud(path, fs_options={}):
     from .gcs import glob
-    return glob(path, **kwargs)
+    return glob(path, fs_options=fs_options)
 
 
 globber_map = {

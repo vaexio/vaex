@@ -159,15 +159,15 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
         return Hdf5MemoryMapped(path, write=write)
 
     @classmethod
-    def quick_test(cls, path, *args, **kwargs):
+    def quick_test(cls, path):
         path, options = vaex.file.split_options(path)
         return path.endswith('.hdf5') or path.endswith('.h5')
 
     @classmethod
-    def can_open(cls, path, *args, **kwargs):
-        if not cls.quick_test(path, *args, **kwargs):
+    def can_open(cls, path, fs_options={}):
+        if not cls.quick_test(path):
             return False
-        with vaex.file.open(path, **kwargs) as f:
+        with vaex.file.open(path, fs_options=fs_options) as f:
             signature = f.read(4)
             if signature != b"\x89\x48\x44\x46":
                 return False

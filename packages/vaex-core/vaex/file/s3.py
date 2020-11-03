@@ -18,14 +18,14 @@ def dup(f):
     return f.s3.open(f.path, f.mode)
 
 
-def glob(path, **kwargs):
+def glob(path, fs_options={}):
     if '?' in path:
         __, query = path[:path.index('?')], path[path.index('?'):]
     else:
         query = ''
     scheme, _ = split_scheme(path)
     path = path.replace('s3fs://', 's3://')
-    path, options = split_options(path, **kwargs)
+    path, options = split_options(path, fs_options)
     if s3fs is None:
         raise import_exception
     # anon is for backwards compatibility
@@ -36,9 +36,9 @@ def glob(path, **kwargs):
     return [f'{scheme}://' + k + query for k in s3.glob(path)]
 
 
-def open(path, mode='rb', **kwargs):
+def open(path, mode='rb', fs_options={}):
     path = path.replace('s3fs://', 's3://')
-    path, options = split_options(path, **kwargs)
+    path, options = split_options(path, fs_options)
     if s3fs is None:
         raise import_exception
     use_cache = options.pop('cache', 'true' if mode == 'rb' else 'false') in ['true', 'True', '1']

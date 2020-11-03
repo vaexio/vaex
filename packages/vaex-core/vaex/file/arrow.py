@@ -9,10 +9,10 @@ from . import split_options, FileProxy, split_scheme
 from .cache import CachedFile
 
 
-def open_s3(path, mode='rb', **kwargs):
-    path, options = split_options(path, **kwargs)
+def open_s3(path, mode='rb', fs_options={}):
+    path, options = split_options(path, fs_options)
     use_cache = options.pop('cache', 'true' if mode == 'rb' else 'false') in [True, 'true', 'True', '1']
-    file_system, path = parse(path, **options)
+    file_system, path = parse(path, options)
     if use_cache:
         # we lazily open the file, if all is cached, we don't need to connect to s3
         if mode != "rb":
@@ -37,8 +37,8 @@ def open_s3(path, mode='rb', **kwargs):
         return FileProxy(arrow_open(), path, dup=arrow_open)
 
 
-def parse(path, **kwargs):
-    path, options = split_options(path, **kwargs)
+def parse(path, options):
+    path, options = split_options(path, options)
     scheme, _ = split_scheme(path)
     if scheme == 's3':
         # anon is for backwards compatibility

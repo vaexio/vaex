@@ -2,11 +2,13 @@ import vaex
 import pytest
 
 
+fs_options = {'anonymous': 'true'}
+
 @pytest.mark.skipif(vaex.utils.devmode, reason='runs too slow when developing')
 @pytest.mark.parametrize("base_url", ["gs://vaex-data", "s3://vaex"])
 @pytest.mark.parametrize("cache", ["true", "false"])
 def test_cloud_dataset_basics(base_url, cache):
-    df = vaex.open(f'{base_url}/testing/xys.hdf5?cache={cache}', anonymous=True)
+    df = vaex.open(f'{base_url}/testing/xys.hdf5?cache={cache}', fs_options=fs_options)
     assert df.x.tolist() == [1, 2]
     assert df.y.tolist() == [3, 4]
     assert df.s.tolist() == ['5', '6']
@@ -19,7 +21,7 @@ def test_cloud_dataset_basics(base_url, cache):
 @pytest.mark.parametrize("base_url", ["gs://vaex-data", "s3://vaex"])
 @pytest.mark.parametrize("cache", ["true", "false"])
 def test_cloud_dataset_masked(base_url, cache):
-    df = vaex.open(f'{base_url}/testing/xys-masked.hdf5?cache={cache}', anonymous=True)
+    df = vaex.open(f'{base_url}/testing/xys-masked.hdf5?cache={cache}', fs_options=fs_options)
     assert df.x.tolist() == [1, None]
     assert df.y.tolist() == [None, 4]
     assert df.s.tolist() == ['5', None]
@@ -33,5 +35,5 @@ def test_cloud_dataset_masked(base_url, cache):
 @pytest.mark.skipif(vaex.utils.devmode, reason='runs too slow when developing')
 @pytest.mark.parametrize("base_url", ["gs://vaex-data", "s3://vaex"])
 def test_cloud_glob(base_url):
-    assert set(vaex.file.glob(f'{base_url}/testing/*.hdf5', anonymous=True)) >= ({f'{base_url}/testing/xys-masked.hdf5', f'{base_url}/testing/xys.hdf5'})
+    assert set(vaex.file.glob(f'{base_url}/testing/*.hdf5', fs_options=fs_options)) >= ({f'{base_url}/testing/xys-masked.hdf5', f'{base_url}/testing/xys.hdf5'})
     assert set(vaex.file.glob(f'{base_url}/testing/*.hdf5?anonymous=true')) >= ({f'{base_url}/testing/xys-masked.hdf5?anonymous=true', f'{base_url}/testing/xys.hdf5?anonymous=true'})

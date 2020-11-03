@@ -6,7 +6,7 @@ import pyarrow as pa
 
 
 def test_open_s3():
-    with vaex.file.open('s3://vaex/testing/xys.hdf5', anonymous=True) as f:
+    with vaex.file.open('s3://vaex/testing/xys.hdf5?anonymous=true') as f:
         signature = f.read(4)
         assert signature == b"\x89\x48\x44\x46"
 
@@ -51,7 +51,7 @@ def test_is_file_object(tmpdir):
     path = tmpdir / 'test.dat'
     with open(path, 'wb') as f:
         path.write(b'vaex')
-    assert vaex.file.is_file_object(vaex.file.open('s3://vaex/testing/xys.hdf5', anonymous=True))
+    assert vaex.file.is_file_object(vaex.file.open('s3://vaex/testing/xys.hdf5?anonymous=true'))
     assert vaex.file.is_file_object(vaex.file.open(path))
 
 

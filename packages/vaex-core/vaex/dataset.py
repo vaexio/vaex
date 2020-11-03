@@ -23,7 +23,7 @@ opener_classes = []
 HASH_VERSION = "1"
 
 
-def open(path, *args, **kwargs):
+def open(path, *args, fs_options={}):
     if not opener_classes:
         for entry in pkg_resources.iter_entry_points(group='vaex.dataset.opener'):
             logger.debug('trying opener: ' + entry.name)
@@ -35,14 +35,14 @@ def open(path, *args, **kwargs):
 
     # first the quick path
     for opener in opener_classes:
-        if opener.quick_test(path, *args, **kwargs):
-            if opener.can_open(path, *args, **kwargs):
-                return opener.open(path, *args, **kwargs)
+        if opener.quick_test(path):
+            if opener.can_open(path, fs_options=fs_options):
+                return opener.open(path, fs_options=fs_options)
 
     # otherwise try all openers
     for opener in opener_classes:
-        if opener.can_open(path, *args, **kwargs):
-            return opener.open(path, *args, **kwargs)
+        if opener.can_open(path, fs_options=fs_options):
+            return opener.open(path, fs_options=fs_options)
 
 
 def _to_bytes(ar):
@@ -279,7 +279,7 @@ class Dataset(collections.abc.Mapping):
             assert item.step in [1, None]
             return self.slice(item.start or 0, item.stop or self.row_count)
         return self._columns[item]
-    
+
     def __len__(self):
         return len(self._columns)
 
@@ -901,7 +901,7 @@ class DatasetFile(Dataset):
         self._read_hashes()
 
     @classmethod
-    def quick_test(cls, path, *args, **kwargs):
+    def quick_test(cls, path, fs_options=None, *args, **kwargs):
         return False
 
     @classmethod

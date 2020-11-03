@@ -106,7 +106,7 @@ def _convert_name(filenames, shuffle=False, suffix=None):
         return base + ".hdf5"
 
 
-def open(path, convert=False, shuffle=False, copy_index=False, *args, **kwargs):
+def open(path, convert=False, shuffle=False, copy_index=False, fs_options={}, *args, **kwargs):
     """Open a DataFrame from file given by path.
 
     Example:
@@ -131,7 +131,7 @@ def open(path, convert=False, shuffle=False, copy_index=False, *args, **kwargs):
 
      * anon: Use anonymous access or not (false by default). (Allowed values are: true,True,1,false,False,0)
      * use_cache: Use the disk cache or not, only set to false if the data should be accessed once. (Allowed values are: true,True,1,false,False,0)
-     * profile_name and other arguments are passed to :py:class:`s3fs.core.S3FileSystem`
+     * profile and other arguments are passed to :py:class:`s3fs.core.S3FileSystem`
 
     All arguments can also be passed as kwargs, but then arguments such as `anon` can only be a boolean, not a string.
 
@@ -139,7 +139,7 @@ def open(path, convert=False, shuffle=False, copy_index=False, *args, **kwargs):
 
     >>> df = vaex.open('s3://vaex/taxi/yellow_taxi_2015_f32s.hdf5?anon=true')
     >>> df = vaex.open('s3://vaex/taxi/yellow_taxi_2015_f32s.hdf5', anon=True)  # Note that anon is a boolean, not the string 'true'
-    >>> df = vaex.open('s3://mybucket/path/to/file.hdf5?profile_name=myprofile')
+    >>> df = vaex.open('s3://mybucket/path/to/file.hdf5?profile=myprofile')
 
     GCS support:
     Vaex supports streaming of hdf5 files from Google Cloud Storage.
@@ -208,7 +208,7 @@ def open(path, convert=False, shuffle=False, copy_index=False, *args, **kwargs):
                         csv_convert = filename_hdf5 if convert else False
                         df = from_csv(path, copy_index=copy_index, convert=csv_convert, **kwargs)
                     else:
-                        ds = vaex.dataset.open(path, *args, **kwargs)
+                        ds = vaex.dataset.open(path, fs_options=fs_options, *args, **kwargs)
                         if ds is not None:
                             df = vaex.from_dataset(ds)
                         if convert and ds is not None:
