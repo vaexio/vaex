@@ -1,3 +1,4 @@
+sphinx-book-theme
 sphinx-sitemap
 sphinxcontrib-googleanalytics
 future

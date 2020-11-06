@@ -1,0 +1,14 @@
+<div class="navbar-brand-box">
+<a class="navbar-brand text-wrap" href="https://vaex.io/">
+  <img src="https://vaex.io/img/logos/logo-grey.svg" class="logo" alt="logo">
+  {% if docstitle %}
+  <h1 class="site-logo" id="site-title">{{ docstitle }}</h1>
+  {% endif %}
+</a>
+</div>
+
+
+{%- for sidebartemplate in sidebars %}
+{%- include sidebartemplate %}
+{%- endfor %}
+

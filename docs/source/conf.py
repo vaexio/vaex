@@ -148,7 +148,7 @@ pygments_style = 'sphinx'
 html_theme = 'default'
 try:
 	import sphinx_rtd_theme
-	html_theme = "sphinx_rtd_theme"
+	html_theme = "sphinx_book_theme"
 	html_theme_path = [sphinx_rtd_theme.get_html_theme_path()]
 except:
 	print("rtd theme not found")
@@ -158,12 +158,31 @@ except:
 # documentation.
 html_theme_options = dict(
 	# analytics_id='UA-60052576-1'  this is configured in rtfd.io
-	canonical_url="https://vaex.io/docs/"
+	# canonical_url="https://vaex.io/docs/",
+	repository_url="https://github.com/vaexio/vaex",
+	use_edit_page_button=True,
+	use_repository_button=True,
+	use_issues_button=True,
+	path_to_docs="docs/source/",
+	home_page_in_toc=True,
+	extra_navbar="",
+	navbar_footer_text="",
+	extra_footer='Theme by the <a href="https://ebp.jupyterbook.org">Executable Book Project</a>',
+	twitter_url="https://twitter.com/vaex_io",
 )
+
+html_sidebars = {
+	"**": ["sbt-sidebar-footer.html", "sbt-sidebar-nav.html", "sidebar-search-bs.html"]
+}
+# html_logo = "https://vaex.io/img/logos/logo-grey.svg"
+html_favicon = "_static/vaex_alt.png"
+html_baseurl = "https://vaex.io/docs/"
+
+templates_path = ['_templates']
 
 # not sure if this helps, otherwise it does not work on rtd
 html_context = dict(
-	canonical_url="https://vaex.io/docs/"
+	# canonical_url="https://vaex.io/docs/"
 )
 
 # Add any paths that contain custom themes here, relative to this directory.
