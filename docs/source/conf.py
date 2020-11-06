@@ -168,6 +168,7 @@ html_theme_options = dict(
 	extra_footer='Theme by the <a href="https://ebp.jupyterbook.org">Executable Book Project</a>',
 	twitter_url="https://twitter.com/vaex_io",
 )
+html_style = "helpme"
 
 html_sidebars = {
 	"**": ["sbt-sidebar-footer.html", "sbt-sidebar-nav.html", "sidebar-search-bs.html"]
