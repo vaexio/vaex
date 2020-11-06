@@ -173,7 +173,7 @@ html_sidebars = {
 html_favicon = "_static/vaex_alt.png"
 html_baseurl = "https://vaex.io/docs/"
 
-templates_path = ['_templates']
+# templates_path = ['_templates']
 
 # not sure if this helps, otherwise it does not work on rtd
 html_context = dict(
