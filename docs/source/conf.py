@@ -58,7 +58,7 @@ on_rtd = os.environ.get('READTHEDOCS', None) == 'True'
 # 	googleanalytics_id = 'UA-60052576-1'
 # 	analytics_id = 'UA-60052576-1'
 # Add any paths that contain templates here, relative to this directory.
-templates_path = ['ntemplates']
+#templates_path = ['ntemplates']
 
 # The suffix of source filenames.
 source_suffix = '.rst'
