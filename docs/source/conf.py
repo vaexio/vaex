@@ -148,8 +148,8 @@ pygments_style = 'sphinx'
 html_theme = 'default'
 html_theme = "sphinx_book_theme"
 
-html_theme = "vaex_theme"
-html_theme_path = ['_theme']
+# html_theme = "vaex_theme"
+# html_theme_path = ['_theme']
 
 # Theme options are theme-specific and customize the look and feel of a theme
 # further.  For a list of options available for each theme, see the
@@ -168,12 +168,14 @@ html_theme_options = dict(
 	extra_footer='Theme by the <a href="https://ebp.jupyterbook.org">Executable Book Project</a>',
 	twitter_url="https://twitter.com/vaex_io",
 )
-html_style = "helpme"
+# html_style = "helpme"
+
+extra_navbar = "<h1>dsadsa</h2>"
 
 html_sidebars = {
 	"**": ["sbt-sidebar-footer.html", "sbt-sidebar-nav.html", "sidebar-search-bs.html"]
 }
-# html_logo = "https://vaex.io/img/logos/logo-grey.svg"
+html_logo = "_static/logo-grey.svg"
 html_favicon = "_static/vaex_alt.png"
 html_baseurl = "https://vaex.io/docs/"
 
