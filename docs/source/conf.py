@@ -58,7 +58,7 @@ on_rtd = os.environ.get('READTHEDOCS', None) == 'True'
 # 	googleanalytics_id = 'UA-60052576-1'
 # 	analytics_id = 'UA-60052576-1'
 # Add any paths that contain templates here, relative to this directory.
-templates_path = ['ntemplates']
+#templates_path = ['ntemplates']
 
 # The suffix of source filenames.
 source_suffix = '.rst'
@@ -146,24 +146,44 @@ pygments_style = 'sphinx'
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
 html_theme = 'default'
-try:
-	import sphinx_rtd_theme
-	html_theme = "sphinx_rtd_theme"
-	html_theme_path = [sphinx_rtd_theme.get_html_theme_path()]
-except:
-	print("rtd theme not found")
+html_theme = "sphinx_book_theme"
+
+# html_theme = "vaex_theme"
+# html_theme_path = ['_theme']
 
 # Theme options are theme-specific and customize the look and feel of a theme
 # further.  For a list of options available for each theme, see the
 # documentation.
 html_theme_options = dict(
 	# analytics_id='UA-60052576-1'  this is configured in rtfd.io
-	canonical_url="https://vaex.io/docs/"
+	# canonical_url="https://vaex.io/docs/",
+	repository_url="https://github.com/vaexio/vaex",
+	use_edit_page_button=True,
+	use_repository_button=True,
+	use_issues_button=True,
+	path_to_docs="docs/source/",
+	home_page_in_toc=True,
+	extra_navbar="",
+	navbar_footer_text="",
+	extra_footer='Theme by the <a href="https://ebp.jupyterbook.org">Executable Book Project</a>',
+	twitter_url="https://twitter.com/vaex_io",
 )
+# html_style = "helpme"
+
+extra_navbar = "<h1>dsadsa</h2>"
+
+html_sidebars = {
+	"**": ["sbt-sidebar-footer.html", "sbt-sidebar-nav.html", "sidebar-search-bs.html"]
+}
+html_logo = "_static/logo-grey.svg"
+html_favicon = "_static/vaex_alt.png"
+html_baseurl = "https://vaex.io/docs/"
+
+# templates_path = ['_templates']
 
 # not sure if this helps, otherwise it does not work on rtd
 html_context = dict(
-	canonical_url="https://vaex.io/docs/"
+	# canonical_url="https://vaex.io/docs/"
 )
 
 # Add any paths that contain custom themes here, relative to this directory.
@@ -188,7 +208,7 @@ html_context = dict(
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
-html_static_path = ['nstatic']
+# html_static_path = ['nstatic']
 
 # Add any extra paths that contain custom files (such as robots.txt or
 # .htaccess) here, relative to this directory. These files are copied
