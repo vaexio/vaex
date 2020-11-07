@@ -38,6 +38,4 @@ _doc_snippets['chunk_size_export'] = 'Number of rows to be written to disk in a 
 _doc_snippets['evaluate_parallel'] = 'Evaluate the (virtual) columns in parallel'
 _doc_snippets['array_type'] = 'Type of output array, possible values are None/"numpy" (ndarray), "xarray" for a xarray.DataArray, or "list" for a Python list'
 _doc_snippets['ascii'] = 'Transform only ascii characters (usually faster).'
-
-_doc_snippets['ml_features'] = 'List of features to transform.'
-_doc_snippets['ml_prefix'] = 'Prefix for the names of the transformed features.'
+_doc_snippets['fs_options'] = 'see :func:`vaex.open` e.g. for S3 {"profile": "myproject"}'
