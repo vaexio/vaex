@@ -198,8 +198,22 @@ def open(path, convert=False, shuffle=False, fs_options={}, *args, **kwargs):
                     )
                     ds = vaex.dataset.open(path_output, fs_options=fs_options)
                 else:
+<<<<<<< HEAD
                     ds = vaex.dataset.open(path, fs_options=fs_options)
                 df = vaex.from_dataset(ds)
+=======
+                    if ext == '.csv' or naked_path.endswith(".csv.bz2"):  # special support for csv.. should probably approach it a different way
+                        csv_convert = filename_hdf5 if convert else False
+                        df = from_csv(path, convert=csv_convert, **kwargs)
+                    else:
+                        ds = vaex.dataset.open(path, fs_options=fs_options, *args, **kwargs)
+                        if ds is not None:
+                            df = vaex.from_dataset(ds)
+                        if convert and ds is not None:
+                            df = vaex.from_dataset(ds)
+                            df.export_hdf5(filename_hdf5, shuffle=shuffle)
+                            df = vaex.open(filename_hdf5)
+>>>>>>> chore(core): Remove copy_index as a defined kwarg from vaex.open
                 if df is None:
                     if os.path.exists(path):
                         raise IOError('Could not open file: {}, did you install vaex-hdf5? Is the format supported?'.format(path))
