@@ -867,14 +867,13 @@ def gen_to_list(fn=None, wrapper=list):
 
 def find_type_from_dtype(namespace, prefix, dtype, transient=True):
     from .array_types import is_string_type
-    if is_string_type(dtype):
+    if dtype == 'string':
         if transient:
             postfix = 'string'
         else:
             postfix = 'string' # view not support atm
     else:
-        import vaex
-        dtype = vaex.array_types.to_numpy_type(dtype)
+        dtype = dtype.numpy
         postfix = str(dtype)
         if postfix == '>f8':
             postfix = 'float64'

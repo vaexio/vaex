@@ -206,7 +206,7 @@ def _export_column(dataset_input, dataset_output, column_name, shuffle, sort, se
                             target_set_item = order_array[i1:i2]
                         else:
                             target_set_item = slice(to_offset, to_offset + no_values)
-                        if dtype.type == np.datetime64:
+                        if dtype.is_datetime:
                             values = values.view(np.int64)
                         if np.ma.isMaskedArray(to_array) and np.ma.isMaskedArray(values):
                             to_array.data[target_set_item] = values.filled(fill_value)
