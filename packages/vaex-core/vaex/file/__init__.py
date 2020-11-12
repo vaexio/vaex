@@ -175,10 +175,7 @@ def open_for_arrow(path, mode='rb', fs_options={}, mmap=False):
         else:
             return pa.OSFile(path, mode)
     else:
-        opener = scheme_opener.get(scheme)
-        if not opener:
-            raise ValueError(f'Do not know how to open {path}')
-        return opener(path, mode, fs_options=fs_options).file
+        return open(path, mode=mode, fs_options=fs_options)
 
 
 def dup(file):
