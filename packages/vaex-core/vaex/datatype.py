@@ -138,6 +138,8 @@ class DataType:
         >>> date_type == 'datetime'
         True
         """
+        if self.is_string:
+            return False
         return vaex.array_types.to_numpy_type(self.internal).kind in 'M'
 
     @property

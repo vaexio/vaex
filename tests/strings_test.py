@@ -33,8 +33,7 @@ def test_dtype_object_string(tmpdir):
     path = str(tmpdir.join('test.arrow'))
     df.export(path)
     df_read = vaex.open(path)
-    # the data type of x is different (arrow vs numpy)
-    assert df_read.compare(df) == ([], [], ['x'], [])
+    assert df_read.compare(df) == ([], [], [], [])
 
 
 def test_dtype_unicode_string(tmpdir):
@@ -46,8 +45,7 @@ def test_dtype_unicode_string(tmpdir):
     path = str(tmpdir.join('test.arrow'))
     df.export(path)
     df_read = vaex.open(path)
-    # the data type of x is different (arrow vs numpy)
-    assert df_read.compare(df) == ([], [], ['x'], [])
+    assert df_read.compare(df) == ([], [], [], [])
 
 
 def test_export_arrow_strings_to_hdf5(tmpdir):
