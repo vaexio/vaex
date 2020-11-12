@@ -24,6 +24,9 @@ class FileProxy:
         self.name = name
         self.dup = dup
 
+    def __iter__(self):
+        raise NotImplementedError('This is just for looking like a file object to Pandas')
+
     def write(self, *args):
         return self.file.write(*args)
 
