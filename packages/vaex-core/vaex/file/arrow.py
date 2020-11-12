@@ -43,6 +43,9 @@ def parse(path, options):
     if scheme == 's3':
         # anon is for backwards compatibility
         options['anonymous'] = (options.pop('anon', None) in [True, 'true', 'True', '1']) or (options.pop('anonymous', None) in [True, 'true', 'True', '1'])
+        use_cache = options.pop('cache', 'false') in [True, 'true', 'True', '1']
+        if use_cache:
+            raise ValueError('cache=true not supported in combination with arrow')
         if 'profile' in options:
             # TODO: ideally, Apache Arrow should take a profile argument
             profile = options.pop('profile')
@@ -55,6 +58,11 @@ def parse(path, options):
             file_system, path = pa.fs.FileSystem.from_uri(path)
             options['region'] = file_system.region
         file_system = pa.fs.S3FileSystem(**options)
+    elif scheme == 'gs':
+        import gcsfs
+        file_system = gcsfs.GCSFileSystem(**options)
+    elif scheme:
+        raise ValueError('scheme {scheme} in path {path} not supported yet, feel free to open an issue at https://github.com/vaexio/vaex/issues/')
     else:
         file_system = None
     return file_system, path
