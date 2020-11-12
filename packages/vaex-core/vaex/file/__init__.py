@@ -178,7 +178,7 @@ def open_for_arrow(path, mode='rb', fs_options={}, mmap=False):
         else:
             return pa.OSFile(path, mode)
     else:
-        return open(path, mode=mode, fs_options=fs_options)
+        return open(path, mode=mode, fs_options=fs_options).file
 
 
 def dup(file):
