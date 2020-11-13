@@ -152,5 +152,12 @@ setup(name=name + '-core',
               'arrow = vaex.arrow.opener:ArrowOpener',
               'parquet = vaex.arrow.opener:ParquetOpener',
           ],
+          'vaex.file.scheme': [
+              's3 = vaex.file.s3',
+              'fsspec+s3 = vaex.file.s3fs',
+              'arrow+s3 = vaex.file.s3arrow',
+              'gs = vaex.file.gcs',
+              'fsspec+gs = vaex.file.gcs',
+          ]
       }
       )

@@ -170,8 +170,8 @@ def open(path, fs_options):
 
 
 def open_parquet(path, fs_options={}):
-    import vaex.file.arrow
-    file_system, path = vaex.file.arrow.parse(path, fs_options)
+    import vaex.file
+    file_system, path = vaex.file.parse(path, fs_options)
     arrow_ds = pyarrow.dataset.dataset(path, filesystem=file_system)
     return DatasetArrow(arrow_ds)
 

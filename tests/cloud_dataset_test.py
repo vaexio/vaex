@@ -23,9 +23,6 @@ def test_cloud_dataset_basics(base_url, cache):
 @pytest.mark.parametrize("file_format", ["hdf5", "arrow", "parquet", "csv"])
 def test_cloud_dataset_masked(base_url, file_format, cache):
     # For now, caching of arrow & parquet is not supported
-    if (file_format != 'hdf5') and (cache == 'true'):
-        pytest.xfail("Caching is not supported for arrow & parquet files.")
-
     kwargs = {}
     if file_format == 'csv':
         kwargs = dict(dtype={'x': 'Int64', 'y': 'Int64', 's': 'string'})

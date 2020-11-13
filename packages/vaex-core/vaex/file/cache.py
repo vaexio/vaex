@@ -7,13 +7,96 @@ import os
 import mmap
 
 import numpy as np
-
+from pyarrow.fs import FileSystemHandler
 import vaex.utils
 import vaex.file
 
 
 DEFAULT_BLOCK_SIZE = 1024*1024*1  # 1mb by default
 logger = logging.getLogger("vaex.file.cache")
+
+
+class FileSystemHandlerCached(FileSystemHandler):
+    """Proxies it to use the CachedFile
+    """
+
+    def __init__(self, fs, scheme):
+        self.fs = fs
+        self.scheme = scheme
+        self._file_cache = {}
+
+    def __eq__(self, other):
+        if isinstance(other, FileSystemHandlerCached):
+            return self.fs == other.fs
+        return NotImplemented
+
+    def __ne__(self, other):
+        if isinstance(other, FileSystemHandlerCached):
+            return self.fs != other.fs
+        return NotImplemented
+
+    def __getattr__(self, name):
+        return getattr(self.fs, name)
+
+    def open_input_stream(self, path):
+        from pyarrow import PythonFile
+
+        def real_open():
+            return self.fs.open_input_stream(path)
+        full_path = f'{self.scheme}://{path}'
+        # TODO: we may wait to cache the mmapped file
+        if full_path not in self._file_cache:
+            f = CachedFile(real_open, full_path)
+            self._file_cache[full_path] = f
+        else:
+            previous = self._file_cache[full_path]
+            f = CachedFile(real_open, full_path, data_file=previous.data_file, mask_file=previous.mask_file)
+        f = vaex.file.FileProxy(f, full_path, None)
+        return PythonFile(f, mode="r")
+
+    def open_input_file(self, path):
+        from pyarrow import PythonFile
+
+        def real_open():
+            return self.fs.open_input_file(path)
+        full_path = f'{self.scheme}://{path}'
+        # TODO: we may wait to cache the mmapped file
+        if full_path not in self._file_cache:
+            f = CachedFile(real_open, full_path)
+            self._file_cache[full_path] = f
+        else:
+            previous = self._file_cache[full_path]
+            f = CachedFile(real_open, full_path, data_file=previous.data_file, mask_file=previous.mask_file)
+        f = vaex.file.FileProxy(f, full_path, None)
+        return PythonFile(f, mode="r")
+
+    # these are forwarded
+    def copy_file(self, *args, **kwargs):
+        return self.fs.copy_file(*args, **kwargs)
+    def create_dir(self, *args, **kwargs):
+        return self.fs.create_dir(*args, **kwargs)
+    def delete_dir(self, *args, **kwargs):
+        return self.fs.delete_dir(*args, **kwargs)
+    def delete_dir_contents(self, *args, **kwargs):
+        return self.fs.delete_dir_contents(*args, **kwargs)
+    def delete_file(self, *args, **kwargs):
+        return self.fs.delete_file(*args, **kwargs)
+    def delete_root_dir_contents(self, *args, **kwargs):
+        return self.fs.delete_root_dir_contents(*args, **kwargs)
+    def get_file_info(self, *args, **kwargs):
+        return self.fs.get_file_info(*args, **kwargs)
+    def get_file_info_selector(self, *args, **kwargs):
+        return self.fs.get_file_info_selector(*args, **kwargs)
+    def get_type_name(self, *args, **kwargs):
+        return self.fs.get_type_name(*args, **kwargs)
+    def move(self, *args, **kwargs):
+        return self.fs.move(*args, **kwargs)
+    def normalize_path(self, *args, **kwargs):
+        return self.fs.normalize_path(*args, **kwargs)
+    def open_append_stream(self, *args, **kwargs):
+        return self.fs.open_append_stream(*args, **kwargs)
+    def open_output_stream(self, *args, **kwargs):
+        return self.fs.open_output_stream(*args, **kwargs)
 
 
 class MMappedFile:
