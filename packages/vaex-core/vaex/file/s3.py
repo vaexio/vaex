@@ -1,8 +1,5 @@
-try:
-    import s3fs
-except Exception as e:
-    import_exception = e
-    s3fs = None
+import vaex.utils
+s3fs = vaex.utils.optional_import('s3fs')
 
 import vaex.file.cache
 from . import split_options, FileProxy, split_scheme
@@ -26,8 +23,6 @@ def glob(path, fs_options={}):
     scheme, _ = split_scheme(path)
     path = path.replace('s3fs://', 's3://')
     path, options = split_options(path, fs_options)
-    if s3fs is None:
-        raise import_exception
     # anon is for backwards compatibility
     if 'cache' in options:
         del options['cache']
@@ -39,8 +34,6 @@ def glob(path, fs_options={}):
 def open(path, mode='rb', fs_options={}):
     path = path.replace('s3fs://', 's3://')
     path, options = split_options(path, fs_options)
-    if s3fs is None:
-        raise import_exception
     use_cache = options.pop('cache', 'true' if mode == 'rb' else 'false') in ['true', 'True', '1']
     # anon is for backwards compatibility
     anon = (options.pop('anon', None) in [True, 'true', 'True', '1']) or (options.pop('anonymous', None) in [True, 'true', 'True', '1'])

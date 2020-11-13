@@ -1,8 +1,5 @@
-try:
-    import gcsfs
-except Exception as e:
-    import_exception = e
-    gcsfs = None
+import vaex.utils
+gcsfs = vaex.utils.optional_import('gcsfs', '>=0.6.2')
 
 import vaex.file.cache
 from . import split_options, FileProxy
@@ -24,15 +21,11 @@ def glob(path, fs_options={}):
     else:
         query = ''
     path, options = split_options(path, fs_options)
-    if gcsfs is None:
-        raise import_exception
     fs = gcsfs.GCSFileSystem(**options)
     return ['gs://' + k + query for k in fs.glob(path)]
 
 
 def open(path, mode='rb', fs_options={}):
-    if gcsfs is None:
-        raise import_exception
     path, options = split_options(path, fs_options)
     use_cache = options.pop('cache', 'true' if mode == 'rb' else 'false') in ['true', 'True', '1']
     fs = gcsfs.GCSFileSystem(**options)
