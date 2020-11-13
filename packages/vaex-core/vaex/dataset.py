@@ -43,8 +43,11 @@ def open(path, *args, **kwargs):
 
     # otherwise try all openers
     for opener in opener_classes:
-        if opener.can_open(path, *args, **kwargs):
-            return opener.open(path, *args, **kwargs)
+        try:
+            if opener.can_open(path, *args, **kwargs):
+                return opener.open(path, *args, **kwargs)
+        except Exception as e:
+            failures.append(e)
 
     if failures:
         raise IOError(f'Cannot open {path}, failures: {failures}.')
