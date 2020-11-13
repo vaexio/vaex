@@ -245,10 +245,6 @@ class DataType:
         '''
         return vaex.array_types.is_string_type(self.internal)
 
-    # @property
-    # def is_str(self):
-    #     return self.is_string
-
     def upcast(self):
         '''Cast to the higest data type matching the type
 
