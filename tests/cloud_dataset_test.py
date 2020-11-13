@@ -45,3 +45,13 @@ def test_cloud_dataset_masked(base_url, file_format, cache):
 def test_cloud_glob(base_url):
     assert set(vaex.file.glob(f'{base_url}/testing/*.hdf5', fs_options=fs_options)) >= ({f'{base_url}/testing/xys-masked.hdf5', f'{base_url}/testing/xys.hdf5'})
     assert set(vaex.file.glob(f'{base_url}/testing/*.hdf5?anonymous=true')) >= ({f'{base_url}/testing/xys-masked.hdf5?anonymous=true', f'{base_url}/testing/xys.hdf5?anonymous=true'})
+
+
+@pytest.mark.parametrize("base_url", ["gs://vaex-data", "s3://vaex"])
+def test_cloud_concat(base_url):
+    # the hdf5 layer will use a different column type of masked (vaex.column.ColumnMaskedNumpy)
+    df1 = vaex.open(f'{base_url}/testing/xys-masked.hdf5?cache=true', fs_options=fs_options)
+    df2 = vaex.open(f'{base_url}/testing/xys.hdf5?cache=true', fs_options=fs_options)
+    df = df1.concat(df2)
+
+    assert df.x.tolist() == [1, None, 1, 2]

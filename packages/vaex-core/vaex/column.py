@@ -51,6 +51,7 @@ class ColumnMaskedNumpy(Column):
     def __init__(self, data, mask):
         self.data = data
         self.mask = mask
+        self.dtype = data.dtype
         assert len(data) == len(mask)
 
     def __len__(self):
