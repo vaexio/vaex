@@ -8,7 +8,7 @@ import pyarrow as pa
 def test_parse():
     fs, path = vaex.file.parse('s3://vaex/testing/xys.hdf5?anonymous=true')
     assert fs is not None
-    fs, path = vaex.file.parse('s3fs+s3://vaex/testing/xys.hdf5?anonymous=true')
+    fs, path = vaex.file.parse('fsspec+s3://vaex/testing/xys.hdf5?anonymous=true')
     assert fs is not None
     fs, path = vaex.file.parse('/vaex/testing/xys.hdf5')
     assert fs is None
