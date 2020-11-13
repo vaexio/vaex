@@ -4,6 +4,7 @@ import numpy as np
 import vaex.promise
 import vaex.encoding
 from .utils import _expand_shape
+from .datatype import DataType
 
 
 logger = logging.getLogger('vaex.tasks')
@@ -238,7 +239,7 @@ class TaskStatistic(Task):
     def encode(self, encoding):
         return {'task': type(self).name, 'expressions': self.expressions,
                 'shape': self.shape, 'selections': self.selections, 'op': encoding.encode('_op', self.op), 'weights': self.weights,
-                'dtype': encoding.encode('dtype', self.dtype), 'minima': self.minima, 'maxima': self.maxima, 'edges': self.edges,
+                'dtype': encoding.encode('dtype', DataType(self.dtype)), 'minima': self.minima, 'maxima': self.maxima, 'edges': self.edges,
                 'selection_waslist': self.selection_waslist}
 
     @classmethod
@@ -256,7 +257,7 @@ class TaskStatistic(Task):
         return cls(df, **spec)
 
     def __init__(self, df, expressions, shape, limits, masked=False, weights=[], weight=None, op=OP_ADD1, selection=None, edges=False,
-                 dtype=np.float64):
+                 dtype=np.dtype('f8')):
         if not isinstance(expressions, (tuple, list)):
             expressions = [expressions]
         # edges include everything outside at index 1 and -1, and nan's at index 0, so we add 3 to each dimension

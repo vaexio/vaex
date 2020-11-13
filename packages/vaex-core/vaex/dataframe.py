@@ -37,6 +37,7 @@ from .delayed import delayed, delayed_args, delayed_list
 from .column import Column, ColumnIndexed, ColumnSparse, ColumnString, ColumnConcatenatedLazy, supported_column_types
 from . import array_types
 import vaex.events
+from .datatype import DataType
 
 # py2/p3 compatibility
 try:
@@ -1254,7 +1255,7 @@ class DataFrame(object):
         def finish(*minmax_list):
             value = vaex.utils.unlistify(waslist, np.array(minmax_list))
             value = vaex.array_types.to_numpy(value)
-            value = value.astype(vaex.array_types.to_numpy_type(data_type0))
+            value = value.astype(data_type0.numpy)
             return value
         expression = _ensure_strings_from_expressions(expression)
         binby = _ensure_strings_from_expressions(binby)
@@ -1264,8 +1265,8 @@ class DataFrame(object):
         data_types = [self.data_type(expr) for expr in expressions]
         data_type0 = data_types[0]
         # special case that we supported mixed endianness for ndarrays
-        all_same_kind = all(isinstance(data_type, np.dtype) for data_type in data_types) and all([k.kind == data_type0.kind for k in data_types])
-        if not (all_same_kind or all([vaex.array_types.same_type(k, data_type0) for k in data_types])):
+        all_same_kind = all(isinstance(data_type.internal, np.dtype) for data_type in data_types) and all([k.kind == data_type0.kind for k in data_types])
+        if not (all_same_kind or all([k == data_type0 for k in data_types])):
             raise TypeError("cannot mix different dtypes in 1 minmax call")
         progressbar = vaex.utils.progressbars(progress, name="minmaxes")
         limits = self.limits(binby, limits, selection=selection, delay=True)
@@ -1995,14 +1996,13 @@ class DataFrame(object):
         extra = 0
         for column in list(self.get_column_names(virtual=virtual)):
             dtype = self.data_type(column)
-            dtype_internal = self.data_type(column, internal=True)
             #if dtype in [str_type, str] and dtype_internal.kind == 'O':
-            if self.is_string(column):
+            if dtype == str:
                 # TODO: document or fix this
                 # is it too expensive to calculate this exactly?
                 extra += self.columns[column].nbytes
             else:
-                bytes_per_row += dtype_internal.itemsize
+                bytes_per_row += dtype.numpy.itemsize
                 if np.ma.isMaskedArray(self.columns[column]):
                     bytes_per_row += 1
         return bytes_per_row * self.count(selection=selection) + extra
@@ -2022,6 +2022,7 @@ class DataFrame(object):
         rows = len(self) if filtered else self.length_unfiltered()
         return (rows,) + sample.shape[1:]
 
+    # TODO: remove array_type and internal arguments?
     def data_type(self, expression, array_type=None, internal=False):
         """Return the datatype for the given expression, if not a column, the first row will be evaluated to get the data type.
 
@@ -2061,17 +2062,18 @@ class DataFrame(object):
 
         if array_type == "arrow":
             data_type = array_types.to_arrow_type(data_type)
-            return data_type
         elif array_type == "numpy":
             data_type = array_types.to_numpy_type(data_type)
         elif array_type is None:
-            pass
+            data_type = data_type
         else:
             raise ValueError(f'Unknown array_type {array_type}')
+        data_type = DataType(data_type)
 
+        # ugly, but fixes df.x.apply(lambda x: str(x))
         if not internal:
-            if isinstance(data_type, np.dtype) and data_type.kind in 'US':
-                return pa.string()
+            if isinstance(data_type.internal, np.dtype) and data_type.kind in 'US':
+                return DataType(pa.string())
         return data_type
 
     @property
@@ -2960,13 +2962,13 @@ class DataFrame(object):
         import dask.array as da
         import uuid
         dtype = self._dtype
-        chunks = da.core.normalize_chunks(chunks, shape=self.shape, dtype=dtype)
+        chunks = da.core.normalize_chunks(chunks, shape=self.shape, dtype=dtype.numpy)
         name = 'vaex-df-%s' % str(uuid.uuid1())
         def getitem(df, item):
             return np.array(df.__getitem__(item).to_arrays(parallel=False)).T
-        dsk = da.core.getem(name, chunks, getitem=getitem, shape=self.shape, dtype=dtype)
+        dsk = da.core.getem(name, chunks, getitem=getitem, shape=self.shape, dtype=dtype.numpy)
         dsk[name] = self
-        return da.Array(dsk, name, chunks, dtype=dtype)
+        return da.Array(dsk, name, chunks, dtype=dtype.numpy)
 
     def validate_expression(self, expression):
         """Validate an expression (may throw Exceptions)"""
@@ -3472,8 +3474,8 @@ class DataFrame(object):
             for name in variable_names:
                 parts += ["<tr>"]
                 parts += ["<td>%s</td>" % name]
-                type = self.data_type(name).name
-                parts += ["<td>%s</td>" % type]
+                dtype = self.data_type(name)
+                parts += ["<td>%r</td>" % type]
                 units = self.unit(name)
                 units = units.to_string("latex_inline") if units else ""
                 parts += ["<td>%s</td>" % units]
@@ -3541,15 +3543,12 @@ class DataFrame(object):
         N = len(self)
         columns = {}
         for feature in self.get_column_names(strings=strings, virtual=virtual)[:]:
-            data_type = self.data_type(feature, array_type='numpy')
-            if not isinstance(data_type, np.dtype):
-                if data_type in array_types.string_types:
-                    count = self.count(feature, selection=selection, delay=True)
-                    self.execute()
-                    count = count.get()
-                    columns[feature] = ((data_type, count, N-count, '--', '--', '--', '--'))
-                else:
-                    raise NotImplementedError(f'Did not implement describe for data type {data_type}')
+            data_type = self.data_type(feature)
+            if data_type == str:
+                count = self.count(feature, selection=selection, delay=True)
+                self.execute()
+                count = count.get()
+                columns[feature] = ((data_type, count, N-count, '--', '--', '--', '--'))
             elif data_type.kind in 'SU':
                 # TODO: this blocks is the same as the string block above, can we avoid SU types?
                 count = self.count(feature, selection=selection, delay=True)
@@ -3562,23 +3561,24 @@ class DataFrame(object):
                 self.execute()
                 count_na = count_na.get()
                 columns[feature] = ((data_type, N-count_na, count_na, '--', '--', '--', '--'))
-            else:
-                is_datetime = self.is_datetime(feature)
+            elif data_type.is_primitive or data_type.is_datetime or data_type.is_timedelta:
                 mean = self.mean(feature, selection=selection, delay=True)
                 std = self.std(feature, selection=selection, delay=True)
                 minmax = self.minmax(feature, selection=selection, delay=True)
-                if is_datetime:  # this path tests using isna, which test for nat
+                if data_type.is_datetime:  # this path tests using isna, which test for nat
                     count_na = self[feature].isna().astype('int').sum(delay=True)
                 else:
                     count = self.count(feature, selection=selection, delay=True)
                 self.execute()
-                if is_datetime:
+                if data_type.is_datetime:
                     count_na, mean, std, minmax = count_na.get(), mean.get(), std.get(), minmax.get()
                     count = N - int(count_na)
                 else:
                     count, mean, std, minmax = count.get(), mean.get(), std.get(), minmax.get()
                     count = int(count)
                 columns[feature] = ((data_type, count, N-count, mean, std, minmax[0], minmax[1]))
+            else:
+                raise NotImplementedError(f'Did not implement describe for data type {data_type}')
         return pd.DataFrame(data=columns, index=['data_type', 'count', 'NA', 'mean', 'std', 'min', 'max'])
 
     def cat(self, i1, i2, format='html'):
@@ -5298,7 +5298,7 @@ class DataFrameLocal(DataFrame):
         chunks = []
         column_names = self.get_column_names(strings=False)
         for name in column_names:
-            column_type = self.data_type(name, array_type='numpy')
+            column_type = self.data_type(name).numpy
             if not np.can_cast(column_type, dtype):
                 if column_type != dtype:
                     raise ValueError("Cannot cast %r (of type %r) to %r" % (name, self.data_type(name), dtype))

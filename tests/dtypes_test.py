@@ -1,5 +1,5 @@
 from common import *
-
+from vaex.datatype import DataType
 
 def test_dtype_basics(df):
     df['new_virtual_column'] = df.x + 1
@@ -7,7 +7,7 @@ def test_dtype_basics(df):
         if df.is_string(name):
             assert df[name].to_numpy().dtype.kind in 'OSU'
         else:
-            assert vaex.array_types.same_type(vaex.array_types.data_type(df[name].values), df.data_type(df[name]))
+            assert vaex.array_types.same_type(DataType(vaex.array_types.data_type(df[name].values)), df.data_type(df[name]))
 
 
 def test_dtypes(df_local):

@@ -12,6 +12,7 @@ from future.utils import with_metaclass
 import numpy as np
 import tabulate
 import pyarrow as pa
+from vaex.datatype import DataType
 
 from vaex.utils import _ensure_strings_from_expressions, _ensure_string_from_expression
 from vaex.column import ColumnString, _to_string_sequence
@@ -278,10 +279,11 @@ class Expression(with_metaclass(Meta)):
 
     @property
     def dtype(self):
-        return self.df.data_type(self.expression, array_type='numpy')
+        return self.df.data_type(self.expression)
 
+    # TODO: remove this method?
     def data_type(self, array_type=None):
-        return self.df.data_type(self.expression, array_type=array_type)
+        return self.df.data_type(self.expression)
 
     @property
     def shape(self):
@@ -305,7 +307,7 @@ class Expression(with_metaclass(Meta)):
         import dask.array as da
         import uuid
         dtype = self.dtype
-        chunks = da.core.normalize_chunks(chunks, shape=self.shape, dtype=dtype)
+        chunks = da.core.normalize_chunks(chunks, shape=self.shape, dtype=dtype.numpy)
         name = 'vaex-expression-%s' % str(uuid.uuid1())
         def getitem(df, item):
             assert len(item) == 1
@@ -313,9 +315,9 @@ class Expression(with_metaclass(Meta)):
             start, stop, step = item.start, item.stop, item.step
             assert step in [None, 1]
             return self.evaluate(start, stop, parallel=False)
-        dsk = da.core.getem(name, chunks, getitem=getitem, shape=self.shape, dtype=dtype)
+        dsk = da.core.getem(name, chunks, getitem=getitem, shape=self.shape, dtype=dtype.numpy)
         dsk[name] = self
-        return da.Array(dsk, name, chunks, dtype=dtype)
+        return da.Array(dsk, name, chunks, dtype=dtype.numpy)
 
     def to_pandas_series(self):
         """Return a pandas.Series representation of the expression.
@@ -1065,7 +1067,7 @@ class FunctionSerializableJit(FunctionSerializable):
     def state_get(self):
         return dict(expression=self.expression,
                     arguments=self.arguments,
-                    argument_dtypes=list(map(str, self.argument_dtypes)),
+                    argument_dtypes=list(map(lambda dtype: str(dtype.numpy), self.argument_dtypes)),
                     return_dtype=str(self.return_dtype),
                     verbose=self.verbose)
 
@@ -1073,8 +1075,8 @@ class FunctionSerializableJit(FunctionSerializable):
     def state_from(cls, state, trusted=True):
         return cls(expression=state['expression'],
                    arguments=state['arguments'],
-                   argument_dtypes=list(map(np.dtype, state['argument_dtypes'])),
-                   return_dtype=np.dtype(state['return_dtype']),
+                   argument_dtypes=list(map(lambda s: DataType(np.dtype(s)), state['argument_dtypes'])),
+                   return_dtype=DataType(np.dtype(state['return_dtype'])),
                    verbose=state['verbose'])
 
     @classmethod
@@ -1120,8 +1122,8 @@ def f({0}):
         f = scope['f']
 
         # numba part
-        argument_dtypes_numba = [getattr(numba, argument_dtype.name) for argument_dtype in self.argument_dtypes]
-        return_dtype_numba = getattr(numba, self.return_dtype.name)
+        argument_dtypes_numba = [getattr(numba, argument_dtype.numpy.name) for argument_dtype in self.argument_dtypes]
+        return_dtype_numba = getattr(numba, self.return_dtype.numpy.name)
         vectorizer = numba.vectorize([return_dtype_numba(*argument_dtypes_numba)])
         return vectorizer(f)
 
