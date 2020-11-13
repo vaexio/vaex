@@ -206,7 +206,7 @@ def open(path, convert=False, shuffle=False, copy_index=False, fs_options={}, *a
                 else:
                     if ext == '.csv' or naked_path.endswith(".csv.bz2"):  # special support for csv.. should probably approach it a different way
                         csv_convert = filename_hdf5 if convert else False
-                        df = from_csv(path, copy_index=copy_index, convert=csv_convert, **kwargs)
+                        df = from_csv(path, copy_index=copy_index, convert=csv_convert, fs_options=fs_options, **kwargs)
                     else:
                         ds = vaex.dataset.open(path, fs_options=fs_options, *args, **kwargs)
                         if ds is not None:
