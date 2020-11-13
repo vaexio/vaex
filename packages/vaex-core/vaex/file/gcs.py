@@ -25,7 +25,7 @@ def parse(path, fs_options={}):
     path, options = split_options(path, fs_options)
     scheme, path = split_scheme(path)
     assert scheme == 'gs'
-    use_cache = fs_options.pop('cache', 'true') in ['true', 'True', '1']
+    use_cache = fs_options.pop('cache', 'true') in [True, 'true', 'True', '1']
     fs = gcsfs.GCSFileSystem(**options,)
     fs = pyarrow.fs.FSSpecHandler(fs)
     if use_cache:

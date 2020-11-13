@@ -1,6 +1,6 @@
-import configparser
 import os
 import io
+from .s3 import patch_profile
 
 import pyarrow as pa
 import pyarrow.fs
@@ -10,7 +10,7 @@ from .cache import FileSystemHandlerCached
 
 
 def glob(path, fs_options={}):
-    from .s3fs import glob
+    from .s3 import glob
     return glob(path, fs_options)
 
 
@@ -21,14 +21,8 @@ def parse(path, fs_options):
     assert scheme == 's3'
     # anon is for backwards compatibility
     fs_options['anonymous'] = (fs_options.pop('anon', None) in [True, 'true', 'True', '1']) or (fs_options.pop('anonymous', None) in [True, 'true', 'True', '1'])
-    use_cache = fs_options.pop('cache', 'true') in ['true', 'True', '1']
-    if 'profile' in fs_options:
-        # TODO: ideally, Apache Arrow should take a profile argument
-        profile = fs_options.pop('profile')
-        config = configparser.ConfigParser()
-        config.read('~/.aws/credentials')
-        fs_options['access_key'] = config[profile]['aws_access_key_id']
-        fs_options['secret_key'] = config[profile]['aws_secret_access_key']
+    fs_options = patch_profile(fs_options)
+    use_cache = fs_options.pop('cache', 'true') in [True, 'true', 'True', '1']
     if 'region' not in fs_options:
         # we use this to get the default region
         file_system, path = pa.fs.FileSystem.from_uri(path)
