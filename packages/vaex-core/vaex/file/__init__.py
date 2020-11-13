@@ -129,11 +129,18 @@ def _get_scheme_handler(path):
 
 
 def parse(path, fs_options={}):
-    scheme, _ = split_scheme(path)
+    if isinstance(path, (list, tuple)):
+        scheme, _ = split_scheme(path[0])
+    else:
+        scheme, _ = split_scheme(path)
     if not scheme:
         return None, path
-    module = _get_scheme_handler(path)
-    return module.parse(path, fs_options)
+    if isinstance(path, (list, tuple)):
+        module = _get_scheme_handler(path[0])
+        return module.parse(path[0], fs_options)[0], path
+    else:
+        module = _get_scheme_handler(path)
+        return module.parse(path, fs_options)
 
 
 def open(path, mode='rb', fs_options={}):

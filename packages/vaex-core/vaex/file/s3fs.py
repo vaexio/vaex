@@ -26,7 +26,7 @@ def glob(path, fs_options={}):
 
 def parse(path, fs_options):
     path = path.replace('fsspec+s3://', 's3://')
-    path, fs_options = split_options(path, fs_fs_options)
+    path, fs_options = split_options(path, fs_options)
     scheme, path = split_scheme(path)
     use_cache = fs_options.pop('cache', 'true') in ['true', 'True', '1']
     # anon is for backwards compatibility
