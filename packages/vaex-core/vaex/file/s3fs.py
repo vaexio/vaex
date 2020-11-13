@@ -54,7 +54,7 @@ def glob(path, fs_options={}):
     if 'cache' in fs_options:
         del fs_options['cache']
     # standardize value, and make bool
-    fs_options['anonymous'] = (fs_options.pop('anon', None) in [True, 'true', 'True', '1']) or (options.pop('anonymous', None) in [True, 'true', 'True', '1'])
+    fs_options['anonymous'] = (fs_options.pop('anon', None) in [True, 'true', 'True', '1']) or (fs_options.pop('anonymous', None) in [True, 'true', 'True', '1'])
     fs_options = patch_profile(fs_options)
     fs_options = translate_options(fs_options)
     s3 = s3fs.S3FileSystem(anon=anon, **fs_options)

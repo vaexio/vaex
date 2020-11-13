@@ -11,9 +11,6 @@ class CaseConfigParser(configparser.ConfigParser):
 
 def patch_profile(fs_options):
     fs_options = fs_options.copy()
-    # if nothing past, load default profile
-    if 'profile' not in fs_options and 'acces_key' not in fs_options and 'secret_key' not in fs_options and not fs_options.get('anonymous', False):
-        fs_options['profile'] = 'default'
     if 'profile' in fs_options:
         profile = fs_options.pop('profile')
         config = CaseConfigParser()
