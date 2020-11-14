@@ -575,7 +575,7 @@ def _from_csv_convert_and_read(filename_or_buffer, copy_index, maybe_convert_pat
         logger.info('deleting %d chunk files' % len(converted_paths))
         for df, df_path in zip(dfs, converted_paths):
             try:
-                df.close()
+                df.close_files()
                 os.remove(df_path)
             except Exception as e:
                 logger.error('Could not close or delete intermediate hdf5 file %s used to convert %s to hdf5: %s' % (
