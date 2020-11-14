@@ -205,8 +205,13 @@ def open(path, convert=False, shuffle=False, copy_index=False, fs_options={}, *a
                         df = vaex.from_dataset(ds)
                 else:
                     if ext == '.csv' or naked_path.endswith(".csv.bz2"):  # special support for csv.. should probably approach it a different way
-                        csv_convert = filename_hdf5 if convert else False
-                        df = from_csv(path, copy_index=copy_index, convert=csv_convert, fs_options=fs_options, **kwargs)
+                        if isinstance(convert, str):
+                            csv_convert = convert
+                        elif convert is True:
+                            csv_convert = filename_hdf5
+                        else:
+                            csv_convert = False
+                        df = from_csv(path, copy_index=copy_index, convert=csv_convert, **kwargs)
                     else:
                         ds = vaex.dataset.open(path, fs_options=fs_options, *args, **kwargs)
                         if ds is not None:
@@ -537,8 +542,7 @@ def _from_csv_read(filename_or_buffer, copy_index, chunk_size, fs_options={}, **
 
 
 def _from_csv_convert_and_read(filename_or_buffer, copy_index, maybe_convert_path, chunk_size, **kwargs):
-    # figure out the CSV file path
-    if isinstance(filename_or_buffer, str):
+    if isinstance(filename_or_buffer, str) & (maybe_convert_path is True):
         csv_path = filename_or_buffer
     elif isinstance(maybe_convert_path, str):
         csv_path = re.sub(r'\.hdf5$', '', str(maybe_convert_path), flags=re.IGNORECASE)
