@@ -23,7 +23,7 @@ def translate_options(fs_options):
     mapping = {
         'anonymous': 'anon',
     }
-    for key in fs_options:
+    for key in list(fs_options):
         if key in mapping:
             fs_options[mapping[key]] = fs_options.pop(key)
 
