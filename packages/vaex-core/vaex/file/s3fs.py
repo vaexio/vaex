@@ -68,7 +68,6 @@ def parse(path, fs_options):
     use_cache = fs_options.pop('cache', 'true') in [True, 'true', 'True', '1']
     # standardize value, and make bool
     anon = (fs_options.pop('anon', None) in [True, 'true', 'True', '1']) or (fs_options.pop('anonymous', None) in [True, 'true', 'True', '1'])
-    anon = (fs_options.pop('anon', None) in [True, 'true', 'True', '1']) or (fs_options.pop('anonymous', None) in [True, 'true', 'True', '1'])
     fs_options = patch_profile(fs_options)
     fs_options = translate_options(fs_options)
     s3 = s3fs.S3FileSystem(anon=anon, default_fill_cache=False, **fs_options)
