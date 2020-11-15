@@ -40,7 +40,10 @@ def test_open():
     _cleanup_generated_files()
 
     # convert can also be a path
-    target = os.path.join(path, 'data', 'convert.hdf5')
+    target_path = os.path.join(path, 'data', 'output')
+    target = os.path.join(target_path, 'convert.hdf5')
+    if not os.path.exists(target_path):
+        os.makedirs(target_path)
     vaex.open(os.path.join(path, 'data', 'small*.csv'), convert=target)
     assert os.path.exists(target)
     assert os.path.exists(h51)
@@ -48,7 +51,13 @@ def test_open():
     vaex.open(os.path.join(path, 'data', 'small?.csv.hdf5'))
     _cleanup_generated_files()
 
-    target = os.path.join(path, 'data', 'custom.hdf5')
+    # Single file, but in chunks
+    target = os.path.join(target_path, 'small2_via_chunks.hdf5')
+    vaex.open(csv2, convert=target, chunk_size=1)
+    assert os.path.exists(target)
+    _cleanup_generated_files()
+
+    target = os.path.join(target_path, 'custom.hdf5')
     vaex.open(os.path.join(path, 'data', 'small*.csv'), convert=target)
     assert os.path.exists(h51)
     assert os.path.exists(h52)
@@ -67,4 +76,6 @@ def test_open():
 
 def _cleanup_generated_files():
     for hdf5_file in glob.glob(os.path.join(path, 'data', '*.hdf5')):
+        os.remove(hdf5_file)
+    for hdf5_file in glob.glob(os.path.join(path, 'data', 'output', '*.hdf5')):
         os.remove(hdf5_file)
