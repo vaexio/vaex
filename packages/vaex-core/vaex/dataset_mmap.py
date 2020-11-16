@@ -84,13 +84,10 @@ class DatasetMemoryMapped(vaex.dataset.DatasetFile):
         return self.mapping_map[path]
 
     def close(self):
+        for name, memmap in self.mapping_map.items():
+            memmap.close()
         for name, file in self.file_map.items():
             file.close()
-        # on osx and linux this will give random bus errors (osx) or segfaults (linux)
-        # on win32 however, we'll run out of file handles
-        if vaex.utils.osname not in ["osx", "linux"]:
-            for name, memmap in self.mapping_map.items():
-                memmap.close()
 
     def _map_array(self, offset=None, length=None, dtype=np.float64, path=None):
         if path is None:
