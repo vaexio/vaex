@@ -542,10 +542,10 @@ def _from_csv_read(filename_or_buffer, copy_index, chunk_size, fs_options={}, **
 
 
 def _from_csv_convert_and_read(filename_or_buffer, copy_index, maybe_convert_path, chunk_size, **kwargs):
-    if isinstance(filename_or_buffer, str) & (maybe_convert_path is True):
-        csv_path = filename_or_buffer
-    elif isinstance(maybe_convert_path, str):
+    if isinstance(maybe_convert_path, str):
         csv_path = re.sub(r'\.hdf5$', '', str(maybe_convert_path), flags=re.IGNORECASE)
+    elif isinstance(filename_or_buffer, str):
+        csv_path = filename_or_buffer
     else:
         raise ValueError('Cannot derive filename to use for converted HDF5 file, '
                          'please specify it using convert="my.csv.hdf5"')
