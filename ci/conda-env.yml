@@ -24,5 +24,6 @@ python-graphviz
 scikit-learn
 scipy
 s3fs
+gcsfs
 tornado
 xarray

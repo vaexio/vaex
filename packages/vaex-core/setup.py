@@ -141,6 +141,9 @@ setup(name=name + '-core',
       packages=['vaex', 'vaex.arrow', 'vaex.core', 'vaex.file', 'vaex.test', 'vaex.ext', 'vaex.misc'],
       ext_modules=[extension_vaexfast] if on_rtd else [extension_vaexfast, extension_strings, extension_superutils, extension_superagg],
       zip_safe=False,
+      extras_require={
+          'all': ["gcsfs>=0.6.2", "s3fs"]
+      },
       entry_points={
           'console_scripts': ['vaex = vaex.__main__:main'],
           'gui_scripts': ['vaexgui = vaex.__main__:main'],  # sometimes in osx, you need to run with this
@@ -149,5 +152,12 @@ setup(name=name + '-core',
               'arrow = vaex.arrow.opener:ArrowOpener',
               'parquet = vaex.arrow.opener:ParquetOpener',
           ],
+          'vaex.file.scheme': [
+              's3 = vaex.file.s3',
+              'fsspec+s3 = vaex.file.s3fs',
+              'arrow+s3 = vaex.file.s3arrow',
+              'gs = vaex.file.gcs',
+              'fsspec+gs = vaex.file.gcs',
+          ]
       }
       )

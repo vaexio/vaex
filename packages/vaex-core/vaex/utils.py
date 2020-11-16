@@ -955,3 +955,35 @@ def print_exception_trace(e):
     import traceback
     import sys
     print(''.join(traceback.format_exception(None, e, e.__traceback__)), file=sys.stdout, flush=True)
+
+
+class ProxyModule:
+    def __init__(self, name, version):
+        self.name = name
+        self.module = None
+        self.version = version
+
+    def _ensure_import(self):
+        if self.module is None:
+            import importlib
+            try:
+                self.module = importlib.import_module(self.name)
+            except Exception as e:
+                raise ImportError(f'''Error importing module {self.name}: {e}
+
+Vaex needs an optional dependency '{self.name}' for the feature you are using. To install, use:
+
+$ pip install "{self.name}{self.version}"
+
+Or when using conda:
+$ conda install -c conda-forge "{self.name}{self.version}""
+
+        ''') from e
+
+    def __getattr__(self, name):
+        self._ensure_import()
+        return getattr(self.module, name)
+
+
+def optional_import(name, version=''):
+    return ProxyModule(name, version=version)

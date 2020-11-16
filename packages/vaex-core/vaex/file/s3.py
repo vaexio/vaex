@@ -1,56 +1,39 @@
-try:
-    import s3fs
-except Exception as e:
-    import_exception = e
-    s3fs = None
+import configparser
+import warnings
+import os
 
-import vaex.file.cache
-from . import split_options, FileProxy, split_scheme
+import pyarrow as pa
 
-
-normal_open = open
+class CaseConfigParser(configparser.ConfigParser):
+    def optionxform(self, optionstr):
+        return optionstr
 
 
-def is_s3_path(path):
-    return path.startswith('s3fs://')
+def patch_profile(fs_options):
+    fs_options = fs_options.copy()
+    if 'profile' in fs_options:
+        profile = fs_options.pop('profile')
+        config = CaseConfigParser()
+        path = os.path.expanduser('~/.aws/credentials')
+        config.read(path)
+        warnings.warn(f'Reading key/secret from ~/.aws/credentials using profile: {path}')
+        fs_options['access_key'] = config[profile]['aws_access_key_id']
+        fs_options['secret_key'] = config[profile]['aws_secret_access_key']
+    return fs_options
 
-def dup(f):
-    return f.s3.open(f.path, f.mode)
+
+def parse(path, fs_options):
+    from .s3arrow import parse
+    fs_options = patch_profile(fs_options)
+    try:
+        return parse(path, fs_options)
+    except pa.lib.ArrowNotImplementedError:
+        # fallback
+        from .s3fs import parse
+        return parse(path, fs_options)
 
 
 def glob(path, fs_options={}):
-    if '?' in path:
-        __, query = path[:path.index('?')], path[path.index('?'):]
-    else:
-        query = ''
-    scheme, _ = split_scheme(path)
-    path = path.replace('s3fs://', 's3://')
-    path, options = split_options(path, fs_options)
-    if s3fs is None:
-        raise import_exception
-    # anon is for backwards compatibility
-    if 'cache' in options:
-        del options['cache']
-    anon = (options.pop('anon', None) in [True, 'true', 'True', '1']) or (options.pop('anonymous', None) in [True, 'true', 'True', '1'])
-    s3 = s3fs.S3FileSystem(anon=anon, **options)
-    return [f'{scheme}://' + k + query for k in s3.glob(path)]
-
-
-def open(path, mode='rb', fs_options={}):
-    path = path.replace('s3fs://', 's3://')
-    path, options = split_options(path, fs_options)
-    if s3fs is None:
-        raise import_exception
-    use_cache = options.pop('cache', 'true' if mode == 'rb' else 'false') in ['true', 'True', '1']
-    # anon is for backwards compatibility
-    anon = (options.pop('anon', None) in [True, 'true', 'True', '1']) or (options.pop('anonymous', None) in [True, 'true', 'True', '1'])
-    s3 = s3fs.S3FileSystem(anon=anon, default_fill_cache=False, **options)
-
-    def open():
-        return s3.open(path, mode)
-    if use_cache:
-        fp = lambda: FileProxy(open(), path, open)
-        fp = vaex.file.cache.CachedFile(fp, path)
-    else:
-        fp = FileProxy(open(), path, dup=open)
-    return fp
+    from .s3fs import glob
+    fs_options = patch_profile(fs_options)
+    return glob(path, fs_options)

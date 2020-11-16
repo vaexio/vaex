@@ -206,7 +206,7 @@ def open(path, convert=False, shuffle=False, copy_index=False, fs_options={}, *a
                 else:
                     if ext == '.csv' or naked_path.endswith(".csv.bz2"):  # special support for csv.. should probably approach it a different way
                         csv_convert = filename_hdf5 if convert else False
-                        df = from_csv(path, copy_index=copy_index, convert=csv_convert, **kwargs)
+                        df = from_csv(path, copy_index=copy_index, convert=csv_convert, fs_options=fs_options, **kwargs)
                     else:
                         ds = vaex.dataset.open(path, fs_options=fs_options, *args, **kwargs)
                         if ds is not None:
@@ -488,7 +488,7 @@ def from_json(path_or_buffer, orient=None, precise_float=False, lines=False, cop
                        copy_index=copy_index)
 
 
-def from_csv(filename_or_buffer, copy_index=False, chunk_size=None, convert=False, **kwargs):
+def from_csv(filename_or_buffer, copy_index=False, chunk_size=None, convert=False, fs_options={}, **kwargs):
     """
     Read a CSV file as a DataFrame, and optionally convert to an hdf5 file.
 
@@ -513,7 +513,7 @@ def from_csv(filename_or_buffer, copy_index=False, chunk_size=None, convert=Fals
     """
     if not convert:
         return _from_csv_read(filename_or_buffer=filename_or_buffer, copy_index=copy_index,
-                              chunk_size=chunk_size, **kwargs)
+                              fs_options=fs_options, chunk_size=chunk_size, **kwargs)
     else:
         if chunk_size is None:
             # make it memory efficient by default
@@ -522,11 +522,12 @@ def from_csv(filename_or_buffer, copy_index=False, chunk_size=None, convert=Fals
                                           maybe_convert_path=convert, chunk_size=chunk_size, **kwargs)
 
 
-def _from_csv_read(filename_or_buffer, copy_index, chunk_size, **kwargs):
+def _from_csv_read(filename_or_buffer, copy_index, chunk_size, fs_options={}, **kwargs):
     import pandas as pd
     if not chunk_size:
-        full_df = pd.read_csv(filename_or_buffer, **kwargs)
-        return from_pandas(full_df, copy_index=copy_index)
+        with vaex.file.open(filename_or_buffer, fs_options=fs_options) as f:
+            full_df = pd.read_csv(f, **kwargs)
+            return from_pandas(full_df, copy_index=copy_index)
     else:
         def iterator():
             chunk_iterator = pd.read_csv(filename_or_buffer, chunksize=chunk_size, **kwargs)
