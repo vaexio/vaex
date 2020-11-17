@@ -34,6 +34,8 @@ def test_open_convert_kwargs():
 
 def test_open_convert_explicit_path():
     # explicit path, also a truthy
+    if not os.path.exists(target_path):
+        os.makedirs(target_path)
     target = os.path.join(target_path, 'small2_via_chunks.hdf5')
     vaex.open(csv2, convert=target, chunk_size=1)
     assert os.path.exists(target)
