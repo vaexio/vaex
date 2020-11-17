@@ -38,11 +38,6 @@ jobs:
         update-conda: true
         python-version: ${{ matrix.python-version }}
         conda-channels: anaconda, conda-forge
-    - name: Remove defaults channel
-      if: matrix.os != 'windows-latest'
-      shell: bash
-      run: |
-        conda config --remove channels defaults
     - name: Create env (with mamba)
       shell: bash
       run: |
