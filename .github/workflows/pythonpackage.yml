@@ -38,7 +38,11 @@ jobs:
         update-conda: true
         python-version: ${{ matrix.python-version }}
         conda-channels: anaconda, conda-forge
-    # cannot use mamba on windows, see https://github.com/TheSnakePit/mamba/issues/249 for libssh2+mambba issue
+    - name: Remove defaults channel
+      if: matrix.os != 'windows-latest'
+      shell: bash
+      run: |
+        conda config --remove channels defaults
     - name: Create env (with mamba)
       shell: bash
       run: |

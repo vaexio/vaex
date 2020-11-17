@@ -3,7 +3,6 @@ set -x -e
 PYTHON_VERSION=${1:-3.7}
 CONDA=${2:-conda}
 conda config --set always_yes yes --set changeps1 no
-conda config --remove channels defaults
 $CONDA update -y -q -c conda-forge $CONDA
 $CONDA create -y -q -c conda-forge -n vaex-dev python=$PYTHON_VERSION
 source activate vaex-dev
