@@ -9,6 +9,9 @@ import sys
 from urllib.parse import parse_qs
 import pkg_resources
 
+import pyarrow as pa
+import pyarrow.fs
+
 import vaex.file.cache
 
 
@@ -120,6 +123,28 @@ def split_options(path, fs_options={}):
     return naked_path, options
 
 
+def split_ext(path, fs_options={}):
+    path, fs_options = split_options(path, fs_options=fs_options)
+    base, ext = os.path.splitext(path)
+    return base, ext, fs_options
+
+
+def exists(path, fs_options={}):
+    """Checks if file exists.
+
+    >>> vaex.file.exists('/you/do/not')
+    False
+
+    >>> vaex.file.exists('s3://vaex/taxi/nyc_taxi_2015_mini.parquet', fs_options={'anon': True})
+    True
+    """
+    fs, path = parse(path, fs_options=fs_options)
+    if fs is None:
+        return os.path.exists(path)
+    else:
+        return fs.get_file_info(path).type != pa.fs.FileType.NotFound
+
+
 def _get_scheme_handler(path):
     scheme, _ = split_scheme(path)
     for entry in pkg_resources.iter_entry_points(group='vaex.file.scheme'):
@@ -141,6 +166,30 @@ def parse(path, fs_options={}):
     else:
         module = _get_scheme_handler(path)
         return module.parse(path, fs_options)
+
+
+def tokenize(path, fs_options={}):
+    """Deterministic token for a file, useful in combination with dask or detecting file changes.
+
+    Based on mtime (modification time), file size, and the path. May lead to
+    false negative if the path changes, but not the content.
+
+    >>> tokenize('/data/taxi.parquet')
+    '0171ec50cb2cf71b8e4f813212063a19'
+
+    >>> tokenize('s3://vaex/taxi/nyc_taxi_2015_mini.parquet', fs_options={'anon': True})  # doctest: +SKIP
+    '7c962e2d8c21b6a3681afb682d3bf91b'
+    """
+    fs, path = parse(path, fs_options)
+    if fs is None:
+        mtime = os.path.getmtime(path)
+        size = os.path.getsize(path)
+    else:
+        info = fs.get_file_info(path)
+        mtime = info.mtime
+        size = info.size
+    import vaex.cache
+    return vaex.cache.tokenize(('file', (path, mtime, size)))
 
 
 def open(path, mode='rb', fs_options={}):
