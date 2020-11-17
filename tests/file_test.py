@@ -61,10 +61,11 @@ def test_split_options(tmpdir):
     assert vaex.file.split_options('s3://vaex/testing/??.hdf5?a=1&b=2') == ('s3://vaex/testing/??.hdf5', {'a': '1', 'b': '2'})
 
 
-def test_hash(tmpdir):
-    assert vaex.file.hash(__file__) == vaex.file.hash(__file__)
-    assert vaex.file.hash('s3://vaex/testing/xys.hdf5?anonymous=true') != vaex.file.hash('s3://vaex/testing/xys-masked.hdf5?anonymous=true')
-    assert vaex.file.hash('s3://vaex/testing/xys.hdf5?anonymous=true') == vaex.file.hash('s3://vaex/testing/xys.hdf5?anonymous=true')
+def test_tokenize(tmpdir):
+    assert vaex.file.tokenize(__file__) == vaex.file.tokenize(__file__)
+    assert vaex.file.tokenize('s3://vaex/testing/xys.hdf5?anonymous=true') != vaex.file.tokenize('s3://vaex/testing/xys-masked.hdf5?anonymous=true')
+    assert vaex.file.tokenize('s3://vaex/testing/xys.hdf5?anonymous=true') == vaex.file.tokenize('s3://vaex/testing/xys.hdf5?anonymous=true')
+    assert vaex.file.tokenize('s3://vaex/testing/xys.hdf5', fs_options={'anonymous': True}) == vaex.file.tokenize('s3://vaex/testing/xys.hdf5?anonymous=true')
 
 
 def test_memory_mappable():
