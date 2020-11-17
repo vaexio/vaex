@@ -33,8 +33,9 @@ jobs:
         token: ${{ secrets.PAT_PULL_ENTERPRISE }}
         path: vaex-enterprise
     - name: Install conda with Python ${{ matrix.python-version }}
-      uses: s-weigand/setup-conda@v1
+      uses: s-weigand/setup-conda@v2
       with:
+        update-conda: true
         python-version: ${{ matrix.python-version }}
         conda-channels: anaconda, conda-forge
     # cannot use mamba on windows, see https://github.com/TheSnakePit/mamba/issues/249 for libssh2+mambba issue
@@ -48,7 +49,7 @@ jobs:
       if: matrix.os == 'windows-latest'
       shell: bash
       run: |
-        ./ci/02-create-vaex-dev-env.sh ${{ matrix.python-version }}
+        ./ci/02-create-vaex-dev-env.sh ${{ matrix.python-version }} mamba
         source activate vaex-dev
         pip install "ipython>=7" "dask>=1"
         # not sure why, but the conda env is strange (old dask) if we put this constraint in the conda solver
