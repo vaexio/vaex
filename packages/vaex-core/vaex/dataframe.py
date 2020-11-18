@@ -5064,9 +5064,6 @@ class DataFrameLocal(DataFrame):
         df._categories[column] = dict(labels=values, N=len(values), min_value=0)
         return df
 
-    # for backward compatibility
-    label_encode = _hidden(vaex.utils.deprecated('use is_category')(ordinal_encode))
-
     @property
     def data(self):
         """Gives direct access to the data as numpy arrays.
