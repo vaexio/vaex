@@ -175,7 +175,7 @@ def tokenize(path, fs_options={}):
     Based on mtime (modification time), file size, and the path. May lead to
     false negative if the path changes, but not the content.
 
-    >>> tokenize('/data/taxi.parquet')
+    >>> tokenize('/data/taxi.parquet')  # doctest: +SKIP
     '0171ec50cb2cf71b8e4f813212063a19'
 
     >>> tokenize('s3://vaex/taxi/nyc_taxi_2015_mini.parquet', fs_options={'anon': True})  # doctest: +SKIP

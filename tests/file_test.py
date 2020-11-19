@@ -46,8 +46,9 @@ def test_stringify(tmpdir):
     path = (tmpdir / 'test.txt')
     with path.open('wb') as f:
         assert vaex.file.stringyfy(path) == str(path)
-    with pa.OSFile(str(path), 'wb') as f:
-        assert vaex.file.stringyfy(f) is None
+    with pytest.raises(ValueError):
+        with pa.OSFile(str(path), 'wb') as f:
+            assert vaex.file.stringyfy(f) is None
 
 
 def test_split_scheme(tmpdir):
