@@ -1,3 +1,5 @@
+import pytest
+
 import pandas as pd
 import pyarrow as pa
 import vaex
@@ -6,22 +8,12 @@ df = pd.DataFrame({'col1': range(5)})
 table = pa.Table.from_pandas(df)
 
 
-def test_arrow_write_table(tmpdir):
+@pytest.mark.parametrize("as_stream", [True, False])
+def test_arrow_write_table(tmpdir, as_stream):
     path = str(tmpdir.join('test.arrow'))
-    with pa.OSFile(path, 'wb') as sink:
-        with pa.RecordBatchFileWriter(sink, table.schema) as writer:
-            writer.write_table(table)
-
+    vaex.from_arrow_table(table).export_arrow(path, as_stream=as_stream)
     df = vaex.open(path)
-
-
-def test_arrow_write_stream(tmpdir):
-    path = str(tmpdir.join('test.arrow'))
-    with pa.OSFile(path, 'wb') as sink:
-        with pa.RecordBatchStreamWriter(sink, table.schema) as writer:
-            writer.write_table(table)
-
-    df = vaex.open(path)
+    assert 'col1' in df
 
 
 def test_chunks(df_trimmed, tmpdir):
