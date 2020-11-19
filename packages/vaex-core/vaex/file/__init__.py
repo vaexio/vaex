@@ -81,6 +81,7 @@ def stringyfy(path):
         pass
     if isinstance(path, str):
         return path
+    raise ValueError(f'Cannot convert {path} to a path')
 
 
 def split_scheme(path):
@@ -111,7 +112,7 @@ def split_options(path, fs_options={}):
                 previous_options = options
             paths.append(path)
         return paths, previous_options
-
+    path = stringyfy(path)
     match = re.match(r'(.*?)\?((&?[^=&?]+=[^=&?]+)+)', path)
     if match:
         naked_path, query = match.groups()[:2]
@@ -181,6 +182,7 @@ def tokenize(path, fs_options={}):
     '7c962e2d8c21b6a3681afb682d3bf91b'
     """
     fs, path = parse(path, fs_options)
+    path = stringyfy(path)
     if fs is None:
         mtime = os.path.getmtime(path)
         size = os.path.getsize(path)

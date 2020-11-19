@@ -13,6 +13,7 @@ def _convert_name(filenames, shuffle=False, suffix=None):
     '''Convert a filename (or list of) to a filename with .hdf5 and optionally a -shuffle or other suffix'''
     if not isinstance(filenames, (list, tuple)):
         filenames = [filenames]
+    filenames = [vaex.file.stringyfy(f) for f in filenames]
     base = filenames[0]
     if shuffle:
         base += '-shuffle'
