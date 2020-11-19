@@ -64,7 +64,7 @@ jobs:
         brew install libomp
     - name: Cache compiled binaries
       # this fails for this combination, leading to binaries filled with 0's
-      if: matrix.python-version != '3.6' && matrix.os != 'macOS-latest'
+      if: matrix.python-version != '3.6' || matrix.os != 'macOS-latest'
       id: cache-compiled-binaries
       uses: actions/cache@v2
       with:
