@@ -35,20 +35,18 @@ jobs:
     - name: Install conda with Python ${{ matrix.python-version }}
       uses: s-weigand/setup-conda@v1
       with:
+        update-conda: true
         python-version: ${{ matrix.python-version }}
         conda-channels: anaconda, conda-forge
-    # cannot use mamba on windows, see https://github.com/TheSnakePit/mamba/issues/249 for libssh2+mambba issue
     - name: Create env (with mamba)
-      if: matrix.os != 'windows-latest'
       shell: bash
       run: |
         conda install -c conda-forge mamba
         ./ci/02-create-vaex-dev-env.sh ${{ matrix.python-version }} mamba
-    - name: Create env (with conda)
+    - name: Extra windows installs
       if: matrix.os == 'windows-latest'
       shell: bash
       run: |
-        ./ci/02-create-vaex-dev-env.sh ${{ matrix.python-version }}
         source activate vaex-dev
         pip install "ipython>=7" "dask>=1"
         # not sure why, but the conda env is strange (old dask) if we put this constraint in the conda solver
@@ -65,10 +63,12 @@ jobs:
       run: |
         brew install libomp
     - name: Cache compiled binaries
+      # this fails for this combination, leading to binaries filled with 0's
+      if: matrix.python-version != '3.6' && matrix.os != 'macOS-latest'
       id: cache-compiled-binaries
       uses: actions/cache@v2
       with:
-        path: packages/vaex-core/build
+        path: packages/vaex-core/build/lib*
         key: ${{ runner.OS }}-${{ matrix.python-version }}-${{ hashFiles('packages/vaex-core/src/*') }}-v2
     - name: Fix cache timestamp
       if: steps.cache-compiled-binaries.outputs.cache-hit == 'true' && matrix.os != 'windows-latest'
