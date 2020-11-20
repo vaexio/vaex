@@ -142,6 +142,7 @@ def open(path, convert=False, shuffle=False, fs_options={}, *args, **kwargs):
     import vaex
     import vaex.convert
     try:
+        path = vaex.file.stringyfy(path)
         if path in aliases:
             path = aliases[path]
         if path.startswith("http://") or path.startswith("ws://") or \
