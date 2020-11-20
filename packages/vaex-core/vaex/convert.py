@@ -30,22 +30,25 @@ def convert(path_input, fs_options_input, path_output, fs_options_output, *args,
         path_input=path_input, fs_options_input=fs_options_input,
         path_output=path_output, fs_options_output=fs_options_output)
     def cached_output(*args, **kwargs):
-        naked_path, _ = vaex.file.split_options(path_input)
-        _, ext, _ = vaex.file.split_ext(path_input)
-        if ext == '.csv' or naked_path.endswith(".csv.bz2"):  # special support for csv.. should probably approach it a different way
-            if fs_options_output:
-                raise ValueError(f'No fs_options support for output/convert')
-            if 'chunk_size' not in kwargs:
-                # make it memory efficient by default
-                kwargs['chunk_size'] = 5_000_000
-            _from_csv_convert_and_read(path_input, maybe_convert_path=path_output, fs_options=fs_options_input, **kwargs)
-        else:
-            ds = vaex.dataset.open(path_input, fs_options=fs_options_input, *args, **kwargs)
-            if ds is not None:
-                df = vaex.from_dataset(ds)
-                df.export(path_output)
+        ds = vaex.dataset.open(path_input, fs_options=fs_options_input, *args, **kwargs)
+        if ds is not None:
+            df = vaex.from_dataset(ds)
+            df.export(path_output)
     cached_output(*args, **kwargs)
 
+
+def convert_csv(path_input, fs_options_input, path_output, fs_options_output, *args, **kwargs):
+    @vaex.cache.output_file(
+        path_input=path_input, fs_options_input=fs_options_input,
+        path_output=path_output, fs_options_output=fs_options_output)
+    def cached_output(*args, **kwargs):
+        if fs_options_output:
+            raise ValueError(f'No fs_options support for output/convert')
+        if 'chunk_size' not in kwargs:
+            # make it memory efficient by default
+            kwargs['chunk_size'] = 5_000_000
+        _from_csv_convert_and_read(path_input, maybe_convert_path=path_output, fs_options=fs_options_input, **kwargs)
+    cached_output(*args, **kwargs)
 
 
 def _from_csv_convert_and_read(filename_or_buffer, maybe_convert_path, chunk_size, fs_options, copy_index=False, **kwargs):

@@ -72,13 +72,21 @@ def file_and_path(file, mode='r', fs_options={}):
 
 
 def stringyfy(path):
-    if hasattr(path, 'name'):  # passed in a file
-        path = path.name
+    """Get string from path like object of file like object
+
+    >>> stringyfy('/tmp/test')
+    '/tmp/test'
+    >>> from pathlib import Path
+    >>> stringyfy(Path('/tmp/test'))
+    '/tmp/test'
+    """
     try:
         # Pathlib support
         path = path.__fspath__()
     except AttributeError:
         pass
+    if hasattr(path, 'name'):  # passed in a file
+        path = path.name
     if isinstance(path, str):
         return path
     raise ValueError(f'Cannot convert {path} to a path')

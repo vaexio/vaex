@@ -1,12 +1,14 @@
 import glob
 import os
+from pathlib import Path
 import sys
 import io
 
 import pytest
 import vaex
 
-path = os.path.dirname(__file__)
+path = Path(__file__).parent
+data_path = path / 'data'
 csv_path = os.path.join(path, 'data', 'small3.csv')
 
 if sys.platform.startswith("win"):
@@ -35,6 +37,13 @@ def test_from_csv():
     with pytest.raises(StopIteration):
         next(df_iterator)
     _assert_csv_content(vaex.concat([df1, df2, df3]))
+
+
+def test_diffent_extension():
+    df = vaex.from_csv(data_path / 'small2.nocsv')
+    assert df.x.tolist() == [1, 3]
+    df = vaex.from_csv(data_path / 'small2.nocsv', convert=True)
+    assert df.x.tolist() == [1, 3]
 
 
 def test_from_csv_converting_in_chunks():

@@ -183,8 +183,8 @@ def open(path, convert=False, shuffle=False, fs_options={}, *args, **kwargs):
                 path = filenames[0]
                 # # naked_path, _ = vaex.file.split_options(path, fs_options)
                 _, ext, _ = vaex.file.split_ext(path)
-                if ext == '.csv' and not convert:  # special case for csv and no conversion
-                    return vaex.from_csv(path, fs_options=fs_options, **kwargs)
+                if ext == '.csv':  # special case for csv
+                    return vaex.from_csv(path, fs_options=fs_options, convert=convert, **kwargs)
                 if convert:
                     path_output = convert if isinstance(convert, str) else filename_hdf5
                     vaex.convert.convert(
@@ -501,7 +501,7 @@ def from_csv(filename_or_buffer, copy_index=False, chunk_size=None, convert=Fals
             chunk_size = 5_000_000
         import vaex.convert
         path_output = convert if isinstance(convert, str) else vaex.convert._convert_name(filename_or_buffer)
-        vaex.convert.convert(
+        vaex.convert.convert_csv(
             path_input=filename_or_buffer, fs_options_input=fs_options,
             path_output=path_output, fs_options_output=fs_options,
             chunk_size=chunk_size,

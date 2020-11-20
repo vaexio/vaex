@@ -164,7 +164,7 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
         return path.endswith('.hdf5') or path.endswith('.h5')
 
     @classmethod
-    def can_open(cls, path, fs_options={}):
+    def can_open(cls, path, fs_options={}, **kwargs):
         if not cls.quick_test(path):
             return False
         with vaex.file.open(path, fs_options=fs_options) as f:
@@ -519,7 +519,8 @@ class Hdf5MemoryMappedGadget(DatasetMemoryMapped):
         # self.property_names.append(name)
 
     @classmethod
-    def can_open(cls, path, *args, **kwargs):
+    def can_open(cls, path, fs_options={}, *args, **kwargs):
+        path = vaex.file.stringyfy(path)
         if len(args) == 2:
             particleName = args[0]
             particleType = args[1]

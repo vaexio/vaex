@@ -957,6 +957,11 @@ def print_exception_trace(e):
     print(''.join(traceback.format_exception(None, e, e.__traceback__)), file=sys.stdout, flush=True)
 
 
+def format_exception_trace(e):
+    import traceback
+    return ''.join(traceback.format_exception(None, e, e.__traceback__))
+
+
 class ProxyModule:
     def __init__(self, name, version):
         self.name = name
