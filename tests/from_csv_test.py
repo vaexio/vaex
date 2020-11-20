@@ -1,11 +1,14 @@
 import glob
 import os
+from pathlib import Path
 import sys
+import io
 
 import pytest
 import vaex
 
-path = os.path.dirname(__file__)
+path = Path(__file__).parent
+data_path = path / 'data'
 csv_path = os.path.join(path, 'data', 'small3.csv')
 
 if sys.platform.startswith("win"):
@@ -36,6 +39,13 @@ def test_from_csv():
     _assert_csv_content(vaex.concat([df1, df2, df3]))
 
 
+def test_diffent_extension():
+    df = vaex.from_csv(data_path / 'small2.nocsv')
+    assert df.x.tolist() == [1, 3]
+    df = vaex.from_csv(data_path / 'small2.nocsv', convert=True)
+    assert df.x.tolist() == [1, 3]
+
+
 def test_from_csv_converting_in_chunks():
     # can read several chunks with converting, intermediate files are deleted
     df = vaex.from_csv(csv_path, chunk_size=1, convert=True)
@@ -46,10 +56,12 @@ def test_from_csv_converting_in_chunks():
     _cleanup_generated_files(df)
 
     # fails to convert if filename cannot be derived
-    with pytest.raises(ValueError, match='Cannot derive filename to use for converted HDF5 file, '
-                                         'please specify it using convert="my.csv.hdf5"'):
-        with open(csv_path) as f:
+    with pytest.raises(ValueError, match='Cannot convert.*'):
+        with io.StringIO() as f:
             vaex.from_csv(f, convert=True)
+    # f.name reveals the path
+    with open(csv_path) as f:
+        vaex.from_csv(f, convert=True)
     with open(csv_path) as f:
         converted_path = os.path.join(path, 'data', 'small3.my.csv.hdf5')
         df = vaex.from_csv(f, convert=converted_path)
@@ -61,12 +73,11 @@ def test_from_csv_converting_in_chunks():
     vaex.from_csv(csv_path, convert=True)
     assert os.path.exists(os.path.join(path, 'data', 'small3.csv.hdf5'))
     try:
-        os.rename(csv_path, csv_path + '_')
-        df = vaex.from_csv(csv_path, convert=True)
-        _assert_csv_content(df)
-        _cleanup_generated_files(df)
-    except FileNotFoundError as e:
-        assert False, "vaex.from_csv tried to read from CSV file while a converted HDF5 file existed: %s" % e
+        with pytest.raises(FileNotFoundError):
+            os.rename(csv_path, csv_path + '_')
+            df = vaex.from_csv(csv_path, convert=True)
+            _assert_csv_content(df)
+            _cleanup_generated_files(df)
     finally:
         os.rename(csv_path + '_', csv_path)
 

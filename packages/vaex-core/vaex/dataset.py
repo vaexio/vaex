@@ -33,7 +33,7 @@ def open(path, *args, **kwargs):
                 opener_classes.append(opener)
             except Exception as e:
                 logger.exception('issue loading ' + entry.name)
-                failures.append(e)
+                failures.append((e, entry))
 
     # first the quick path
     for opener in opener_classes:
@@ -47,8 +47,9 @@ def open(path, *args, **kwargs):
             if opener.can_open(path, *args, **kwargs):
                 return opener.open(path, *args, **kwargs)
         except Exception as e:
-            failures.append(e)
+            failures.append((e, opener))
 
+    failures = "\n".join([f'\n-----{who}-----\n:' + vaex.utils.format_exception_trace(e) for e, who in failures])
     if failures:
         raise IOError(f'Cannot open {path}, failures: {failures}.')
     else:

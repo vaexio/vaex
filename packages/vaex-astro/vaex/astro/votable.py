@@ -1,5 +1,6 @@
 import astropy.io.votable
 
+import vaex
 from vaex.dataset import DatasetFile
 from vaex.dataset_misc import _try_unit
 
@@ -43,7 +44,7 @@ class VOTable(DatasetFile):
 
 	@classmethod
 	def can_open(cls, path, *args, **kwargs):
-		can_open = path.endswith(".vot")
+		can_open = vaex.file.stringyfy(path).endswith(".vot")
 		return can_open
 
 	def close(self):

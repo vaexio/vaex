@@ -30,6 +30,7 @@ def test_export_large_string_parquet(tmpdir):
     df = vaex.from_arrays(s=s)
     df.export_parquet(tmpdir / 'chunk.parquet')
 
+
 def test_export_many(df_local, tmpdir):
     df = df_local
     df = df.drop('datetime')

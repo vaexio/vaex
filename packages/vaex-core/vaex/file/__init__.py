@@ -9,6 +9,9 @@ import sys
 from urllib.parse import parse_qs
 import pkg_resources
 
+import pyarrow as pa
+import pyarrow.fs
+
 import vaex.file.cache
 
 
@@ -69,15 +72,28 @@ def file_and_path(file, mode='r', fs_options={}):
 
 
 def stringyfy(path):
-    if hasattr(path, 'name'):  # passed in a file
-        path = path.name
+    """Get string from path like object of file like object
+
+    >>> import sys, pytest
+    >>> if sys.platform.startswith('win'):
+    ...     pytest.skip('this doctest does not work on Windows')
+    ...
+    >>> stringyfy('/tmp/test')
+    '/tmp/test'
+    >>> from pathlib import Path
+    >>> stringyfy(Path('/tmp/test'))
+    '/tmp/test'
+    """
     try:
         # Pathlib support
         path = path.__fspath__()
     except AttributeError:
         pass
+    if hasattr(path, 'name'):  # passed in a file
+        path = path.name
     if isinstance(path, str):
         return path
+    raise ValueError(f'Cannot convert {path} to a path')
 
 
 def split_scheme(path):
@@ -108,7 +124,7 @@ def split_options(path, fs_options={}):
                 previous_options = options
             paths.append(path)
         return paths, previous_options
-
+    path = stringyfy(path)
     match = re.match(r'(.*?)\?((&?[^=&?]+=[^=&?]+)+)', path)
     if match:
         naked_path, query = match.groups()[:2]
@@ -118,6 +134,28 @@ def split_options(path, fs_options={}):
     options = fs_options.copy()
     options.update({key: values[0] for key, values in parse_qs(query).items()})
     return naked_path, options
+
+
+def split_ext(path, fs_options={}):
+    path, fs_options = split_options(path, fs_options=fs_options)
+    base, ext = os.path.splitext(path)
+    return base, ext, fs_options
+
+
+def exists(path, fs_options={}):
+    """Checks if file exists.
+
+    >>> vaex.file.exists('/you/do/not')
+    False
+
+    >>> vaex.file.exists('s3://vaex/taxi/nyc_taxi_2015_mini.parquet', fs_options={'anon': True})
+    True
+    """
+    fs, path = parse(path, fs_options=fs_options)
+    if fs is None:
+        return os.path.exists(path)
+    else:
+        return fs.get_file_info(path).type != pa.fs.FileType.NotFound
 
 
 def _get_scheme_handler(path):
@@ -141,6 +179,31 @@ def parse(path, fs_options={}):
     else:
         module = _get_scheme_handler(path)
         return module.parse(path, fs_options)
+
+
+def tokenize(path, fs_options={}):
+    """Deterministic token for a file, useful in combination with dask or detecting file changes.
+
+    Based on mtime (modification time), file size, and the path. May lead to
+    false negative if the path changes, but not the content.
+
+    >>> tokenize('/data/taxi.parquet')  # doctest: +SKIP
+    '0171ec50cb2cf71b8e4f813212063a19'
+
+    >>> tokenize('s3://vaex/taxi/nyc_taxi_2015_mini.parquet', fs_options={'anon': True})  # doctest: +SKIP
+    '7c962e2d8c21b6a3681afb682d3bf91b'
+    """
+    fs, path = parse(path, fs_options)
+    path = stringyfy(path)
+    if fs is None:
+        mtime = os.path.getmtime(path)
+        size = os.path.getsize(path)
+    else:
+        info = fs.get_file_info(path)
+        mtime = info.mtime
+        size = info.size
+    import vaex.cache
+    return vaex.cache.tokenize(('file', (path, mtime, size)))
 
 
 def open(path, mode='rb', fs_options={}):
