@@ -350,6 +350,31 @@ def create_base_ds():
     return df._readonly()
 
 
+@pytest.fixture(scope='session')
+def array_factory_numpy():
+    def create(x):
+        mask = [k is None for k in x]
+        if any(mask):
+            x = [x[0] if k is None else k for k in x]
+            return np.ma.array(x, mask=mask)
+        else:
+            return np.array(x)
+    return create
+
+
+@pytest.fixture(scope='session')
+def array_factory_arrow():
+    return pa.array
+
+
+@pytest.fixture(scope='session', params=['array_factory_numpy', 'array_factory_arrow'])
+def array_factory(request, array_factory_numpy, array_factory_arrow):
+    named = dict(array_factory_numpy=array_factory_numpy, array_factory_arrow=array_factory_arrow)
+    return named[request.param]
+
+array_factory1 = array_factory
+array_factory2 = array_factory
+
 @pytest.fixture(params=['df_factory_numpy', 'df_factory_arrow'])#, 'df_factory_parquet'])
 def df_factory(request, df_factory_numpy, df_factory_arrow):#, df_factory_parquet):
     named = dict(df_factory_numpy=df_factory_numpy, df_factory_arrow=df_factory_arrow)#, df_factory_parquet=df_factory_parquet)
@@ -359,7 +384,6 @@ def df_factory(request, df_factory_numpy, df_factory_arrow):#, df_factory_parque
 @pytest.fixture
 def df_factory_numpy():
     return vaex.from_arrays
-
 
 
 @pytest.fixture
