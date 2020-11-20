@@ -4,7 +4,6 @@
 *.mk4
 #/*.png
 *.eps
-*.hdf5
 *.pgm
 *.pdf
 *.fld
