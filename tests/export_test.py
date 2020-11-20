@@ -1,8 +1,12 @@
 from common import *
 import os
+from pathlib import Path
 import tempfile
 import pandas as pd
 import platform
+
+
+DATA_PATH = Path(__file__).parent
 
 
 @pytest.mark.skipif(platform.system().lower() == 'windows', reason="access violation?")

@@ -308,10 +308,10 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
             else:
                 column_name = group_name
                 column = h5columns[column_name]
+                if "alias" in column.attrs:
+                    column_name = column.attrs["alias"]
                 if "ucd" in column.attrs:
                     self.ucds[column_name] = ensure_string(column.attrs["ucd"])
-                if "alias" in column.attrs:
-                    self._column_aliases[ensure_string(column.attrs["alias"])] = column_name
                 if "description" in column.attrs:
                     self.descriptions[column_name] = ensure_string(column.attrs["description"])
                 if "unit" in column.attrs:
