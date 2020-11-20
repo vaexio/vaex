@@ -74,6 +74,10 @@ def file_and_path(file, mode='r', fs_options={}):
 def stringyfy(path):
     """Get string from path like object of file like object
 
+    >>> import sys, pytest
+    >>> if sys.platform.startswith('win'):
+    ...     pytest.skip('this doctest does not work on Windows')
+    ...
     >>> stringyfy('/tmp/test')
     '/tmp/test'
     >>> from pathlib import Path
