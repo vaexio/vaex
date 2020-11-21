@@ -38,6 +38,12 @@ jobs:
         update-conda: true
         python-version: ${{ matrix.python-version }}
         conda-channels: anaconda, conda-forge
+    - name: debug ls
+      shell: bash
+      run: |
+        pwd
+        ls tests
+        ls tests/data
     - name: Create env (with mamba)
       shell: bash
       run: |
