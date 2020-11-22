@@ -4,6 +4,8 @@ environment:
       MINICONDA: C:\Miniconda37-x64
     - PYTHON_VERSION: 3.8
       MINICONDA: C:\Miniconda37-x64
+    - PYTHON_VERSION: 3.9
+      MINICONDA: C:\Miniconda37-x64
 
 init:
   - "ECHO %PYTHON_VERSION% %MINICONDA%"
