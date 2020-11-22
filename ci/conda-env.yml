@@ -14,7 +14,7 @@ pandas
 pcre
 pip
 python-annoy
-py-xgboost  # [not win]
+#py-xgboost
 # pyarrow
 pyqt
 pytest
