@@ -40,7 +40,7 @@ jobs:
         conda install -c conda-forge mamba
         ./ci/02-create-vaex-dev-env.sh ${{ matrix.python-version }} mamba
     - name: Extra non-windows installs
-      if: matrix.os 1= 'windows-latest'
+      if: matrix.os != 'windows-latest'
       shell: bash
       run: |
         source activate vaex-dev
