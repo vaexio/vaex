@@ -22,12 +22,11 @@ install:
   - conda config --set always_yes yes --set changeps1 no
   - conda config --remove channels defaults
   - conda config --add channels msys2
-  - conda config --add channels conda-forge
   - conda update -q conda
   - conda info -a
-  - "conda create -y -q -n vaex-dev python=%PYTHON_VERSION% mamba"
+  - "conda create -y -q -c conda-forge -n vaex-dev python=%PYTHON_VERSION% mamba"
   - activate vaex-dev
-  - "mamba install --file ci/conda-env.yml --file ci/conda-env-notebooks.yml"
+  - "mamba install -c conda-forge --file ci/conda-env.yml --file ci/conda-env-notebooks.yml"
   - pip install -r requirements-ml.txt
   - pip install "ipython>=7" "dask>=1"  # similar to GHA
   - pushd packages\vaex-core   && pip install . && popd
