@@ -6,8 +6,6 @@ environment:
       MINICONDA: C:\Miniconda37-x64
     - PYTHON_VERSION: 3.8
       MINICONDA: C:\Miniconda37-x64
-    - PYTHON_VERSION: 3.9
-      MINICONDA: C:\Miniconda37-x64
 
 init:
   - "ECHO %PYTHON_VERSION% %MINICONDA%"
@@ -22,10 +20,14 @@ install:
   - git submodule update --init --recursive
   - call %MINICONDA%\Scripts\activate.bat
   - conda config --set always_yes yes --set changeps1 no
+  - conda config --remove channels defaults
+  - conda config --add channels msys2
+  - conda config --add channels conda-forge
   - conda update -q conda
   - conda info -a
-  - "conda create -y -q -n vaex-dev -c arrow-nightlies -c conda-forge python=%PYTHON_VERSION%  --file ci/conda-env.yml --file ci/conda-env-nightlies.yml"
+  - "conda create -y -q -n vaex-dev python=%PYTHON_VERSION% mamba"
   - activate vaex-dev
+  - "mamba instal install --file ci/conda-env.yml --file ci/conda-env-notebooks.yml"
   - pip install -r requirements-ml.txt
   - pip install "ipython>=7" "dask>=1"  # similar to GHA
   - pushd packages\vaex-core   && pip install . && popd
