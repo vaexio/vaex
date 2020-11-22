@@ -4,10 +4,16 @@ environment:
       MINICONDA: C:\Miniconda36-x64
     - PYTHON_VERSION: 3.7
       MINICONDA: C:\Miniconda37-x64
+    - PYTHON_VERSION: 3.8
+      MINICONDA: C:\Miniconda37-x64
+    - PYTHON_VERSION: 3.9
+      MINICONDA: C:\Miniconda37-x64
 
 init:
   - "ECHO %PYTHON_VERSION% %MINICONDA%"
 
+cache:
+  vaex\packages\vaex-core\build
 
 build: false
 
