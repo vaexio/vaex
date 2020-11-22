@@ -12,23 +12,21 @@ import astropy.units
 import pandas as pd
 import vaex.execution
 import contextlib
-a = vaex.execution.buffer_size_default # will crash if we decide to rename it
+
 
 basedir = os.path.dirname(__file__)
-# this will make the test execute more code and may show up bugs
-#vaex.execution.buffer_size_default = 3
 
 
 @contextlib.contextmanager
 def small_buffer(ds, size=3):
 	if ds.is_local():
-		previous = ds.executor.buffer_size
-		ds.executor.buffer_size = size
+		previous = ds.executor.chunk_size
+		ds.executor.chunk_size = size
 		ds._invalidate_caches()
 		try:
 			yield
 		finally:
-			ds.executor.buffer_size = previous
+			ds.executor.chunk_size = previous
 	else:
 		yield # for remote dfs we don't support this ... or should we?
 

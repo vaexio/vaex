@@ -992,3 +992,21 @@ $ conda install -c conda-forge "{self.name}{self.version}""
 
 def optional_import(name, version=''):
     return ProxyModule(name, version=version)
+
+
+def div_ceil(n, d):
+    """Integer divide that sounds up (to an int).
+
+    See https://stackoverflow.com/a/54585138/5397207
+
+    Examples
+    >>> div_ceil(6, 2)
+    3
+    >>> div_ceil(7, 2)
+    4
+    >>> div_ceil(8, 2)
+    4
+    >>> div_ceil(9, 2)
+    5
+    """
+    return (n + d - 1) // d

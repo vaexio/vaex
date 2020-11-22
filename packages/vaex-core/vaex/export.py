@@ -163,7 +163,6 @@ def _export_column(dataset_input, dataset_output, column_name, shuffle, sort, se
     order_array, order_array_inverse, progress_status, parallel=True):
 
         if 1:
-            block_scope = dataset_input._block_scope(0, vaex.execution.buffer_size_default)
             to_array = dataset_output.columns[column_name]
             dtype = dataset_input.data_type(column_name, array_type='numpy')
             is_string = vaex.array_types.is_string_type(dtype)
