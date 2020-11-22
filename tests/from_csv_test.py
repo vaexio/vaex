@@ -95,5 +95,5 @@ def _assert_csv_content(csv_df, with_index=False):
 def _cleanup_generated_files(*dfs):
     for df in dfs:
         df.close()
-    for hdf5_file in glob.glob(os.path.join(path, 'data', '*.hdf5')):
+    for hdf5_file in glob.glob(os.path.join(path, 'data', 'small*.hdf5')):
         os.remove(hdf5_file)
