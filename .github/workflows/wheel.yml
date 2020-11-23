@@ -25,9 +25,9 @@ jobs:
       run: |
         ls /c/Program\ Files\ \(x86\)/Microsoft\ Visual\ Studio/2019/Enterprise/VC/Redist/
         ls /c/Program\ Files\ \(x86\)/Microsoft\ Visual\ Studio/2019/Enterprise/VC/Redist/MSVC/
-        ls /c/Program\ Files\ \(x86\)/Microsoft\ Visual\ Studio/2019/Enterprise/VC/Redist/MSVC/14.27.29016/
-        ls /c/Program\ Files\ \(x86\)/Microsoft\ Visual\ Studio/2019/Enterprise/VC/Redist/MSVC/14.27.29016/x64/Microsoft.VC142.CRT
-        cp /c/Program\ Files\ \(x86\)/Microsoft\ Visual\ Studio/2019/Enterprise/VC/Redist/MSVC/14.27.29016/x64/Microsoft.VC142.CRT/vcruntime140_1.dll packages/vaex-core/vaex/
+        ls /c/Program\ Files\ \(x86\)/Microsoft\ Visual\ Studio/2019/Enterprise/VC/Redist/MSVC/14.28.29325/
+        ls /c/Program\ Files\ \(x86\)/Microsoft\ Visual\ Studio/2019/Enterprise/VC/Redist/MSVC/14.28.29325/x64/Microsoft.VC142.CRT
+        cp /c/Program\ Files\ \(x86\)/Microsoft\ Visual\ Studio/2019/Enterprise/VC/Redist/MSVC/14.28.29325/x64/Microsoft.VC142.CRT/vcruntime140_1.dll packages/vaex-core/vaex/
 
     - uses: actions/setup-python@v2
       name: Install Python
