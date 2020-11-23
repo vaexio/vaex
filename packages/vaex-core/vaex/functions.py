@@ -1115,6 +1115,8 @@ def str_contains(x, pattern, regex=True):
     if regex:
         return _to_string_sequence(x).search(pattern, regex)
     else:
+        if not isinstance(x, vaex.array_types.supported_arrow_array_types):
+            x = pa.array(x)
         return pc.match_substring(x, pattern)
 
 # TODO: default regex is False, which breaks with pandas
@@ -1449,6 +1451,8 @@ def str_lower(x):
     3          our
     4         way.
     """
+    if not isinstance(x, vaex.array_types.supported_arrow_array_types):
+        x = pa.array(x)
     return pc.utf8_lower(x)
 
 
@@ -1962,6 +1966,8 @@ def str_upper(x, ascii=False):
     if ascii:
         return pc.ascii_upper(x)
     else:
+        if not isinstance(x, vaex.array_types.supported_arrow_array_types):
+            x = pa.array(x)
         return pc.utf8_upper(_arrow_string_might_grow(x, 3/2))
 
 
@@ -2033,6 +2039,8 @@ def str_isalnum(x, ascii=False):
     4  False
     """
     kernel_function = pc.ascii_is_alnum if ascii else pc.utf8_is_alnum
+    if not isinstance(x, vaex.array_types.supported_arrow_array_types):
+        x = pa.array(x)
     return kernel_function(x)
 
 

@@ -173,7 +173,7 @@ def export_hdf5(dataset, path, column_names=None, byteorder="=", shuffle=False, 
                 index_array = h5column_output.require_dataset('indices', shape=indices_shape, dtype=dtype_indices)
                 index_array[0] = index_array[0]  # make sure the array really exists
 
-                null_value_count = N - dataset.count(df[column_name], selection=selection)
+                null_value_count = N - dataset.count(dataset[column_name], selection=selection)
                 if null_value_count > 0:
                     null_shape = ((N + 7) // 8, )  # TODO: arrow requires padding right?
                     null_bitmap_array = h5column_output.require_dataset('null_bitmap', shape=null_shape, dtype='u1')

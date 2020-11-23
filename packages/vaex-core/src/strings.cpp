@@ -1986,6 +1986,10 @@ void add_string_list(Module m, Base& base, const char* class_name) {
                 return sl.offset;
             }
         )
+        .def_property_readonly("null_offset", [](const StringList &sl) {
+                return sl.null_offset;
+            }
+        )
         .def_property_readonly("length", [](const StringList &sl) {
                 return sl.length;
             }

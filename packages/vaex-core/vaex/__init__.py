@@ -145,6 +145,7 @@ def open(path, convert=False, shuffle=False, fs_options={}, *args, **kwargs):
         path = vaex.file.stringyfy(path)
         if path in aliases:
             path = aliases[path]
+        path = vaex.file.stringyfy(path)
         if path.startswith("http://") or path.startswith("ws://") or \
            path.startswith("vaex+http://") or path.startswith("vaex+ws://"):  # TODO: think about https and wss
             server, name = path.rsplit("/", 1)

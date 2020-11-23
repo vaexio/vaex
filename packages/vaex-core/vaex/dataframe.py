@@ -2034,7 +2034,6 @@ class DataFrame(object):
         """
         expression = _ensure_string_from_expression(expression)
         data_type = None
-        expression = vaex.utils.valid_expression(self.get_column_names(hidden=True), expression)
         if expression in self.variables:
             data_type = np.float64(1).dtype
         elif self.is_local() and expression in self.columns.keys():
@@ -2046,6 +2045,7 @@ class DataFrame(object):
             else:
                 data = column[0:1]
         else:
+            expression = vaex.utils.valid_expression(self.get_column_names(hidden=True), expression)
             try:
                 data = self.evaluate(expression, 0, 1, filtered=False, array_type=array_type, parallel=False)
             except:
@@ -2064,6 +2064,8 @@ class DataFrame(object):
             data_type = array_types.to_arrow_type(data_type)
         elif array_type == "numpy":
             data_type = array_types.to_numpy_type(data_type)
+        elif array_type == "numpy-arrow":
+            data_type = array_types.to_numpy_type(data_type, strict=False)
         elif array_type is None:
             data_type = data_type
         else:

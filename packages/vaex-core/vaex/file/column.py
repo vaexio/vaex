@@ -55,14 +55,6 @@ class ColumnFile(vaex.column.Column):
         self.shape = (length,)
         self.write = write
 
-    def __del__(self):
-        for f in self.file_handles:
-            try:
-                # can be closed by another instance
-                f.close()
-            except:
-                pass
-
     def __len__(self):
         return self.length
 
