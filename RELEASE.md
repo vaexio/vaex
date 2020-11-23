@@ -19,6 +19,8 @@ Releasing a new version of vaex-core
     $ releash bump vaex-core -n  # dry run
     $ releash bump vaex-core -n --what=minor  # to go from 2.3.x to 2.4.0
     $ releash bump vaex-core -f --what=minor  # force it, in case the worktree is dirty
+    $ releash bump vaex-core --what=prerelease=alpha # change to alpha
+    $ releash bump vaex-core --what=finalize  # remove alpha
 
 ### Push
 

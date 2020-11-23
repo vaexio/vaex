@@ -26,7 +26,7 @@ def parse(path, fs_options):
     from .s3arrow import parse
     fs_options = patch_profile(fs_options)
     try:
-        raise pa.lib.ArrowNotImplementedError('FOR TESTING')
+        # raise pa.lib.ArrowNotImplementedError('FOR TESTING')
         return parse(path, fs_options)
     except pa.lib.ArrowNotImplementedError:
         # fallback
