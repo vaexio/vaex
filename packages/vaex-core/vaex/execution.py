@@ -1,4 +1,6 @@
 from __future__ import division, print_function
+import ast
+import os
 import vaex.vaexfast
 import vaex.events
 import time
@@ -9,7 +11,12 @@ import logging
 import vaex.cpu  # force registration of task-part-cpu
 
 
-buffer_size_default = 1024 * 1024  # TODO: this should not be fixed, larger means faster but also large memory usage
+chunk_size_min_default = int(os.environ.get('VAEX_CHUNK_SIZE_MIN', 1024))
+chunk_size_max_default = int(os.environ.get('VAEX_CHUNK_SIZE_MAX', 1024*1024))
+chunk_size_default = ast.literal_eval(os.environ.get('VAEX_CHUNK_SIZE', 'None'))
+if chunk_size_default is not None:
+    chunk_size_default = int(chunk_size_default)  # make sure it's an int
+
 logger = logging.getLogger("vaex.execution")
 thread_count_default = multiprocessing.cpu_count()
 
@@ -74,10 +81,12 @@ class Executor:
 
 
 class ExecutorLocal(Executor):
-    def __init__(self, thread_pool=None, buffer_size=None, thread_mover=None, zigzag=True):
+    def __init__(self, thread_pool=None, chunk_size=chunk_size_default, chunk_size_min=chunk_size_min_default, chunk_size_max=chunk_size_max_default, thread_mover=None, zigzag=True):
         super().__init__()
         self.thread_pool = thread_pool or vaex.multithreading.ThreadPoolIndex()
-        self.buffer_size = buffer_size or buffer_size_default
+        self.chunk_size = chunk_size
+        self.chunk_size_min = chunk_size_min_default
+        self.chunk_size_max = chunk_size_max_default
         self.thread = None
         self.passes = 0  # how many times we passed over the data
         self.zig = True  # zig or zag
@@ -137,7 +146,14 @@ class ExecutorLocal(Executor):
                     task._results = []
                     if not any(task.signal_progress.emit(0)):
                         task.cancelled = True
-                run.block_scopes = [run.df._block_scope(0, self.buffer_size) for i in range(self.thread_pool.nthreads)]
+                row_count = run.df._index_end - run.df._index_start
+                chunk_size = self.chunk_size
+                if chunk_size is None:
+                    # we determine it automatically by defaulting to having each thread do 1 chunk
+                    chunk_size_1_pass = vaex.utils.div_ceil(row_count, self.thread_pool.nthreads)
+                    # brackated by a min and max chunk_size
+                    chunk_size = min(self.chunk_size_max, max(self.chunk_size_min, chunk_size_1_pass))
+                run.block_scopes = [run.df._block_scope(0, chunk_size) for i in range(self.thread_pool.nthreads)]
                 from .encoding import Encoding
                 encoding = Encoding()
                 for task in tasks:
@@ -145,7 +161,7 @@ class ExecutorLocal(Executor):
                     task._parts = [encoding.decode('task-part-cpu', spec, df=run.df) for i in range(self.thread_pool.nthreads)]
 
                 length = run.df.active_length()
-                parts = vaex.utils.subdivide(length, max_length=self.buffer_size)
+                parts = vaex.utils.subdivide(length, max_length=chunk_size)
                 if not self.zig:
                     parts = list(parts)[::-1]
                 if self.zigzag:
