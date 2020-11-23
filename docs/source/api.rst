@@ -24,11 +24,13 @@ Visualization.
 
 .. autosummary::
 
-    vaex.dataframe.DataFrame.plot
-    vaex.dataframe.DataFrame.plot1d
-    vaex.dataframe.DataFrame.scatter
-    vaex.dataframe.DataFrame.plot_widget
-    vaex.dataframe.DataFrame.healpix_plot
+    vaex.dataframe.DataFrame.viz.heatmap
+    vaex.dataframe.DataFrame.viz.histogram
+    vaex.dataframe.DataFrame.viz.scatter
+    vaex.dataframe.DataFrame.viz.healpix_heatmap
+    vaex.dataframe.Expression.viz.histogram
+    vaex.dataframe.DataFrame.widget.heatmap
+    vaex.dataframe.DataFrame.widget.histgram
 
 
 Statistics.
@@ -148,6 +150,17 @@ Jupyter widgets accessor
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. autoclass:: vaex.jupyter.DataFrameAccessorWidget
+     :members:
+     :special-members:
+
+Viz accessors
+~~~~~~~~~~~~~
+
+.. autoclass:: vaex.viz.DataFrameAccessorViz
+     :members:
+     :special-members:
+
+.. autoclass:: vaex.viz.ExpressionAccessorViz
      :members:
      :special-members:
 

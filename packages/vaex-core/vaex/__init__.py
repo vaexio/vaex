@@ -651,15 +651,16 @@ for entry in pkg_resources.iter_entry_points(group='vaex.namespace'):
     except Exception:
         logger.exception('issue loading ' + entry.name)
 
-_df_lazy_accessors = {}
+_lazy_accessors_map = {}
 
 
 class _lazy_accessor(object):
-    def __init__(self, name, scope, loader):
+    def __init__(self, name, scope, loader, lazy_accessors):
         """When adding an accessor geo.cone, scope=='geo', name='cone', scope may be falsy"""
         self.loader = loader
         self.name = name
         self.scope = scope
+        self.lazy_accessors = lazy_accessors
 
     def __call__(self, obj):
         if self.name in obj.__dict__:
@@ -671,10 +672,10 @@ class _lazy_accessor(object):
             fullname = self.name
             if self.scope:
                 fullname = self.scope + '.' + self.name
-            if fullname in _df_lazy_accessors:
-                for name, scope, loader in _df_lazy_accessors[fullname]:
+            if fullname in self.lazy_accessors:
+                for name, scope, loader, lazy_accessors in self.lazy_accessors[fullname]:
                     assert fullname == scope
-                    setattr(cls, name, property(_lazy_accessor(name, scope, loader)))
+                    setattr(cls, name, property(_lazy_accessor(name, scope, loader, lazy_accessors)))
         return obj.__dict__[self.name]
 
 
@@ -684,14 +685,16 @@ def _add_lazy_accessor(name, loader, target_class=vaex.dataframe.DataFrame):
     This enables us to have df.foo.bar accessors that lazily loads the modules.
     """
     parts = name.split('.')
-    target_class = vaex.dataframe.DataFrame
+    if target_class not in _lazy_accessors_map:
+        _lazy_accessors_map[target_class] = {}
+    lazy_accessors = _lazy_accessors_map[target_class]
     if len(parts) == 1:
-        setattr(target_class, parts[0], property(_lazy_accessor(name, None, loader)))
+        setattr(target_class, parts[0], property(_lazy_accessor(name, None, loader, lazy_accessors)))
     else:
         scope = ".".join(parts[:-1])
-        if scope not in _df_lazy_accessors:
-            _df_lazy_accessors[scope] = []
-        _df_lazy_accessors[scope].append((parts[-1], scope, loader))
+        if scope not in lazy_accessors:
+            lazy_accessors[scope] = []
+        lazy_accessors[scope].append((parts[-1], scope, loader, lazy_accessors))
 
 
 for entry in pkg_resources.iter_entry_points(group='vaex.dataframe.accessor'):
@@ -699,6 +702,13 @@ for entry in pkg_resources.iter_entry_points(group='vaex.dataframe.accessor'):
     def loader(entry=entry):
         return entry.load()
     _add_lazy_accessor(entry.name, loader)
+
+
+for entry in pkg_resources.iter_entry_points(group='vaex.expression.accessor'):
+    logger.debug('adding vaex expression accessor: ' + entry.name)
+    def loader(entry=entry):
+        return entry.load()
+    _add_lazy_accessor(entry.name, loader, vaex.expression.Expression)
 
 
 for entry in pkg_resources.iter_entry_points(group='vaex.plugin'):

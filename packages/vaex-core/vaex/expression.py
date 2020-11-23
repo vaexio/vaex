@@ -1006,6 +1006,7 @@ def f({0}):
     def is_string(self):
         return self.df.is_string(self.expression)
 
+
 class FunctionSerializable(object):
     pass
 

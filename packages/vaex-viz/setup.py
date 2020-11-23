@@ -26,5 +26,6 @@ setup(name=name + '-viz',
       packages=['vaex.viz'],
       zip_safe=False,
       entry_points={'vaex.dataframe.accessor': ['viz = vaex.viz:DataFrameAccessorViz'],
+                    'vaex.expression.accessor': ['viz = vaex.viz:ExpressionAccessorViz'],
                     'vaex.plugin': ['plot = vaex.viz.mpl:add_plugin']}
       )
