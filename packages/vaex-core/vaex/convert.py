@@ -92,3 +92,59 @@ def _from_csv_convert_and_read(filename_or_buffer, maybe_convert_path, chunk_siz
             except Exception as e:
                 log.error('Could not close or delete intermediate hdf5 file %s used to convert %s to hdf5: %s' % (
                     df_path, csv_path, e))
+
+
+def main(argv):
+    import argparse
+    parser = argparse.ArgumentParser(argv[0])
+    parser.add_argument('--verbose', '-v', action='count', default=0)
+    parser.add_argument('--quiet', '-q', default=False, action='store_true', help="do not output anything")
+    parser.add_argument('--list', '-l', default=False, action='store_true', help="list columns of input")
+    parser.add_argument('--progress', help="show progress (default: %(default)s)", default=True, action='store_true')
+    parser.add_argument('--no-progress', dest="progress", action='store_false')
+    parser.add_argument('--shuffle', "-s", dest="shuffle", action='store_true', default=False)
+    parser.add_argument('--sort', dest="sort", default=None)
+    parser.add_argument('--fraction', "-f", dest="fraction", type=float, default=1.0, help="fraction of input dataset to export")
+    parser.add_argument('--filter', dest="filter", default=None, help="filter to apply before exporting")
+    parser.add_argument("input", help="input source or file, when prefixed with @ it is assumed to be a text file with a file list (one file per line)")
+    parser.add_argument("output", help="output file (ends in .hdf5)")
+    parser.add_argument("columns", help="list of columns to export (or all when empty)", nargs="*")
+
+    args = parser.parse_args(argv[1:])
+
+    verbosity = ["ERROR", "WARNING", "INFO", "DEBUG"]
+    logging.getLogger("vaex").setLevel(verbosity[min(3, args.verbose)])
+    if args.input[0] == "@":
+        inputs = open(args.input[1:]).readlines()
+        df = vaex.open_many(inputs)
+    else:
+        df = vaex.open(args.input)
+
+    if df:
+        df.set_active_fraction(args.fraction)
+    if args.list:
+        print("\n".join(df.get_column_names()))
+    else:
+        if args.columns:
+            all_columns = df.get_column_names()
+            columns = args.columns
+            for column in columns:
+                if column not in all_columns:
+                    # if not args.quiet:
+                    print("column %r does not exist, run with --list or -l to list all columns" % column)
+                return 1
+            df = df[columns]
+        else:
+            columns = df.get_column_names()
+
+        if not args.quiet:
+            print("exporting %d rows and %d columns" % (len(df), len(columns)))
+            print("columns: " + " ".join(columns))
+
+        if args.filter:
+            df = df.filter(args.filter)
+        df.export(args.output, progress=args.progress)
+        if not args.quiet:
+            print("\noutput to %s" % os.path.abspath(args.output))
+        df.close()
+    return 0

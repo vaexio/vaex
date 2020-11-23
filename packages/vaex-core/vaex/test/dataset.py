@@ -1298,21 +1298,14 @@ class TestDataset(unittest.TestCase):
 				dataset.set_active_fraction(1)
 
 	def test_export_cmdline(self):
-		import vaex.export
+		import vaex.convert
 		path_arrow = tempfile.mktemp(".arrow")
 		path_hdf5 = tempfile.mktemp(".hdf5")
 		dataset = self.dataset
 		dataset.export(path_arrow)
-		name = "vaex export"
+		name = "vaex convert"
 		#print(path_fits)
-		vaex.export.main([name, "--no-progress", "-q", "file", path_arrow, path_hdf5])
-		backup = vaex.vaex.utils.check_memory_usage
-		try:
-			vaex.vaex.utils.check_memory_usage = lambda *args: False
-			assert vaex.export.main([name, "--no-progress", "-q", "soneira", "--dimension=2", "-m=40", path_hdf5]) == 1
-		finally:
-			vaex.utils.check_memory_usage = backup
-		assert vaex.export.main([name, "--no-progress", "-q", "soneira", "--dimension=2", "-m=20", path_hdf5]) == 0
+		assert vaex.convert.main([name, "--no-progress", "-q", path_arrow, path_hdf5]) == 0
 
 	def test_fraction(self):
 		counter_selection = CallbackCounter()
