@@ -110,8 +110,8 @@ def main(args=None):
             import vaex.benchmark
             vaex.benchmark.main([os.path.basename(args[0]) + " " + args[1]] + args[2:])
         elif len(args) > 1 and args[1] == "convert":
-            import vaex.export
-            vaex.export.main([os.path.basename(args[0]) + " " + args[1]] + args[2:])
+            import vaex.convert
+            vaex.convert.main([os.path.basename(args[0]) + " " + args[1]] + args[2:])
         elif len(args) > 1 and args[1] == "meta":
             import vaex.meta
             vaex.meta.main([os.path.basename(args[0]) + " " + args[1]] + args[2:])
