@@ -164,12 +164,14 @@ def _export_column(dataset_input, dataset_output, column_name, shuffle, sort, se
 
         if 1:
             to_array = dataset_output.columns[column_name]
-            dtype = dataset_input.data_type(column_name, array_type='numpy')
-            is_string = vaex.array_types.is_string_type(dtype)
+            dtype = dataset_input.data_type(column_name)
+            is_string = dtype.is_string
             if is_string:
-                assert isinstance(to_array, pa.Array)  # we don't support chunked arrays here
+                # assert isinstance(to_array, pa.Array)  # we don't support chunked arrays here
                 # TODO legacy: we still use ColumnStringArrow to write, find a way to do this with arrow
-                to_array = ColumnStringArrow.from_arrow(to_array)
+                # this is the case with hdf5 and remote storage
+                if not isinstance(to_array, ColumnStringArrow):
+                    to_array = ColumnStringArrow.from_arrow(to_array)
             if shuffle or sort:  # we need to create a in memory copy, otherwise we will do random writes which is VERY inefficient
                 to_array_disk = to_array
                 if np.ma.isMaskedArray(to_array):

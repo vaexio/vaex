@@ -115,7 +115,7 @@ class ColumnArrowLazyCast(Column):
 
     @property
     def dtype(self):
-        return vaex.array_types.to_numpy_type(self.type)
+        return self.type
 
     def __len__(self):
         return len(self.ar)
@@ -496,7 +496,7 @@ def _trim_bits(column, i1, i2):
 
 class ColumnStringArrow(ColumnString):
     """Column that unpacks the arrow string column on the fly"""
-    def __init__(self, indices, bytes, length=None, offset=0, string_sequence=None, null_bitmap=None, null_offset=0, references=None):
+    def __init__(self, indices, bytes, length=None, offset=0, string_sequence=None, null_bitmap=None, references=None):
         self._string_sequence = string_sequence
         self.indices = indices
         self.offset = offset  # to avoid memory copies in trim
@@ -511,7 +511,6 @@ class ColumnStringArrow(ColumnString):
         self.shape = (self.__len__(),)
         self.nbytes = self.bytes.nbytes + self.indices.nbytes
         self.null_bitmap = null_bitmap
-        self.null_offset = null_offset
         # references is to keep other objects alive, similar to pybind11's keep_alive
         self.references = references or []
 
@@ -519,19 +518,29 @@ class ColumnStringArrow(ColumnString):
             raise ValueError('unsupported index type' + str(self.indices.dtype))
 
     def __arrow_array__(self, type=None):
-        indices = self.indices
+        offsets = self.indices
         type = type or self.dtype
         if type == pa.string() and self.dtype == pa.large_string():
-            indices = indices.astype(np.int32)  # downcast
+            offsets = offsets.astype(np.int32)  # downcast
         elif type == pa.large_string() and self.dtype == pa.string():
             type = pa.string()  # upcast
-        # TODO: we dealloc the memory in the C++ extension, so we need to copy for now
-        buffers = [None, pa.py_buffer(_asnumpy(indices).copy() - self.offset), pa.py_buffer(_asnumpy(self.bytes).view(np.uint8).copy()), ]
+
+        # this code is very similar to vaex.arrow.convert.trim_buffers
+        new_offset = self.offset % 8
+        remove_offset = (self.offset // 8) * 8
+        offsets = _asnumpy(_trim(offsets, remove_offset, self.offset + self.length + 1))
+        first_offset = offsets[0]
+        last_offset = offsets[new_offset + self.length]
+        new_offsets = offsets - first_offset
         if self.null_bitmap is not None:
-            assert self.null_offset == 0 #self.offset
-            buffers[0] = pa.py_buffer(_asnumpy(self.null_bitmap).copy())
-        arrow_array = pa.Array.from_buffers(type, self.length, buffers=buffers)
-        return arrow_array
+            null_bitmap, null_offset = _trim_bits(self.null_bitmap, self.offset, self.offset+self.length)
+            assert null_offset == new_offset
+            null_bitmap = pa.py_buffer(_asnumpy(null_bitmap))
+        else:
+            null_bitmap = None
+        new_offsets_buffer = pa.py_buffer(new_offsets)
+        bytes = pa.py_buffer(_asnumpy(_trim(self.bytes, first_offset, last_offset)))
+        return pa.Array.from_buffers(type, self.length, [null_bitmap, new_offsets_buffer, bytes], offset=new_offset)
 
     @property
     def string_sequence(self):
@@ -542,10 +551,29 @@ class ColumnStringArrow(ColumnString):
                 string_type = vaex.strings.StringList32
             else:
                 raise ValueError('unsupported index type' + str(self.indices.dtype))
-            if self.null_bitmap is not None:
-                self._string_sequence = string_type(_asnumpy(self.bytes), _asnumpy(self.indices), self.length, self.offset, _asnumpy(self.null_bitmap), self.null_offset)
+            if self.offset == 0 and self.length == len(self.indices) - 1:
+                # if the string is 'empty' with no indices
+                # we just copy
+                bytes = _asnumpy(self.bytes)
+                indices = _asnumpy(self.indices)
+                if self.null_bitmap is not None:
+                    self._string_sequence = string_type(bytes, indices, self.length, self.offset, _asnumpy(self.null_bitmap), 0)
+                else:
+                    self._string_sequence = string_type(bytes, indices, self.length, self.offset)
             else:
-                self._string_sequence = string_type(_asnumpy(self.bytes), _asnumpy(self.indices), self.length, self.offset)
+                indices = _asnumpy(_trim(self.indices, self.offset, self.offset + self.length+1))
+                if self.length:
+                    byte_offset = indices[0]
+                    byte_end = indices[self.length]
+                    indices = indices - indices[0]
+                    bytes = _asnumpy(_trim(self.bytes, byte_offset, byte_end))
+                else:
+                    bytes = _asnumpy(_trim(self.bytes, 0, 0))
+                if self.null_bitmap is not None:
+                    null_bitmap, null_offset = _trim_bits(self.null_bitmap, self.offset, self.offset+self.length)
+                    self._string_sequence = string_type(bytes, indices, self.length, 0, _asnumpy(null_bitmap), null_offset)
+                else:
+                    self._string_sequence = string_type(bytes, indices, self.length, 0)
         return self._string_sequence
 
     def __len__(self):
@@ -590,26 +618,24 @@ class ColumnStringArrow(ColumnString):
         return self.string_sequence.to_numpy()
 
     def trim(self, i1, i2):
-        byte_offset = self.indices[i1:i1+1][0] - self.offset
-        byte_end = self.indices[i2:i2+1][0] - self.offset
-        indices = _trim(self.indices, i1, i2+1)
-        bytes = _trim(self.bytes, byte_offset, byte_end)
-        null_bitmap = self.null_bitmap
-        null_offset = self.null_offset
-        if null_bitmap is not None:
-            null_bitmap, null_offset = _trim_bits(self.null_bitmap, i1, i2)
+        assert i2 >= i1
         references = self.references + [self]
-        return type(self)(indices, bytes, i2-i1, self.offset + byte_offset, null_bitmap=null_bitmap,
-                null_offset=null_offset, references=references)
+        return type(self)(self.indices, self.bytes, i2-i1, self.offset + i1, null_bitmap=self.null_bitmap,
+                references=references)
 
     @classmethod
     def from_string_sequence(cls, string_sequence):
         s = string_sequence
-        return cls(s.indices, s.bytes, s.length, s.offset, string_sequence=s, null_bitmap=s.null_bitmap)
+        null_bitmap = s.null_bitmap
+        if s.null_offset != 0:
+            mask = ~s.mask()
+            null_bitmap = np.frombuffer(pa.array(mask, pa.bool_()).buffers()[1], dtype='b')
+        return cls(s.indices, s.bytes, s.length, s.offset, string_sequence=s, null_bitmap=null_bitmap)
 
     @classmethod
     def from_arrow(cls, ar):
-        return cls.from_string_sequence(_to_string_sequence(ar))
+        import vaex.arrow.convert
+        return vaex.arrow.convert.column_from_arrow_array(ar)
 
     def _zeros_like(self):
         return ColumnStringArrow(np.zeros_like(self.indices), np.zeros_like(self.bytes), self.length, null_bitmap=self.null_bitmap)

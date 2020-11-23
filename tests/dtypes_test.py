@@ -47,3 +47,20 @@ def test_dtype_str():
     df = vaex.from_arrays(n=n)
     assert df.n.dtype == pa.string()
     assert df.copy().n.dtype == pa.string()
+
+
+def test_dtype_str_invalid_identifier():
+    df = vaex.from_dict({'#': ['foo']})
+    assert df.data_type('#') == 'string'
+    assert df.data_type('#', array_type='numpy') == 'object'
+    assert df.data_type('#', array_type='numpy-arrow') == 'string'
+    assert df['#'].dtype == 'string'
+
+
+def test_dtype_str_virtual_column():
+    df = vaex.from_dict({'s': ['foo']})
+    df['v'] = df.s.str.lower()
+    assert df.data_type('v') == 'string'
+    assert df.data_type('v', array_type='numpy') == 'object'
+    assert df.data_type('v', array_type='numpy-arrow') == 'string'
+    assert df['v'].dtype == 'string'

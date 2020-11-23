@@ -1,5 +1,9 @@
+import pytest
+
+import pyarrow as pa
 import vaex
 import numpy as np
+
 
 def test_vrange():
     N = 1000**3
@@ -13,6 +17,7 @@ def test_vrange():
     assert df[1:11].x.tolist() == (np.arange(1, 11.)).tolist()
     df['y'] = df.x**2
     assert df[1:11].y.tolist()== (np.arange(1, 11)**2).tolist()
+
 
 def test_arrow_strings():
     N = 4
@@ -104,3 +109,32 @@ def test_column_indexed(df_local):
     assert column_masked[:].tolist() == [1, None, 5, 7, 9]
     assert column_masked.masked
     assert column_masked.trim(0, 1).masked
+
+
+@pytest.mark.skipif(pa.__version__.split(".")[0] == '1', reason="segfaults in arrow v1")
+@pytest.mark.parametrize("i1", list(range(0, 8)))
+@pytest.mark.parametrize("i2", list(range(0, 8)))
+def test_column_string_trim(i1, i2):
+    slist = ['aap', 'noot', None, None, 'teun'] * 3
+    s = pa.array(slist, type=pa.string())
+    c = vaex.column.ColumnStringArrow.from_arrow(s)
+    assert pa.array(c).tolist() == s.tolist()
+
+    c_trim = c.trim(i1, i1+i2)
+    bytes_needed = sum(len(k) if k else 0 for k in slist[i1:i1+i2])
+    assert c_trim.tolist() == s.tolist()[i1:i1+i2]
+    assert c_trim.tolist() == slist[i1:i1+i2]
+    s_vaex = pa.array(c_trim)
+    s_vaex.validate()
+    assert s_vaex.offset < 8,  'above byte boundary'
+    # difficult to check, depends on offset
+    # assert len(s_vaex.buffers()[2]) == bytes_needed + s_vaex.offset
+    assert s_vaex.tolist() == slist[i1:i1+i2]
+
+    # extra code path via string_sequence
+    c_copy = vaex.column.ColumnStringArrow.from_string_sequence(c_trim.string_sequence)
+    assert len(c_trim.string_sequence.bytes) == bytes_needed
+    assert len(c_trim.string_sequence.indices) == len(slist[i1:i1+i2]) + 1
+    s_vaex = pa.array(c_copy)
+    assert c_copy.tolist() == slist[i1:i1+i2]
+    assert s_vaex.tolist() == slist[i1:i1+i2]

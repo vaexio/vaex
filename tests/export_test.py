@@ -20,6 +20,13 @@ def test_export_empty_string(tmpdir, filename):
     repr(df)
 
 
+def test_export_non_identifier(tmpdir):
+    df = vaex.from_dict({'#': ['foo']})
+    df.export_hdf5(tmpdir / 'test.hdf5')
+    df2 = vaex.open(tmpdir / 'test.hdf5')
+    assert df2['#'].tolist() == ['foo']
+
+
 def test_export_many_name(df_local, tmpdir):
     df = df_local[['x']]
     df.export_many(tmpdir / 'chunk.parquet', chunk_size=3)

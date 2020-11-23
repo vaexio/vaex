@@ -145,8 +145,7 @@ def convert(x, type, default_type="numpy"):
         raise ValueError("Unknown type: %r" % type)
 
 
-def numpy_dtype(x, strict=False):
-    assert not strict
+def numpy_dtype(x, strict=True):
     from . import column
     if isinstance(x, column.ColumnString):
         return x.dtype
@@ -154,17 +153,28 @@ def numpy_dtype(x, strict=False):
         return x.dtype
     elif isinstance(x, supported_arrow_array_types):
         arrow_type = x.type
-        if isinstance(arrow_type, pa.DictionaryType):
-            # we're interested in the type of the dictionary or the indices?
-            if isinstance(x, pa.ChunkedArray):
-                # take the first dictionaryu
-                x = x.chunks[0]
-            return numpy_dtype(x.dictionary)
-        if arrow_type in string_types:
-            return arrow_type
+        from .datatype import DataType
+        # dtype = DataType(arrow_type)
         dtype = arrow_type.to_pandas_dtype()
         dtype = np.dtype(dtype)  # turn into instance
-        return dtype
+        if strict:
+            return dtype
+        else:
+            if dtype.kind in 'iufbMm':
+                return dtype
+            else:
+                return arrow_type
+
+        # I don't there is a reason anymore to return this type, the to_pandas_dtype should
+        # handle that
+        # if isinstance(arrow_type, pa.DictionaryType):
+        #     # we're interested in the type of the dictionary or the indices?
+        #     if isinstance(x, pa.ChunkedArray):
+        #         # take the first dictionary
+        #         x = x.chunks[0]
+        #     return numpy_dtype(x.dictionary)
+        # if arrow_type in string_types:
+        #     return arrow_type
     else:
         raise TypeError("Cannot determine numpy dtype from: %r" % x)
 
@@ -183,11 +193,23 @@ def to_arrow_type(data_type):
         return data_type
 
 
-def to_numpy_type(data_type):
+def to_numpy_type(data_type, strict=True):
+    """
+
+    Examples:
+    >>> to_numpy_type(np.dtype('f8'))
+    dtype('float64')
+    >>> to_numpy_type(pa.float64())
+    dtype('float64')
+    >>> to_numpy_type(pa.string())
+    dtype('O')
+    >>> to_numpy_type(pa.string(), strict=False)
+    DataType(string)
+    """
     if isinstance(data_type, np.dtype):
         return data_type
     else:
-        return numpy_dtype_from_arrow_type(data_type)
+        return numpy_dtype_from_arrow_type(data_type, strict=strict)
 
 
 def arrow_type_from_numpy_dtype(dtype):
@@ -195,9 +217,9 @@ def arrow_type_from_numpy_dtype(dtype):
     return arrow_type(data)
 
 
-def numpy_dtype_from_arrow_type(arrow_type):
+def numpy_dtype_from_arrow_type(arrow_type, strict=True):
     data = pa.array([], type=arrow_type)
-    return numpy_dtype(data)
+    return numpy_dtype(data, strict=strict)
 
 
 def type_promote(t1, t2):
