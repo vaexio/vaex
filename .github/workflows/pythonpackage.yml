@@ -17,10 +17,6 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest, macOS-latest]
         python-version: [3.6, 3.7, 3.8]
-        exclude:
-        # windows + conda + py38 doesn't work yet (dependency issue)
-        - os: windows-latest
-          python-version: 3.8
 
     steps:
     - uses: actions/checkout@v1
@@ -43,12 +39,19 @@ jobs:
       run: |
         conda install -c conda-forge mamba
         ./ci/02-create-vaex-dev-env.sh ${{ matrix.python-version }} mamba
+    - name: Extra non-windows installs
+      if: matrix.os != 'windows-latest'
+      shell: bash
+      run: |
+        source activate vaex-dev
+        mamba install -c conda-forge py-xgboost
+        # xgboost is not available on windows on conda-forge
     - name: Extra windows installs
       if: matrix.os == 'windows-latest'
       shell: bash
       run: |
         source activate vaex-dev
-        pip install "ipython>=7" "dask>=1"
+        pip install "ipython>=7" "dask>=1" xgboost
         # not sure why, but the conda env is strange (old dask) if we put this constraint in the conda solver
     - name: free disk space
       if: matrix.os == 'ubuntu-latest'
