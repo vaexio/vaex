@@ -147,7 +147,7 @@ def export_hdf5(dataset, path, column_names=None, byteorder="=", shuffle=False, 
                 sparse_groups[id(sparse_matrix)].append(column_name)
                 sparse_matrices[id(sparse_matrix)] = sparse_matrix
                 continue
-            dtype = dataset.data_type(column_name, array_type='numpy')
+            dtype = dataset.data_type(column_name)
             shape = (N, ) + dataset._shape_of(column_name)[1:]
             h5column_output = h5columns_output.require_group(column_name)
             if vaex.array_types.is_string_type(dtype):
@@ -173,7 +173,7 @@ def export_hdf5(dataset, path, column_names=None, byteorder="=", shuffle=False, 
                 index_array = h5column_output.require_dataset('indices', shape=indices_shape, dtype=dtype_indices)
                 index_array[0] = index_array[0]  # make sure the array really exists
 
-                null_value_count = N - dataset.count(column_name, selection=selection)
+                null_value_count = N - dataset.count(df[column_name], selection=selection)
                 if null_value_count > 0:
                     null_shape = ((N + 7) // 8, )  # TODO: arrow requires padding right?
                     null_bitmap_array = h5column_output.require_dataset('null_bitmap', shape=null_shape, dtype='u1')
