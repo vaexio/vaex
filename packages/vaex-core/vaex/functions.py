@@ -155,7 +155,15 @@ for name, numpy_name in numpy_function_mapping:
         function = getattr(np, numpy_name)
         def f(function=function):
             def wrapper(*args, **kwargs):
-                return function(*args, **kwargs)
+                # convert to numpy
+                args = [vaex.arrow.numpy_dispatch.wrap(k) for k in args]
+                numpy_data = [k.numpy_array if isinstance(k, vaex.arrow.numpy_dispatch.NumpyDispatch) else k for k in args]
+                result = function(*numpy_data, **kwargs)
+                # and put back the masks
+                for arg in args:
+                    if isinstance(arg, vaex.arrow.numpy_dispatch.NumpyDispatch):
+                        result = arg.add_missing(result)
+                return vaex.arrow.numpy_dispatch.wrap(result)
             return wrapper
         function = f()
         function.__doc__ = "Lazy wrapper around :py:data:`numpy.%s`" % name

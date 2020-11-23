@@ -61,16 +61,19 @@ class _StatisticsCalculation(Expression):
         return "{0}({1})".format(self.name, ", ".join(repr(k) for k in self.args))
 
     def calculate(self, ds, binby=[], shape=256, limits=None, selection=None, delay=False, progress=None):
+        import vaex.arrow.numpy_dispatch
+        @delayed
+        def unwrap(x):
+            return vaex.arrow.numpy_dispatch.unwrap(x)
         def to_value(v):
             if isinstance(v, Expression):
-                return v.calculate(ds, binby=binby, shape=shape, limits=limits, selection=selection, delay=delay, progress=progress)
-            return v
+                return unwrap(v.calculate(ds, binby=binby, shape=shape, limits=limits, selection=selection, delay=delay, progress=progress))
+            return unwrap(v)
         values = [to_value(v) for v in self.args]
-        # print(values, self.op)
         op = self.op
-        if delay:
-            op = delayed(op)
-        return op(*values)
+        op = delayed(op)
+        value = unwrap(op(*values))
+        return value if delay else value.get()
 
 
 class _Statistic(Expression):

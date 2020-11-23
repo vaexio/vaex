@@ -25,6 +25,7 @@ from .utils import (_ensure_strings_from_expressions,
     as_flat_array,
     _split_and_combine_mask)
 from .expression import expression_namespace
+from vaex.arrow.numpy_dispatch import wrap, unwrap
 import vaex.expression
 
 logger = logging.getLogger('vaex.scopes')
@@ -111,8 +112,7 @@ class _BlockScope(ScopeBase):
             #   result = out
             # logger.debug("out eval")
         # logger.debug("done with eval of %s", expression)
-        if isinstance(result, vaex.arrow.numpy_dispatch.NumpyDispatch):
-            result = result.arrow_array
+        result = unwrap(result)
         return result
 
     def __getitem__(self, variable):
@@ -140,8 +140,7 @@ class _BlockScope(ScopeBase):
                         values = values.filter(vaex.array_types.to_arrow(self.mask))
                     else:
                         values = values[self.mask]
-                if isinstance(values, vaex.array_types.supported_arrow_array_types):
-                    values = vaex.arrow.numpy_dispatch.NumpyDispatch(values)
+                values = wrap(values)
                 self.values[variable] = values
             elif variable in list(self.df.virtual_columns.keys()):
                 expression = self.df.virtual_columns[variable]
@@ -152,8 +151,7 @@ class _BlockScope(ScopeBase):
                 else:
                     # self._ensure_buffer(variable)
                     values = self.evaluate(expression)
-                    if isinstance(values, vaex.array_types.supported_arrow_array_types):
-                        values = vaex.arrow.numpy_dispatch.NumpyDispatch(values)
+                    values = wrap(values)
                     self.values[variable] = values
                     # self.values[variable] = self.buffers[variable]
             elif variable in self.df.functions:
@@ -187,8 +185,7 @@ class _BlockScopeSelection(ScopeBase):
             import traceback as tb
             tb.print_stack()
             raise
-        if isinstance(result, vaex.arrow.numpy_dispatch.NumpyDispatch):
-            result = result.arrow_array
+        result = unwrap(result)
         return result
 
     def __contains__(self, name):  # otherwise pdb crashes during pytest
@@ -251,8 +248,7 @@ class _BlockScopeSelection(ScopeBase):
                             values = values.filter(vaex.array_types.to_arrow(self.filter_mask))
                         else:
                             values = values[self.filter_mask]
-                    if isinstance(values, vaex.array_types.supported_arrow_array_types):
-                        values = vaex.arrow.numpy_dispatch.NumpyDispatch(values)
+                    values = wrap(values)
                     return values
                 elif variable in self.df.variables:
                     return self.df.variables[variable]
@@ -262,8 +258,7 @@ class _BlockScopeSelection(ScopeBase):
                     if expression == variable:
                         raise ValueError(f'Recursion protection: virtual column {variable} refers to itself')
                     values = self.evaluate(expression)  # , out=self.buffers[variable])
-                    if isinstance(values, vaex.array_types.supported_arrow_array_types):
-                        values = vaex.arrow.numpy_dispatch.NumpyDispatch(values)
+                    values = wrap(values)
                     return values
                 elif variable in self.df.functions:
                     f = self.df.functions[variable].f

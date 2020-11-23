@@ -235,11 +235,7 @@ class ExecutorLocal(Executor):
                 chunks = {k:vaex.array_types.filter(v, filter_mask) for k, v, in chunks.items()}
             else:
                 filter_mask = None
-            def wrap(ar):
-                if isinstance(ar, vaex.array_types.supported_arrow_array_types):
-                    ar = vaex.arrow.numpy_dispatch.NumpyDispatch(ar)
-                return ar
-            chunks = {name: wrap(ar) for name, ar in chunks.items()}
+            chunks = {name: vaex.arrow.numpy_dispatch.wrap(ar) for name, ar in chunks.items()}
             block_scope.values.update(chunks)
             block_scope.mask = filter_mask
             block_dict = {expression: block_scope.evaluate(expression) for expression in run.expressions}
