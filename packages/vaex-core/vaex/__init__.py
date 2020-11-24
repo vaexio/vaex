@@ -516,7 +516,7 @@ def from_csv(filename_or_buffer, copy_index=False, chunk_size=None, convert=Fals
 def _from_csv_read(filename_or_buffer, copy_index, chunk_size, fs_options={}, **kwargs):
     import pandas as pd
     if not chunk_size:
-        with vaex.file.open(filename_or_buffer, fs_options=fs_options) as f:
+        with vaex.file.open(filename_or_buffer, fs_options=fs_options, for_arrow=True) as f:
             full_df = pd.read_csv(f, **kwargs)
             return from_pandas(full_df, copy_index=copy_index)
     else:

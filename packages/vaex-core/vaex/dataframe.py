@@ -5884,7 +5884,7 @@ class DataFrameLocal(DataFrame):
         if isinstance(to, str):
             schema = self[0:1].to_arrow_table(parallel=False, reduce_large=reduce_large).schema
             fs_options = fs_options or {}
-            with vaex.file.open_for_arrow(path=to, mode='wb', fs_options=fs_options) as sink:
+            with vaex.file.open(path=to, mode='wb', fs_options=fs_options) as sink:
                 if as_stream:
                     with pa.RecordBatchStreamWriter(sink, schema) as writer:
                         write(writer)
@@ -5911,7 +5911,7 @@ class DataFrameLocal(DataFrame):
         """
         import pyarrow.parquet as pq
         schema = self[0:1].to_arrow_table(parallel=False, reduce_large=True).schema
-        with vaex.file.open_for_arrow(path=path, mode='wb', fs_options=fs_options) as sink:
+        with vaex.file.open(path=path, mode='wb', fs_options=fs_options) as sink:
             with pq.ParquetWriter(sink, schema, **kwargs) as writer:
                 self.export_arrow(writer, progress=progress, chunk_size=chunk_size, parallel=parallel, reduce_large=True)
 

@@ -153,8 +153,8 @@ def from_table(table):
 
 
 def open(path, fs_options):
-    source = vaex.file.open_for_arrow(path=path, mode='rb', fs_options=fs_options, mmap=True)
-    file_signature = source.read(6)
+    source = vaex.file.open(path=path, mode='rb', fs_options=fs_options, mmap=True, for_arrow=True)
+    file_signature = bytes(source.read(6))
     is_arrow_file = file_signature == b'ARROW1'
     source.seek(0)
 
@@ -171,7 +171,7 @@ def open(path, fs_options):
 
 def open_parquet(path, fs_options={}):
     import vaex.file
-    file_system, path = vaex.file.parse(path, fs_options)
+    file_system, path = vaex.file.parse(path, fs_options, for_arrow=True)
     arrow_ds = pyarrow.dataset.dataset(path, filesystem=file_system)
     return DatasetArrow(arrow_ds)
 

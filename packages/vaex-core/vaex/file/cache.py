@@ -20,9 +20,10 @@ class FileSystemHandlerCached(FileSystemHandler):
     """Proxies it to use the CachedFile
     """
 
-    def __init__(self, fs, scheme):
+    def __init__(self, fs, scheme, for_arrow=False):
         self.fs = fs
         self.scheme = scheme
+        self.for_arrow = for_arrow
         self._file_cache = {}
 
     def __eq__(self, other):
@@ -46,11 +47,13 @@ class FileSystemHandlerCached(FileSystemHandler):
         full_path = f'{self.scheme}://{path}'
         # TODO: we may wait to cache the mmapped file
         if full_path not in self._file_cache:
-            f = CachedFile(real_open, full_path)
+            f = CachedFile(real_open, full_path, read_as_buffer=not self.for_arrow)
             self._file_cache[full_path] = f
         else:
             previous = self._file_cache[full_path]
             f = CachedFile(real_open, full_path, data_file=previous.data_file, mask_file=previous.mask_file)
+        if not self.for_arrow:
+            return f
         f = vaex.file.FileProxy(f, full_path, None)
         return PythonFile(f, mode="r")
 
@@ -62,11 +65,13 @@ class FileSystemHandlerCached(FileSystemHandler):
         full_path = f'{self.scheme}://{path}'
         # TODO: we may wait to cache the mmapped file
         if full_path not in self._file_cache:
-            f = CachedFile(real_open, full_path)
+            f = CachedFile(real_open, full_path, read_as_buffer=not self.for_arrow)
             self._file_cache[full_path] = f
         else:
             previous = self._file_cache[full_path]
-            f = CachedFile(real_open, full_path, data_file=previous.data_file, mask_file=previous.mask_file)
+            f = CachedFile(real_open, full_path, data_file=previous.data_file, mask_file=previous.mask_file, read_as_buffer=not self.for_arrow)
+        if not self.for_arrow:
+            return f
         f = vaex.file.FileProxy(f, full_path, None)
         return PythonFile(f, mode="r")
 
@@ -137,7 +142,7 @@ def _to_index(block, block_size):
 
 
 class CachedFile:
-    def __init__(self, file, path=None, cache_dir=None, block_size=DEFAULT_BLOCK_SIZE, data_file=None, mask_file=None):
+    def __init__(self, file, path=None, cache_dir=None, block_size=DEFAULT_BLOCK_SIZE, data_file=None, mask_file=None, read_as_buffer=True):
         """Decorator that wraps a file object (typically a s3) by caching the content locally on disk.
 
         The standard location for the cache is: ~/.vaex/file-cache/<protocol (e.g. s3)>/path/to/file.ext
@@ -152,6 +157,7 @@ class CachedFile:
         self.file = file
         self.cache_dir = cache_dir
         self.block_size = block_size
+        self.read_as_buffer = read_as_buffer
 
         self.block_reads = 0
         self.reads = 0
@@ -193,7 +199,7 @@ class CachedFile:
             file = self.file
         else:
             file = lambda: vaex.file.dup(self.file)
-        return CachedFile(file, self.path, self.cache_dir, self.block_size, data_file=self.data_file, mask_file=self.mask_file)
+        return CachedFile(file, self.path, self.cache_dir, self.block_size, data_file=self.data_file, mask_file=self.mask_file, read_as_buffer=self.read_as_buffer)
 
     def tell(self):
         return self.loc
@@ -216,19 +222,29 @@ class CachedFile:
         end = self.loc + length if length != -1 else self.length
         self._ensure_cached(start, end)
         self.loc = end
-        # we have no other option than to return a copy of the data here
-        return self.data_file.data[start:end].view('S1').tobytes()
+        buffer = self.data_file[start:end]
+        # arrow 1 and 2 don't accept a non-bytes object via the PythonFile.read() path
+        return buffer if self.read_as_buffer else buffer.tobytes()
 
-    def __readinto(self, bytes):
+    def readinto(self, buffer):
         start = self.loc
-        end = start + len(bytes)
+        end = start + len(buffer)
         self._ensure_cached(start, end)
-        bytes[:] = self.data_file.data[start:end]
+        buffer[:] = self.data_file[start:end]
+        self.loc = end
+        return len(buffer)
+
+    def read_buffer(self, byte_count):
+        start = self.loc
+        end = start + byte_count
+        self._ensure_cached(start, end)
+        self.loc = end
+        return self.data_file[start:end]
 
     def _as_numpy(self, offset, byte_length, dtype):
         # quick route that avoids memory copies
         self._ensure_cached(offset, offset+byte_length)
-        return self.data_file.data[offset:offset+byte_length].view(dtype)
+        return np.frombuffer(self.data_file[offset:offset+byte_length], dtype)
 
     def _fetch_blocks(self, block_start, block_end):
         start_blocked = _to_index(block_start, self.block_size)

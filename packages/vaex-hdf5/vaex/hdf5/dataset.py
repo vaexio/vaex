@@ -81,7 +81,7 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
             self.file_map[self.path] = file
         else:
             mode = 'rb+' if self.write else 'rb'
-            file = vaex.file.open(self.path, mode=mode, fs_options=self.fs_options)
+            file = vaex.file.open(self.path, mode=mode, fs_options=self.fs_options, for_arrow=False)
             self.file_map[self.path] = file
         self.h5file = h5py.File(file, "r+" if self.write else "r")
 
