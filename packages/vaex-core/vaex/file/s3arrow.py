@@ -14,7 +14,7 @@ def glob(path, fs_options={}):
     return glob(path, fs_options)
 
 
-def parse(path, fs_options):
+def parse(path, fs_options, for_arrow=False):
     path, fs_options = split_options(path, fs_options)
     path = path.replace('arrow+s3://', 's3://')
     scheme, _ = split_scheme(path)
@@ -31,6 +31,7 @@ def parse(path, fs_options):
         fs_options['region'] = file_system.region
     fs = pa.fs.S3FileSystem(**fs_options)
     if use_cache:
-        fs = FileSystemHandlerCached(fs, scheme='s3')
-        fs = pyarrow.fs.PyFileSystem(fs)
+        fs = FileSystemHandlerCached(fs, scheme='s3', for_arrow=for_arrow)
+        if for_arrow:
+            fs = pyarrow.fs.PyFileSystem(fs)
     return fs, path

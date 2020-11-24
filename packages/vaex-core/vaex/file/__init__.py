@@ -155,7 +155,7 @@ def exists(path, fs_options={}):
     if fs is None:
         return os.path.exists(path)
     else:
-        return fs.get_file_info(path).type != pa.fs.FileType.NotFound
+        return fs.get_file_info([path])[0].type != pa.fs.FileType.NotFound
 
 
 def _get_scheme_handler(path):
@@ -166,7 +166,7 @@ def _get_scheme_handler(path):
     raise ValueError(f'Do not know how to open {path}, no handler for {scheme} is known')
 
 
-def parse(path, fs_options={}):
+def parse(path, fs_options={}, for_arrow=False):
     if isinstance(path, (list, tuple)):
         scheme, _ = split_scheme(path[0])
     else:
@@ -175,10 +175,10 @@ def parse(path, fs_options={}):
         return None, path
     if isinstance(path, (list, tuple)):
         module = _get_scheme_handler(path[0])
-        return module.parse(path[0], fs_options)[0], path
+        return module.parse(path[0], fs_options, for_arrow=for_arrow)[0], path
     else:
         module = _get_scheme_handler(path)
-        return module.parse(path, fs_options)
+        return module.parse(path, fs_options, for_arrow=for_arrow)
 
 
 def tokenize(path, fs_options={}):
@@ -206,10 +206,21 @@ def tokenize(path, fs_options={}):
     return vaex.cache.tokenize(('file', (path, mtime, size)))
 
 
-def open(path, mode='rb', fs_options={}):
-    fs, path = parse(path, fs_options=fs_options)
+def open(path, mode='rb', fs_options={}, for_arrow=False, mmap=False):
+    if is_file_object(path):
+        return path
+    fs, path = parse(path, fs_options=fs_options, for_arrow=for_arrow)
     if fs is None:
-        return normal_open(path, mode)
+        path = stringyfy(path)
+        if for_arrow:
+            if fs_options:
+                raise ValueError(f'fs_options not supported for local files. You passed: {repr(fs_options)}.')
+            if mmap:
+                return pa.memory_map(path, mode)
+            else:
+                return pa.OSFile(path, mode)
+        else:
+            return normal_open(path, mode)
     if mode == 'rb':
         def create():
             return fs.open_input_file(path)
@@ -225,27 +236,6 @@ def open(path, mode='rb', fs_options={}):
     else:
         raise ValueError(f'Only mode=rb/bw/r/w are supported, not {mode}')
     return FileProxy(create(), path, create)
-
-
-def open_for_arrow(path, mode='rb', fs_options={}, mmap=False):
-    '''When the file will be passed to arrow, we want file object arrow likes.
-
-    This might avoid peformance issues with GIL, or call overhead.
-    '''
-    import pyarrow as pa
-    if is_file_object(path):
-        return path
-    path = stringyfy(path)
-    scheme, _ = split_scheme(path)
-    if scheme is None:
-        if fs_options:
-            raise ValueError(f'fs_options not supported for local files. You passed: {repr(fs_options)}.')
-        if mmap:
-            return pa.memory_map(path, mode)
-        else:
-            return pa.OSFile(path, mode)
-    else:
-        return open(path, mode=mode, fs_options=fs_options).file
 
 
 def dup(file):

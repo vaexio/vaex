@@ -22,16 +22,16 @@ def patch_profile(fs_options):
     return fs_options
 
 
-def parse(path, fs_options):
+def parse(path, fs_options, for_arrow=False):
     from .s3arrow import parse
     fs_options = patch_profile(fs_options)
     try:
         # raise pa.lib.ArrowNotImplementedError('FOR TESTING')
-        return parse(path, fs_options)
+        return parse(path, fs_options, for_arrow=for_arrow)
     except pa.lib.ArrowNotImplementedError:
         # fallback
         from .s3fs import parse
-        return parse(path, fs_options)
+        return parse(path, fs_options, for_arrow=for_arrow)
 
 
 def glob(path, fs_options={}):
