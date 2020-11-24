@@ -69,15 +69,6 @@ class NumpyDispatch:
                 self._arrow_array = vaex.array_types.to_arrow(self._numpy_array)
         return self._arrow_array
 
-    def __eq__(self, rhs):
-        if vaex.array_types.is_string(self.arrow_array):
-            # this does not support scalar input
-            # return pc.equal(self.arrow_array, rhs)
-            return NumpyDispatch(pa.array(vaex.functions.str_equals(self.arrow_array, rhs)))
-        else:
-            if isinstance(rhs, NumpyDispatch):
-                rhs = rhs.numpy_array
-            return NumpyDispatch(pa.array(self.numpy_array == rhs))
 
 for op in _binary_ops:
     def closure(op=op):
@@ -88,7 +79,10 @@ for op in _binary_ops:
                 a_data = a.numpy_array
             if isinstance(b, NumpyDispatch):
                 b_data = b.numpy_array
-            result_data = op['op'](a_data, b_data)
+            if op['name'] == 'eq' and (vaex.array_types.is_string(a_data) or vaex.array_types.is_string(b_data)):
+                result_data = vaex.functions.str_equals(a_data, b_data)
+            else:
+                result_data = op['op'](a_data, b_data)
             if isinstance(a, NumpyDispatch):
                 result_data = a.add_missing(result_data)
             if isinstance(b, NumpyDispatch):
@@ -96,8 +90,7 @@ for op in _binary_ops:
             return NumpyDispatch(result_data)
         return operator
     method_name = '__%s__' % op['name']
-    if op['name'] != "eq":
-        setattr(NumpyDispatch, method_name, closure())
+    setattr(NumpyDispatch, method_name, closure())
      # to support e.g. (1 + ...)    # to support e.g. (1 + ...)
     if op['name'] in reversable:
         def closure(op=op):
@@ -154,7 +147,5 @@ def autowrapper(f):
         args = list(map(unwrap, args))
         kwargs = {k: unwrap(v) for k, v, in kwargs.items()}
         result = f(*args, **kwargs)
-        if isinstance(result, vaex.array_types.supported_arrow_array_types):
-            result = NumpyDispatch(result)
-        return result
+        return wrap(result)
     return wrapper
