@@ -5920,6 +5920,23 @@ class DataFrameLocal(DataFrame):
             write(to)
 
     @docsubst
+    def export_feather(self, to, parallel=True, reduce_large=True, compression='uncompressed'):
+        """Exports the DataFrame to an arrow file using the feather file format version 2
+
+        Feather is exactly represented as the Arrow IPC file format on disk, but also support compression.
+            see also https://arrow.apache.org/docs/python/feather.html
+
+        :param to: filename or file object
+        :param bool parallel: {evaluate_parallel}
+        :param bool reduce_large: If True, convert arrow large_string type to string type
+        :param to: Can be one of 'zstd', 'lz4' or 'uncompressed'
+        :return:
+        """
+        import pyarrow.feather as feather
+        table = self.to_arrow_table(parallel=False, reduce_large=reduce_large)
+        feather.write_feather(table, to, compression=compression)
+
+    @docsubst
     def export_parquet(self, path, progress=None, chunk_size=default_chunk_size, parallel=True, fs_options=None, fs=None, **kwargs):
         """Exports the DataFrame to a parquet file.
 
