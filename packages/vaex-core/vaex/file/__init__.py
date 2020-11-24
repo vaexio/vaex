@@ -181,16 +181,16 @@ def parse(path, fs_options={}, for_arrow=False):
         return module.parse(path, fs_options, for_arrow=for_arrow)
 
 
-def tokenize(path, fs_options={}):
-    """Deterministic token for a file, useful in combination with dask or detecting file changes.
+def fingerprint(path, fs_options={}):
+    """Deterministic fingerprint for a file, useful in combination with dask or detecting file changes.
 
     Based on mtime (modification time), file size, and the path. May lead to
     false negative if the path changes, but not the content.
 
-    >>> tokenize('/data/taxi.parquet')  # doctest: +SKIP
+    >>> fingerprint('/data/taxi.parquet')  # doctest: +SKIP
     '0171ec50cb2cf71b8e4f813212063a19'
 
-    >>> tokenize('s3://vaex/taxi/nyc_taxi_2015_mini.parquet', fs_options={'anon': True})  # doctest: +SKIP
+    >>> fingerprint('s3://vaex/taxi/nyc_taxi_2015_mini.parquet', fs_options={'anon': True})  # doctest: +SKIP
     '7c962e2d8c21b6a3681afb682d3bf91b'
     """
     fs, path = parse(path, fs_options)
@@ -199,11 +199,11 @@ def tokenize(path, fs_options={}):
         mtime = os.path.getmtime(path)
         size = os.path.getsize(path)
     else:
-        info = fs.get_file_info(path)
-        mtime = info.mtime
+        info = fs.get_file_info([path])[0]
+        mtime = info.mtime_ns
         size = info.size
     import vaex.cache
-    return vaex.cache.tokenize(('file', (path, mtime, size)))
+    return vaex.cache.fingerprint(('file', (path, mtime, size)))
 
 
 def open(path, mode='rb', fs_options={}, for_arrow=False, mmap=False):
