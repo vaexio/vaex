@@ -2,14 +2,23 @@ import functools
 import numpy
 import dask.base
 import logging
+import uuid
+
 
 log = logging.getLogger('vaex.cache')
 
 
 import vaex.utils
 
-def tokenize(*args, **kwargs):
-    return dask.base.tokenize(*args, **kwargs)
+def fingerprint(*args, **kwargs):
+    try:
+        _restore = uuid.uuid4
+        def explain(*args):
+            raise TypeError('You have passed in an object for which we cannot determine a fingerprint')
+        uuid.uuid4 = explain
+        return dask.base.tokenize(*args, **kwargs)
+    finally:
+        uuid.uuid4 = _restore
 
 
 def output_file(callable=None, path_input=None, fs_options_input={}, path_output=None, fs_options_output={}):
@@ -25,38 +34,38 @@ def output_file(callable=None, path_input=None, fs_options_input={}, path_output
             def call(callable=callable, *args, **kwargs):
                 base, ext, fs_options_output_ = vaex.file.split_ext(path_output, fs_options_output)
                 path_output_meta = base + '.yaml'
-                # this token changes if input changes, or args, or kwargs
-                token = tokenize(vaex.file.tokenize(path_input, fs_options_input), args, kwargs)
+                # this fingerprint changes if input changes, or args, or kwargs
+                fp = fingerprint(vaex.file.fingerprint(path_input, fs_options_input), args, kwargs)
 
-                def write_token():
-                    log.info('saving token %r for %s → %s conversion to %s', token, path_input, path_output, path_output_meta)
+                def write_fingerprint():
+                    log.info('saving fingerprint %r for %s → %s conversion to %s', fp, path_input, path_output, path_output_meta)
                     with vaex.file.open(path_output_meta, 'w', fs_options=fs_options_output_) as f:
                         f.write(f"# this file exists so that we know when not to do the\n# {path_input} → {path_output} conversion\n")
-                        vaex.utils.yaml_dump(f, {'token': token})
+                        vaex.utils.yaml_dump(f, {'fingerprint': fp})
 
                 if not vaex.file.exists(path_output, fs_options=fs_options_output_):
                     log.info('file %s does not exist yet, running conversion %s → %s', path_output_meta, path_input, path_output)
                     value = callable(*args, **kwargs)
-                    write_token()
+                    write_fingerprint()
                     return value
 
                 if not vaex.file.exists(path_output_meta, fs_options=fs_options_output_):
-                    log.info('file including token not found (%) or does not exist yet, running conversion %s → %s', path_output_meta, path_input, path_output)
+                    log.info('file including fingerprint not found (%) or does not exist yet, running conversion %s → %s', path_output_meta, path_input, path_output)
                     value = callable(*args, **kwargs)
-                    write_token()
+                    write_fingerprint()
                     return value
 
-                # load token
+                # load fingerprint
                 with vaex.file.open(path_output_meta, fs_options=fs_options_output_) as f:
                     output_meta = vaex.utils.yaml_load(f)
 
-                if output_meta['token'] != token:
-                    log.info('token for %s is out of date, rerunning conversion to %s', path_input, path_output)
+                if output_meta['fingerprint'] != fp:
+                    log.info('fingerprint for %s is out of date, rerunning conversion to %s', path_input, path_output)
                     value = callable(*args, **kwargs)
-                    write_token()
+                    write_fingerprint()
                     return value
                 else:
-                    log.info('token for %s did not change, reusing converted file %s', path_input, path_output)
+                    log.info('fingerprint for %s did not change, reusing converted file %s', path_input, path_output)
             return call
         return wrapper2
     return wrapper1()
