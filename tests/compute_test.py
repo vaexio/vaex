@@ -17,6 +17,11 @@ def y(array_factory2):
     return array_factory2([1, 2, None, None])
 
 
+@pytest.fixture(scope='session')
+def s():
+    return pa.array(['a', 'b', None, 'd'])
+
+
 def test_add(x, y):
     df = vaex.from_arrays(x=x, y=y)
     df['z'] = df.x + df.y
@@ -47,7 +52,13 @@ def test_stay_same_type(x):
     assert (df.x.sin()).tolist()[-1] == None
     assert isinstance(df.x.sin().values, type(x))
 
-# def test_values2():
-#     df = vaex.from_arrays(x=, y=y)
-#     df = vaex.from_scalars(x=0, y=1)
-#     assert isinstance(df.evaluate('cos(x)+y'), type(x))
+
+def test_mix_string_and_numeric(x, s):
+    df = vaex.from_arrays(x=x, s=s)
+    # TODO: Note that this is a seperate bug, it ignored the missing value
+    assert (df.s == 'a').tolist() == [True, False, False, False]
+    assert (df.x == 1).tolist() == [False, True, False, None]
+    assert ((df.s == 'a') | (df.x == 1)).tolist()[0] is True
+    assert ((df.s == 'a') | (df.x == 1)).tolist() == [True, True, False, None]
+    assert (('a' == df.s) | (df.x == 1)).tolist() == [True, True, False, None]
+    assert ((df.x == 1) | (df.s == 'a')).tolist() == [True, True, False, None]
