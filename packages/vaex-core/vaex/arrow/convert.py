@@ -193,3 +193,49 @@ def large_string_to_string(ar):
     offsets = offsets.astype(np.int32)
     offsets_buffer = pa.py_buffer(offsets)
     return pa.Array.from_buffers(pa.string(), len(ar), [null_bitmap, offsets_buffer, bytes], offset=ar.offset)
+
+
+def trim_buffers_ipc(ar):
+    '''
+    >>> ar = pa.array([1, 2, 3, 4], pa.int8())
+    >>> ar.nbytes
+    4
+    >>> ar.slice(2, 2) #doctest: +ELLIPSIS
+    <pyarrow.lib.Int8Array object at 0x...>
+    [
+      3,
+      4
+    ]
+    >>> ar.slice(2, 2).nbytes
+    4
+    >>> trim_buffers_ipc(ar.slice(2, 2)).nbytes  # expected 1
+    2
+    >>> trim_buffers_ipc(ar.slice(2, 2))#doctest: +ELLIPSIS
+    <pyarrow.lib.Int8Array object at 0x...>
+    [
+      3,
+      4
+    ]
+    '''
+    if len(ar) == 0:
+        return ar
+    schema = pa.schema({'x': ar.type})
+    with pa.BufferOutputStream() as sink:
+        with pa.ipc.new_stream(sink, schema) as writer:
+            writer.write_table(pa.table({'x': ar}))
+    with pa.BufferReader(sink.getvalue()) as source:
+        with pa.ipc.open_stream(source) as reader:
+            table = reader.read_all()
+            assert table.num_columns == 1
+            assert table.num_rows == len(ar)
+            trimmed_ar = table.column(0)
+    if isinstance(trimmed_ar, pa.ChunkedArray):
+        assert len(trimmed_ar.chunks) == 1
+        trimmed_ar = trimmed_ar.chunks[0]
+
+    return trimmed_ar
+
+
+def trim_buffers_for_pickle(ar):
+    # future version of pyarrow might fix this, so we have a single entry point for this
+    return trim_buffers_ipc(ar)

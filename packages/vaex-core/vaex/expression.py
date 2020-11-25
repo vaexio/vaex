@@ -823,8 +823,10 @@ def f({0}):
             var = self.df.add_variable('isin_values', values, unique=True)
             return self.df['isin(%s, %s)' % (self, var)]
 
-    def apply(self, f):
+    def apply(self, f, vectorize=False, multiprocessing=True):
         """Apply a function along all values of an Expression.
+
+        Shorthand for ``df.apply(f, arguments=[expression])``, see :meth:`DataFrame.apply`
 
         Example:
 
@@ -854,9 +856,11 @@ def f({0}):
 
 
         :param f: A function to be applied on the Expression values
+        :param vectorize: Call f with arrays instead of a scalars (for better performance).
+        :param bool multiprocessing: Use multiple processes to avoid the GIL (Global interpreter lock).
         :returns: A function that is lazily evaluated when called.
         """
-        return self.ds.apply(f, [self.expression])
+        return self.ds.apply(f, [self.expression], vectorize=vectorize, multiprocessing=multiprocessing)
 
     def dropmissing(self):
         # TODO: df.dropna does not support inplace
@@ -1013,14 +1017,21 @@ class FunctionSerializable(object):
 
 @vaex.serialize.register
 class FunctionSerializablePickle(FunctionSerializable):
-    def __init__(self, f=None):
+    def __init__(self, f=None, multiprocessing=False):
         self.f = f
+        self.multiprocessing = multiprocessing
 
     def pickle(self, function):
         return pickle.dumps(function)
 
     def unpickle(self, data):
         return pickle.loads(data)
+
+    def __getstate__(self):
+        return self.state_get()
+
+    def __setstate__(self, state):
+        self.state_set(state)
 
     def state_get(self):
         data = self.pickle(self.f)
@@ -1048,6 +1059,10 @@ class FunctionSerializablePickle(FunctionSerializable):
 
     def __call__(self, *args, **kwargs):
         '''Forward the call to the real function'''
+        import vaex.multiprocessing
+        return vaex.multiprocessing.apply(self._apply, args, kwargs, self.multiprocessing)
+
+    def _apply(self, *args, **kwargs):
         return self.f(*args, **kwargs)
 
 
@@ -1161,6 +1176,10 @@ def f({0}):
 @vaex.serialize.register
 class FunctionToScalar(FunctionSerializablePickle):
     def __call__(self, *args, **kwargs):
+        import vaex.multiprocessing
+        return vaex.multiprocessing.apply(self._apply, args, kwargs, self.multiprocessing)
+
+    def _apply(self, *args, **kwargs):
         length = len(args[0])
         result = []
         def fix_type(v):
