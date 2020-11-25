@@ -1010,3 +1010,30 @@ def div_ceil(n, d):
     5
     """
     return (n + d - 1) // d
+
+
+def get_env_type(type, key, default=None):
+    '''Get an env var named key, and cast to type
+
+    >>> import os
+    >>> get_env_type(int, 'VAEX_NUM_THREADS_TEST')
+    >>> get_env_type(int, 'VAEX_NUM_THREADS_TEST', 10)
+    10
+    >>> get_env_type(int, 'VAEX_NUM_THREADS_TEST', '10')
+    10
+    >>> os.environ['VAEX_NUM_THREADS_TEST'] = '20'
+    >>> get_env_type(int, 'VAEX_NUM_THREADS_TEST')
+    20
+    >>> get_env_type(int, 'VAEX_NUM_THREADS_TEST', '10')
+    20
+    >>> os.environ['VAEX_NUM_THREADS_TEST'] = ' '
+    >>> get_env_type(int, 'VAEX_NUM_THREADS_TEST')
+    >>> get_env_type(int, 'VAEX_NUM_THREADS_TEST', '11')
+    11
+    '''
+    value = os.environ.get(key, default)
+    if isinstance(value, str) and value.strip() == '' and type != str:
+        # support empty strings
+        value = default
+    if value is not None:
+        return int(value)

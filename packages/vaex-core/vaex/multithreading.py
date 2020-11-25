@@ -18,10 +18,8 @@ from .itertools import buffer
 
 logger = logging.getLogger("vaex.multithreading")
 
-thread_count_default = os.environ.get('VAEX_NUM_THREADS', multiprocessing.cpu_count())
-thread_count_default = int(thread_count_default)
-thread_count_default_io = os.environ.get('VAEX_NUM_THREADS_IO', multiprocessing.cpu_count() + 1)
-thread_count_default_io = int(thread_count_default_io)
+thread_count_default = vaex.utils.get_env_type(int, 'VAEX_NUM_THREADS', multiprocessing.cpu_count())
+thread_count_default_io = vaex.utils.get_env_type(int, 'VAEX_NUM_THREADS_IO', thread_count_default + 1)
 main_pool = None
 main_io_pool = None
 

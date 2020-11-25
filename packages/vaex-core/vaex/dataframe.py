@@ -361,7 +361,7 @@ class DataFrame(object):
         self.executor.schedule(task)
         return self._delay(delay, task)
 
-    def apply(self, f, arguments=None, dtype=None, delay=False, vectorize=False):
+    def apply(self, f, arguments=None, vectorize=False, multiprocessing=True):
         """Apply a function on a per row basis across the entire DataFrame.
 
         Example:
@@ -384,6 +384,8 @@ class DataFrame(object):
 
         :param f: The function to be applied
         :param arguments: List of arguments to be passed on to the function f.
+        :param vectorize: Call f with arrays instead of a scalars (for better performance).
+        :param bool multiprocessing: Use multiple processes to avoid the GIL (Global interpreter lock).
         :return: A function that is lazily evaluated.
         """
         assert arguments is not None, 'for now, you need to supply arguments'
@@ -393,7 +395,9 @@ class DataFrame(object):
         else:
             name = f.__name__
         if not vectorize:
-            f = vaex.expression.FunctionToScalar(f)
+            f = vaex.expression.FunctionToScalar(f, multiprocessing)
+        else:
+            f = vaex.expression.FunctionSerializablePickle(f, multiprocessing)
         lazy_function = self.add_function(name, f, unique=True)
         arguments = _ensure_strings_from_expressions(arguments)
         return lazy_function(*arguments)
