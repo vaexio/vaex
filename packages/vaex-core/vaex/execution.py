@@ -161,11 +161,9 @@ class ExecutorLocal(Executor):
                     task._parts = [encoding.decode('task-part-cpu', spec, df=run.df) for i in range(self.thread_pool.nthreads)]
 
                 length = run.df.active_length()
-                parts = vaex.utils.subdivide(length, max_length=chunk_size)
-                if not self.zig:
-                    parts = list(parts)[::-1]
-                if self.zigzag:
-                    self.zig = not self.zig
+                # TODO: in the future we might want to enable the zigzagging again, but this requires all datasets to implement it
+                # if self.zigzag:
+                #     self.zig = not self.zig
                 dataset = run.df.dataset[run.df._index_start:run.df._index_end]
                 # find the columns from the dataset we need
                 variables = set()
@@ -176,7 +174,7 @@ class ExecutorLocal(Executor):
                 for column in columns:
                     if column not in dataset:
                         raise RuntimeError(f'Oops, requesting column {column} from dataset, but it does not exist')
-                async for element in self.thread_pool.map_async(self.process_part, dataset.chunk_iterator(columns),
+                async for element in self.thread_pool.map_async(self.process_part, dataset.chunk_iterator(columns, chunk_size),
                                                     dataset.row_count,
                                                     progress=lambda p: all(self.signal_progress.emit(p)) and
                                                     all([all(task.signal_progress.emit(p)) for task in tasks]) and
