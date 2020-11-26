@@ -101,41 +101,57 @@ def open(path, convert=False, shuffle=False, fs_options={}, *args, **kwargs):
     >>> df = vaex.open('somedata*.csv', convert='bigdata.hdf5')
 
     :param str or list path: local or absolute path to file, or glob string, or list of paths
-    :param convert: convert files to an hdf5 file for optimization, can also be a path
+    :param convert: Uses `dataframe.export` when convert is a path. If True, ``convert=path+'.hdf5'``
+                    The conversion is skipped if the input file or conversion argument did not change.
     :param bool shuffle: shuffle converted DataFrame or not
+    :param dict fs_options: Extra arguments passed to an optional file system if needed:
+        * Amazon AWS S3
+            * `anonymous` - access file without authentication (public files)
+            * `access_key` - AWS access key, if not provided will use the standard env vars, or the `~/.aws/credentials` file 
+            * `secret_key` - AWS secret key, similar to `access_key`
+            * `profile` - If multiple profiles are present in `~/.aws/credentials`, pick this one instead of 'default', see https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-files.html
+            * `region` - AWS Region, e.g. 'us-east-1`, will be determined automatically if not provided.
+            * `endpoint_override` - URL/ip to connect to, instead of AWS, e.g. 'localhost:9000' for minio
+        * Google Cloud Storage
+            * :py:class:`gcsfs.core.GCSFileSystem`
+        In addition you can pass the boolean "cache" option.
     :param args: extra arguments for file readers that need it
     :param kwargs: extra keyword arguments
     :return: return a DataFrame on success, otherwise None
     :rtype: DataFrame
 
-    S3 support:
+    Cloud storage support:
 
-    Vaex supports streaming of hdf5 files from Amazon AWS object storage S3.
-    Files are by default cached in $HOME/.vaex/file-cache/s3 such that successive access
-    is as fast as native disk access. The following url parameters control S3 options:
+    Vaex supports streaming of HDF5 files from Amazon AWS S3 and Google Cloud Storage.
+    Files are by default cached in $HOME/.vaex/file-cache/(s3|gs) such that successive access
+    is as fast as native disk access.
+
+    The following common fs_options are used for S3 access:
 
      * anon: Use anonymous access or not (false by default). (Allowed values are: true,True,1,false,False,0)
-     * use_cache: Use the disk cache or not, only set to false if the data should be accessed once. (Allowed values are: true,True,1,false,False,0)
-     * profile and other arguments are passed to :py:class:`s3fs.core.S3FileSystem`
+     * cache: Use the disk cache or not, only set to false if the data should be accessed once. (Allowed values are: true,True,1,false,False,0)
 
-    All arguments can also be passed as kwargs, but then arguments such as `anon` can only be a boolean, not a string.
+    All fs_options can also be encoded in the file path as a query string.
 
     Examples:
 
+    >>> df = vaex.open('s3://vaex/taxi/yellow_taxi_2015_f32s.hdf5', fs_options={'anonymous': True})
     >>> df = vaex.open('s3://vaex/taxi/yellow_taxi_2015_f32s.hdf5?anon=true')
-    >>> df = vaex.open('s3://vaex/taxi/yellow_taxi_2015_f32s.hdf5', anon=True)  # Note that anon is a boolean, not the string 'true'
-    >>> df = vaex.open('s3://mybucket/path/to/file.hdf5?profile=myprofile')
+    >>> df = vaex.open('s3://mybucket/path/to/file.hdf5', fs_options={'access_key': my_key, 'secret_key': my_secret_key})
+    >>> df = vaex.open(f's3://mybucket/path/to/file.hdf5?access_key={{my_key}}&secret_key={{my_secret_key}}')
+    >>> df = vaex.open('s3://mybucket/path/to/file.hdf5?profile=myproject')
 
-    GCS support:
-    Vaex supports streaming of hdf5 files from Google Cloud Storage.
-    Files are by default cached in $HOME/.vaex/file-cache/gs such that successive access
-    is as fast as native disk access. The following url parameters control GCS options:
+    Google Cloud Storage support:
+
+    The following fs_options are used for GCP access:
+
      * token: Authentication method for GCP. Use 'anon' for annonymous access. See https://gcsfs.readthedocs.io/en/latest/index.html#credentials for more details.
-     * use_cache: Use the disk cache or not, only set to false if the data should be accessed once. (Allowed values are: true,True,1,false,False,0).
+     * cache: Use the disk cache or not, only set to false if the data should be accessed once. (Allowed values are: true,True,1,false,False,0).
      * project and other arguments are passed to :py:class:`gcsfs.core.GCSFileSystem`
 
     Examples:
 
+    >>> df = vaex.open('gs://vaex-data/airlines/us_airline_data_1988_2019.hdf5', fs_options={'token': None})
     >>> df = vaex.open('gs://vaex-data/airlines/us_airline_data_1988_2019.hdf5?token=anon')
     >>> df = vaex.open('gs://vaex-data/testing/xys.hdf5?token=anon&cache=False')
     """
