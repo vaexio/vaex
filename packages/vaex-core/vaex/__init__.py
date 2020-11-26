@@ -106,8 +106,12 @@ def open(path, convert=False, shuffle=False, fs_options={}, *args, **kwargs):
     :param bool shuffle: shuffle converted DataFrame or not
     :param dict fs_options: Extra arguments passed to an optional file system if needed:
         * Amazon AWS S3
-            * :py.class:`pyarrow.fs.S3FileSystem` - If supported by Arrow.
-            * :py:class:`s3fs.core.S3FileSystem` - Used for globbing and fallback.
+            * `anonymous` - access file without authentication (public files)
+            * `access_key` - AWS access key, if not provided will use the standard env vars, or the `~/.aws/credentials` file 
+            * `secret_key` - AWS secret key, similar to `access_key`
+            * `profile` - If multiple profiles are present in `~/.aws/credentials`, pick this one instead of 'default', see https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-files.html
+            * `region` - AWS Region, e.g. 'us-east-1`, will be determined automatically if not provided.
+            * `endpoint_override` - URL/ip to connect to, instead of AWS, e.g. 'localhost:9000' for minio
         * Google Cloud Storage
             * :py:class:`gcsfs.core.GCSFileSystem`
         In addition you can pass the boolean "cache" option.
@@ -126,13 +130,12 @@ def open(path, convert=False, shuffle=False, fs_options={}, *args, **kwargs):
 
      * anon: Use anonymous access or not (false by default). (Allowed values are: true,True,1,false,False,0)
      * cache: Use the disk cache or not, only set to false if the data should be accessed once. (Allowed values are: true,True,1,false,False,0)
-     * profile and other arguments are passed to `pyarrow.fs.S3FileSystem` or :py:class:`s3fs.core.S3FileSystem`.
 
     All fs_options can also be encoded in the file path as a query string.
 
     Examples:
 
-    >>> df = vaex.open('s3://vaex/taxi/yellow_taxi_2015_f32s.hdf5', fs_options={'anon': True})
+    >>> df = vaex.open('s3://vaex/taxi/yellow_taxi_2015_f32s.hdf5', fs_options={'anonymous': True})
     >>> df = vaex.open('s3://vaex/taxi/yellow_taxi_2015_f32s.hdf5?anon=true')
     >>> df = vaex.open('s3://mybucket/path/to/file.hdf5', fs_options={'access_key': my_key, 'secret_key': my_secret_key})
     >>> df = vaex.open(f's3://mybucket/path/to/file.hdf5?access_key={{my_key}}&secret_key={{my_secret_key}}')
@@ -209,22 +212,8 @@ def open(path, convert=False, shuffle=False, fs_options={}, *args, **kwargs):
                     )
                     ds = vaex.dataset.open(path_output, fs_options=fs_options)
                 else:
-<<<<<<< HEAD
                     ds = vaex.dataset.open(path, fs_options=fs_options)
                 df = vaex.from_dataset(ds)
-=======
-                    if ext == '.csv' or naked_path.endswith(".csv.bz2"):  # special support for csv.. should probably approach it a different way
-                        csv_convert = filename_hdf5 if convert else False
-                        df = from_csv(path, convert=csv_convert, **kwargs)
-                    else:
-                        ds = vaex.dataset.open(path, fs_options=fs_options, *args, **kwargs)
-                        if ds is not None:
-                            df = vaex.from_dataset(ds)
-                        if convert and ds is not None:
-                            df = vaex.from_dataset(ds)
-                            df.export_hdf5(filename_hdf5, shuffle=shuffle)
-                            df = vaex.open(filename_hdf5)
->>>>>>> chore(core): Remove copy_index as a defined kwarg from vaex.open
                 if df is None:
                     if os.path.exists(path):
                         raise IOError('Could not open file: {}, did you install vaex-hdf5? Is the format supported?'.format(path))
