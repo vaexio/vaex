@@ -102,7 +102,7 @@ def open(path, convert=False, shuffle=False, fs_options={}, *args, **kwargs):
 
     :param str or list path: local or absolute path to file, or glob string, or list of paths
     :param convert: Uses `dataframe.export` when convert is a path. If True, ``convert=path+'.hdf5'``
-                    The conversion is skipped if the path already exists.
+                    The conversion is skipped if the input file or conversion argument did not change.
     :param bool shuffle: shuffle converted DataFrame or not
     :param dict fs_options: Extra arguments passed to an optional file system if needed:
         * Amazon AWS S3
