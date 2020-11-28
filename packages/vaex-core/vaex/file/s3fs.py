@@ -6,6 +6,10 @@ import vaex.file.cache
 from . import split_options, split_scheme
 from .cache import FileSystemHandlerCached
 from .s3 import patch_profile
+from ..cache import fingerprint
+
+
+fs_cache = {}
 
 
 def translate_options(fs_options):
@@ -70,7 +74,14 @@ def parse(path, fs_options, for_arrow=False):
     anon = (fs_options.pop('anon', None) in [True, 'true', 'True', '1']) or (fs_options.pop('anonymous', None) in [True, 'true', 'True', '1'])
     fs_options = patch_profile(fs_options)
     fs_options = translate_options(fs_options)
-    s3 = s3fs.S3FileSystem(anon=anon, default_fill_cache=False, **fs_options)
+
+    bucket = path.split('/')[0]
+    key = fingerprint(bucket, fs_options)
+    if key not in fs_cache:
+        s3 = s3fs.S3FileSystem(anon=anon, default_fill_cache=False, **fs_options)
+        fs_cache[key] = s3
+    else:
+        s3 = fs_cache[key]
     fs = pyarrow.fs.FSSpecHandler(s3)
     if use_cache:
         fs = FileSystemHandlerCached(fs, scheme='s3', for_arrow=for_arrow)
