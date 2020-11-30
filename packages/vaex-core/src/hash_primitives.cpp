@@ -1,16 +1,18 @@
 #include "hash_primitives.hpp"
 
+
 namespace vaex {
-template<class T, class M>
-void init_hash(M m, std::string name) {
-    typedef counter<T> counter_type;
-    std::string countername = "counter_" + name;
+template<class T, class M, template<typename, typename> typename Hashmap>
+void init_hash_(M m, std::string name, std::string suffix) {
+    typedef counter<T, Hashmap> counter_type;
+    std::string countername = "counter_" + name + suffix;
     py::class_<counter_type>(m, countername.c_str())
         .def(py::init<>())
         .def("update", &counter_type::update, "add values", py::arg("values"), py::arg("start_index") = 0)
         .def("update", &counter_type::update_with_mask, "add masked values", py::arg("values"), py::arg("masks"), py::arg("start_index") = 0)
         .def("merge", &counter_type::merge)
         .def("extract", &counter_type::extract)
+        .def("reserve", &counter_type::reserve)
         .def("keys", &counter_type::keys)
         .def_property_readonly("count", [](const counter_type &c) { return c.count; })
         .def_property_readonly("nan_count", [](const counter_type &c) { return c.nan_count; })
@@ -19,8 +21,8 @@ void init_hash(M m, std::string name) {
         .def_property_readonly("has_null", [](const counter_type &c) { return c.null_count > 0; })
     ;
     {
-        std::string ordered_setname = "ordered_set_" + name;
-        typedef ordered_set<T> Type;
+        std::string ordered_setname = "ordered_set_" + name + suffix;
+        typedef ordered_set<T, Hashmap> Type;
         py::class_<Type>(m, ordered_setname.c_str())
             .def(py::init<>())
             .def(py::init(&Type::create))
@@ -29,6 +31,7 @@ void init_hash(M m, std::string name) {
             .def("update", &Type::update_with_mask, "add masked values", py::arg("values"), py::arg("masks"), py::arg("start_index") = 0)
             .def("merge", &Type::merge)
             .def("extract", &Type::extract)
+            .def("reserve", &Type::reserve)
             .def("keys", &Type::keys)
             .def("map_ordinal", &Type::map_ordinal)
             .def_property_readonly("count", [](const Type &c) { return c.count; })
@@ -39,14 +42,15 @@ void init_hash(M m, std::string name) {
         ;
     }
     {
-        std::string index_hashname = "index_hash_" + name;
-        typedef index_hash<T> Type;
+        std::string index_hashname = "index_hash_" + name + suffix;
+        typedef index_hash<T, Hashmap> Type;
         py::class_<Type>(m, index_hashname.c_str())
             .def(py::init<>())
             .def("update", &Type::update)
             .def("update", &Type::update_with_mask)
             .def("merge", &Type::merge)
             .def("extract", &Type::extract)
+            .def("reserve", &Type::reserve)
             .def("keys", &Type::keys)
             .def("map_index", &Type::map_index)
             .def("map_index", &Type::template map_index_write<int8_t>)
@@ -70,18 +74,4 @@ void init_hash(M m, std::string name) {
 }
 
 
-void init_hash_primitives(py::module &m) {
-    init_hash<int64_t>(m, "int64");
-    init_hash<uint64_t>(m, "uint64");
-    init_hash<int32_t>(m, "int32");
-    init_hash<uint32_t>(m, "uint32");
-    init_hash<int16_t>(m, "int16");
-    init_hash<uint16_t>(m, "uint16");
-    init_hash<int8_t>(m, "int8");
-    init_hash<uint8_t>(m, "uint8");
-    init_hash<bool>(m, "bool");
-    init_hash<float>(m, "float32");
-    init_hash<double>(m, "float64");
-
-}
 } // namespace vaex

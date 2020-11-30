@@ -1,5 +1,5 @@
 #include "agg.hpp"
-#include "hash_primitives.cpp"
+#include "hash_primitives.hpp"
 
 namespace vaex {
 
@@ -7,11 +7,12 @@ template<class DataType=double, class GridType=uint64_t, class IndexType=default
 class AggNUnique : public Aggregator {
 public:
     using Type = AggNUnique<DataType, GridType, IndexType, FlipEndian>;
+    using Counter = counter<DataType, hashmap_primitive>; // TODO: do we want a prime growth variant?
     using index_type = IndexType;
     using grid_type = GridType;
     using data_type = DataType;
     AggNUnique(Grid<IndexType>* grid, bool dropmissing, bool dropnan) : grid(grid), grid_data(nullptr), data_ptr(nullptr), data_mask_ptr(nullptr), selection_mask_ptr(nullptr), dropmissing(dropmissing), dropnan(dropnan) {
-        counters = new counter<data_type>[grid->length1d];
+        counters = new Counter[grid->length1d];
     }
     virtual ~AggNUnique() {
         if(grid_data)
@@ -84,7 +85,7 @@ public:
     }
     Grid<IndexType>* grid;
     grid_type* grid_data;
-    counter<data_type>* counters;
+    Counter* counters;
     data_type* data_ptr;
     uint64_t data_size;
     uint8_t* data_mask_ptr;

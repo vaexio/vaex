@@ -99,7 +99,8 @@ extension_strings = Extension("vaex.superstrings", [os.path.relpath(os.path.join
                                )
 extension_superutils = Extension("vaex.superutils", [
         os.path.relpath(os.path.join(dirname, "src/hash_object.cpp")),
-        os.path.relpath(os.path.join(dirname, "src/hash_primitives.cpp")),
+        os.path.relpath(os.path.join(dirname, "src/hash_primitives_pot.cpp")),
+        os.path.relpath(os.path.join(dirname, "src/hash_primitives_prime.cpp")),
         os.path.relpath(os.path.join(dirname, "src/superutils.cpp")),
         os.path.relpath(os.path.join(dirname, "src/hash_string.cpp")),
     ],
