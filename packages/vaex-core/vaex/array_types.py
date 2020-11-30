@@ -115,11 +115,15 @@ def convert(x, type, default_type="numpy"):
     import vaex.column
     if type == "numpy":
         if isinstance(x, (list, tuple)):
-            return np.concatenate([convert(k, type) for k in x])
+            return concat([convert(k, type) for k in x])
         else:
             return to_numpy(x, strict=True)
     if type == "numpy-arrow":  # used internally, numpy if possible, otherwise arrow
-        return to_numpy(x, strict=False)
+        if isinstance(x, (list, tuple)):
+            return concat([convert(k, type) for k in x])
+        else:
+            return to_numpy(x, strict=False)
+
     elif type == "arrow":
         if isinstance(x, (list, tuple)):
             return pa.chunked_array([convert(k, type) for k in x])

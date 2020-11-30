@@ -6,12 +6,20 @@ from common import *
 @pytest.mark.parametrize("parallel", [True, False])
 def test_evaluate_iterator(df_local, chunk_size, prefetch, parallel):
     df = df_local
-    x = df.x.to_numpy()
-    total = 0
-    for i1, i2, chunk in df_local.evaluate_iterator('x', chunk_size=chunk_size, prefetch=prefetch, parallel=parallel, array_type='numpy'):
-        assert x[i1:i2].tolist() == chunk.tolist()
-        total += chunk.sum()
-    assert total == x.sum()
+    with small_buffer(df):
+        x = df.x.to_numpy()
+        z = df.z.to_numpy()
+        total = 0
+        for i1, i2, chunk in df_local.evaluate_iterator('x', chunk_size=chunk_size, prefetch=prefetch, parallel=parallel, array_type='numpy-arrow'):
+            assert x[i1:i2].tolist() == chunk.tolist()
+            total += chunk.sum()
+        assert total == x.sum()
+
+        total = 0
+        for i1, i2, chunk in df_local.evaluate_iterator('z', chunk_size=chunk_size, prefetch=prefetch, parallel=parallel, array_type='numpy-arrow'):
+            assert z[i1:i2].tolist() == chunk.tolist()
+            total += chunk.sum()
+        assert total == z.sum()
 
 
 @pytest.mark.parametrize("chunk_size", [2, 5])
