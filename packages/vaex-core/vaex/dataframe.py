@@ -5438,7 +5438,7 @@ class DataFrameLocal(DataFrame):
             expression_to_evaluate = list(set(expressions))  # lets assume we have to do them all
 
             for expression in set(expressions):
-                dtypes[expression] = dtype = df.data_type(expression)
+                dtypes[expression] = dtype = df.data_type(expression).internal
                 if expression not in df.columns:
                     virtual.add(expression)
                 # since we will use pre_filter=True, we'll get chunks of the data at unknown offset
