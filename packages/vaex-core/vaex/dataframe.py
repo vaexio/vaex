@@ -408,7 +408,7 @@ class DataFrame(object):
             set0.merge(other)
         return set0
 
-    def _index(self, expression, progress=False, delay=False):
+    def _index(self, expression, progress=False, delay=False, prime_growth=False, cardinality=None):
         column = _ensure_string_from_expression(expression)
         # TODO: this does not seem needed
         # column = vaex.utils.valid_expression(self.dataset, column)
@@ -424,11 +424,24 @@ class DataFrame(object):
                 transient = True
 
         dtype = self.data_type(column)
-        index_type = index_type_from_dtype(dtype, transient)
-        index_list = [None] * self.executor.thread_pool.nthreads
+        index_type = index_type_from_dtype(dtype, transient, prime_growth=prime_growth)
+        import queue
+        if cardinality is not None:
+            N_index = min(self.executor.thread_pool.nthreads, max(1, len(self)//cardinality))
+            capacity_initial = len(self) // N_index
+        else:
+            N_index = self.executor.thread_pool.nthreads
+            capacity_initial = 10
+        indices = queue.Queue()
+        # we put None to lazily create them
+        for i in range(N_index):
+            indices.put(None)
         def map(thread_index, i1, i2, ar):
-            if index_list[thread_index] is None:
-                index_list[thread_index] = index_type()
+            index = indices.get()
+            if index is None:
+                index = index_type()
+                if hasattr(index, 'reserve'):
+                    index.reserve(capacity_initial)
             if vaex.array_types.is_string_type(dtype):
                 previous_ar = ar
                 ar = _to_string_sequence(ar)
@@ -436,13 +449,19 @@ class DataFrame(object):
                     assert ar is previous_ar.string_sequence
             if np.ma.isMaskedArray(ar):
                 mask = np.ma.getmaskarray(ar)
-                index_list[thread_index].update(ar, mask, i1)
+                index.update(ar, mask, i1)
             else:
-                index_list[thread_index].update(ar, i1)
+                index.update(ar, i1)
+            indices.put(index)
+            # cardinality_estimated = sum()
         def reduce(a, b):
             pass
         self.map_reduce(map, reduce, columns, delay=delay, name='index', info=True, to_numpy=False)
-        index_list = [k for k in index_list if k is not None]
+        index_list = [] #[k for k in index_list if k is not None]
+        while not indices.empty():
+            index = indices.get(timeout=10)
+            if index is not None:
+                index_list.append(index)
         index0 = index_list[0]
         for other in index_list[1:]:
             index0.merge(other)
@@ -5604,7 +5623,7 @@ class DataFrameLocal(DataFrame):
         return different_values, missing, type_mismatch, meta_mismatch
 
     @docsubst
-    def join(self, other, on=None, left_on=None, right_on=None, lprefix='', rprefix='', lsuffix='', rsuffix='', how='left', allow_duplication=False, inplace=False):
+    def join(self, other, on=None, left_on=None, right_on=None, lprefix='', rprefix='', lsuffix='', rsuffix='', how='left', allow_duplication=False, prime_growth=False, cardinality_other=None, inplace=False):
         """Return a DataFrame joined with other DataFrames, matched by columns/expression on/left_on/right_on
 
         If neither on/left_on/right_on is given, the join is done by simply adding the columns (i.e. on the implicit
@@ -5635,6 +5654,8 @@ class DataFrameLocal(DataFrame):
         :param how: how to join, 'left' keeps all rows on the left, and adds columns (with possible missing values)
                 'right' is similar with self and other swapped. 'inner' will only return rows which overlap.
         :param bool allow_duplication: Allow duplication of rows when the joined column contains non-unique values.
+        :param int cardinality_other: Number of unique elements (or estimate of) for the other table.
+        :param bool prime_growth: Growth strategy for the hashmaps used internally, can improve performance in some case (e.g. integers with low bits unused).
         :param inplace: {inplace}
         :return:
         """
@@ -5675,7 +5696,7 @@ class DataFrameLocal(DataFrame):
         else:
             df = left
             # we index the right side, this assumes right is smaller in size
-            index = right._index(right_on)
+            index = right._index(right_on, prime_growth=prime_growth, cardinality=cardinality_other)
             dtype = left.data_type(left_on)
             duplicates_right = index.has_duplicates
 

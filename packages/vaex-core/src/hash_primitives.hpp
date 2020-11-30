@@ -12,11 +12,20 @@ namespace py = pybind11;
 
 namespace vaex {
 
-template<class Derived, class T>
+template<class Key, class Value>
+using hashmap_primitive = hashmap<Key, Value>;
+
+template<class Key, class Value>
+using hashmap_primitive_pg = hashmap_pg<Key, Value>;
+
+template<class Derived, class T, template<typename, typename> typename Hashmap>
 class hash_base {
 public:
     using value_type = T;
     hash_base() : count(0), nan_count(0), null_count(0) {}  ;
+    void reserve(int64_t count_) {
+        map.reserve(count);
+    }
     void update(py::array_t<value_type>& values, int64_t start_index=0) {
         py::gil_scoped_release gil;
         auto ar = values.template unchecked<1>();
@@ -89,16 +98,16 @@ public:
         return m;
 
     }
-    hashmap<value_type, int64_t> map;
+    Hashmap<value_type, int64_t> map;
     int64_t count;
     int64_t nan_count;
     int64_t null_count;
 };
 
-template<class T>
-class counter : public hash_base<counter<T>, T> {
+template<class T, template<typename, typename> typename Hashmap>
+class counter : public hash_base<counter<T, Hashmap>, T, Hashmap> {
 public:
-    using typename hash_base<counter<T>, T>::value_type;
+    using typename hash_base<counter<T, Hashmap>, T, Hashmap>::value_type;
 
     void add_missing(int64_t index) {
     }
@@ -128,10 +137,10 @@ public:
     }
 };
 
-template<class T>
-class ordered_set : public hash_base<ordered_set<T>, T> {
+template<class T, template<typename, typename> typename  Hashmap>
+class ordered_set : public hash_base<ordered_set<T, Hashmap>, T, Hashmap> {
 public:
-    using typename hash_base<ordered_set<T>, T>::value_type;
+    using typename hash_base<ordered_set<T, Hashmap>, T, Hashmap>::value_type;
 
     static ordered_set* create(std::map<value_type, int64_t> dict, int64_t count, int64_t nan_count, int64_t null_count) {
         ordered_set* set = new ordered_set;
@@ -246,10 +255,10 @@ public:
     }
 };
 
-template<class T>
-class index_hash : public hash_base<index_hash<T>, T> {
+template<class T, template<typename, typename> typename Hashmap>
+class index_hash : public hash_base<index_hash<T, Hashmap>, T, Hashmap> {
 public:
-    using typename hash_base<index_hash<T>, T>::value_type;
+    using typename hash_base<index_hash<T, Hashmap>, T, Hashmap>::value_type;
     typedef hashmap<value_type, std::vector<int64_t>> MultiMap;
 
     py::array_t<int64_t> map_index(py::array_t<value_type, py::array::c_style>& values) {

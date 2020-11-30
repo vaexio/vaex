@@ -38,7 +38,7 @@ def ordered_set_type_from_dtype(dtype, transient=True):
     name = 'ordered_set_' + postfix
     return globals()[name]
 
-def index_type_from_dtype(dtype, transient=True):
+def index_type_from_dtype(dtype, transient=True, prime_growth=False):
     from .array_types import is_string_type
     if is_string_type(dtype):
         if transient:
@@ -50,6 +50,8 @@ def index_type_from_dtype(dtype, transient=True):
         if postfix == '>f8':
             postfix = 'float64'
     name = 'index_hash_' + postfix
+    if prime_growth:
+        name += "_prime_growth"
     return globals()[name]
 
 # from numpy import *

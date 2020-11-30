@@ -8,6 +8,8 @@ namespace vaex {
 template<class Key, class Value, class Hash=std::hash<Key>, class Compare=std::equal_to<Key>>
 // using hashmap = ska::flat_hash_map<Key, Value, Hash, Compare>;
 using hashmap = tsl::hopscotch_map<Key, Value, Hash, Compare>;
+template<class Key, class Value, class Hash=std::hash<Key>, class Compare=std::equal_to<Key>>
+using hashmap_pg = tsl::hopscotch_pg_map<Key, Value, Hash, Compare>;
 // template<class Key,  class Hash, class Compare>
 // using hashset = tsl::hopscotch_set<Key, Hash, Compare>;
 
