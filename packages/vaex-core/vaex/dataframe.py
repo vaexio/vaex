@@ -3999,7 +3999,7 @@ class DataFrame(object):
         [2 3 4]
         [5 6 7 8 9]
 
-        :param int, float or list of floats into: If float will split the DataFrame in two, the first of which will have a relative length as specified by this parameter.
+        :param int, float or list of floats into: A float will split the DataFrame in two, the first of which will have a relative length as specified by this parameter.
             When a list, will split into as many portions as elements in the list, where each element defines the relative length of that portion.
             When an int, split DataFrame into n dataframes of equal length (last one may deviate), if len(df) < n, it will return len(df) DataFrames.
         :return: A list of DataFrames.
