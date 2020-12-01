@@ -236,6 +236,19 @@ class Dataset(collections.abc.Mapping):
         self._columns = frozendict()
         self._row_count = None
 
+    @abstractmethod
+    def _create_columns(self):
+        pass
+
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        del state['_columns']
+        return state
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+        self._create_columns()
+
     def schema(self, array_type=None):
         return {name: vaex.array_types.data_type(col) for name, col in self.items()}
 
@@ -408,9 +421,12 @@ class DatasetRenamed(Dataset):
         self.original = original
         self.renaming = renaming
         self.reverse = {v: k for k, v in renaming.items()}
-        self._columns = frozendict({renaming.get(name, name): ar for name, ar in original.items()})
+        self._create_columns()
         self._ids = frozendict({renaming.get(name, name): ar for name, ar in original._ids.items()})
         self._set_row_count()
+
+    def _create_columns(self):
+        self._columns = frozendict({self.renaming.get(name, name): ar for name, ar in self.original.items()})
 
     def chunk_iterator(self, columns, chunk_size=None, reverse=False):
         columns = [self.reverse.get(name, name) for name in columns]
@@ -482,15 +498,18 @@ class DatasetConcatenated(Dataset):
         else:
             raise ValueError(f'Invalid resolver {resolver}, choose between "strict" or "flexible"')
 
+        self._create_columns()
+        self._set_row_count()
+
+    def _create_columns(self):
         columns = {}
         hashes = {}
         for name in self._schema:
             columns[name] = ColumnProxy(self, name, self._schema[name])
-            if all(name in ds._ids for ds in datasets):
-                hashes[name] = hash_combine(*[ds._ids[name] for ds in datasets])
+            if all(name in ds._ids for ds in self.datasets):
+                hashes[name] = hash_combine(*[ds._ids[name] for ds in self.datasets])
         self._columns = frozendict(columns)
         self._ids = frozendict(hashes)
-        self._set_row_count()
 
     def is_masked(self, column):
         return any(k.is_masked(column) for k in self.datasets)
@@ -579,13 +598,15 @@ class DatasetConcatenated(Dataset):
             if total_row_count > chunk_size:
                 chunks_current_list, current_row_count = vaex.dataset._slice_of_chunks(chunks_ready_list, chunk_size)
                 i2 += current_row_count
-                yield i1, i2, vaex.dataset._concat_chunk_list(chunks_current_list)
+                chunks = vaex.dataset._concat_chunk_list(chunks_current_list)
+                yield i1, i2, chunks
                 i1 = i2
 
         while chunks_ready_list:
             chunks_current_list, current_row_count = vaex.dataset._slice_of_chunks(chunks_ready_list, chunk_size)
             i2 += current_row_count
-            yield i1, i2, vaex.dataset._concat_chunk_list(chunks_current_list)
+            chunks = vaex.dataset._concat_chunk_list(chunks_current_list)
+            yield i1, i2, chunks
             i1 = i2
 
     def close(self):
@@ -610,7 +631,11 @@ class DatasetTake(Dataset):
         self.original = original
         self.indices = indices
         self.masked = masked
-        columns = dict(original)
+        self._hash_index = hash_array(indices)
+        self._create_columns()
+        self._set_row_count()
+
+    def _create_columns(self):
         # if the columns in ds already have a ColumnIndex
         # we could do, direct_indices = df.column['bla'].indices[indices]
         # which should be shared among multiple ColumnIndex'es, so we store
@@ -618,14 +643,12 @@ class DatasetTake(Dataset):
         direct_indices_map = {}
         columns = {}
         hashes = {}
-        hash_index = hash_array(indices)
-        for name, column in original.items():
-            columns[name] = ColumnIndexed.index(column, indices, direct_indices_map, masked=masked)
-            if name in original._ids:
-                hashes[name] = hash_combine(hash_index, original._ids[name])
+        for name, column in self.original.items():
+            columns[name] = ColumnIndexed.index(column, self.indices, direct_indices_map, masked=self.masked)
+            if name in self.original._ids:
+                hashes[name] = hash_combine(self._hash_index, self.original._ids[name])
         self._columns = frozendict(columns)
         self._ids = frozendict(hashes)
-        self._set_row_count()
 
     def is_masked(self, column):
         return self.original.is_masked(column)
@@ -659,8 +682,11 @@ class DatasetSliced(Dataset):
         self.start = start
         self.end = end
         self._row_count = end - start
-        self._columns = {name: vaex.dataset.ColumnProxy(self, name, col.dtype) for name, col in self.original._columns.items()}
+        self._create_columns()
         self._ids = {}
+
+    def _create_columns(self):
+        self._columns = {name: vaex.dataset.ColumnProxy(self, name, col.dtype) for name, col in self.original._columns.items()}
 
     def chunk_iterator(self, columns, chunk_size=None, reverse=False):
         yield from self.original.chunk_iterator(columns, chunk_size=chunk_size, reverse=reverse, start=self.start, end=self.end)
@@ -698,17 +724,19 @@ class DatasetSlicedArrays(Dataset):
         #     df.columns[name] = column[self._index_start:self._index_end]
         # else:
         #     df.columns[name] = column.trim(self._index_start, self._index_end)
-        columns = {}
-        for name, column in original.items():
-            if isinstance(column, array_types.supported_array_types):  # real array
-                column = column[start:end]
-            else:
-                column = column.trim(start, end)
-            columns[name] = column
-
-        self._columns = frozendict(columns)
+        self._create_columns()
         self._ids = frozendict({name: hash_slice(hash, start, end) for name, hash in original._ids.items()})
         self._set_row_count()
+
+    def _create_columns(self):
+        columns = {}
+        for name, column in self.original.items():
+            if isinstance(column, array_types.supported_array_types):  # real array
+                column = column[self.start:self.end]
+            else:
+                column = column.trim(self.start, self.end)
+            columns[name] = column
+        self._columns = frozendict(columns)
 
     def chunk_iterator(self, columns, chunk_size=None, reverse=False):
         yield from self._default_chunk_iterator(self._columns, columns, chunk_size, reverse=reverse)
@@ -743,9 +771,12 @@ class DatasetDropped(Dataset):
         super().__init__()
         self.original = original
         self._dropped_names = tuple(names)
-        self._columns = frozendict({name: ar for name, ar in original.items() if name not in names})
+        self._create_columns()
         self._ids = frozendict({name: ar for name, ar in original._ids.items() if name not in names})
         self._set_row_count()
+
+    def _create_columns(self):
+        self._columns = frozendict({name: ar for name, ar in self.original.items() if name not in self._dropped_names})
 
     def chunk_iterator(self, columns, chunk_size=None, reverse=False):
         for column in columns:
@@ -784,12 +815,15 @@ class DatasetMerged(Dataset):
         overlap = set(left) & set(right)
         if overlap:
             raise NameError(f'Duplicate names: {overlap}')
+        self._create_columns()
+        self._ids = frozendict({**left._ids, **right._ids})
+        self._set_row_count()
+
+    def _create_columns(self):
         # TODO: for DatasetArray, we might want to just do this?
         # self._columns = frozendict({**left._columns, **right._columns})
         self._columns = {**{name: ColumnProxy(self.left, name, data_type(col)) for name, col in self.left._columns.items()},
                          **{name: ColumnProxy(self.right, name, data_type(col)) for name, col in self.right._columns.items()}}
-        self._ids = frozendict({**left._ids, **right._ids})
-        self._set_row_count()
 
     def chunk_iterator(self, columns, chunk_size=None, reverse=False):
         columns_left = [k for k in columns if k in self.left]
@@ -846,6 +880,19 @@ class DatasetArrays(Dataset):
         self._columns = frozendict(columns)
         self._ids = frozendict()
         self._set_row_count()
+
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        # here, we actually DO want to keep the columns
+        # del state['_columns']
+        return state
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+        # self._create_columns()
+
+    def _create_columns(self):
+        pass
 
     def chunk_iterator(self, columns, chunk_size=None, reverse=False):
         yield from self._default_chunk_iterator(self._columns, columns, chunk_size, reverse=reverse)
@@ -910,6 +957,9 @@ class DatasetFile(Dataset):
         self._hash_calculations = 0  # track it for testing purposes
         self._hash_info = {}
         self._read_hashes()
+
+    def _create_columns(self):
+        pass
 
     @classmethod
     def quick_test(cls, path, fs_options=None, *args, **kwargs):

@@ -133,9 +133,12 @@ class DataFrame(object):
     """
 
     def __init__(self, name=None, executor=None):
-        self.name = name
-        self.column_names = []
         self.executor = executor or get_main_executor()
+        self.name = name
+        self._init()
+
+    def _init(self):
+        self.column_names = []
         self.signal_pick = vaex.events.Signal("pick")
         self.signal_sequence_index_change = vaex.events.Signal("sequence index change")
         self.signal_selection_changed = vaex.events.Signal("selection changed")
@@ -4851,6 +4854,29 @@ class DataFrameLocal(DataFrame):
         # self.path = dataset.path
         self.mask = None
         self.columns = ColumnProxy(self)
+
+    def __getstate__(self):
+        state = self.state_get()
+        # renamed is already reflected in the dataset
+        del state['renamed_columns']
+        return {
+            'state': state,
+            'dataset': self.dataset
+        }
+
+    def __setstate__(self, state):
+        self._init()
+        self.executor = get_main_executor()
+        self.columns = ColumnProxy(self)
+        dataset = state['dataset']
+        self._dataset = dataset
+        assert dataset.row_count is not None
+        self._length_original = dataset.row_count
+        self._length_unfiltered = self._length_original
+        self._cached_filtered_length = None
+        self._index_start = 0
+        self._index_end = self._length_original
+        self.state_set(state['state'], use_active_range=True, trusted=True)
 
     @property
     def dataset(self):
