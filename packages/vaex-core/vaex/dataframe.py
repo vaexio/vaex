@@ -5891,7 +5891,8 @@ class DataFrameLocal(DataFrame):
             else:
                 table = self.to_arrow_table(chunk_size=chunk_size, parallel=parallel, reduce_large=reduce_large)
                 writer.write_table(table)
-        if isinstance(to, str):
+
+        if vaex.file.is_path_like(to):
             schema = self[0:1].to_arrow_table(parallel=False, reduce_large=reduce_large).schema
             fs_options = fs_options or {}
             with vaex.file.open(path=to, mode='wb', fs_options=fs_options) as sink:

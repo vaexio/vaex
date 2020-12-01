@@ -71,6 +71,14 @@ def file_and_path(file, mode='r', fs_options={}):
         return file, stringyfy(file)
 
 
+def is_path_like(path):
+    try:
+        stringyfy(path)
+        return True
+    except ValueError:
+        return False
+
+
 def stringyfy(path):
     """Get string from path like object of file like object
 
