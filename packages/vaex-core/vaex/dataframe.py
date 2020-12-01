@@ -4021,7 +4021,8 @@ class DataFrame(object):
             total = sum(into)
             into = [k / total for k in into]
         else:
-            assert into <= 1, "intotion should be <= 1"
+            assert into <= 1, "when float, `into` should be <= 1"
+            assert into > 0, "`into` must be > 0."
             into = [into, 1 - into]
         offsets = np.round(np.cumsum(into) * len(self)).astype(np.int64)
         start = 0
