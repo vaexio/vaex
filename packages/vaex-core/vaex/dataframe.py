@@ -3988,19 +3988,19 @@ class DataFrame(object):
 
         >>> import vaex
         >>> df = vaex.from_arrays(x = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9])
-        >>> for dfs in df.split(frac=0.3):
+        >>> for dfs in df.split(into=0.3):
         ...     print(dfs.x.values)
         ...
         [0 1 3]
         [3 4 5 6 7 8 9]
-        >>> for split in df.split(frac=[0.2, 0.3, 0.5]):
+        >>> for split in df.split(into=[0.2, 0.3, 0.5]):
         ...     print(dfs.x.values)
         [0 1]
         [2 3 4]
         [5 6 7 8 9]
 
-        :param int, float or list of floats into: A float will split the DataFrame in two, the first of which will have a relative length as specified by this parameter.
-            When a list, will split into as many portions as elements in the list, where each element defines the relative length of that portion.
+        :param int, float or list of floats into: If float will split the DataFrame in two, the first of which will have a relative length as specified by this parameter.
+            When a list, will split into as many portions as elements in the list, where each element defines the relative length of that portion. Note that such a list of fractions will always be re-normalized to 1.
             When an int, split DataFrame into n dataframes of equal length (last one may deviate), if len(df) < n, it will return len(df) DataFrames.
         :return: A list of DataFrames.
         :rtype: list
