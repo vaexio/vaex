@@ -27,3 +27,14 @@ def test_split(ds_local):
     assert list(sorted(ds1.x.tolist() + ds2.x.tolist() \
                      + ds3.x.tolist() + ds4.x.tolist()))  == ds.x.tolist()
 
+
+def test_split_n(df_local):
+     df = df_local
+     assert len(df.split(3)) == 3
+     assert [len(k) for k in df.split(3)] == [4, 4, 2]
+     assert vaex.concat(df.split(3)).x.tolist() == df.x.tolist()
+     assert len(df.split(10)) == 10
+     assert vaex.concat(df.split(10)).x.tolist() == df.x.tolist()
+     assert len(df.split(11)) == 10
+     assert len(df.split(1)) == 1
+     assert len(df.split(1)[0]) == 10

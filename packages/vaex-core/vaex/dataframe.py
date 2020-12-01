@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 from __future__ import division, print_function
-
 import os
 import math
 import time
@@ -3980,7 +3979,7 @@ class DataFrame(object):
 
     @docsubst
     @vaex.utils.gen_to_list
-    def split(self, frac):
+    def split(self, into=None):
         '''Returns a list containing ordered subsets of the DataFrame.
 
         {note_copy}
@@ -4000,19 +3999,31 @@ class DataFrame(object):
         [2 3 4]
         [5 6 7 8 9]
 
-        :param int/list frac: If int will split the DataFrame in two portions, the first of which will have size as specified by this parameter. If list, the generator will generate as many portions as elements in the list, where each element defines the relative fraction of that portion.
+        :param int, float or list of floats into: If float will split the DataFrame in two, the first of which will have a relative length as specified by this parameter.
+            When a list, will split into as many portions as elements in the list, where each element defines the relative length of that portion.
+            When an int, split DataFrame into n dataframes of equal length (last one may deviate), if len(df) < n, it will return len(df) DataFrames.
         :return: A list of DataFrames.
         :rtype: list
         '''
         self = self.extract()
-        if _issequence(frac):
+        if isinstance(into, numbers.Integral):
+            step = max(1, vaex.utils.div_ceil(len(self), into))
+            i1 = 0
+            i2 = step
+            while i1 < len(self):
+                i2 = min(len(self), i2)
+                yield self[i1:i2]
+                i1, i2 = i2, i2 + step
+            return
+
+        if _issequence(into):
             # make sure it is normalized
-            total = sum(frac)
-            frac = [k / total for k in frac]
+            total = sum(into)
+            into = [k / total for k in into]
         else:
-            assert frac <= 1, "fraction should be <= 1"
-            frac = [frac, 1 - frac]
-        offsets = np.round(np.cumsum(frac) * len(self)).astype(np.int64)
+            assert into <= 1, "intotion should be <= 1"
+            into = [into, 1 - into]
+        offsets = np.round(np.cumsum(into) * len(self)).astype(np.int64)
         start = 0
         for offset in offsets:
             yield self[start:offset]
