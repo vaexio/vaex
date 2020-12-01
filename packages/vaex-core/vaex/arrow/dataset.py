@@ -13,11 +13,16 @@ from vaex.multithreading import get_main_io_pool
 logger = logging.getLogger("vaex.multithreading")
 
 
-class DatasetArrow(vaex.dataset.Dataset):
-    def __init__(self, ds, max_rows_read=1024**2*10):
+class DatasetArrowBase(vaex.dataset.Dataset):
+    def __init__(self, max_rows_read=1024**2*10):
         super().__init__()
         self.max_rows_read = max_rows_read
-        self._arrow_ds = ds
+        self._create_columns()
+        self._ids = {}
+
+    def _create_columns(self):
+        self._create_dataset()
+        # we have to get the metadata again, this does not pickle
         row_count = 0
         for fragment in self._arrow_ds.get_fragments():
             if hasattr(fragment, "ensure_complete_metadata"):
@@ -27,7 +32,6 @@ class DatasetArrow(vaex.dataset.Dataset):
         self._row_count = row_count
         self._columns = {name: vaex.dataset.ColumnProxy(self, name, type) for name, type in
                           zip(self._arrow_ds.schema.names, self._arrow_ds.schema.types)}
-        self._ids = {}
 
     def hashed(self):
         raise NotImplementedError
@@ -146,6 +150,23 @@ class DatasetArrow(vaex.dataset.Dataset):
 
 
 
+class DatasetParquet(DatasetArrowBase):
+    def __init__(self, path, fs_options, max_rows_read=1024**2*10):
+        self.path = path
+        self.fs_options = fs_options
+        super().__init__(max_rows_read=max_rows_read)
+
+    def _create_dataset(self):
+        import vaex.file
+        file_system, path = vaex.file.parse(self.path, self.fs_options, for_arrow=True)
+        self._arrow_ds = pyarrow.dataset.dataset(path, filesystem=file_system)
+
+    def __getstate__(self):
+        state = super().__getstate__()
+        del state['_arrow_ds']
+        return state
+
+
 def from_table(table):
     columns = dict(zip(table.schema.names, table.columns))
     dataset = vaex.dataset.DatasetArrays(columns)
@@ -170,8 +191,5 @@ def open(path, fs_options):
 
 
 def open_parquet(path, fs_options={}):
-    import vaex.file
-    file_system, path = vaex.file.parse(path, fs_options, for_arrow=True)
-    arrow_ds = pyarrow.dataset.dataset(path, filesystem=file_system)
-    return DatasetArrow(arrow_ds)
+    return DatasetParquet(path, fs_options=fs_options)
 

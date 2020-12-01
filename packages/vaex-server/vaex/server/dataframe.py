@@ -3,6 +3,7 @@ __author__ = 'breddels'
 import numpy as np
 import logging
 from vaex.dataframe import DataFrame
+import vaex
 
 
 logger = logging.getLogger("vaex.server.dataframe")
@@ -37,6 +38,28 @@ class DataFrameRemote(DataFrame):
         self._index_end = length_original
         self._dtype_cache = {}
         self.fraction = 1
+
+    def __getstate__(self):
+        return {
+            'length_original': self._length_original,
+            'column_names': self.column_names,
+            'dtypes': self._dtypes,
+            'url': self.executor.client.url,
+            'state': self.state_get(),
+        }
+
+    def __setstate__(self, state):
+        self._init()
+        self.column_names = state['column_names']
+        self._dtypes = state['dtypes']
+        self._length_original = state['length_original']
+        self._length_unfiltered = self._length_original
+        self._index_start = 0
+        self._index_end = self._length_original
+        self.fraction = 1
+        client = vaex.server.connect(state['url'])
+        self.executor = vaex.server.executor.Executor(client)
+        self.state_set(state['state'], use_active_range=True, trusted=True)
 
     def is_local(self):
         return False

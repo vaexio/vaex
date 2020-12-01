@@ -38,11 +38,6 @@ class Client(client.Client):
         self._check_version()
         self.update()
 
-    @property
-    def _url(self):
-        protocol = "ws"
-        return "%s://%s:%d%swebsocket" % (protocol, self.hostname, self.port, self.base_path)
-
 
 class ClientWebsocket(Client):
     def _send_and_forget(self, msg, msg_id=None):

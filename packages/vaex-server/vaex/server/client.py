@@ -99,3 +99,14 @@ class Client:
         finally:
             del self._msg_id_to_tasks[msg_id]
             pass
+
+    @property
+    def url(self):
+        protocol = "ws"
+        return "%s://%s:%d%s" % (protocol, self.hostname, self.port, self.base_path)
+
+    @property
+    def _url(self):
+        protocol = "ws"
+        return "%s://%s:%d%swebsocket" % (protocol, self.hostname, self.port, self.base_path)
+
