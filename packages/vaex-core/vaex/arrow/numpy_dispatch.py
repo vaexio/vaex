@@ -17,7 +17,7 @@ def combine_missing(a, b):
     else:
         nulls_buffer = None
     buffers = a.buffers()
-    return pa.Array.from_buffers(a.type, len(a), [nulls_buffer, buffers[1]])
+    return pa.Array.from_buffers(a.type, len(a), [nulls_buffer] + buffers[1:])
 
 class NumpyDispatch:
     def __init__(self, ar):

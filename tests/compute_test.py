@@ -62,3 +62,9 @@ def test_mix_string_and_numeric(x, s):
     assert ((df.s == 'a') | (df.x == 1)).tolist() == [True, True, False, None]
     assert (('a' == df.s) | (df.x == 1)).tolist() == [True, True, False, None]
     assert ((df.x == 1) | (df.s == 'a')).tolist() == [True, True, False, None]
+
+
+def test_where(s):
+    df = vaex.from_arrays(s=s)
+    expr = df.func.where(df['s'] == 'a', 'A', df['s'])
+    assert expr.tolist() == ['A', 'b', None, 'd']
