@@ -17,7 +17,8 @@ class ArrowOpener:
 class ParquetOpener:
     @classmethod
     def quick_test(cls, path, *args, **kwargs):
-        return vaex.file.ext(path) == '.parquet'
+        ext = vaex.file.ext(path)
+        return ext == '.parquet' or ext == ''
 
     @classmethod
     def can_open(cls, path, *args, **kwargs):
