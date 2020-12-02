@@ -1,11 +1,12 @@
 __author__ = 'maartenbreddels'
-import collections
 import logging
 
 import pyarrow as pa
 import pyarrow.dataset
 
 import vaex.dataset
+import vaex.file
+from vaex.dataset import DatasetSlicedArrays
 from ..itertools import buffer
 from vaex.multithreading import get_main_io_pool
 
@@ -157,7 +158,6 @@ class DatasetParquet(DatasetArrowBase):
         super().__init__(max_rows_read=max_rows_read)
 
     def _create_dataset(self):
-        import vaex.file
         file_system, path = vaex.file.parse(self.path, self.fs_options, for_arrow=True)
         self._arrow_ds = pyarrow.dataset.dataset(path, filesystem=file_system)
 
@@ -167,6 +167,58 @@ class DatasetParquet(DatasetArrowBase):
         return state
 
 
+class DatasetArrowFileBase(vaex.dataset.Dataset):
+    def __init__(self, path, fs_options):
+        super().__init__()
+        self.fs_options = fs_options
+        self.path = path
+        self._create_columns()
+        self._set_row_count()
+        self._ids = {}
+
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        del state['_source']
+        del state['_columns']
+        return state
+
+    def chunk_iterator(self, columns, chunk_size=None, reverse=False):
+        yield from self._default_chunk_iterator(self._columns, columns, chunk_size, reverse=reverse)
+
+    def close(self):
+        self._source.close()
+
+    def hashed(self):
+        raise NotImplementedError
+
+    def shape(self, column):
+        return tuple()
+
+    def is_masked(self, column):
+        return False
+
+    def slice(self, start, end):
+        if start == 0 and end == self.row_count:
+            return self
+        return DatasetSlicedArrays(self, start=start, end=end)
+
+class DatasetArrowIPCFile(DatasetArrowFileBase):
+    def _create_columns(self):
+        self._source = vaex.file.open(path=self.path, mode='rb', fs_options=self.fs_options, mmap=True, for_arrow=True)
+        reader = pa.ipc.open_file(self._source)
+        batches = [reader.get_batch(i) for i in range(reader.num_record_batches)]
+        table = pa.Table.from_batches(batches)
+        self._columns = dict(zip(table.schema.names, table.columns))
+
+
+class DatasetArrowIPCStream(DatasetArrowFileBase):
+    def _create_columns(self):
+        self._source = vaex.file.open(path=self.path, mode='rb', fs_options=self.fs_options, mmap=True, for_arrow=True)
+        reader = pa.ipc.open_stream(self._source)
+        table = pa.Table.from_batches(reader)
+        self._columns = dict(zip(table.schema.names, table.columns))
+
+
 def from_table(table):
     columns = dict(zip(table.schema.names, table.columns))
     dataset = vaex.dataset.DatasetArrays(columns)
@@ -174,20 +226,13 @@ def from_table(table):
 
 
 def open(path, fs_options):
-    source = vaex.file.open(path=path, mode='rb', fs_options=fs_options, mmap=True, for_arrow=True)
-    file_signature = bytes(source.read(6))
-    is_arrow_file = file_signature == b'ARROW1'
-    source.seek(0)
-
+    with vaex.file.open(path=path, mode='rb', fs_options=fs_options, mmap=True, for_arrow=True) as f:
+        file_signature = bytes(f.read(6))
+        is_arrow_file = file_signature == b'ARROW1'
     if is_arrow_file:
-        reader = pa.ipc.open_file(source)
-        # for some reason this reader is not iterable
-        batches = [reader.get_batch(i) for i in range(reader.num_record_batches)]
+        return DatasetArrowIPCFile(path, fs_options=fs_options)
     else:
-        reader = pa.ipc.open_stream(source)
-        batches = reader  # this reader is iterable
-    table = pa.Table.from_batches(batches)
-    return from_table(table)
+        return DatasetArrowIPCStream(path, fs_options=fs_options)
 
 
 def open_parquet(path, fs_options={}):
