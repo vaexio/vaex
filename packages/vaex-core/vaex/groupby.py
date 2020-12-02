@@ -209,6 +209,30 @@ class GroupByBase(object):
                         add(aggregate, name, override_name=override_name)
         return grids
 
+    @property
+    def groups(self):
+        for group, df in self:
+            yield group
+
+    def get_group(self, group):
+        values = group
+        filter_expressions = [self.df[expression] == value for expression, value in zip(self.groupby_expression, values)]
+        filter_expression = filter_expressions[0]
+        for expression in filter_expressions[1:]:
+            filter_expression = filter_expression & expression
+        return self.df[filter_expression]
+
+    def __iter__(self):
+        count_agg = vaex.agg.count()
+        counts = self.df._agg(count_agg, self.grid)
+        mask = counts > 0
+        values2d = np.array([coord[mask] for coord in np.meshgrid(*self.coords1d, indexing='ij')], dtype='O')
+        for i in range(values2d.shape[1]):
+            values = values2d[:,i]
+            dff = self.get_group(values)
+            yield tuple(values.tolist()), dff
+
+
 class BinBy(GroupByBase):
     """Implementation of the binning and aggregation of data, see :method:`binby`."""
     def __init__(self, df, by):
