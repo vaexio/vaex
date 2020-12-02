@@ -25,14 +25,18 @@ def test_bool_sliced():
 
 @pytest.mark.skipif(pa.__version__.split(".")[0] == '1', reason="segfaults in arrow v1")
 @pytest.mark.parametrize("offset", list(range(1, 17)))
-def test_large_string_to_string(offset):
+@pytest.mark.parametrize("chunked", [True, False])
+def test_large_string_to_string(offset, chunked):
     s = pa.array(['aap', 'noot', None, 'mies'] * 3, type=pa.large_string())
+    if chunked:
+        s = pa.chunked_array([s.slice(0, 5), s.slice(5)])
     ns = convert.large_string_to_string(s)
     ns.validate()
     assert s.type != ns.type
-    assert s.tolist() == ns.tolist()
+    assert s.to_pylist() == ns.to_pylist()
 
     s = s.slice(offset)
     ns = convert.large_string_to_string(s)
-    assert ns.offset < 8
-    assert s.tolist() == ns.tolist()
+    if not chunked:
+        assert ns.offset < 8
+    assert s.to_pylist() == ns.to_pylist()

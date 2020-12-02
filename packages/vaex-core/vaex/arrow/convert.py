@@ -165,6 +165,8 @@ def trim_buffers(ar):
     # there are cases where memcopy are made, of modifications are mode (large_string_to_string)
     # in those cases, we don't want to work on the full array, and get rid of the offset if possible
     if ar.type == pa.string() or ar.type == pa.large_string():
+        if isinstance(ar, pa.ChunkedArray):
+            return ar  # lets assume chunked arrays are fine
         null_bitmap, offsets_buffer, bytes = ar.buffers()
         if ar.type == pa.string():
             offsets = np.frombuffer(offsets_buffer, np.int32, len(ar) + 1 + ar.offset)
@@ -184,6 +186,8 @@ def trim_buffers(ar):
 
 
 def large_string_to_string(ar):
+    if isinstance(ar, pa.ChunkedArray):
+        return pa.chunked_array([large_string_to_string(k) for k in ar.chunks], type=pa.string())
     ar = trim_buffers(ar)
     offset = ar.offset
     null_bitmap, offsets_buffer, bytes = ar.buffers()
