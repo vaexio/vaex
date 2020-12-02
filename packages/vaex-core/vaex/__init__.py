@@ -210,9 +210,9 @@ def open(path, convert=False, shuffle=False, fs_options={}, *args, **kwargs):
                         path_output=path_output, fs_options_output=fs_options,
                         *args, **kwargs
                     )
-                    ds = vaex.dataset.open(path_output, fs_options=fs_options)
+                    ds = vaex.dataset.open(path_output, fs_options=fs_options, **kwargs)
                 else:
-                    ds = vaex.dataset.open(path, fs_options=fs_options)
+                    ds = vaex.dataset.open(path, fs_options=fs_options, **kwargs)
                 df = vaex.from_dataset(ds)
                 if df is None:
                     if os.path.exists(path):

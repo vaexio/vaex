@@ -1,8 +1,11 @@
 __author__ = 'maartenbreddels'
+from collections import defaultdict
 import logging
 
+import numpy as np
 import pyarrow as pa
 import pyarrow.dataset
+import pyarrow.parquet as pq
 
 import vaex.dataset
 import vaex.file
@@ -33,6 +36,9 @@ class DatasetArrowBase(vaex.dataset.Dataset):
         self._row_count = row_count
         self._columns = {name: vaex.dataset.ColumnProxy(self, name, type) for name, type in
                           zip(self._arrow_ds.schema.names, self._arrow_ds.schema.types)}
+        for name, dictionary in self._partitions.items():
+            # TODO: make int32 dependant on the data?
+            self._columns[name] = vaex.dataset.ColumnProxy(self, name, pa.dictionary(pa.int32(), dictionary.type))
 
     def hashed(self):
         raise NotImplementedError
@@ -63,6 +69,17 @@ class DatasetArrowBase(vaex.dataset.Dataset):
         import pyarrow.parquet
         pool = get_main_io_pool()
         offset = 0
+        columns = tuple(columns)
+        columns_physical = []
+        columns_partition = []
+        for column in columns:
+            if column in self._partitions:
+                columns_partition.append(column)
+            else:
+                columns_physical.append(column)
+        columns_physical = tuple(columns_physical)
+        columns_partition = tuple(columns_partition)
+
         for fragment_large in self._arrow_ds.get_fragments():
             fragment_large_rows = sum([rg.num_rows for rg in fragment_large.row_groups])
             fragments = [fragment_large]
@@ -83,8 +100,15 @@ class DatasetArrowBase(vaex.dataset.Dataset):
                     # assert False
                     break
                 def reader(fragment=fragment):
-                    table = fragment.to_table(columns=columns, use_threads=False)
-                    chunks = dict(zip(table.column_names, table.columns))
+                    table = fragment.to_table(columns=list(columns_physical), use_threads=False)
+                    chunks_physical = dict(zip(table.column_names, table.columns))
+                    chunks_partition = {}
+                    partition_keys = self._partition_keys[fragment.path]
+                    for name in columns_partition:
+                        partition_index = partition_keys[name]
+                        partition_index_ar = pa.array(np.full(len(table), partition_index, dtype=np.int32))
+                        chunks_partition[name] = pa.DictionaryArray.from_arrays(partition_index_ar, self._partitions[name])
+                    chunks = {name: chunks_physical.get(name, chunks_partition.get(name)) for name in columns}
                     return chunks
                 assert length > 0
                 if start > chunk_start:
@@ -131,6 +155,16 @@ class DatasetArrowBase(vaex.dataset.Dataset):
         i1 = 0
         chunks_ready_list = []
         i1 = i2 = 0
+        # TODO: merge this with DatsetConcatenated.chunk_iterator
+        if not columns:
+            end = self.row_count if end is None else end
+            length = end - start
+            i2 = min(length, i1 + chunk_size)
+            while i1 < length:
+                yield i1, i2, {}
+                i1 = i2
+                i2 = min(length, i1 + chunk_size)
+            return
 
         workers = get_main_io_pool()._max_workers
         for chunks_future in buffer(self._chunk_producer(columns, chunk_size, start=start, end=end or self._row_count), workers+3):
@@ -150,20 +184,34 @@ class DatasetArrowBase(vaex.dataset.Dataset):
             i1 = i2
 
 
-
 class DatasetParquet(DatasetArrowBase):
-    def __init__(self, path, fs_options, max_rows_read=1024**2*10):
+    def __init__(self, path, fs_options, max_rows_read=1024**2*10, partitioning=None, kwargs=None):
         self.path = path
         self.fs_options = fs_options
+        self.partitioning = partitioning
+        self.kwargs = kwargs or {}
         super().__init__(max_rows_read=max_rows_read)
 
     def _create_dataset(self):
-        file_system, path = vaex.file.parse(self.path, self.fs_options, for_arrow=True)
-        self._arrow_ds = pyarrow.dataset.dataset(path, filesystem=file_system)
+        file_system, source = vaex.file.parse(self.path, self.fs_options, for_arrow=True)
+        self._arrow_ds = pyarrow.dataset.dataset(source, filesystem=file_system, partitioning=self.partitioning)
+
+        self._partitions = defaultdict(list) # path -> list (which will be an arrow array later on)
+        self._partition_keys = defaultdict(dict)  # path -> key -> int/index
+
+        for fragment in self._arrow_ds.get_fragments():
+            keys = pa.dataset._get_partition_keys(fragment.partition_expression)
+            for name, value in keys.items():
+                if value not in self._partitions[name]:
+                    self._partitions[name].append(value)
+                self._partition_keys[fragment.path][name] = self._partitions[name].index(value)
+        self._partitions = {name: pa.array(values) for name, values in self._partitions.items()}
 
     def __getstate__(self):
         state = super().__getstate__()
         del state['_arrow_ds']
+        del state['_partitions']
+        del state['_partition_keys']
         return state
 
 
@@ -235,6 +283,6 @@ def open(path, fs_options):
         return DatasetArrowIPCStream(path, fs_options=fs_options)
 
 
-def open_parquet(path, fs_options={}):
-    return DatasetParquet(path, fs_options=fs_options)
+def open_parquet(path, fs_options={}, partitioning='hive', **kwargs):
+    return DatasetParquet(path, fs_options=fs_options, partitioning=partitioning, kwargs=kwargs)
 
