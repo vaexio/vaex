@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from __future__ import division, print_function
+from __future__ import division, print_function, annotations
 import os
 import math
 import time
