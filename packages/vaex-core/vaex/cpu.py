@@ -353,6 +353,7 @@ class TaskPartAggregations:
                 references.extend([block, mask])
             else:
                 binner.set_data(block)
+                binner.clear_data_mask()
                 references.extend([block])
         all_aggregators = []
         for agg_desc, selections, aggregation2d, selection_waslist in self.aggregations:
@@ -393,6 +394,8 @@ class TaskPartAggregations:
                 if selection_mask is not None:
                     agg.set_data_mask(selection_mask)
                     references.extend([selection_mask])
+                else:
+                    agg.clear_data_mask()
         grid.bin(all_aggregators, N)
         self.has_values = True
 
