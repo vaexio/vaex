@@ -41,7 +41,7 @@ def test_pick_file(tmpdir, file_extension):
 
 
 
-@pytest.fixture(params=['hdf5', 'parquet'])
+@pytest.fixture(params=['hdf5', 'parquet', 'arrow'])
 def file_extension(request):
     return request.param
 
