@@ -196,6 +196,13 @@ def parse(path, fs_options={}, for_arrow=False):
         return module.parse(path, fs_options, for_arrow=for_arrow)
 
 
+def create_dir(path, fs_options):
+    fs, path = parse(path, fs_options=fs_options)
+    if fs is None:
+        fs = pa.fs.LocalFileSystem()
+    fs.create_dir(path, recursive=True)
+
+
 def fingerprint(path, fs_options={}):
     """Deterministic fingerprint for a file, useful in combination with dask or detecting file changes.
 
