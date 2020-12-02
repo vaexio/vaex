@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 from __future__ import division, print_function
-
 import os
 import math
 import time
@@ -3946,7 +3945,7 @@ class DataFrame(object):
 
     @docsubst
     @vaex.utils.gen_to_list
-    def split_random(self, frac, random_state=None):
+    def split_random(self, into, random_state=None):
         '''Returns a list containing random portions of the DataFrame.
 
         {note_copy}
@@ -3956,18 +3955,20 @@ class DataFrame(object):
         >>> import vaex, import numpy as np
         >>> np.random.seed(111)
         >>> df = vaex.from_arrays(x = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9])
-        >>> for dfs in df.split_random(frac=0.3, random_state=42):
+        >>> for dfs in df.split_random(into=0.3, random_state=42):
         ...     print(dfs.x.values)
         ...
         [8 1 5]
         [0 7 2 9 4 3 6]
-        >>> for split in df.split_random(frac=[0.2, 0.3, 0.5], random_state=42):
+        >>> for split in df.split_random(into=[0.2, 0.3, 0.5], random_state=42):
         ...     print(dfs.x.values)
         [8 1]
         [5 0 7]
         [2 9 4 3 6]
 
-        :param int/list frac: If int will split the DataFrame in two portions, the first of which will have size as specified by this parameter. If list, the generator will generate as many portions as elements in the list, where each element defines the relative fraction of that portion.
+        :param int/float/list into: If float will split the DataFrame in two, the first of which will have a relative length as specified by this parameter.
+            When a list, will split into as many portions as elements in the list, where each element defines the relative length of that portion. Note that such a list of fractions will always be re-normalized to 1.
+            When an int, split DataFrame into n dataframes of equal length (last one may deviate), if len(df) < n, it will return len(df) DataFrames.
         :param int random_state: (default, None) Random number seed for reproducibility.
         :return: A list of DataFrames.
         :rtype: list
@@ -3976,11 +3977,11 @@ class DataFrame(object):
         if type(random_state) == int or random_state is None:
             random_state = np.random.RandomState(seed=random_state)
         indices = random_state.choice(len(self), len(self), replace=False)
-        return self.take(indices).split(frac)
+        return self.take(indices).split(into)
 
     @docsubst
     @vaex.utils.gen_to_list
-    def split(self, frac):
+    def split(self, into=None):
         '''Returns a list containing ordered subsets of the DataFrame.
 
         {note_copy}
@@ -3989,30 +3990,41 @@ class DataFrame(object):
 
         >>> import vaex
         >>> df = vaex.from_arrays(x = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9])
-        >>> for dfs in df.split(frac=0.3):
+        >>> for dfs in df.split(into=0.3):
         ...     print(dfs.x.values)
         ...
         [0 1 3]
         [3 4 5 6 7 8 9]
-        >>> for split in df.split(frac=[0.2, 0.3, 0.5]):
+        >>> for split in df.split(into=[0.2, 0.3, 0.5]):
         ...     print(dfs.x.values)
         [0 1]
         [2 3 4]
         [5 6 7 8 9]
 
-        :param int/list frac: If int will split the DataFrame in two portions, the first of which will have size as specified by this parameter. If list, the generator will generate as many portions as elements in the list, where each element defines the relative fraction of that portion.
-        :return: A list of DataFrames.
-        :rtype: list
+        :param int/float/list into: If float will split the DataFrame in two, the first of which will have a relative length as specified by this parameter.
+            When a list, will split into as many portions as elements in the list, where each element defines the relative length of that portion. Note that such a list of fractions will always be re-normalized to 1.
+            When an int, split DataFrame into n dataframes of equal length (last one may deviate), if len(df) < n, it will return len(df) DataFrames.
         '''
         self = self.extract()
-        if _issequence(frac):
+        if isinstance(into, numbers.Integral):
+            step = max(1, vaex.utils.div_ceil(len(self), into))
+            i1 = 0
+            i2 = step
+            while i1 < len(self):
+                i2 = min(len(self), i2)
+                yield self[i1:i2]
+                i1, i2 = i2, i2 + step
+            return
+
+        if _issequence(into):
             # make sure it is normalized
-            total = sum(frac)
-            frac = [k / total for k in frac]
+            total = sum(into)
+            into = [k / total for k in into]
         else:
-            assert frac <= 1, "fraction should be <= 1"
-            frac = [frac, 1 - frac]
-        offsets = np.round(np.cumsum(frac) * len(self)).astype(np.int64)
+            assert into <= 1, "when float, `into` should be <= 1"
+            assert into > 0, "`into` must be > 0."
+            into = [into, 1 - into]
+        offsets = np.round(np.cumsum(into) * len(self)).astype(np.int64)
         start = 0
         for offset in offsets:
             yield self[start:offset]
