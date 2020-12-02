@@ -3981,7 +3981,7 @@ class DataFrame(object):
 
     @docsubst
     @vaex.utils.gen_to_list
-    def split(self, into=None) -> list[DataFrame]:
+    def split(self, into=None):
         '''Returns a list containing ordered subsets of the DataFrame.
 
         {note_copy}
