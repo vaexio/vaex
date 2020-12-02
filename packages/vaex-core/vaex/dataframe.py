@@ -3981,7 +3981,7 @@ class DataFrame(object):
 
     @docsubst
     @vaex.utils.gen_to_list
-    def split(self, into=None):
+    def split(self, into=None) -> list[DataFrame]:
         '''Returns a list containing ordered subsets of the DataFrame.
 
         {note_copy}
@@ -4004,8 +4004,6 @@ class DataFrame(object):
         :param int/float/list into: If float will split the DataFrame in two, the first of which will have a relative length as specified by this parameter.
             When a list, will split into as many portions as elements in the list, where each element defines the relative length of that portion. Note that such a list of fractions will always be re-normalized to 1.
             When an int, split DataFrame into n dataframes of equal length (last one may deviate), if len(df) < n, it will return len(df) DataFrames.
-        :return: A list of DataFrames.
-        :rtype: list
         '''
         self = self.extract()
         if isinstance(into, numbers.Integral):
