@@ -2275,8 +2275,7 @@ for name in dir(scopes['str']):
 def _ordinal_values(x, ordered_set):
     from vaex.column import _to_string_sequence
 
-    if not isinstance(x, np.ndarray) or x.dtype.kind in 'US' or\
-        isinstance(ordered_set, vaex.superutils.ordered_set_string):
+    if not isinstance(x, vaex.array_types.supported_array_types) or isinstance(ordered_set, vaex.superutils.ordered_set_string):
         # sometimes the dtype can be object, but seen as an string array
         x = _to_string_sequence(x)
     return ordered_set.map_ordinal(x)

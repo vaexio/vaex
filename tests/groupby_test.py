@@ -271,3 +271,25 @@ def test_groupby_same_result():
 
         assert vc.values.tolist() == group_sort['count'].values.tolist(), 'counts are not correct.'
         assert vc.index.tolist() == group_sort['h'].values.tolist(), 'the indices of the counts are not correct.'
+
+
+def test_groupby_iter():
+    # ds = ds_local.extract()
+    g = np.array([0, 0, 0, 0, 1, 1, 1, 1, 0, 1], dtype='int32')
+    s = np.array(list(map(str, [0, 0, 0, 0, 1, 1, 1, 1, 2, 2])))
+    df = vaex.from_arrays(g=g, s=s)
+    groupby = df.groupby('g')
+    assert set(groupby.groups) == {(0, ), (1, )}
+    dfs = list(groupby)
+    assert dfs[0][0] == (0, )
+    assert dfs[0][1].g.tolist() == [0] * 5
+    assert dfs[1][0] == (1, )
+    assert dfs[1][1].g.tolist() == [1] * 5
+
+    groupby = df.groupby(['g', 's'])
+    assert set(groupby.groups) == {(0, '0'), (1, '1'), (0, '2'), (1, '2')}
+    dfs = list(groupby)
+    assert dfs[0][0] == (0, '0')
+    assert dfs[0][1].g.tolist() == [0] * 4
+    assert dfs[1][0] == (0, '2')
+    assert dfs[1][1].g.tolist() == [0] * 1
