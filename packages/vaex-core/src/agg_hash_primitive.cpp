@@ -67,6 +67,10 @@ public:
         this->data_ptr = (data_type*)info.ptr;
         this->data_size = info.shape[0];
     }
+    void clear_data_mask() {
+        this->data_mask_ptr = nullptr;
+        this->data_mask_size = 0;
+    }
     void set_data_mask(py::buffer ar) {
         py::buffer_info info = ar.request();
         if(info.ndim != 1) {
@@ -120,6 +124,7 @@ void add_agg(Module m, Base& base, const char* class_name) {
             }
         )
         .def("set_data", &Agg::set_data)
+        .def("clear_data_mask", &Agg::clear_data_mask)
         .def("set_data_mask", &Agg::set_data_mask)
         .def("set_selection_mask", &Agg::set_selection_mask)
         .def("reduce", &Agg::reduce)

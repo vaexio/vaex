@@ -188,6 +188,10 @@ public:
     void set_data(StringSequence* string_sequence, size_t index) {
         this->string_sequence = string_sequence;
     }
+    void clear_data_mask() {
+        this->data_mask_ptr = nullptr;
+        this->data_mask_size = 0;
+    }
     void set_data_mask(py::buffer ar) {
         py::buffer_info info = ar.request();
         if(info.ndim != 1) {

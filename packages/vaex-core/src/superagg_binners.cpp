@@ -71,6 +71,10 @@ public:
         this->ptr = (T*)info.ptr;
         this->_size = info.shape[0];
     }
+    void clear_data_mask() {
+        this->data_mask_ptr = nullptr;
+        this->data_mask_size = 0;
+    }
     void set_data_mask(py::buffer ar) {
         py::buffer_info info = ar.request();
         if(info.ndim != 1) {
@@ -159,6 +163,10 @@ public:
     //     this->ptr = &m(0);
     //     this->_size = ar.size();
     // }
+    void clear_data_mask() {
+        this->data_mask_ptr = nullptr;
+        this->data_mask_size = 0;
+    }
     void set_data_mask(py::buffer ar) {
         py::buffer_info info = ar.request();
         if(info.ndim != 1) {
@@ -182,6 +190,7 @@ void add_binner_ordinal_(Module m, Base& base, std::string postfix) {
     py::class_<Type>(m, class_name.c_str(), base)
         .def(py::init<std::string, T, T>())
         .def("set_data", &Type::set_data)
+        .def("clear_data_mask", &Type::clear_data_mask)
         .def("set_data_mask", &Type::set_data_mask)
         .def("copy", &Type::copy)
         .def_property_readonly("expression", [](const Type &binner) {
@@ -213,6 +222,7 @@ void add_binner_scalar_(Module m, Base& base, std::string postfix) {
     py::class_<Type>(m, class_name.c_str(), base)
         .def(py::init<std::string, double, double, uint64_t>())
         .def("set_data", &Type::set_data)
+        .def("clear_data_mask", &Type::clear_data_mask)
         .def("set_data_mask", &Type::set_data_mask)
         .def("copy", &Type::copy)
         .def_property_readonly("expression", [](const Type &binner) {
