@@ -5939,6 +5939,57 @@ class DataFrameLocal(DataFrame):
                 self.export_arrow(writer, progress=progress, chunk_size=chunk_size, parallel=parallel, reduce_large=True)
 
     @docsubst
+    def export_partitioned(self, path, by, directory_format='{key}={value}', progress=None, chunk_size=default_chunk_size, parallel=True, fs_options=None):
+        '''Expertimental: export files using hive partitioning.
+
+        If no extension is found in the path, we assume parquet files. Otherwise you can specify the
+        format like an format-string. Where {{i}} is a zero based index, {{uuid}} a unique id, and {{subdir}}
+        the Hive key=value directory.
+
+        Example paths:
+          * '/some/dir/{{subdir}}/{{i}}.parquet'
+          * '/some/dir/{{subdir}}/fixed_name.parquet'
+          * '/some/dir/{{subdir}}/{{uuid}}.parquet'
+          * '/some/dir/{{subdir}}/{{uuid}}.parquet'
+
+        :param path: directory where to write the files to.
+        :param str or list of str: Which column to partition by.
+        :param str directory_format: format string for directories, default '{{key}}={{value}}' for Hive layout.
+        :param progress: {progress}
+        :param int chunk_size: {chunk_size_export}
+        :param bool parallel: {evaluate_parallel}
+        :param dict fs_options: {fs_options}
+        '''
+        from uuid import uuid4
+        if not _issequence(by):
+            by = [by]
+        by = _ensure_strings_from_expressions(by)
+
+        # we don't store the partitioned columns
+        columns = self.get_column_names()
+        for name in by:
+            columns.remove(name)
+
+        progressbar = vaex.utils.progressbars(progress)
+        progressbar(0)
+        groups = list(self.groupby(by))
+        _, ext, _ = vaex.file.split_ext(path)
+        if not ext:
+            path = vaex.file.stringyfy(path) + '/{subdir}/{uuid}.parquet'
+        else:
+            path = vaex.file.stringyfy(path)
+        for i, (values, df) in enumerate(groups):
+            parts = [directory_format.format(key=key, value=value) for key, value in dict(zip(by, values)).items()]
+            subdir = '/'.join(parts)
+            uuid = uuid4()
+            fullpath = path.format(uuid=uuid, subdir=subdir, i=i)
+            dirpath = os.path.dirname(fullpath)
+            vaex.file.create_dir(dirpath, fs_options=fs_options)
+            progressbar((i)/len(groups))
+            df[columns].export(fullpath, chunk_size=chunk_size, parallel=parallel, fs_options=fs_options)
+        progressbar(1)
+
+    @docsubst
     def export_many(self, path, progress=None, chunk_size=default_chunk_size, parallel=True, max_workers=None, fs_options=None):
         """Export the DataFrame to multiple files of the same type in parallel.
 
