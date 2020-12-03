@@ -102,6 +102,7 @@ def main(argv):
     parser.add_argument('--list', '-l', default=False, action='store_true', help="list columns of input")
     parser.add_argument('--progress', help="show progress (default: %(default)s)", default=True, action='store_true')
     parser.add_argument('--no-progress', dest="progress", action='store_false')
+    parser.add_argument('--no-delete', help="Delete file on failure (default: %(default)s)", dest='delete', default=True, action='store_false')
     parser.add_argument('--shuffle', "-s", dest="shuffle", action='store_true', default=False)
     parser.add_argument('--sort', dest="sort", default=None)
     parser.add_argument('--fraction', "-f", dest="fraction", type=float, default=1.0, help="fraction of input dataset to export")
@@ -132,7 +133,7 @@ def main(argv):
                 if column not in all_columns:
                     # if not args.quiet:
                     print("column %r does not exist, run with --list or -l to list all columns" % column)
-                return 1
+                    return 1
             df = df[columns]
         else:
             columns = df.get_column_names()
@@ -143,8 +144,21 @@ def main(argv):
 
         if args.filter:
             df = df.filter(args.filter)
-        df.export(args.output, progress=args.progress)
-        if not args.quiet:
-            print("\noutput to %s" % os.path.abspath(args.output))
-        df.close()
+        if args.sort:
+            df = df.sort(args.sort)
+        try:
+            df.export(args.output, progress=args.progress)
+            if not args.quiet:
+                print("\noutput to %s" % os.path.abspath(args.output))
+            df.close()
+        except:
+            if not args.quiet:
+                print("\nfailed to write to%s" % os.path.abspath(args.output))
+            if args.delete:
+                if args.delete:
+                    os.remove(args.output)
+                    print("\ndeleted output %s (pass --no-delete to avoid that)" % os.path.abspath(args.output))
+            raise
+
+
     return 0
