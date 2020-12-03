@@ -13,6 +13,7 @@ numpy
 pandas
 pcre
 pip
+psutil
 python-annoy
 # py-xgboost
 # pyarrow
