@@ -19,6 +19,11 @@ jobs:
         python-version: [3.6, 3.7, 3.8]
 
     steps:
+    - uses: maxim-lobanov/setup-xcode@v1
+      # alternative would be to upgrade tapi to 1100.0.11, we can possibly remove this in the future
+      if: matrix.os == 'macOS-latest'
+      with:
+        xcode-version: "11.7.0"
     - uses: actions/checkout@v1
       with:
         submodules: true
