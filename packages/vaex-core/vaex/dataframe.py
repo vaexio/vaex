@@ -1995,6 +1995,10 @@ class DataFrame(object):
         from pandas import Series
         return Series({column_name:self.data_type(column_name) for column_name in self.get_column_names()})
 
+    def schema(self):
+        '''Similar to df.dtypes, but returns a dict'''
+        return {column_name:self.data_type(column_name) for column_name in self.get_column_names()}
+
     def is_masked(self, column):
         '''Return if a column is a masked (numpy.ma) column.'''
         column = _ensure_string_from_expression(column)
@@ -5991,7 +5995,7 @@ class DataFrameLocal(DataFrame):
         progressbar(1)
 
     @docsubst
-    def export_hdf5(self, path, byteorder="=", progress=None, parallel=True):
+    def export_hdf5(self, path, byteorder="=", progress=None, chunk_size=default_chunk_size, parallel=True):
         """Exports the DataFrame to a vaex hdf5 file
 
         :param str path: path for file
@@ -6000,8 +6004,9 @@ class DataFrameLocal(DataFrame):
         :param bool parallel: {evaluate_parallel}
         :return:
         """
-        import vaex.export
-        vaex.export.export_hdf5(self, path, byteorder=byteorder, progress=progress, parallel=parallel)
+        from vaex.hdf5.writer import Writer
+        with Writer(path) as writer:
+            writer.write(self, chunk_size=chunk_size, progress=progress)
 
     @docsubst
     def export_fits(self, path, progress=None):
