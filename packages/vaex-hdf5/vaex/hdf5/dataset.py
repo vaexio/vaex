@@ -23,6 +23,8 @@ from vaex.column import ColumnNumpyLike, ColumnStringArrow
 from vaex.file.column import ColumnFile
 import vaex.arrow.convert
 
+from .utils import h5mmap
+
 logger = logging.getLogger("vaex.file")
 
 dataset_type_map = {}

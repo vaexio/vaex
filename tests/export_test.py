@@ -54,7 +54,7 @@ def test_export_many(df_local, tmpdir):
     assert df_copy.x.tolist() == df.x.tolist()
 
 
-def test_export(ds_local, tmpdir):
+def test_export_basic(ds_local, tmpdir):
     ds = ds_local
     # TODO: we eventually want to support dtype=object, but not for hdf5
     if 'obj' in ds:  # df_arrow does not have it
