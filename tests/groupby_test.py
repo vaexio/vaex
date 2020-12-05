@@ -271,3 +271,15 @@ def test_groupby_same_result():
 
         assert vc.values.tolist() == group_sort['count'].values.tolist(), 'counts are not correct.'
         assert vc.index.tolist() == group_sort['h'].values.tolist(), 'the indices of the counts are not correct.'
+
+
+def test_groupby_fixed_length_string():
+
+    x = np.array(['dog', 'cat', 'dog'], dtype='|S3')
+    y = np.array([1, 2, 3])
+    df = vaex.from_arrays(x=x, y=y)
+
+    df_group = df.groupby('x', agg={'y': ['count', 'mean']})
+
+    assert df_group.shape == (2, 3)
+    assert df_group.sort('x').values.tolist() == [[1.0, 2.0], [2.0, 2.0]]
