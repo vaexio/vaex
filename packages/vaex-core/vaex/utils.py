@@ -1036,4 +1036,5 @@ def get_env_type(type, key, default=None):
         # support empty strings
         value = default
     if value is not None:
-        return int(value)
+        import ast
+        return type(ast.literal_eval(str(value)))

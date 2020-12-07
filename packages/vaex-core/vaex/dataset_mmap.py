@@ -78,6 +78,8 @@ class DatasetMemoryMapped(vaex.dataset.DatasetFile):
             else:
                 kwargs["prot"] = mmap.PROT_READ | 0 if not self.write else mmap.PROT_WRITE
             mapping = mmap.mmap(fileno, 0, **kwargs)
+            # TODO: we can think about adding this in py38
+            # mapping.madvise(mmap.MADV_SEQUENTIAL)
             self.file_map[path] = file
             self.fileno_map[path] = fileno
             self.mapping_map[path] = mapping

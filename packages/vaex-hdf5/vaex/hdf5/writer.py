@@ -5,10 +5,12 @@ import h5py
 import numpy as np
 
 import vaex
+import vaex.utils
 from .utils import h5mmap
 from vaex.column import ColumnStringArrow, _to_string_sequence
 
 
+USE_MMAP = vaex.utils.get_env_type(bool, 'VAEX_USE_MMAP', True)
 logger = logging.getLogger("vaex.hdf5.writer")
 max_int32 = 2**31-1
 
@@ -83,7 +85,7 @@ class Writer:
 
         # and have all writers mmap the arrays
         for name in list(column_names):
-            self.column_writers[name].mmap(self.mmap)
+            self.column_writers[name].mmap(self.mmap, self.file)
 
         # actual writing part
         progressbar = vaex.utils.progressbars(progress)
@@ -126,8 +128,8 @@ class ColumnWriterPrimitive:
         else:
             self.mask = None
 
-    def mmap(self, mmap):
-        self.to_array = h5mmap(mmap, self.array, self.mask)
+    def mmap(self, mmap, file):
+        self.to_array = h5mmap(mmap if USE_MMAP else None, file, self.array, self.mask)
 
     def write(self, values):
         no_values = len(values)
@@ -189,15 +191,17 @@ class ColumnWriterString:
         # TODO: masked support ala arrow?
 
 
-    def mmap(self, mmap):
+    def mmap(self, mmap, file):
         # from now on, we only work with the mmapped array
-        self.array = h5mmap(mmap, self.array)
-        self.index_array = h5mmap(mmap, self.index_array)
+        # we cannot support USE_MMAP=False for strings yet
+        self.array = h5mmap(mmap, file, self.array)
+        self.index_array = h5mmap(mmap, file, self.index_array)
         if self.null_bitmap_array is not None:
-            self.null_bitmap_array = h5mmap(mmap, self.null_bitmap_array)
-        self.to_array = vaex.arrow.convert.arrow_string_array_from_buffers(self.array, self.index_array, self.null_bitmap_array)
-        np.asarray(self.index_array)[0] = 999
-        assert self.index_array[0] == 999
+            self.null_bitmap_array = h5mmap(mmap, file, self.null_bitmap_array)
+        if isinstance(self.index_array, np.ndarray):  # this is a real mmappable file
+            self.to_array = vaex.arrow.convert.arrow_string_array_from_buffers(self.array, self.index_array, self.null_bitmap_array)
+        else:
+            self.to_array = ColumnStringArrow(self.index_array, self.array, null_bitmap=self.null_bitmap_array)
         # if not isinstance(to_array, ColumnStringArrow):
         self.to_array = ColumnStringArrow.from_arrow(self.to_array)
         # assert isinstance(to_array, pa.Array)  # we don't support chunked arrays here
