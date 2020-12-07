@@ -363,13 +363,29 @@ def array_factory_numpy():
 
 
 @pytest.fixture(scope='session')
-def array_factory_arrow():
+def array_factory_arrow_normal():
     return pa.array
 
 
-@pytest.fixture(scope='session', params=['array_factory_numpy', 'array_factory_arrow'])
-def array_factory(request, array_factory_numpy, array_factory_arrow):
-    named = dict(array_factory_numpy=array_factory_numpy, array_factory_arrow=array_factory_arrow)
+@pytest.fixture(scope='session')
+def array_factory_arrow_chunked():
+    def create(x):
+        x = pa.array(x)
+        mid = len(x) // 3
+        c1 = x.slice(0, mid)
+        c2 = x.slice(mid)
+        return pa.chunked_array([c1, c2])
+    return create
+
+
+@pytest.fixture(scope='session', params=['array_factory_numpy', 'array_factory_arrow_normal', 'array_factory_arrow_chunked'])
+def array_factory(request, array_factory_numpy, array_factory_arrow_normal, array_factory_arrow_chunked):
+    named = dict(array_factory_numpy=array_factory_numpy, array_factory_arrow_normal=array_factory_arrow_normal, array_factory_arrow_chunked=array_factory_arrow_chunked)
+    return named[request.param]
+
+@pytest.fixture(scope='session', params=['array_factory_arrow_normal', 'array_factory_arrow_chunked'])
+def array_factory_arrow(request, array_factory_arrow_normal, array_factory_arrow_chunked):
+    named = dict(array_factory_arrow_normal=array_factory_arrow_normal, array_factory_arrow_chunked=array_factory_arrow_chunked)
     return named[request.param]
 
 array_factory1 = array_factory

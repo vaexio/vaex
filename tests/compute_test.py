@@ -18,16 +18,16 @@ def y(array_factory2):
 
 
 @pytest.fixture(scope='session')
-def s():
-    return pa.array(['a', 'b', None, 'd'])
+def s(array_factory_arrow):
+    return array_factory_arrow(['a', 'b', None, 'd'])
 
 
 def test_add(x, y):
     df = vaex.from_arrays(x=x, y=y)
     df['z'] = df.x + df.y
     assert df['z'].tolist() == [1, 3, None, None]
-    assert isinstance(df['z'].values.tolist()[0], numbers.Number)
-    assert df['z'].values.tolist() == [1, 3, None, None]
+    assert isinstance(df['z'].tolist()[0], numbers.Number)
+    assert df['z'].tolist() == [1, 3, None, None]
     assert df['z'].dtype == 'numeric'
     # import pdb; pdb.set_trace()
 
