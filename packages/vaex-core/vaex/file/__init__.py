@@ -7,6 +7,7 @@ import os
 import re
 import sys
 from urllib.parse import parse_qs
+import warnings
 import pkg_resources
 
 import pyarrow as pa
@@ -63,11 +64,11 @@ def is_file_object(file):
     return hasattr(file, 'read') and hasattr(file, 'seek')
 
 
-def file_and_path(file, mode='r', fs_options={}):
+def file_and_path(file, mode='r', fs_options={}, fs=None):
     if is_file_object(file):
         return file, stringyfy(file)
     else:
-        file = open(file, mode=mode, fs_options=fs_options)
+        file = open(file, mode=mode, fs_options=fs_options, fs=fs)
         return file, stringyfy(file)
 
 
@@ -150,7 +151,7 @@ def split_ext(path, fs_options={}):
     return base, ext, fs_options
 
 
-def exists(path, fs_options={}):
+def exists(path, fs_options={}, fs=None):
     """Checks if file exists.
 
     >>> vaex.file.exists('/you/do/not')
@@ -159,7 +160,7 @@ def exists(path, fs_options={}):
     >>> vaex.file.exists('s3://vaex/taxi/nyc_taxi_2015_mini.parquet', fs_options={'anon': True})
     True
     """
-    fs, path = parse(path, fs_options=fs_options)
+    fs, path = parse(path, fs_options=fs_options, fs=fs)
     if fs is None:
         return os.path.exists(path)
     else:
@@ -181,7 +182,15 @@ def remove(path):
     os.remove(path)
 
 
-def parse(path, fs_options={}, for_arrow=False):
+def parse(path, fs_options={}, fs=None, for_arrow=False):
+    if fs is not None:
+        if fs_options:
+            warnings.warn(f'Passed fs_options while fs was specified, {fs_options} are ignored')
+        if 'fsspec' in sys.modules:
+            import fsspec
+            if isinstance(fs, fsspec.AbstractFileSystem):
+                fs = pa.fs.FSSpecHandler(fs)
+        return fs, path
     if isinstance(path, (list, tuple)):
         scheme, _ = split_scheme(path[0])
     else:
@@ -196,14 +205,14 @@ def parse(path, fs_options={}, for_arrow=False):
         return module.parse(path, fs_options, for_arrow=for_arrow)
 
 
-def create_dir(path, fs_options):
-    fs, path = parse(path, fs_options=fs_options)
+def create_dir(path, fs_options, fs=None):
+    fs, path = parse(path, fs_options=fs_options, fs=fs)
     if fs is None:
         fs = pa.fs.LocalFileSystem()
     fs.create_dir(path, recursive=True)
 
 
-def fingerprint(path, fs_options={}):
+def fingerprint(path, fs_options={}, fs=None):
     """Deterministic fingerprint for a file, useful in combination with dask or detecting file changes.
 
     Based on mtime (modification time), file size, and the path. May lead to
@@ -215,7 +224,7 @@ def fingerprint(path, fs_options={}):
     >>> fingerprint('s3://vaex/taxi/nyc_taxi_2015_mini.parquet', fs_options={'anon': True})  # doctest: +SKIP
     '7c962e2d8c21b6a3681afb682d3bf91b'
     """
-    fs, path = parse(path, fs_options)
+    fs, path = parse(path, fs_options, fs=fs)
     path = stringyfy(path)
     if fs is None:
         mtime = os.path.getmtime(path)
@@ -228,10 +237,10 @@ def fingerprint(path, fs_options={}):
     return vaex.cache.fingerprint(('file', (path, mtime, size)))
 
 
-def open(path, mode='rb', fs_options={}, for_arrow=False, mmap=False):
+def open(path, mode='rb', fs_options={}, fs=None, for_arrow=False, mmap=False):
     if is_file_object(path):
         return path
-    fs, path = parse(path, fs_options=fs_options, for_arrow=for_arrow)
+    fs, path = parse(path, fs_options=fs_options, fs=fs, for_arrow=for_arrow)
     if fs is None:
         path = stringyfy(path)
         if for_arrow:
@@ -267,7 +276,9 @@ def dup(file):
     else:
         return normal_open(file.name, file.mode)
 
-def glob(path, fs_options={}):
+def glob(path, fs_options={}, fs=None):
+    if fs:
+        raise ValueError('globbing with custom fs not supported yet, please open an issue.')
     scheme, _ = split_scheme(path)
     if not scheme:
         return local_glob(path)

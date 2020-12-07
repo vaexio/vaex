@@ -25,33 +25,33 @@ def _convert_name(filenames, shuffle=False, suffix=None):
         return base + ".hdf5"
 
 
-def convert(path_input, fs_options_input, path_output, fs_options_output, *args, **kwargs):
+def convert(path_input, fs_options_input, fs_input, path_output, fs_options_output, fs_output, *args, **kwargs):
     @vaex.cache.output_file(
-        path_input=path_input, fs_options_input=fs_options_input,
-        path_output=path_output, fs_options_output=fs_options_output)
+        path_input=path_input, fs_options_input=fs_options_input, fs_input=fs_input,
+        path_output=path_output, fs_options_output=fs_options_output, fs_output=fs_output)
     def cached_output(*args, **kwargs):
-        ds = vaex.dataset.open(path_input, fs_options=fs_options_input, *args, **kwargs)
+        ds = vaex.dataset.open(path_input, fs_options=fs_options_input, fs=fs_input, *args, **kwargs)
         if ds is not None:
             df = vaex.from_dataset(ds)
-            df.export(path_output)
+            df.export(path_output, fs_options=fs_options_output, fs=fs_output)
     cached_output(*args, **kwargs)
 
 
-def convert_csv(path_input, fs_options_input, path_output, fs_options_output, *args, **kwargs):
+def convert_csv(path_input, fs_options_input, fs_input, path_output, fs_options_output, fs_output, *args, **kwargs):
     @vaex.cache.output_file(
-        path_input=path_input, fs_options_input=fs_options_input,
-        path_output=path_output, fs_options_output=fs_options_output)
+        path_input=path_input, fs_options_input=fs_options_input, fs_input=fs_input,
+        path_output=path_output, fs_options_output=fs_options_output, fs_output=fs_output)
     def cached_output(*args, **kwargs):
         if fs_options_output:
             raise ValueError(f'No fs_options support for output/convert')
         if 'chunk_size' not in kwargs:
             # make it memory efficient by default
             kwargs['chunk_size'] = 5_000_000
-        _from_csv_convert_and_read(path_input, maybe_convert_path=path_output, fs_options=fs_options_input, **kwargs)
+        _from_csv_convert_and_read(path_input, maybe_convert_path=path_output, fs_options=fs_options_input, fs=fs_input, **kwargs)
     cached_output(*args, **kwargs)
 
 
-def _from_csv_convert_and_read(filename_or_buffer, maybe_convert_path, chunk_size, fs_options, copy_index=False, **kwargs):
+def _from_csv_convert_and_read(filename_or_buffer, maybe_convert_path, chunk_size, fs_options, fs=None, copy_index=False, **kwargs):
     # figure out the CSV file path
     if isinstance(maybe_convert_path, str):
         csv_path = re.sub(r'\.hdf5$', '', str(maybe_convert_path), flags=re.IGNORECASE)
@@ -66,13 +66,14 @@ def _from_csv_convert_and_read(filename_or_buffer, maybe_convert_path, chunk_siz
     # convert CSV chunks to separate HDF5 files
     import pandas as pd
     converted_paths = []
-    csv_reader = pd.read_csv(filename_or_buffer, chunksize=chunk_size, **kwargs)
-    for i, df_pandas in enumerate(csv_reader):
-        df = vaex.from_pandas(df_pandas, copy_index=copy_index)
-        filename_hdf5 = _convert_name(csv_path, suffix='_chunk%d' % i)
-        df.export_hdf5(filename_hdf5)
-        converted_paths.append(filename_hdf5)
-        log.info('saved chunk #%d to %s' % (i, filename_hdf5))
+    with vaex.file.open(filename_or_buffer, fs_options=fs_options, fs=fs, for_arrow=True) as f:
+        csv_reader = pd.read_csv(filename_or_buffer, chunksize=chunk_size, **kwargs)
+        for i, df_pandas in enumerate(csv_reader):
+            df = vaex.from_pandas(df_pandas, copy_index=copy_index)
+            filename_hdf5 = _convert_name(csv_path, suffix='_chunk%d' % i)
+            df.export_hdf5(filename_hdf5)
+            converted_paths.append(filename_hdf5)
+            log.info('saved chunk #%d to %s' % (i, filename_hdf5))
 
     # combine chunks into one HDF5 file
     if len(converted_paths) == 1:

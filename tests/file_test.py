@@ -1,5 +1,6 @@
 from pathlib import Path
 import pytest
+import fsspec.implementations.memory
 
 import vaex.file
 import pyarrow as pa
@@ -94,3 +95,17 @@ def test_open_non_existing(tmpdir):
     path = tmpdir / 'test2.dat'
     with pytest.raises(IOError) as exc:
         f = open(path)
+
+
+def test_fsspec(df_trimmed):
+    df_trimmed = df_trimmed.drop('obj')
+    fs = fsspec.implementations.memory.MemoryFileSystem()
+    df_trimmed.export('test.arrow', fs=fs)
+    assert 'test.arrow' in fs.store
+    # with vaex.file.open('test.txt', fs=fs) as f:
+    #     f.write('vaex')
+    df_trimmed['test'] = df_trimmed.x + 10
+    df_trimmed.state_write('test.json', fs=fs)
+    df = vaex.open('test.arrow', fs=fs)
+    df.state_load('test.json', fs=fs)
+    assert df.test.tolist() == df_trimmed.test.tolist()

@@ -5,13 +5,14 @@ from vaex.dataset import DatasetFile
 from vaex.dataset_misc import _try_unit
 
 class VOTable(DatasetFile):
-	def __init__(self, filename, fs_options):
+	def __init__(self, filename, fs_options={}, fs=None):
 		super().__init__(filename)
 		self.ucds = {}
 		self.units = {}
 		self.filename = filename
 		self.path = filename
-		votable = astropy.io.votable.parse(self.filename)
+		with vaex.file.open(filename, fs_options=fs_options, fs=fs) as f:
+			votable = astropy.io.votable.parse(f)
 
 		self.first_table = votable.get_first_table()
 		self.description = self.first_table.description

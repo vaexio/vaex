@@ -39,3 +39,4 @@ _doc_snippets['evaluate_parallel'] = 'Evaluate the (virtual) columns in parallel
 _doc_snippets['array_type'] = 'Type of output array, possible values are None/"numpy" (ndarray), "xarray" for a xarray.DataArray, or "list" for a Python list'
 _doc_snippets['ascii'] = 'Transform only ascii characters (usually faster).'
 _doc_snippets['fs_options'] = 'see :func:`vaex.open` e.g. for S3 {"profile": "myproject"}'
+_doc_snippets['fs_options'] = 'Pass a file system object directly, see :func:`vaex.open`'

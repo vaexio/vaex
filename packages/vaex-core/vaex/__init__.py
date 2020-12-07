@@ -92,7 +92,7 @@ def app(*args, **kwargs):
     return vaex.ui.main.VaexApp()
 
 
-def open(path, convert=False, shuffle=False, fs_options={}, *args, **kwargs):
+def open(path, convert=False, shuffle=False, fs_options={}, fs=None, *args, **kwargs):
     """Open a DataFrame from file given by path.
 
     Example:
@@ -115,6 +115,7 @@ def open(path, convert=False, shuffle=False, fs_options={}, *args, **kwargs):
         * Google Cloud Storage
             * :py:class:`gcsfs.core.GCSFileSystem`
         In addition you can pass the boolean "cache" option.
+    :param fs: Apache Arrow FileSystem object, or FSSpec FileSystem object, if specified, fs_options should be empty.
     :param args: extra arguments for file readers that need it
     :param kwargs: extra keyword arguments
     :return: return a DataFrame on success, otherwise None
@@ -202,17 +203,17 @@ def open(path, convert=False, shuffle=False, fs_options={}, *args, **kwargs):
                 # # naked_path, _ = vaex.file.split_options(path, fs_options)
                 _, ext, _ = vaex.file.split_ext(path)
                 if ext == '.csv':  # special case for csv
-                    return vaex.from_csv(path, fs_options=fs_options, convert=convert, **kwargs)
+                    return vaex.from_csv(path, fs_options=fs_options, fs=fs, convert=convert, **kwargs)
                 if convert:
                     path_output = convert if isinstance(convert, str) else filename_hdf5
                     vaex.convert.convert(
-                        path_input=path, fs_options_input=fs_options,
-                        path_output=path_output, fs_options_output=fs_options,
+                        path_input=path, fs_options_input=fs_options, fs_input=fs,
+                        path_output=path_output, fs_options_output=fs_options, fs_output=fs,
                         *args, **kwargs
                     )
-                    ds = vaex.dataset.open(path_output, fs_options=fs_options, **kwargs)
+                    ds = vaex.dataset.open(path_output, fs_options=fs_options, fs=fs, **kwargs)
                 else:
-                    ds = vaex.dataset.open(path, fs_options=fs_options, **kwargs)
+                    ds = vaex.dataset.open(path, fs_options=fs_options, fs=fs, **kwargs)
                 df = vaex.from_dataset(ds)
                 if df is None:
                     if os.path.exists(path):
@@ -487,7 +488,7 @@ def from_json(path_or_buffer, orient=None, precise_float=False, lines=False, cop
                        copy_index=copy_index)
 
 
-def from_csv(filename_or_buffer, copy_index=False, chunk_size=None, convert=False, fs_options={}, **kwargs):
+def from_csv(filename_or_buffer, copy_index=False, chunk_size=None, convert=False, fs_options={}, fs=None, **kwargs):
     """
     Read a CSV file as a DataFrame, and optionally convert to an hdf5 file.
 
@@ -512,7 +513,7 @@ def from_csv(filename_or_buffer, copy_index=False, chunk_size=None, convert=Fals
     """
     if not convert:
         return _from_csv_read(filename_or_buffer=filename_or_buffer, copy_index=copy_index,
-                              fs_options=fs_options, chunk_size=chunk_size, **kwargs)
+                              fs_options=fs_options, fs=fs, chunk_size=chunk_size, **kwargs)
     else:
         if chunk_size is None:
             # make it memory efficient by default
@@ -520,19 +521,19 @@ def from_csv(filename_or_buffer, copy_index=False, chunk_size=None, convert=Fals
         import vaex.convert
         path_output = convert if isinstance(convert, str) else vaex.convert._convert_name(filename_or_buffer)
         vaex.convert.convert_csv(
-            path_input=filename_or_buffer, fs_options_input=fs_options,
-            path_output=path_output, fs_options_output=fs_options,
+            path_input=filename_or_buffer, fs_options_input=fs_options, fs_input=fs,
+            path_output=path_output, fs_options_output=fs_options, fs_output=fs,
             chunk_size=chunk_size,
             copy_index=copy_index,
             **kwargs
         )
-        return open(path_output, fs_options=fs_options)
+        return open(path_output, fs_options=fs_options, fs=fs)
 
 
-def _from_csv_read(filename_or_buffer, copy_index, chunk_size, fs_options={}, **kwargs):
+def _from_csv_read(filename_or_buffer, copy_index, chunk_size, fs_options={}, fs=None, **kwargs):
     import pandas as pd
     if not chunk_size:
-        with vaex.file.open(filename_or_buffer, fs_options=fs_options, for_arrow=True) as f:
+        with vaex.file.open(filename_or_buffer, fs_options=fs_options, fs=fs, for_arrow=True) as f:
             full_df = pd.read_csv(f, **kwargs)
             return from_pandas(full_df, copy_index=copy_index)
     else:

@@ -50,7 +50,7 @@ def getinfo(filename, seek=None):
 
 
 class MemoryMappedGadget(DatasetMemoryMapped):
-	def __init__(self, filename, fs_options={}):
+	def __init__(self, filename, fs_options={}, fs=None):
 		super(MemoryMappedGadget, self).__init__(filename)
 		#h5file = h5py.File(self.filename)
 		length, posoffset, veloffset, header = getinfo(filename)
