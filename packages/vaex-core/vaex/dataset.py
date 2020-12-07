@@ -788,7 +788,7 @@ class DatasetDropped(Dataset):
         return self.original.is_masked(column)
 
     def shape(self, column):
-        return self.origina.shape(column)
+        return self.original.shape(column)
 
     def hashed(self):
         if set(self._ids) == set(self):
