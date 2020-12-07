@@ -80,32 +80,14 @@ class ColumnFile(vaex.column.Column):
         itemsize = self.dtype.itemsize
         N = stop - start
 
-        page_size = 1024*4
-        page_mask = page_size-1
-        # TODO: check, it seems tobytes is slow
-        ar_bytes = values.tobytes()
+        ar_bytes = memoryview(values.view('u1'))
         assert len(ar_bytes) == N * itemsize
-        # we want to read at a page boundary
         offset = self.byte_offset + start * itemsize
 
-        # make sure we write at a multiple of the page size, if the content is smaller than
-        if N * itemsize >= page_size:
-            offset_optimal = math.ceil(offset/page_size) * page_size
-            padding = offset_optimal - offset
-            ar_ptr_pad = ctypes.c_char_p(ar_bytes[:padding])
-            ar_ptr_opt = ctypes.c_char_p(ar_bytes[padding:])
-            if offset != offset_optimal:
-                bytes_write = libc.pwrite(ctypes.c_int32(self.file.fileno()), ar_ptr_pad, ctypes.c_uint64(padding), ctypes.c_uint64(offset))
-                if (bytes_write) != padding:
-                    raise IOError('write error: expected %d bytes, wrote %d, padding: %d' % (N * itemsize, bytes_write, padding))
-            bytes_write = libc.pwrite(ctypes.c_int32(self.file.fileno()), ar_ptr_opt, ctypes.c_uint64(N * itemsize - padding), ctypes.c_uint64(offset_optimal))
-            if (bytes_write) != N * itemsize - padding:
-                raise IOError('write error: expected %d bytes, wrote %d, padding: %d' % (N * itemsize, bytes_write, padding))
-        else:
-            ar_ptr = ctypes.c_char_p(ar_bytes)
-            bytes_write = libc.pwrite(ctypes.c_int32(self.file.fileno()), ar_ptr, ctypes.c_uint64(N * itemsize), ctypes.c_uint64(offset))
-            if (bytes_write) != N * itemsize:
-                raise IOError('write error: expected %d bytes, wrote %d, padding: %d' % (N * itemsize, bytes_write, padding))
+        self.file.seek(offset)
+        bytes_write = self.file.write(ar_bytes)
+        if (bytes_write) != N * itemsize:
+            raise IOError('write error: expected %d bytes, wrote %d' % (N * itemsize, bytes_write))
 
 
     def __getitem__(self, slice):
