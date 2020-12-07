@@ -40,6 +40,7 @@ positional arguments:
 Examples:
 $ vaex convert s3://vaex/taxi/nyc_taxi_2015_mini.parquet taxi.hdf5
 $ vaex convert taxi.hdf5 taxi.csv
+
 """
 
 
