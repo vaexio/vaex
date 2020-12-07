@@ -40,3 +40,32 @@ def test_large_string_to_string(offset, chunked):
     if not chunked:
         assert ns.offset < 8
     assert s.to_pylist() == ns.to_pylist()
+
+
+def test_align():
+    ac = pa.chunked_array([[1, 2], [3], [4, 5, 6]])
+    ac2 = pa.chunked_array([[1, 2], [3, 4, 5], [6]])
+    af = pa.array([1, 2, 3, 4, 5, 6])
+    x1, x2 = convert.align(ac, af)
+    assert isinstance(x1, pa.ChunkedArray)
+    assert isinstance(x2, pa.ChunkedArray)
+    assert x1.to_pylist() == af.to_pylist()
+    assert x2.to_pylist() == af.to_pylist()
+
+    x1, x2 = convert.align(af, ac)
+    assert isinstance(x1, pa.ChunkedArray)
+    assert isinstance(x2, pa.ChunkedArray)
+    assert x1.to_pylist() == af.to_pylist()
+    assert x2.to_pylist() == af.to_pylist()
+
+    x1, x2 = convert.align(ac, ac2)
+    assert isinstance(x1, pa.Array)
+    assert isinstance(x2, pa.Array)
+    assert x1.to_pylist() == af.to_pylist()
+    assert x2.to_pylist() == af.to_pylist()
+
+    x1, x2 = convert.align(af, af)
+    assert isinstance(x1, pa.Array)
+    assert isinstance(x2, pa.Array)
+    assert x1.to_pylist() == af.to_pylist()
+    assert x2.to_pylist() == af.to_pylist()

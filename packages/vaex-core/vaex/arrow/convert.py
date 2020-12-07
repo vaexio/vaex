@@ -10,7 +10,7 @@ import vaex.column
 
 def ensure_not_chunked(arrow_array):
     if isinstance(arrow_array, pa.ChunkedArray):
-        if len(arrow_array.chunks) == 0:
+        if len(arrow_array.chunks) == 1:
             return arrow_array.chunks[0]
         table = pa.Table.from_arrays([arrow_array], ["single"])
         table_concat = table.combine_chunks()
@@ -243,3 +243,32 @@ def trim_buffers_ipc(ar):
 def trim_buffers_for_pickle(ar):
     # future version of pyarrow might fix this, so we have a single entry point for this
     return trim_buffers_ipc(ar)
+
+
+def align(a, b):
+    '''Align two arrays/chunked arrays such that they have the same chunk lengths'''
+    if len(a) != len(b):
+        raise ValueError(f'Length of arrays should be equals ({len(a)} != {len(b)})')
+    if isinstance(a, pa.ChunkedArray) and len(a.chunks) == 1:
+        a = a.chunks[0]
+    if isinstance(b, pa.ChunkedArray) and len(b.chunks) == 1:
+        b = b.chunks[0]
+    if isinstance(a, pa.ChunkedArray) and isinstance(b, pa.ChunkedArray):
+        lengths_a = [len(c) for c in a.chunks]
+        lengths_b = [len(c) for c in b.chunks]
+        if lengths_a == lengths_b:
+            return a, b
+        else:
+            return ensure_not_chunked(a), ensure_not_chunked(b)
+    elif isinstance(a, pa.ChunkedArray) and not isinstance(b, pa.ChunkedArray):
+        lengths = [len(c) for c in a.chunks]
+        # numpy cannot do an exclusive cumsum
+        offsets = np.cumsum([0] + lengths)
+        offsets = offsets[:-1]
+        return a, pa.chunked_array([b.slice(offset, length) for offset, length in zip(offsets, lengths)])
+    elif not isinstance(a, pa.ChunkedArray) and isinstance(b, pa.ChunkedArray):
+        b, a = align(b, a)
+        return a, b
+    else:
+        return a, b
+    return
