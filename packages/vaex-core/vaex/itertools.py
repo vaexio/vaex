@@ -26,3 +26,25 @@ def pwait(i):
 def consume(i):
     for item in i:
         pass
+
+
+def chunked(i, count):
+    '''Yield list 'subslices' of iterator i with max length count.
+
+    >>> list(chunked(range(10), 2))
+    [[0, 1], [2, 3], [4, 5], [6, 7], [8, 9]]
+    >>> list(chunked(range(5), 2))
+    [[0, 1], [2, 3], [4]]
+    >>> list(chunked(range(3), 4))
+    [[0, 1, 2]]
+    >>> list(chunked(range(4), 4))
+    [[0, 1, 2, 3]]
+    '''
+    values = []
+    for el in i:
+        values.append(el)
+        if len(values) == count:
+            yield values
+            values = []
+    if values:
+        yield values
