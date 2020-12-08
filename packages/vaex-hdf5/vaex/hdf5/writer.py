@@ -1,5 +1,6 @@
 import mmap
 import logging
+import concurrent.futures
 
 import h5py
 import numpy as np
@@ -38,7 +39,7 @@ class Writer:
     def __exit__(self, *args):
         self.close()
     
-    def write(self, df, chunk_size=int(1e5), parallel=True, progress=None):
+    def write(self, df, chunk_size=int(1e5), parallel=True, progress=None, column_count=1, export_threads=0):
         N = len(df)
         if N == 0:
             raise ValueError("Cannot export empty table")
@@ -90,10 +91,22 @@ class Writer:
         # actual writing part
         progressbar = vaex.utils.progressbars(progress)
         progressbar(0)
-        for i1, i2, values in df.evaluate(column_names, chunk_size=chunk_size, filtered=True, parallel=parallel, array_type='numpy-arrow'):
-            for i, name in list(enumerate(column_names))[::-1]:
-                self.column_writers[name].write(values[i])
-            progressbar(i2/N)
+        total = N * len(column_names)
+        written = 0
+        if export_threads:
+            pool = concurrent.futures.ThreadPoolExecutor(export_threads)
+        for column_names_subgroup in vaex.itertools.chunked(column_names, column_count):
+            for i1, i2, values in df.evaluate(column_names_subgroup, chunk_size=chunk_size, filtered=True, parallel=parallel, array_type='numpy-arrow'):
+                def write(arg):
+                    i, name = arg
+                    self.column_writers[name].write(values[i])
+                # for i, name in enumerate(column_names_subgroup):
+                if export_threads:
+                    list(pool.map(write, enumerate(column_names_subgroup)))
+                else:
+                    list(map(write, enumerate(column_names_subgroup)))
+                written += (i2 - i1) * len(column_names_subgroup)
+                progressbar(written/total)
         progressbar(1.0)
 
 
