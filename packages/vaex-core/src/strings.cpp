@@ -1953,7 +1953,7 @@ void add_string_list(Module m, Base& base, const char* class_name) {
                 return new StringList((char*)bytes_info.ptr, bytes_info.shape[0],
                                    (typename StringList::index_type*)indices_info.ptr, string_count, offset, null_bitmap_ptr, null_offset
                                   );
-            }), py::keep_alive<1, 2>(), py::keep_alive<1, 3>() // keep a reference to the ndarrays
+            }), py::keep_alive<1, 2>(), py::keep_alive<1, 3>(), py::keep_alive<1, 6>() // keep a reference to the ndarrays
         )
         .def("split", &StringList::split, py::keep_alive<0, 1>())
         .def("slice", &StringList::slice, py::keep_alive<0, 1>())
