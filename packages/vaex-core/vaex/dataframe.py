@@ -5869,7 +5869,7 @@ class DataFrameLocal(DataFrame):
         naked_path, options = vaex.file.split_options(path)
         fs_options = fs_options or {}
         if naked_path.endswith('.arrow'):
-            self.export_arrow(path, chunk_size=chunk_size, parallel=parallel, fs_options=fs_options)
+            self.export_arrow(path, progress=progress, chunk_size=chunk_size, parallel=parallel, fs_options=fs_options)
         elif naked_path.endswith('.hdf5'):
             self.export_hdf5(path, progress=progress, parallel=parallel)
         elif naked_path.endswith('.fits'):
