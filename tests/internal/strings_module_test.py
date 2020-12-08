@@ -192,12 +192,14 @@ def test_arrow_basics():
     # ref counts start at 2
     assert sys.getrefcount(bytes_strings) == 2
     assert sys.getrefcount(indices) == 2
+    assert sys.getrefcount(null_bitmap) == 2
 
     sl = vaex.strings.StringList32(bytes_strings, indices, len(ar), offset, null_bitmap, 0)
     assert sys.getrefcount(sl) == 2
     # we should keep a reference only
     assert sys.getrefcount(bytes_strings) == 3
     assert sys.getrefcount(indices) == 3
+    assert sys.getrefcount(null_bitmap) == 3
 
     assert sl.get(0) == "aap"
     assert sl.get(1) == "noot"
