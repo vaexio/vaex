@@ -106,7 +106,7 @@ class _BlockScope(ScopeBase):
             # logger.debug("in eval")
             # eval("def f(")
             result = eval(expression, expression_namespace, self)
-            self.values[expression] = result
+            self.values[expression] = wrap(result)
             # if out is not None:
             #   out[:] = result
             #   result = out
@@ -140,19 +140,17 @@ class _BlockScope(ScopeBase):
                         values = values.filter(vaex.array_types.to_arrow(self.mask))
                     else:
                         values = values[self.mask]
-                values = wrap(values)
-                self.values[variable] = values
+                self.values[variable] = wrap(values)
             elif variable in list(self.df.virtual_columns.keys()):
                 expression = self.df.virtual_columns[variable]
                 if isinstance(expression, dict):
                     function = expression['function']
                     arguments = [self.evaluate(k) for k in expression['arguments']]
-                    self.values[variable] = function(*arguments)
+                    self.values[variable] = wrap(function(*arguments))
                 else:
                     # self._ensure_buffer(variable)
                     values = self.evaluate(expression)
-                    values = wrap(values)
-                    self.values[variable] = values
+                    self.values[variable] = wrap(values)
                     # self.values[variable] = self.buffers[variable]
             elif variable in self.df.functions:
                 f = self.df.functions[variable].f
@@ -211,11 +209,11 @@ class _BlockScopeSelection(ScopeBase):
                 # logger.debug("mask for %r is %r", variable, mask)
                 if selection_in_cache == selection:
                     if self.filter_mask is not None:
-                        return mask[self.filter_mask]
-                    return mask
+                        return wrap(mask[self.filter_mask])
+                    return wrap(mask)
                 # logger.debug("was not cached")
                 if variable in self.df.variables:
-                    return self.df.variables[variable]
+                    return wrap(self.df.variables[variable])
                 mask_values = selection.evaluate(self.df, variable, self.i1, self.i2, self.filter_mask)
                     
                 # get a view on a subset of the mask
@@ -232,14 +230,14 @@ class _BlockScopeSelection(ScopeBase):
                     cache[key] = selection, sub_mask_array
                     # cache[key] = selection, mask_values
                 if self.filter_mask is not None:
-                    return sub_mask_array[self.filter_mask]
+                    return wrap(sub_mask_array[self.filter_mask])
                 else:
-                    return sub_mask_array
+                    return wrap(sub_mask_array)
                 # return mask_values
             else:
                 offset = self.df._index_start
                 if variable in expression_namespace:
-                    return expression_namespace[variable]
+                    return wrap(expression_namespace[variable])
                 elif variable in self.df.columns:
                     values = self.df.columns[variable][offset+self.i1:offset+self.i2]
                     # TODO: we may want to put this in array_types
@@ -248,8 +246,7 @@ class _BlockScopeSelection(ScopeBase):
                             values = values.filter(vaex.array_types.to_arrow(self.filter_mask))
                         else:
                             values = values[self.filter_mask]
-                    values = wrap(values)
-                    return values
+                    return wrap(values)
                 elif variable in self.df.variables:
                     return self.df.variables[variable]
                 elif variable in self.df.virtual_columns:
@@ -258,8 +255,7 @@ class _BlockScopeSelection(ScopeBase):
                     if expression == variable:
                         raise ValueError(f'Recursion protection: virtual column {variable} refers to itself')
                     values = self.evaluate(expression)  # , out=self.buffers[variable])
-                    values = wrap(values)
-                    return values
+                    return wrap(values)
                 elif variable in self.df.functions:
                     f = self.df.functions[variable].f
                     return vaex.arrow.numpy_dispatch.autowrapper(f)
