@@ -240,9 +240,9 @@ def open(path, mode='rb', fs_options={}, for_arrow=False, mmap=False):
             if mmap:
                 return pa.memory_map(path, mode)
             else:
-                return pa.OSFile(path, mode)
+                return FileProxy(pa.OSFile(path, mode), path, lambda: pa.OSFile(path, mode))
         else:
-            return normal_open(path, mode)
+            return FileProxy(pa.OSFile(path, mode), path, lambda: pa.OSFile(path, mode))
     if mode == 'rb':
         def create():
             return fs.open_input_file(path)
