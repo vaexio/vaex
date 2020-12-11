@@ -24,7 +24,8 @@ public:
     using value_type = T;
     hash_base() : count(0), nan_count(0), null_count(0) {}  ;
     void reserve(int64_t count_) {
-        map.reserve(count);
+        py::gil_scoped_release gil;
+        map.reserve(count_);
     }
     void update(py::array_t<value_type>& values, int64_t start_index=0) {
         py::gil_scoped_release gil;
