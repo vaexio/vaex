@@ -20,7 +20,7 @@ def test_cloud_dataset_basics(base_url, cache):
 @pytest.mark.skipif(vaex.utils.devmode, reason='runs too slow when developing')
 @pytest.mark.parametrize("base_url", ["gs://vaex-data", "s3://vaex"])
 @pytest.mark.parametrize("cache", ["true", "false"])
-@pytest.mark.parametrize("file_format", ["hdf5", "arrow", "parquet", "csv"])
+@pytest.mark.parametrize("file_format", ["hdf5", "arrow", "parquet", "csv", "feather"])
 def test_cloud_dataset_masked(base_url, file_format, cache):
     # For now, caching of arrow & parquet is not supported
     kwargs = {}
