@@ -433,7 +433,11 @@ def _to_string_sequence(x, force=True):
         return x.string_sequence
     elif isinstance(x, pa.Array):
         from vaex.arrow import convert
-        return convert.column_from_arrow_array(x).string_sequence
+        converted = convert.column_from_arrow_array(x)
+        if isinstance(converted, np.ndarray):  # Handle cases when convert.column_from_arrow_array() returns an ndarray
+            return _to_string_sequence(np.array(converted, dtype=str), force)
+        else:
+            return converted.string_sequence
     elif isinstance(x, np.ndarray):
         mask = None
         if np.ma.isMaskedArray(x):
