@@ -1,5 +1,12 @@
 from common import *
 
+
+def test_pandas_like_rename(ds_filtered):
+    rename_dict = { "r": "x" }
+    ds = ds_filtered
+    ds['r'] = ds.x
+    assert ds.r.values.tolist() == ds.x.tolist()
+
 def test_rename(ds_filtered):
     ds = ds_filtered
     ds['r'] = ds.x

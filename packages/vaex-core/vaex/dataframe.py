@@ -3258,6 +3258,15 @@ class DataFrame(object):
         self.signal_column_changed.emit(self, valid_name, "add")
         # self.write_virtual_meta()
 
+    def pandas_rename(self, mappings):
+        """Rename columns like pandas. Mappings should contain a dict like object"""
+        if not isinstance(mappings, collections.Mapping):
+            raise TypeError('Mappings object is not a dict like object')
+        df = self.copy()
+        for k,v in mappings.items():
+            df.rename(k, v)
+        return df
+
     def rename(self, name, new_name, unique=False):
         """Renames a column or variable, and rewrite expressions such that they refer to the new name"""
         if name == new_name:
