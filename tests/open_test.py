@@ -98,7 +98,7 @@ def _cleanup_generated_files():
         os.remove(hdf5_file)
     for hdf5_file in glob.glob(os.path.join(path, 'data', 'output', '*.yaml')):
         os.remove(hdf5_file)
-    for hdf5_file in glob.glob(os.path.join(path, 'data', '*.hdf5')):
+    for hdf5_file in glob.glob(os.path.join(path, 'data', 'small*.hdf5')):
         os.remove(hdf5_file)
     for hdf5_file in glob.glob(os.path.join(path, 'data', 'output', '*.hdf5')):
         os.remove(hdf5_file)

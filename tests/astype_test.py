@@ -8,7 +8,7 @@ def test_astype(ds_local):
     #ds.columns['x'] = (ds.columns['x']*1).copy()  # convert non non-big endian for now
     ds['x'] = ds['x'].astype('f4')
 
-    assert ds.x.evaluate().dtype == np.float32
+    assert ds.x.dtype == 'float32'
     assert ds.x.tolist() == ds_original.x.as_numpy().evaluate().astype(np.float32).tolist()
 
 
@@ -18,8 +18,20 @@ def test_astype_str():
     df['x'] = df['x'].str.replace(',', '').evaluate()
     df['x'] = (df['x'].astype('float')).astype('int64').evaluate()
 
-    assert df.columns['x'].dtype == np.int64
-    assert df.x.dtype == np.int64
+    assert df.x.dtype == int
+
+
+def test_astype_to_str(array_factory):
+    df = vaex.from_arrays(x=array_factory([1, 2, None]))
+    assert df.x.astype('str').tolist() == ['1', '2', None]
+
+
+def test_astype_numeric(array_factory):
+    df = vaex.from_arrays(x=array_factory([1, 2, None]))
+    assert df.x.astype('float32').tolist() == [1., 2., None]
+    assert df.x.astype('float64').tolist() == [1., 2., None]
+    assert df.x.astype('int8').tolist() == [1., 2., None]
+
 
 def test_astype_dtype():
     df = vaex.from_arrays(x=[0, 1])

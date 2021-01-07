@@ -2314,24 +2314,29 @@ def _float(x):
 
 @register_function(name='astype', on_expression=False)
 def _astype(x, dtype):
-    if dtype == 'str':
-        if isinstance(x, np.ndarray) and x.dtype.kind not in 'US':
-            try:
-                x = x.astype(dtype).astype('O')
-                mask = np.isnan(x)
-                x[mask] = None
-            except TypeError:
-                pass  # does not work for all data
-        return _to_string_column(x)
-    # we rely on numpy for astype conversions (TODO: possible performance hit?)
     if isinstance(x, vaex.column.ColumnString):
-        x = x.to_numpy()
+        x = x.to_arrow()
     if isinstance(x, vaex.array_types.supported_arrow_array_types):
-        x = x.to_pandas().values
-    y = x.astype(dtype if dtype not in ['string', 'large_string'] else 'str')
-    if vaex.column._is_stringy(y):
-        y = vaex.column._to_string_column(y)
-    return y
+        if pa.types.is_timestamp(x.type):
+            # arrow does not support timestamp to int/float, so we use numpy
+            y = x.to_numpy().astype(dtype)
+            return y
+
+        if dtype.startswith('datetime64'):  # parse dtype
+            if len(dtype) > len('datetime64'):
+                units = dtype[len('datetime64')+1:-1]
+            else:
+                units = 'ns'
+            dtype = pa.timestamp(units)
+
+        y = x.cast(dtype, safe=False)
+        return y
+    else:  # numpy case
+        if dtype in ['str', 'string', 'large_string']:
+            y = x.astype('str')
+            return vaex.column._to_string_column(y)
+        else:
+            return x.astype(dtype)
 
 
 @register_function(name='isin', on_expression=False)

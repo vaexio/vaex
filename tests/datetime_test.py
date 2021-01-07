@@ -128,7 +128,7 @@ def test_create_datetime64_column_from_str():
 
     expr = df.year + '-' + df.month + '-' + df.day + 'T' + df.hour + ':' + df.minute
     assert expr.values.astype(np.datetime64).tolist() == expr.astype('datetime64').tolist()
-    assert expr.values.astype('datetime64[ns]').tolist() == expr.astype('datetime64[ns]').tolist()
+    assert expr.values.astype('datetime64[ns]').tolist() == expr.astype('datetime64[ns]').to_numpy().tolist()
 
 def test_create_str_column_from_datetime64():
     date = np.array([np.datetime64('2009-10-12T03:31:00'),
