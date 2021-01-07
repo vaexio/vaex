@@ -309,6 +309,11 @@ def _pandas_dt_fix(x):
         x = x.copy()
     return x
 
+def _to_pandas_series(x):
+    import pandas as pd
+    # pandas seems to eager to infer dtype=object for v1.2
+    return pd.Series(_pandas_dt_fix(x), dtype=x.dtype)
+
 @register_function(scope='dt', as_property=True)
 def dt_date(x):
     """Return the date part of the datetime value
@@ -336,7 +341,7 @@ def dt_date(x):
     2  2015-11-12
     """
     import pandas as pd
-    return pd.Series(_pandas_dt_fix(x)).dt.date.values.astype(np.datetime64)
+    return _to_pandas_series(x).dt.date.values.astype(np.datetime64)
 
 @register_function(scope='dt', as_property=True)
 def dt_dayofweek(x):
@@ -365,7 +370,7 @@ def dt_dayofweek(x):
     2  3
     """
     import pandas as pd
-    return pd.Series(_pandas_dt_fix(x)).dt.dayofweek.values
+    return _to_pandas_series(x).dt.dayofweek.values
 
 @register_function(scope='dt', as_property=True)
 def dt_dayofyear(x):
@@ -394,7 +399,7 @@ def dt_dayofyear(x):
     2  316
     """
     import pandas as pd
-    return pd.Series(_pandas_dt_fix(x)).dt.dayofyear.values
+    return _to_pandas_series(x).dt.dayofyear.values
 
 @register_function(scope='dt', as_property=True)
 def dt_is_leap_year(x):
@@ -423,7 +428,7 @@ def dt_is_leap_year(x):
     2  False
     """
     import pandas as pd
-    return pd.Series(_pandas_dt_fix(x)).dt.is_leap_year.values
+    return _to_pandas_series(x).dt.is_leap_year.values
 
 @register_function(scope='dt', as_property=True)
 def dt_year(x):
@@ -452,7 +457,7 @@ def dt_year(x):
     2  2015
     """
     import pandas as pd
-    return pd.Series(_pandas_dt_fix(x)).dt.year.values
+    return _to_pandas_series(x).dt.year.values
 
 @register_function(scope='dt', as_property=True)
 def dt_month(x):
@@ -481,7 +486,7 @@ def dt_month(x):
     2  11
     """
     import pandas as pd
-    return pd.Series(_pandas_dt_fix(x)).dt.month.values
+    return _to_pandas_series(x).dt.month.values
 
 @register_function(scope='dt', as_property=True)
 def dt_month_name(x):
@@ -510,7 +515,7 @@ def dt_month_name(x):
     2  November
     """
     import pandas as pd
-    return pa.array(pd.Series(_pandas_dt_fix(x)).dt.month_name())
+    return pa.array(_to_pandas_series(x).dt.month_name())
 
 @register_function(scope='dt', as_property=True)
 def dt_quarter(x):
@@ -539,7 +544,7 @@ def dt_quarter(x):
     2  4
     """
     import pandas as pd
-    return pd.Series(_pandas_dt_fix(x)).dt.quarter.values
+    return _to_pandas_series(x).dt.quarter.values
 
 @register_function(scope='dt', as_property=True)
 def dt_day(x):
@@ -568,7 +573,7 @@ def dt_day(x):
     2  12
     """
     import pandas as pd
-    return pd.Series(_pandas_dt_fix(x)).dt.day.values
+    return _to_pandas_series(x).dt.day.values
 
 @register_function(scope='dt', as_property=True)
 def dt_day_name(x):
@@ -597,7 +602,7 @@ def dt_day_name(x):
     2  Thursday
     """
     import pandas as pd
-    return pa.array(pd.Series(_pandas_dt_fix(x)).dt.day_name())
+    return pa.array(_to_pandas_series(x).dt.day_name())
 
 @register_function(scope='dt', as_property=True)
 def dt_weekofyear(x):
@@ -626,7 +631,7 @@ def dt_weekofyear(x):
     2  46
     """
     import pandas as pd
-    return pd.Series(_pandas_dt_fix(x)).dt.weekofyear.values
+    return _to_pandas_series(x).dt.weekofyear.values
 
 @register_function(scope='dt', as_property=True)
 def dt_hour(x):
@@ -655,7 +660,7 @@ def dt_hour(x):
     2  11
     """
     import pandas as pd
-    return pd.Series(_pandas_dt_fix(x)).dt.hour.values
+    return _to_pandas_series(x).dt.hour.values
 
 @register_function(scope='dt', as_property=True)
 def dt_minute(x):
@@ -684,7 +689,7 @@ def dt_minute(x):
     2  34
     """
     import pandas as pd
-    return pd.Series(_pandas_dt_fix(x)).dt.minute.values
+    return _to_pandas_series(x).dt.minute.values
 
 @register_function(scope='dt', as_property=True)
 def dt_second(x):
@@ -713,7 +718,7 @@ def dt_second(x):
     2  22
     """
     import pandas as pd
-    return pd.Series(_pandas_dt_fix(x)).dt.second.values
+    return _to_pandas_series(x).dt.second.values
 
 @register_function(scope='dt')
 def dt_strftime(x, date_format):
@@ -742,7 +747,7 @@ def dt_strftime(x, date_format):
     2  2015-11
     """
     import pandas as pd
-    return pa.array(pd.Series(_pandas_dt_fix(x)).dt.strftime(date_format))
+    return pa.array(_to_pandas_series(x).dt.strftime(date_format))
 
 @register_function(scope='dt')
 def dt_floor(x, freq, *args):
@@ -772,7 +777,7 @@ def dt_floor(x, freq, *args):
     2  2015-11-12 11:00:00.000000000
     """
     import pandas as pd
-    return pd.Series(_pandas_dt_fix(x)).dt.floor(freq, *args).values
+    return _to_pandas_series(x).dt.floor(freq, *args).values
 
 ########## timedelta operations ##########
 
@@ -805,7 +810,7 @@ def td_days(x):
     3  -22
     """
     import pandas as pd
-    return pd.Series(_pandas_dt_fix(x)).dt.days.values
+    return _to_pandas_series(x).dt.days.values
 
 @register_function(scope='td', as_property=True)
 def td_microseconds(x):
@@ -836,7 +841,7 @@ def td_microseconds(x):
     3  709551
     """
     import pandas as pd
-    return pd.Series(_pandas_dt_fix(x)).dt.microseconds.values
+    return _to_pandas_series(x).dt.microseconds.values
 
 @register_function(scope='td', as_property=True)
 def td_nanoseconds(x):
@@ -867,7 +872,7 @@ def td_nanoseconds(x):
     3  616
     """
     import pandas as pd
-    return pd.Series(_pandas_dt_fix(x)).dt.nanoseconds.values
+    return _to_pandas_series(x).dt.nanoseconds.values
 
 @register_function(scope='td', as_property=True)
 def td_seconds(x):
@@ -898,7 +903,7 @@ def td_seconds(x):
     3  23519
     """
     import pandas as pd
-    return pd.Series(_pandas_dt_fix(x)).dt.seconds.values
+    return _to_pandas_series(x).dt.seconds.values
 
 @register_function(scope='td', as_property=False)
 def td_total_seconds(x):
@@ -928,7 +933,7 @@ def td_total_seconds(x):
     3   2.85489e+08
     """
     import pandas as pd
-    return pd.Series(_pandas_dt_fix(x)).dt.total_seconds().values
+    return _to_pandas_series(x).dt.total_seconds().values
 
 
 ########## string operations ##########
