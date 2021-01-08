@@ -16,7 +16,7 @@ jobs:
       max-parallel: 10
       matrix:
         os: [ubuntu-latest, windows-latest, macOS-latest]
-        python-version: [3.6, 3.7, 3.8]
+        python-version: [3.7, 3.8]
 
     steps:
     - uses: maxim-lobanov/setup-xcode@v1
