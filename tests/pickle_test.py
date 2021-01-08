@@ -121,3 +121,12 @@ def test_concat(df_file, tmpdir):
     assert df2.x.count() == len(df_file) * 2, 'x is repeated'
     assert df2.x.sum() == df_file.x.sum() * 2, 'x is repeated'
     assert df2.y.sum() == df_file.y.sum(), 'y is not repeated'
+
+
+def test_state_with_set():
+    df = vaex.from_arrays(x=[1,2,3])
+    df['test'] = df.x.isin([1,2])
+    df2 = pickle.loads(pickle.dumps(df))
+    assert df2.x.tolist() == df.x.tolist()
+    # make sure the state itself can be pickled, not just the dataframe
+    pickle.dumps(df.state_get())
