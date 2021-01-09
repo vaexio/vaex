@@ -111,6 +111,14 @@ def test_column_indexed(df_local):
     assert column_masked.trim(0, 1).masked
 
 
+def test_column_indexed_all_masked():
+    indices = np.array([-1, -1])
+    col = vaex.column.ColumnNumpyLike(np.arange(2))
+    column = vaex.column.ColumnIndexed(col, indices, masked=True)
+    assert column[0:1].tolist() == [None]
+    assert column[0:2].tolist() == [None, None]
+
+
 @pytest.mark.skipif(pa.__version__.split(".")[0] == '1', reason="segfaults in arrow v1")
 @pytest.mark.parametrize("i1", list(range(0, 8)))
 @pytest.mark.parametrize("i2", list(range(0, 8)))
