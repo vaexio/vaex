@@ -88,6 +88,7 @@ class ColumnNumpyLike(Column):
     """Wraps a numpy like object (like hdf5 dataset) into a column vaex understands"""
     def __init__(self, ar):
         self.ar = ar  # this should behave like a numpy array
+        self.dtype = ar.dtype
 
     def __len__(self):
         return len(self.ar)
@@ -201,7 +202,10 @@ class ColumnIndexed(Column):
             # the minimal slice, and get those (not the most efficient)
             if self.masked:
                 unmasked_indices = indices[~mask]
-                i1, i2 = np.min(unmasked_indices), np.max(unmasked_indices)
+                if len(unmasked_indices) > 0:
+                    i1, i2 = np.min(unmasked_indices), np.max(unmasked_indices)
+                else:
+                    i1, i2 = 0, 0
             else:
                 i1, i2 = np.min(indices), np.max(indices)
             ar_unfiltered = ar_unfiltered[i1:i2+1]
