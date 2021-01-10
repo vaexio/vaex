@@ -37,6 +37,10 @@ except:
     if not on_rtd:
         raise
 
+# TODO: also defined in writer.py, we should make this more uniform
+USE_MMAP = vaex.utils.get_env_type(bool, 'VAEX_USE_MMAP', True)
+
+
 
 def _try_unit(unit):
     try:
@@ -63,7 +67,7 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
     """Implements the vaex hdf5 file format"""
 
     def __init__(self, path, write=False, fs_options={}):
-        nommap = not vaex.file.memory_mappable(path)
+        nommap = (not vaex.file.memory_mappable(path)) or not USE_MMAP
         self.fs_options = fs_options
         super(Hdf5MemoryMapped, self).__init__(vaex.file.stringyfy(path), write=write, nommap=nommap)
         self._all_mmapped = True
