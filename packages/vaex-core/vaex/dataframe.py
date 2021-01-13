@@ -2203,7 +2203,7 @@ class DataFrame(object):
                      active_range=[self._index_start, self._index_end])
         return state
 
-    def state_set(self, state, use_active_range=False, trusted=True):
+    def state_set(self, state, use_active_range=False, keep_columns=None, set_filter=True, trusted=True):
         """Sets the internal state of the df
 
         Example:
@@ -2235,11 +2235,18 @@ class DataFrame(object):
 
         :param state: dict as returned by :meth:`DataFrame.state_get`.
         :param bool use_active_range: Whether to use the active range or not.
+        :param list keep_columns: List of columns that should be kept if the state to be set contains less columns.
+        :param bool set_filter: Set the filter from the state (default), or leave the filter as it is it.
         """
         self.description = state['description']
         if use_active_range:
             self._index_start, self._index_end = state['active_range']
         self._length_unfiltered = self._index_end - self._index_start
+        if keep_columns:
+            all_columns = self.get_column_names()
+            for column_name in keep_columns:
+                if column_name not in all_columns:
+                    raise KeyError(f'Column name {column_name} does not exist')
         if 'renamed_columns' in state:
             for old, new in state['renamed_columns']:
                 self._rename(old, new)
@@ -2254,6 +2261,8 @@ class DataFrame(object):
                 self[name] = self._expr(value)
                 # self._save_assign_expression(name)
             self.column_names = list(state['column_names'])
+            if keep_columns:
+                self.column_names += list(keep_columns)
             for name in self.column_names:
                 self._save_assign_expression(name)
         else:
@@ -2266,6 +2275,8 @@ class DataFrame(object):
         units = {key: astropy.units.Unit(value) for key, value in state["units"].items()}
         self.units.update(units)
         for name, selection_dict in state['selections'].items():
+            if name == FILTER_SELECTION_NAME and not set_filter:
+                continue
             # TODO: make selection use the vaex.serialize framework
             if selection_dict is None:
                 selection = None
