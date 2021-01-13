@@ -5922,7 +5922,7 @@ class DataFrameLocal(DataFrame):
             write(to)
 
     @docsubst
-    def export_feather(self, to, parallel=True, reduce_large=True, compression='lz4', fs_options=None):
+    def export_feather(self, to, parallel=True, reduce_large=True, compression='lz4', fs_options=None, fs=None):
         """Exports the DataFrame to an arrow file using the feather file format version 2
 
         Feather is exactly represented as the Arrow IPC file format on disk, but also support compression.
@@ -5932,13 +5932,14 @@ class DataFrameLocal(DataFrame):
         :param bool parallel: {evaluate_parallel}
         :param bool reduce_large: If True, convert arrow large_string type to string type
         :param compression: Can be one of 'zstd', 'lz4' or 'uncompressed'
-        :param fs_options: Placeholder for now
+        :param fs_options: {fs_options}
+        :param fs: {fs}
         :return:
         """
         import pyarrow.feather as feather
         table = self.to_arrow_table(parallel=False, reduce_large=reduce_large)
         fs_options = fs_options or {}
-        with vaex.file.open(path=to, mode='wb', fs_options=fs_options) as sink:
+        with vaex.file.open(path=to, mode='wb', fs_options=fs_options, fs=fs) as sink:
             feather.write_feather(table, sink, compression=compression)
 
     @docsubst
@@ -5953,6 +5954,7 @@ class DataFrameLocal(DataFrame):
         :param int chunk_size: {chunk_size_export}
         :param bool parallel: {evaluate_parallel}
         :param dict fs_options: {fs_options}
+        :param fs: {fs}
         :param **kwargs: Extra keyword arguments to be passed on to py:data:`pyarrow.parquet.ParquetWriter`.
         :return:
         """
