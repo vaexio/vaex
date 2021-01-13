@@ -40,6 +40,7 @@ class Aggregator {
 public:
     virtual ~Aggregator() {}
     virtual void aggregate(default_index_type* indices1d, size_t length, uint64_t offset) = 0;
+    virtual void reduce(std::vector<Aggregator*>) = 0;
     virtual bool can_release_gil() {
         return true;
     };
@@ -156,23 +157,50 @@ public:
     virtual ~AggregatorBase() {
         free(grid_data);
     }
+
+    py::buffer_info buffer_info() {
+        std::vector<ssize_t> strides(grid->dimensions);
+        std::vector<ssize_t> shapes(grid->dimensions);
+        std::copy(&grid->shapes[0], &grid->shapes[grid->dimensions], &shapes[0]);
+        std::transform(&grid->strides[0], &grid->strides[grid->dimensions], &strides[0], [](uint64_t x) { return x*sizeof(grid_type); } );
+        return py::buffer_info(
+            grid_data,                               /* Pointer to buffer */
+            sizeof(grid_type),                 /* Size of one scalar */
+            py::format_descriptor<grid_type>::format(), /* Python struct-style format descriptor */
+            grid->dimensions,                       /* Number of dimensions */
+            shapes,                 /* Buffer dimensions */
+            strides
+        );
+    }
     Grid<IndexType>* grid;
     grid_type* grid_data;
 };
 
-template<class GridType, class IndexType=default_index_type>
-class AggregatorBaseCls : public Aggregator {
+template<class GridType=double, class IndexType=default_index_type>
+class AggregatorBaseNumpyData : public AggregatorBase<GridType, IndexType> {
 public:
-    using index_type = IndexType;
-    using grid_type = GridType;
-    AggregatorBaseCls(Grid<IndexType>* grid) : grid(grid) {
-        grid_data = new grid_type[grid->length1d];
+    using Base = AggregatorBase<GridType, IndexType>;
+    // set data is specific to subclasses, with regard to types
+    AggregatorBaseNumpyData(Grid<IndexType>* grid, GridType fill_value) : Base(grid, fill_value), data_mask_ptr(nullptr) {
     }
-    virtual ~AggregatorBaseCls() {
-        delete[] grid_data;
+    AggregatorBaseNumpyData(Grid<IndexType>* grid) : Base(grid), data_mask_ptr(nullptr)  {
     }
-    Grid<IndexType>* grid;
-    grid_type* grid_data;
+    virtual void set_data(py::buffer ar, size_t index) = 0;
+    void set_data_mask(py::buffer ar) {
+        py::buffer_info info = ar.request();
+        if (info.ndim != 1) {
+            throw std::runtime_error("Expected a 1d array");
+        }
+        this->data_mask_ptr = (uint8_t*)info.ptr;
+        this->data_mask_size = info.shape[0];
+    }
+    void clear_data_mask() {
+        this->data_mask_ptr = nullptr;
+        this->data_mask_size = 0;
+    }
+    uint64_t data_size;
+    uint8_t* data_mask_ptr;
+    uint64_t data_mask_size;
 };
 
 template<class GridType=uint64_t, class IndexType=default_index_type>
@@ -185,22 +213,23 @@ public:
     }
     ~AggBaseString() {
     }
-    void set_data(StringSequence* string_sequence, size_t index) {
+    virtual void set_data(StringSequence* string_sequence, size_t index) {
         this->string_sequence = string_sequence;
     }
-    void clear_data_mask() {
-        this->data_mask_ptr = nullptr;
-        this->data_mask_size = 0;
-    }
+    StringSequence* string_sequence;
     void set_data_mask(py::buffer ar) {
         py::buffer_info info = ar.request();
-        if(info.ndim != 1) {
+        if (info.ndim != 1) {
             throw std::runtime_error("Expected a 1d array");
         }
         this->data_mask_ptr = (uint8_t*)info.ptr;
         this->data_mask_size = info.shape[0];
     }
-    StringSequence* string_sequence;
+    void clear_data_mask() {
+        this->data_mask_ptr = nullptr;
+        this->data_mask_size = 0;
+    }
+    uint64_t data_size;
     uint8_t* data_mask_ptr;
     uint64_t data_mask_size;
 };

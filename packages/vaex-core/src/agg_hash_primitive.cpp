@@ -19,12 +19,13 @@ public:
             free(grid_data);
         delete[] counters;
     }
-    virtual void reduce(std::vector<Type*> others) {
+    virtual void reduce(std::vector<Aggregator*> others) {
         if(grid_data == nullptr) {
             grid_data = (grid_type*)malloc(sizeof(grid_type) * grid->length1d);
         }
         for(size_t i = 0; i < this->grid->length1d; i++) {
-            for(auto other: others) {
+            for (auto j : others) {
+                auto other = static_cast<AggNUnique*>(j);
                 this->counters[i].merge(other->counters[i]);
             }
             grid_data[i] = counters[i].map.size();
