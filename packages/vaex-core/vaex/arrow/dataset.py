@@ -185,15 +185,16 @@ class DatasetArrowBase(vaex.dataset.Dataset):
 
 
 class DatasetParquet(DatasetArrowBase):
-    def __init__(self, path, fs_options, max_rows_read=1024**2*10, partitioning=None, kwargs=None):
+    def __init__(self, path, fs_options, fs=None, max_rows_read=1024**2*10, partitioning=None, kwargs=None):
         self.path = path
         self.fs_options = fs_options
+        self.fs = fs
         self.partitioning = partitioning
         self.kwargs = kwargs or {}
         super().__init__(max_rows_read=max_rows_read)
 
     def _create_dataset(self):
-        file_system, source = vaex.file.parse(self.path, self.fs_options, for_arrow=True)
+        file_system, source = vaex.file.parse(self.path, self.fs_options, fs=self.fs, for_arrow=True)
         self._arrow_ds = pyarrow.dataset.dataset(source, filesystem=file_system, partitioning=self.partitioning)
 
         self._partitions = defaultdict(list) # path -> list (which will be an arrow array later on)
@@ -216,9 +217,10 @@ class DatasetParquet(DatasetArrowBase):
 
 
 class DatasetArrowFileBase(vaex.dataset.Dataset):
-    def __init__(self, path, fs_options):
+    def __init__(self, path, fs_options, fs=None):
         super().__init__()
         self.fs_options = fs_options
+        self.fs = fs
         self.path = path
         self._create_columns()
         self._set_row_count()
@@ -252,7 +254,7 @@ class DatasetArrowFileBase(vaex.dataset.Dataset):
 
 class DatasetArrowIPCFile(DatasetArrowFileBase):
     def _create_columns(self):
-        self._source = vaex.file.open(path=self.path, mode='rb', fs_options=self.fs_options, mmap=True, for_arrow=True)
+        self._source = vaex.file.open(path=self.path, mode='rb', fs_options=self.fs_options, fs=self.fs, mmap=True, for_arrow=True)
         reader = pa.ipc.open_file(self._source)
         batches = [reader.get_batch(i) for i in range(reader.num_record_batches)]
         table = pa.Table.from_batches(batches)
@@ -261,7 +263,7 @@ class DatasetArrowIPCFile(DatasetArrowFileBase):
 
 class DatasetArrowIPCStream(DatasetArrowFileBase):
     def _create_columns(self):
-        self._source = vaex.file.open(path=self.path, mode='rb', fs_options=self.fs_options, mmap=True, for_arrow=True)
+        self._source = vaex.file.open(path=self.path, mode='rb', fs_options=self.fs_options, fs=self.fs, mmap=True, for_arrow=True)
         reader = pa.ipc.open_stream(self._source)
         table = pa.Table.from_batches(reader)
         self._columns = dict(zip(table.schema.names, table.columns))
@@ -273,16 +275,16 @@ def from_table(table):
     return dataset
 
 
-def open(path, fs_options):
-    with vaex.file.open(path=path, mode='rb', fs_options=fs_options, mmap=True, for_arrow=True) as f:
+def open(path, fs_options, fs):
+    with vaex.file.open(path=path, mode='rb', fs_options=fs_options, fs=fs, mmap=True, for_arrow=True) as f:
         file_signature = bytes(f.read(6))
         is_arrow_file = file_signature == b'ARROW1'
     if is_arrow_file:
-        return DatasetArrowIPCFile(path, fs_options=fs_options)
+        return DatasetArrowIPCFile(path, fs_options=fs_options, fs=fs)
     else:
-        return DatasetArrowIPCStream(path, fs_options=fs_options)
+        return DatasetArrowIPCStream(path, fs_options=fs_options, fs=fs)
 
 
-def open_parquet(path, fs_options={}, partitioning='hive', **kwargs):
-    return DatasetParquet(path, fs_options=fs_options, partitioning=partitioning, kwargs=kwargs)
+def open_parquet(path, fs_options={}, fs=None, partitioning='hive', **kwargs):
+    return DatasetParquet(path, fs_options=fs_options, fs=fs, partitioning=partitioning, kwargs=kwargs)
 

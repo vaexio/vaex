@@ -21,7 +21,7 @@ def fingerprint(*args, **kwargs):
         uuid.uuid4 = _restore
 
 
-def output_file(callable=None, path_input=None, fs_options_input={}, path_output=None, fs_options_output={}):
+def output_file(callable=None, path_input=None, fs_options_input={}, fs_input=None, path_output=None, fs_options_output={}, fs_output=None):
     """Decorator to do cached conversion from path_input → path_output.
 
     Caching is active if with the input file, the *args, and **kwargs are unchanged, otherwise callable
@@ -35,28 +35,28 @@ def output_file(callable=None, path_input=None, fs_options_input={}, path_output
                 base, ext, fs_options_output_ = vaex.file.split_ext(path_output, fs_options_output)
                 path_output_meta = base + '.yaml'
                 # this fingerprint changes if input changes, or args, or kwargs
-                fp = fingerprint(vaex.file.fingerprint(path_input, fs_options_input), args, kwargs)
+                fp = fingerprint(vaex.file.fingerprint(path_input, fs_options_input, fs=fs_input), args, kwargs)
 
                 def write_fingerprint():
                     log.info('saving fingerprint %r for %s → %s conversion to %s', fp, path_input, path_output, path_output_meta)
-                    with vaex.file.open(path_output_meta, 'w', fs_options=fs_options_output_) as f:
+                    with vaex.file.open(path_output_meta, 'w', fs_options=fs_options_output_, fs=fs_output) as f:
                         f.write(f"# this file exists so that we know when not to do the\n# {path_input} → {path_output} conversion\n")
                         vaex.utils.yaml_dump(f, {'fingerprint': fp})
 
-                if not vaex.file.exists(path_output, fs_options=fs_options_output_):
+                if not vaex.file.exists(path_output, fs_options=fs_options_output_, fs=fs_output):
                     log.info('file %s does not exist yet, running conversion %s → %s', path_output_meta, path_input, path_output)
                     value = callable(*args, **kwargs)
                     write_fingerprint()
                     return value
 
-                if not vaex.file.exists(path_output_meta, fs_options=fs_options_output_):
+                if not vaex.file.exists(path_output_meta, fs_options=fs_options_output_, fs=fs_output):
                     log.info('file including fingerprint not found (%) or does not exist yet, running conversion %s → %s', path_output_meta, path_input, path_output)
                     value = callable(*args, **kwargs)
                     write_fingerprint()
                     return value
 
                 # load fingerprint
-                with vaex.file.open(path_output_meta, fs_options=fs_options_output_) as f:
+                with vaex.file.open(path_output_meta, fs_options=fs_options_output_, fs=fs_output) as f:
                     output_meta = vaex.utils.yaml_load(f)
 
                 if output_meta['fingerprint'] != fp:

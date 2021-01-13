@@ -23,7 +23,7 @@ opener_classes = []
 HASH_VERSION = "1"
 
 
-def open(path, *args, **kwargs):
+def open(path, fs_options={}, fs=None, *args, **kwargs):
     failures = []
     if not opener_classes:
         for entry in pkg_resources.iter_entry_points(group='vaex.dataset.opener'):
@@ -37,15 +37,15 @@ def open(path, *args, **kwargs):
 
     # first the quick path
     for opener in opener_classes:
-        if opener.quick_test(path):
-            if opener.can_open(path, *args, **kwargs):
-                return opener.open(path, *args, **kwargs)
+        if opener.quick_test(path, fs_options=fs_options, fs=fs):
+            if opener.can_open(path, fs_options=fs_options, fs=fs, *args, **kwargs):
+                return opener.open(path, fs_options=fs_options, fs=fs, *args, **kwargs)
 
     # otherwise try all openers
     for opener in opener_classes:
         try:
-            if opener.can_open(path, *args, **kwargs):
-                return opener.open(path, *args, **kwargs)
+            if opener.can_open(path, fs_options=fs_options, fs=fs, *args, **kwargs):
+                return opener.open(path, fs_options=fs_options, fs=fs, *args, **kwargs)
         except Exception as e:
             failures.append((e, opener))
 
@@ -962,7 +962,7 @@ class DatasetFile(Dataset):
         pass
 
     @classmethod
-    def quick_test(cls, path, fs_options=None, *args, **kwargs):
+    def quick_test(cls, path, fs_options={}, fs=None, *args, **kwargs):
         return False
 
     @classmethod
