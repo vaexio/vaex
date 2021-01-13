@@ -56,9 +56,10 @@ public:
     using Base = AggBaseObject<GridType, IndexType>;
     using Type = AggObjectCount<GridType, IndexType>;
     using Base::Base;
-    virtual void reduce(std::vector<Type*> others) {
-        for(auto other: others) {
-            for(size_t i = 0; i < this->grid->length1d; i++) {
+    virtual void reduce(std::vector<Aggregator*> others) {
+        for (auto i : others) {
+            auto other = static_cast<AggObjectCount*>(i);
+            for (size_t i = 0; i < this->grid->length1d; i++) {
                 this->grid_data[i] += other->grid_data[i];
             }
         }
@@ -97,8 +98,9 @@ public:
     using Base = AggBaseString<GridType, IndexType>;
     using Type = AggStringCount<GridType, IndexType>;
     using Base::Base;
-    virtual void reduce(std::vector<Type*> others) {
-        for(auto other: others) {
+    virtual void reduce(std::vector<Aggregator*> others) {
+        for (auto j : others) {
+            auto other = static_cast<AggStringCount*>(j);
             for(size_t i = 0; i < this->grid->length1d; i++) {
                 this->grid_data[i] += other->grid_data[i];
             }
@@ -132,14 +134,14 @@ public:
 };
 
 template<class DataType=double, class GridType=DataType, class IndexType=default_index_type>
-class AggBase : public AggregatorBase<GridType, IndexType> {
+class AggregatorPrimitive : public AggregatorBaseNumpyData<GridType, IndexType> {
 public:
-    using Base = AggregatorBase<GridType, IndexType>;
+    using Base = AggregatorBaseNumpyData<GridType, IndexType>;
     using typename Base::index_type;
     using data_type = DataType;
-    AggBase(Grid<IndexType>* grid) : Base(grid), data_ptr(nullptr), data_mask_ptr(nullptr) {
+    AggregatorPrimitive(Grid<IndexType>* grid) : Base(grid), data_ptr(nullptr) {
     }
-    void set_data(py::buffer ar, size_t index) {
+    virtual void set_data(py::buffer ar, size_t index) {
         py::buffer_info info = ar.request();
         if(info.ndim != 1) {
             throw std::runtime_error("Expected a 1d array");
@@ -147,33 +149,18 @@ public:
         this->data_ptr = (data_type*)info.ptr;
         this->data_size = info.shape[0];
     }
-    void clear_data_mask() {
-        this->data_mask_ptr = nullptr;
-        this->data_mask_size = 0;
-    }
-    void set_data_mask(py::buffer ar) {
-        py::buffer_info info = ar.request();
-        if(info.ndim != 1) {
-            throw std::runtime_error("Expected a 1d array");
-        }
-        this->data_mask_ptr = (uint8_t*)info.ptr;
-        this->data_mask_size = info.shape[0];
-    }
     data_type* data_ptr;
-    uint64_t data_size;
-    uint8_t* data_mask_ptr;
-    uint64_t data_mask_size;
 };
 
 template<class StorageType=double, class IndexType=default_index_type, bool FlipEndian=false>
-class AggCount : public AggBase<StorageType, int64_t, IndexType> {
+class AggCount : public AggregatorPrimitive<StorageType, int64_t, IndexType> {
 public:
-    using Base = AggBase<StorageType, int64_t, IndexType>;
-    using Type = AggCount<StorageType, IndexType, FlipEndian>;
+    using Base = AggregatorPrimitive<StorageType, int64_t, IndexType>;
     using Base::Base;
-    virtual void reduce(std::vector<Type*> others) {
-        for(auto other: others) {
-            for(size_t i = 0; i < this->grid->length1d; i++) {
+    virtual void reduce(std::vector<Aggregator*> others) {
+        for (auto i : others) {
+            auto other = static_cast<AggCount*>(i);
+            for (size_t i = 0; i < this->grid->length1d; i++) {
                 this->grid_data[i] += other->grid_data[i];
             }
         }
@@ -205,10 +192,9 @@ public:
 };
 
 template<class StorageType=double, class IndexType=default_index_type, bool FlipEndian=false>
-class AggMax : public AggBase<StorageType, StorageType, IndexType> {
+class AggMax : public AggregatorPrimitive<StorageType, StorageType, IndexType> {
 public:
-    using Base = AggBase<StorageType, StorageType, IndexType>;
-    using Type = AggMax<StorageType, IndexType, FlipEndian>;
+    using Base = AggregatorPrimitive<StorageType, StorageType, IndexType>;
     using Base::Base;
     AggMax(Grid<IndexType>* grid) : Base(grid){
         typedef std::numeric_limits<StorageType> limit_type;
@@ -216,9 +202,10 @@ public:
         StorageType fill_value = limit_type::has_infinity ? -limit_type::infinity() : limit_type::min();
         std::fill(this->grid_data, this->grid_data+this->grid->length1d, fill_value);
     }
-    virtual void reduce(std::vector<Type*> others) {
-        for(auto other: others) {
-            for(size_t i = 0; i < this->grid->length1d; i++) {
+    virtual void reduce(std::vector<Aggregator*> others) {
+        for (auto i : others) {
+            auto other = static_cast<AggMax*>(i);
+            for (size_t i = 0; i < this->grid->length1d; i++) {
                 this->grid_data[i] = std::max(this->grid_data[i], other->grid_data[i]);
             }
         }
@@ -252,20 +239,20 @@ public:
 };
 
 template<class StorageType=double, class IndexType=default_index_type, bool FlipEndian=false>
-class AggMin : public AggBase<StorageType, StorageType, IndexType> {
+class AggMin : public AggregatorPrimitive<StorageType, StorageType, IndexType> {
 public:
-    using Base = AggBase<StorageType, StorageType, IndexType>;
-    using Type = AggMin<StorageType, IndexType, FlipEndian>;
+    using Base = AggregatorPrimitive<StorageType, StorageType, IndexType>;
     using Base::Base;
-    AggMin(Grid<IndexType>* grid) : Base(grid){
+    AggMin(Grid<IndexType>* grid) : Base(grid) {
         typedef std::numeric_limits<StorageType> limit_type;
         StorageType fill_value = limit_type::has_infinity ? limit_type::infinity() : limit_type::max();
         // TODO: avoid double fill, since we also call it in the base ctor
         std::fill(this->grid_data, this->grid_data+this->grid->length1d, fill_value);
     }
-    virtual void reduce(std::vector<Type*> others) {
-        for(auto other: others) {
-            for(size_t i = 0; i < this->grid->length1d; i++) {
+    virtual void reduce(std::vector<Aggregator*> others) {
+        for (auto i : others) {
+            auto other = static_cast<AggMin*>(i);
+            for (size_t i = 0; i < this->grid->length1d; i++) {
                 this->grid_data[i] = std::min(this->grid_data[i], other->grid_data[i]);
             }
         }
@@ -360,13 +347,13 @@ struct upcast<uint64_t> {
 
 
 template<class StorageType=double, class IndexType=default_index_type, bool FlipEndian=false>
-class AggSum : public AggBase<StorageType, typename upcast<StorageType>::type, IndexType> {
+class AggSum : public AggregatorPrimitive<StorageType, typename upcast<StorageType>::type, IndexType> {
 public:
-    using Base = AggBase<StorageType, typename upcast<StorageType>::type, IndexType>;
-    using Type = AggSum<StorageType, IndexType, FlipEndian>;
+    using Base = AggregatorPrimitive<StorageType, typename upcast<StorageType>::type, IndexType>;
     using Base::Base;
-    virtual void reduce(std::vector<Type*> others) {
-        for(auto other: others) {
+    virtual void reduce(std::vector<Aggregator*> others) {
+        for (auto i : others) {
+            auto other = static_cast<AggSum*>(i);
             for(size_t i = 0; i < this->grid->length1d; i++) {
                 this->grid_data[i] = this->grid_data[i] + other->grid_data[i];
             }
@@ -402,15 +389,15 @@ public:
 };
 
 template<class StorageType=double, class IndexType=default_index_type, bool FlipEndian=false>
-class AggSumMoment : public AggBase<StorageType, typename upcast<StorageType>::type, IndexType> {
+class AggSumMoment : public AggregatorPrimitive<StorageType, typename upcast<StorageType>::type, IndexType> {
 public:
-    using Base = AggBase<StorageType, typename upcast<StorageType>::type, IndexType>;
-    using Type = AggSumMoment<StorageType, IndexType, FlipEndian>;
+    using Base = AggregatorPrimitive<StorageType, typename upcast<StorageType>::type, IndexType>;
     using Base::Base;
     AggSumMoment(Grid<IndexType>* grid, uint32_t moment) : Base(grid), moment(moment) {
     }
-    virtual void reduce(std::vector<Type*> others) {
-        for(auto other: others) {
+    virtual void reduce(std::vector<Aggregator*> others) {
+        for (auto i : others) {
+            auto other = static_cast<AggSumMoment*>(i);
             for(size_t i = 0; i < this->grid->length1d; i++) {
                 this->grid_data[i] = this->grid_data[i] + other->grid_data[i];
             }
@@ -447,10 +434,9 @@ public:
 };
 
 template<class StorageType=double, class IndexType=default_index_type, bool FlipEndian=false>
-class AggFirst : public AggBase<StorageType, StorageType, IndexType> {
+class AggFirst : public AggregatorPrimitive<StorageType, StorageType, IndexType> {
 public:
-    using Base = AggBase<StorageType, StorageType, IndexType>;
-    using Type = AggFirst<StorageType, IndexType, FlipEndian>;
+    using Base = AggregatorPrimitive<StorageType, StorageType, IndexType>;
     using Base::Base;
     AggFirst(Grid<IndexType>* grid) : Base(grid) {
         grid_data_order = (StorageType*)malloc(sizeof(StorageType) * grid->length1d);
@@ -481,8 +467,9 @@ public:
         this->data_mask_ptr2 = (uint8_t*)info.ptr;
         this->data_mask_size2 = info.shape[0];
     }
-    virtual void reduce(std::vector<Type*> others) {
-        for(auto other: others) {
+    virtual void reduce(std::vector<Aggregator*> others) {
+        for (auto i : others) {
+            auto other = static_cast<AggFirst*>(i);
             for(size_t i = 0; i < this->grid->length1d; i++) {
                 if(other->grid_data_order[i] < this->grid_data_order[i]) {
                     this->grid_data[i] = other->grid_data[i];
@@ -526,60 +513,33 @@ public:
 
 template<class Agg, class Base, class Module>
 void add_agg(Module m, Base& base, const char* class_name) {
-    py::class_<Agg>(m, class_name, py::buffer_protocol(), base)
+    py::class_<Agg>(m, class_name, base)
         .def(py::init<Grid<>*>(), py::keep_alive<1, 2>())
-        .def_buffer([](Agg &agg) -> py::buffer_info {
-            std::vector<ssize_t> strides(agg.grid->dimensions);
-            std::vector<ssize_t> shapes(agg.grid->dimensions);
-            std::copy(&agg.grid->shapes[0], &agg.grid->shapes[agg.grid->dimensions], &shapes[0]);
-            std::transform(&agg.grid->strides[0], &agg.grid->strides[agg.grid->dimensions], &strides[0], [](uint64_t x) { return x*sizeof(typename Agg::grid_type); } );
-            return py::buffer_info(
-                agg.grid_data,                               /* Pointer to buffer */
-                sizeof(typename Agg::grid_type),                 /* Size of one scalar */
-                py::format_descriptor<typename Agg::grid_type>::format(), /* Python struct-style format descriptor */
-                agg.grid->dimensions,                       /* Number of dimensions */
-                shapes,                 /* Buffer dimensions */
-                strides
-            );
-        })
-        .def_property_readonly("grid", [](const Agg &agg) {
-                return agg.grid;
-            }
-        )
+        .def_buffer(&Agg::buffer_info)
+    ;
+}
+
+template<class Agg, class Base, class Module>
+void add_agg_misc(Module m, Base& base, const char* class_name) {
+    py::class_<Agg>(m, class_name, base)
+        .def(py::init<Grid<>*>(), py::keep_alive<1, 2>())
+        .def_buffer(&Agg::buffer_info)
         .def("set_data", &Agg::set_data)
-        .def("set_data_mask", &Agg::set_data_mask)
         .def("clear_data_mask", &Agg::clear_data_mask)
-        .def("reduce", &Agg::reduce)
+        .def("set_data_mask", &Agg::set_data_mask)
+        .def_property_readonly("grid", [](const Agg &agg) {
+                    return agg.grid;
+                }
+        );
     ;
 }
 
 
 template<class Agg, class Base, class Module, class A>
 void add_agg_arg(Module m, Base& base, const char* class_name) {
-    py::class_<Agg>(m, class_name, py::buffer_protocol(), base)
+    py::class_<Agg>(m, class_name, base)
         .def(py::init<Grid<>*, A>(), py::keep_alive<1, 2>())
-        .def_buffer([](Agg &agg) -> py::buffer_info {
-            std::vector<ssize_t> strides(agg.grid->dimensions);
-            std::vector<ssize_t> shapes(agg.grid->dimensions);
-            std::copy(&agg.grid->shapes[0], &agg.grid->shapes[agg.grid->dimensions], &shapes[0]);
-            std::transform(&agg.grid->strides[0], &agg.grid->strides[agg.grid->dimensions], &strides[0], [](uint64_t x) { return x*sizeof(typename Agg::grid_type); } );
-            return py::buffer_info(
-                agg.grid_data,                               /* Pointer to buffer */
-                sizeof(typename Agg::grid_type),                 /* Size of one scalar */
-                py::format_descriptor<typename Agg::grid_type>::format(), /* Python struct-style format descriptor */
-                agg.grid->dimensions,                       /* Number of dimensions */
-                shapes,                 /* Buffer dimensions */
-                strides
-            );
-        })
-        .def_property_readonly("grid", [](const Agg &agg) {
-                return agg.grid;
-            }
-        )
-        .def("set_data", &Agg::set_data)
-        .def("set_data_mask", &Agg::set_data_mask)
-        .def("clear_data_mask", &Agg::clear_data_mask)
-        .def("reduce", &Agg::reduce)
+        .def_buffer(&Agg::buffer_info)
     ;
 }
 
@@ -595,25 +555,40 @@ void add_agg_primitives_(Module m, Base& base, std::string postfix) {
 
 template<class T, class Base, class Module>
 void add_agg_primitives(Module m, Base& base, std::string postfix) {
-    add_agg_primitives_<T, Base, Module, false>(m, base, postfix);
-    add_agg_primitives_<T, Base, Module, true>(m, base, postfix+ "_non_native");
+    std::string class_name("AggregatorBaseNumpyData_" + postfix);
+
+    // WARNING: Agg is not the super class for AggSum, which does some upcasting, however
+    // it does work because the mem layout of the classes is the same
+    typedef AggregatorBaseNumpyData<T> Agg;
+    py::class_<Agg> aggregator_base(m, class_name.c_str(), py::buffer_protocol(), base);
+    aggregator_base
+    .def("set_data", &Agg::set_data)
+    .def("clear_data_mask", &Agg::clear_data_mask)
+    .def("set_data_mask", &Agg::set_data_mask)
+    .def_property_readonly("grid", [](const Agg &agg) {
+                return agg.grid;
+            }
+    );
+
+    add_agg_primitives_<T, py::class_<Agg>, Module, false>(m, aggregator_base, postfix);
+    add_agg_primitives_<T, py::class_<Agg>, Module, true>(m, aggregator_base, postfix+ "_non_native");
 }
-
-
 
 
 namespace vaex {
     void add_agg_nunique_string(py::module& m, py::class_<Aggregator>& base);
     void add_agg_nunique_primitives(py::module& m, py::class_<Aggregator>& base);
     void add_binners(py::module &, py::class_<Binner>& base);
-};
+}
 
 PYBIND11_MODULE(superagg, m) {
     _import_array();
 
     m.doc() = "fast statistics/aggregation on grids";
-    py::class_<Aggregator> aggregator(m, "Aggregator");
-    py::class_<AggregatorBase<>> agg(m, "Agg", aggregator);
+    py::class_<Aggregator> aggregator(m, "Aggregator", py::buffer_protocol());
+    {
+        aggregator.def("reduce", &Aggregator::reduce);
+    }
     py::class_<Binner> binner(m, "Binner");
 
     {
@@ -632,18 +607,18 @@ PYBIND11_MODULE(superagg, m) {
     vaex::add_agg_nunique_string(m, aggregator);
     vaex::add_agg_nunique_primitives(m, aggregator);
     vaex::add_binners(m, binner);
-    add_agg<AggStringCount<>>(m, agg, "AggCount_string");
-    add_agg<AggObjectCount<>>(m, agg, "AggCount_object");
-    add_agg_primitives<double>(m, agg, "float64");
-    add_agg_primitives<float>(m, agg, "float32");
-    add_agg_primitives<int64_t>(m, agg, "int64");
-    add_agg_primitives<int32_t>(m, agg, "int32");
-    add_agg_primitives<int16_t>(m, agg, "int16");
-    add_agg_primitives<int8_t>(m, agg, "int8");
-    add_agg_primitives<uint64_t>(m, agg, "uint64");
-    add_agg_primitives<uint32_t>(m, agg, "uint32");
-    add_agg_primitives<uint16_t>(m, agg, "uint16");
-    add_agg_primitives<uint8_t>(m, agg, "uint8");
-    add_agg_primitives<bool>(m, agg, "bool");
+    add_agg_misc<AggStringCount<>>(m, aggregator, "AggCount_string");
+    add_agg_misc<AggObjectCount<>>(m, aggregator, "AggCount_object");
+    add_agg_primitives<double>(m, aggregator, "float64");
+    add_agg_primitives<float>(m, aggregator, "float32");
+    add_agg_primitives<int64_t>(m, aggregator, "int64");
+    add_agg_primitives<int32_t>(m, aggregator, "int32");
+    add_agg_primitives<int16_t>(m, aggregator, "int16");
+    add_agg_primitives<int8_t>(m, aggregator, "int8");
+    add_agg_primitives<uint64_t>(m, aggregator, "uint64");
+    add_agg_primitives<uint32_t>(m, aggregator, "uint32");
+    add_agg_primitives<uint16_t>(m, aggregator, "uint16");
+    add_agg_primitives<uint8_t>(m, aggregator, "uint8");
+    add_agg_primitives<bool>(m, aggregator, "bool");
 
 }
