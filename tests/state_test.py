@@ -56,3 +56,27 @@ def test_state_transfer_reassign(df):
     # State transfer
     df_original.state_set(df.state_get())
     assert df_original.new_x.tolist() == df.new_x.tolist()
+
+
+def test_state_keep_column():
+    df1 = vaex.from_scalars(x=1, y=2, extra=3)
+    df2 = vaex.from_scalars(x=10, y=20)
+    df2['z'] = df1.x + df1.y
+    df1_copy = df1.copy()
+
+    df1.state_set(df2.state_get(), keep_columns=['extra'])
+    assert df1.z.tolist() == [3]
+    assert df1.extra.tolist() == [3]
+
+    with pytest.raises(KeyError):
+        df1_copy.state_set(df2.state_get(), keep_columns=['doesnotexis'])
+
+
+def test_state_skip_filter():
+    df1 = vaex.from_arrays(x=[1,2], y=[2,3])
+    df2 = df1.copy()
+    df2['z'] = df1.x + df1.y
+    df2 = df2[df2.x > 1]
+    assert len(df2) == 1
+    df1.state_set(df2.state_get(), set_filter=False)
+    assert df1.z.tolist() == [3, 5]
