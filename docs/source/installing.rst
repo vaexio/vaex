@@ -47,7 +47,7 @@ If you want to work on vaex for a Pull Request from the source, use the followin
 * ``git clone --recursive https://github.com/vaexio/vaex``  # make sure you get the submodules
 * ``cd vaex``
 * make sure the dev versions of pcre are installed (e.g. ``conda install -c conda-forge pcre``)
-* install using:
+* install using (note: if you're on Windows, make sure that your command line/terminal has administrator privileges):
 
  * ``pip install -e .``  (again, use (ana)conda or virtualenv/venv)
 
