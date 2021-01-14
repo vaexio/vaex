@@ -290,7 +290,5 @@ class GroupBy(GroupByBase):
         df_grouped = vaex.from_dict(labels)
         for key, value in arrays.items():
             df_grouped[key] = value[mask]
-        for key, value in arrays.items():
-            df_grouped[key] = value[mask]
         return df_grouped
 
