@@ -5880,6 +5880,8 @@ class DataFrameLocal(DataFrame):
         fs_options = fs_options or {}
         if naked_path.endswith('.arrow'):
             self.export_arrow(path, progress=progress, chunk_size=chunk_size, parallel=parallel, fs_options=fs_options, fs=fs)
+        elif naked_path.endswith('.feather'):
+            self.export_feather(path, parallel=parallel, fs_options=fs_options)
         elif naked_path.endswith('.hdf5'):
             self.export_hdf5(path, progress=progress, parallel=parallel)
         elif naked_path.endswith('.fits'):
@@ -5931,6 +5933,27 @@ class DataFrameLocal(DataFrame):
             write(to)
 
     @docsubst
+    def export_feather(self, to, parallel=True, reduce_large=True, compression='lz4', fs_options=None, fs=None):
+        """Exports the DataFrame to an arrow file using the feather file format version 2
+
+        Feather is exactly represented as the Arrow IPC file format on disk, but also support compression.
+            see also https://arrow.apache.org/docs/python/feather.html
+
+        :param to: filename or file object
+        :param bool parallel: {evaluate_parallel}
+        :param bool reduce_large: If True, convert arrow large_string type to string type
+        :param compression: Can be one of 'zstd', 'lz4' or 'uncompressed'
+        :param fs_options: {fs_options}
+        :param fs: {fs}
+        :return:
+        """
+        import pyarrow.feather as feather
+        table = self.to_arrow_table(parallel=False, reduce_large=reduce_large)
+        fs_options = fs_options or {}
+        with vaex.file.open(path=to, mode='wb', fs_options=fs_options, fs=fs) as sink:
+            feather.write_feather(table, sink, compression=compression)
+
+    @docsubst
     def export_parquet(self, path, progress=None, chunk_size=default_chunk_size, parallel=True, fs_options=None, fs=None, **kwargs):
         """Exports the DataFrame to a parquet file.
 
@@ -5942,6 +5965,7 @@ class DataFrameLocal(DataFrame):
         :param int chunk_size: {chunk_size_export}
         :param bool parallel: {evaluate_parallel}
         :param dict fs_options: {fs_options}
+        :param fs: {fs}
         :param **kwargs: Extra keyword arguments to be passed on to py:data:`pyarrow.parquet.ParquetWriter`.
         :return:
         """

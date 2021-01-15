@@ -153,6 +153,7 @@ setup(name=name + '-core',
           'vaex.dataset.opener': [
               'arrow = vaex.arrow.opener:ArrowOpener',
               'parquet = vaex.arrow.opener:ParquetOpener',
+              'feather = vaex.arrow.opener:FeatherOpener',
           ],
           'vaex.file.scheme': [
               's3 = vaex.file.s3',

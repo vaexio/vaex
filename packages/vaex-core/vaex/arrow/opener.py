@@ -14,6 +14,20 @@ class ArrowOpener:
         from .dataset import open
         return open(path, *args, **kwargs)
 
+class FeatherOpener(ArrowOpener):
+    @classmethod
+    def quick_test(cls, path, *args, **kwargs):
+        return vaex.file.ext(path) == '.feather'
+
+    @classmethod
+    def can_open(cls, path, *args, **kwargs):
+        return cls.quick_test(path, *args, **kwargs)
+
+    @staticmethod
+    def open(path, *args, **kwargs):
+        from .dataset import open
+        return open(path, *args, **kwargs)
+
 class ParquetOpener:
     @classmethod
     def quick_test(cls, path, *args, **kwargs):
