@@ -145,7 +145,7 @@ class FitsBinTable(DatasetMemoryMapped):
                 unit_str = table.header[unit_header_name]
                 unit = _try_unit(unit_str)
                 if unit:
-                    self.unit[column_name] = unit
+                    self.units[column_name] = unit
         #unit_header_name = "TUCD%d" % (i+1)
         #if ucd_header_name in table.header:
     @classmethod
