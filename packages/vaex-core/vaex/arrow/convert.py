@@ -15,8 +15,11 @@ def ensure_not_chunked(arrow_array):
         table = pa.Table.from_arrays([arrow_array], ["single"])
         table_concat = table.combine_chunks()
         column = table_concat.columns[0]
-        assert column.num_chunks == 1
-        arrow_array = column.chunk(0)
+        if column.num_chunks == 1:
+            arrow_array = column.chunk(0)
+        else:
+            assert column.num_chunks == 0
+            arrow_array = pa.array([], type=arrow_array.type)
     return arrow_array
 
 
