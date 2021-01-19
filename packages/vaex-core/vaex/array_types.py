@@ -126,7 +126,9 @@ def convert(x, type, default_type="numpy"):
 
     elif type == "arrow":
         if isinstance(x, (list, tuple)):
-            return pa.chunked_array([convert(k, type) for k in x])
+            chunks = [convert(k, type) for k in x]
+            chunks = [k for k in chunks if len(k) > 0]
+            return pa.chunked_array(chunks, type=chunks[0].type)
         else:
             return to_arrow(x)
     elif type == "xarray":
