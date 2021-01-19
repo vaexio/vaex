@@ -236,8 +236,7 @@ def trim_buffers_ipc(ar):
             assert table.num_columns == 1
             assert table.num_rows == len(ar)
             trimmed_ar = table.column(0)
-    if isinstance(trimmed_ar, pa.ChunkedArray):
-        assert len(trimmed_ar.chunks) == 1
+    if isinstance(trimmed_ar, pa.ChunkedArray) and len(trimmed_ar.chunks) == 1:
         trimmed_ar = trimmed_ar.chunks[0]
 
     return trimmed_ar
