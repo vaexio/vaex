@@ -39,3 +39,9 @@ def test_astype_dtype():
     df = vaex.from_arrays(x=[np.nan, 1])
     # assert df.x.astype(str).dtype == vaex.column.str_type
     assert df.x.astype(str).data_type() in [pa.string(), pa.large_string()]
+
+
+def test_astype_empty(df_factory):
+    df = df_factory(x=[1, 2, 3])
+    df = df[df.x<0]
+    assert len(df.x.as_numpy().values) == 0

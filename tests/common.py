@@ -391,9 +391,9 @@ def array_factory_arrow(request, array_factory_arrow_normal, array_factory_arrow
 array_factory1 = array_factory
 array_factory2 = array_factory
 
-@pytest.fixture(params=['df_factory_numpy', 'df_factory_arrow'], scope='session')#, 'df_factory_parquet'])
-def df_factory(request, df_factory_numpy, df_factory_arrow):#, df_factory_parquet):
-    named = dict(df_factory_numpy=df_factory_numpy, df_factory_arrow=df_factory_arrow)#, df_factory_parquet=df_factory_parquet)
+@pytest.fixture(params=['df_factory_numpy', 'df_factory_arrow', 'df_factory_arrow_chunked'], scope='session')#, 'df_factory_parquet'])
+def df_factory(request, df_factory_numpy, df_factory_arrow, df_factory_arrow_chunked):#, df_factory_parquet):
+    named = dict(df_factory_numpy=df_factory_numpy, df_factory_arrow=df_factory_arrow, df_factory_arrow_chunked=df_factory_arrow_chunked)#, df_factory_parquet=df_factory_parquet)
     return named[request.param]
 
 
@@ -408,6 +408,18 @@ def df_factory_arrow():
         def try_convert(ar):
             try:
                 return pa.array(ar)
+            except:
+                return ar
+        return vaex.from_dict({k: try_convert(v) for k, v in arrays.items()})
+    return create
+
+
+@pytest.fixture(scope='session')
+def df_factory_arrow_chunked(array_factory_arrow_chunked):
+    def create(**arrays):
+        def try_convert(ar):
+            try:
+                return array_factory_arrow_chunked(ar)
             except:
                 return ar
         return vaex.from_dict({k: try_convert(v) for k, v in arrays.items()})
