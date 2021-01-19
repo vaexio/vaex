@@ -9,8 +9,8 @@ features = ['petal_length', 'petal_width', 'sepal_length', 'sepal_width']
 
 
 @pytest.mark.skipif(sys.version_info < (3, 6), reason="requires python3.6 or higher")
-def test_linear_model():
-    ds = vaex.ml.datasets.load_iris()
+def test_linear_model(df_iris):
+    ds = df_iris
     m1 = vaex.ml.linear_model.LinearRegression(features=['petal_width'], binned=False)
     m1.fit(ds, 'petal_length')
     # print(m.coef_, m.intercept_)
@@ -23,8 +23,8 @@ def test_linear_model():
 
 @pytest.mark.skipif(sys.version_info < (3, 6), reason="requires python3.6 or higher")
 @pytest.mark.skip(reason="This will fail: produces wrong answer")
-def test_logit():
-    ds = vaex.ml.datasets.load_iris()
+def test_logit(df_iris):
+    ds = df_iris
     ds.categorize(ds.class_, labels='0 1 2 3'.split(), inplace=True)
     m1 = vaex.ml.linear_model.LogisticRegression(features=features, binned=False)
     m1.fit(ds, 'class_')

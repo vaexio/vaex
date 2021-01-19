@@ -62,7 +62,7 @@ class XGBoostModel(state.HasState):
     prediction_name = traitlets.Unicode(default_value='xgboost_prediction', help='The name of the virtual column housing the predictions.')
 
     def __call__(self, *args):
-        data2d = np.vstack([arg.astype(np.float64) for arg in args]).T.copy()
+        data2d = np.stack([np.asarray(arg, np.float64) for arg in args], axis=1)
         dmatrix = xgboost.DMatrix(data2d)
         return self.booster.predict(dmatrix)
 
@@ -97,13 +97,13 @@ class XGBoostModel(state.HasState):
         '''
 
         data = df[self.features].values
-        target_data = df.evaluate(self.target)
+        target_data = df[self.target].to_numpy()
         dtrain = xgboost.DMatrix(data, target_data)
         if evals is not None:
             evals = [list(elem) for elem in evals]
             for item in evals:
                 data = item[0][self.features].values
-                target_data = item[0].evaluate(self.target)
+                target_data = item[0][self.target].to_numpy()
                 item[0] = xgboost.DMatrix(data, target_data)
         else:
             evals = ()

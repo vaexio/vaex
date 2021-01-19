@@ -70,7 +70,7 @@ class CatBoostModel(state.HasState):
                                       default_value='IntersectingCountersAverage', help="Strategy for summing up models. Only used when training in batches. See the CatBoost documentation for more info.")
 
     def __call__(self, *args):
-        data2d = np.vstack([arg.astype(np.float64) for arg in args]).T.copy()
+        data2d = np.stack([np.asarray(arg, np.float64) for arg in args], axis=1)
         dmatrix = catboost.Pool(data2d, **self.pool_params)
         return self.booster.predict(dmatrix, prediction_type=self.prediction_type)
 
@@ -106,13 +106,13 @@ class CatBoostModel(state.HasState):
         if evals is not None:
             for i, item in enumerate(evals):
                 data = item[self.features].values
-                target_data = item[self.target].values
+                target_data = item[self.target].to_numpy()
                 evals[i] = catboost.Pool(data=data, label=target_data, **self.pool_params)
 
         # This does the actual training/fitting of the catboost model
         if self.batch_size is None:
             data = df[self.features].values
-            target_data = df[self.target].values
+            target_data = df[self.target].to_numpy()
             dtrain = catboost.Pool(data=data, label=target_data, **self.pool_params)
             model = catboost.train(params=self.params,
                                    dtrain=dtrain,

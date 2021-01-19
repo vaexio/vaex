@@ -1,6 +1,8 @@
 import base64
 import tempfile
 
+from vaex.strings import array
+
 import lightgbm
 
 import numpy as np
@@ -66,7 +68,7 @@ class LightGBMModel(state.HasState):
     prediction_name = traitlets.Unicode(default_value='lightgbm_prediction', help='The name of the virtual column housing the predictions.')
 
     def __call__(self, *args):
-        data2d = np.vstack([arg.astype(np.float64) for arg in args]).T.copy()
+        data2d = np.stack([np.asarray(arg, np.float64) for arg in args], axis=1)
         return self.booster.predict(data2d)
 
     def transform(self, df):
@@ -103,10 +105,10 @@ class LightGBMModel(state.HasState):
             If *verbose_eval* is True then the evaluation metric on the validation set is printed at each boosting stage.
         """
 
-        dtrain = lightgbm.Dataset(df[self.features].values, df.evaluate(self.target))
+        dtrain = lightgbm.Dataset(df[self.features].values, df[self.target].to_numpy())
         if valid_sets is not None:
             for i, item in enumerate(valid_sets):
-                valid_sets[i] = lightgbm.Dataset(item[self.features].values, item[self.target].values)
+                valid_sets[i] = lightgbm.Dataset(item[self.features].values, item[self.target].to_numpy())
         else:
             valid_sets = ()
 

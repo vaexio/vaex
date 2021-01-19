@@ -37,8 +37,8 @@ params_reg = {
 }
 
 
-def test_catboost():
-    ds = vaex.ml.datasets.load_iris()
+def test_catboost(df_iris):
+    ds = df_iris
     ds_train, ds_test = ds.ml.train_test_split(test_size=0.2, verbose=False)
     features = ['sepal_length', 'sepal_width', 'petal_length', 'petal_width']
     booster = vaex.ml.catboost.CatBoostModel(num_boost_round=10,
@@ -105,12 +105,12 @@ def test_catboost_batch_training():
     assert list(weights_booster.booster.get_feature_importance()) != list(batch_booster.booster.get_feature_importance())
 
 
-def test_catboost_numerical_validation():
-    ds = vaex.ml.datasets.load_iris()
+def test_catboost_numerical_validation(df_iris):
+    ds = df_iris
     features = ['sepal_width', 'petal_length', 'sepal_length', 'petal_width']
 
     # Vanilla catboost
-    dtrain = cb.Pool(ds[features].values, label=ds.class_.values)
+    dtrain = cb.Pool(ds[features].values, label=ds.class_.to_numpy())
     cb_bst = cb.train(params=params_multiclass, dtrain=dtrain, num_boost_round=3)
     cb_pred = cb_bst.predict(dtrain, prediction_type='Probability')
 
@@ -124,8 +124,8 @@ def test_catboost_numerical_validation():
                             err_msg='The predictions of vaex.ml.catboost do not match those of pure catboost')
 
 
-def test_lightgbm_serialize(tmpdir):
-    ds = vaex.ml.datasets.load_iris()
+def test_lightgbm_serialize(tmpdir, df_iris):
+    ds = df_iris
     features = ['sepal_length', 'sepal_width', 'petal_length', 'petal_width']
     target = 'class_'
 
@@ -161,9 +161,9 @@ def test_catboost_validation_set():
     assert booster.booster.best_iteration_ is not None
 
 
-def test_catboost_pipeline():
+def test_catboost_pipeline(df_example):
     # read data
-    ds = vaex.example()
+    ds = df_example
     # train test splot
     train, test = ds.ml.train_test_split(verbose=False)
     # add virtual columns

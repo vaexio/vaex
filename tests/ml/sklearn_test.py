@@ -31,8 +31,8 @@ models_classification = [LogisticRegression(solver='lbfgs', max_iter=100, random
                          RandomForestClassifier(n_estimators=10, random_state=42, max_depth=3)]
 
 
-def test_sklearn_estimator():
-    ds = vaex.ml.datasets.load_iris()
+def test_sklearn_estimator(df_iris):
+    ds = df_iris
     features = ['sepal_length', 'sepal_width', 'petal_length']
 
     train, test = ds.ml.train_test_split(verbose=False)
@@ -50,8 +50,8 @@ def test_sklearn_estimator():
     assert ds.pred.values.shape == (150,)
 
 
-def test_sklearn_estimator_virtual_columns():
-    ds = vaex.ml.datasets.load_iris()
+def test_sklearn_estimator_virtual_columns(df_iris):
+    ds = df_iris
     ds['x'] = ds.sepal_length * 1
     ds['y'] = ds.sepal_width * 1
     ds['w'] = ds.petal_length * 1
@@ -64,8 +64,8 @@ def test_sklearn_estimator_virtual_columns():
     assert ds.pred.values.shape == (150,)
 
 
-def test_sklearn_estimator_serialize(tmpdir):
-    ds = vaex.ml.datasets.load_iris()
+def test_sklearn_estimator_serialize(tmpdir, df_iris):
+    ds = df_iris
     features = ['sepal_length', 'sepal_width', 'petal_length']
 
     model = Predictor(model=LinearRegression(), features=features, target='petal_width', prediction_name='pred')
@@ -84,8 +84,8 @@ def test_sklearn_estimator_serialize(tmpdir):
     pipeline.load(str(tmpdir.join('test.json')))
 
 
-def test_sklearn_estimator_regression_validation():
-    ds = vaex.ml.datasets.load_iris()
+def test_sklearn_estimator_regression_validation(df_iris):
+    ds = df_iris
     train, test = ds.ml.train_test_split(verbose=False)
     features = ['sepal_length', 'sepal_width', 'petal_length']
 
@@ -108,8 +108,8 @@ def test_sklearn_estimator_regression_validation():
         np.testing.assert_array_almost_equal(test.pred.values, skl_pred, decimal=5)
 
 
-def test_sklearn_estimator_pipeline():
-    ds = vaex.ml.datasets.load_iris()
+def test_sklearn_estimator_pipeline(df_iris):
+    ds = df_iris
     train, test = ds.ml.train_test_split(verbose=False)
     # Add virtual columns
     train['sepal_virtual'] = np.sqrt(train.sepal_length**2 + train.sepal_width**2)
@@ -138,9 +138,9 @@ def test_sklearn_estimator_pipeline():
 
 
 @pytest.mark.parametrize("prediction_type", ['predict', 'predict_proba'])
-def test_sklearn_estimator_classification_validation(prediction_type):
-    df = vaex.ml.datasets.load_titanic()
-    df['survived'] = df.survived.astype('int')
+def test_sklearn_estimator_classification_validation(prediction_type, df_titanic):
+    df = df_titanic
+    df['survived'] = df.survived.astype('int32')
 
     train, test = df.ml.train_test_split(verbose=False)
     features = ['pclass', 'parch', 'sibsp']
@@ -167,8 +167,8 @@ def test_sklearn_estimator_classification_validation(prediction_type):
         assert np.all(skl_pred == test.pred.values)
 
 
-def test_sklearn_incremental_predictor_regression():
-    df = vaex.example()
+def test_sklearn_incremental_predictor_regression(df_example):
+    df = df_example
     df_train, df_test = df.ml.train_test_split(test_size=0.1, verbose=False)
 
     features = df_train.column_names[:6]
@@ -196,8 +196,8 @@ def test_sklearn_incremental_predictor_regression():
 
 
 @pytest.mark.parametrize("prediction_type", ['predict', 'predict_proba'])
-def test_sklearn_incremental_predictor_classification(prediction_type):
-    df = vaex.ml.datasets.load_iris_1e5()
+def test_sklearn_incremental_predictor_classification(prediction_type, df_iris_1e5):
+    df = df_iris_1e5
     df_train, df_test = df.ml.train_test_split(test_size=0.1, verbose=False)
 
     features = df_train.column_names[:4]
@@ -230,8 +230,8 @@ def test_sklearn_incremental_predictor_classification(prediction_type):
     np.testing.assert_array_equal(pred_in_memory, df_test.pred.values)
 
 
-def test_sklearn_incremental_predictor_serialize(tmpdir):
-    df = vaex.example()
+def test_sklearn_incremental_predictor_serialize(tmpdir, df_example):
+    df = df_example
     df_train, df_test = df.ml.train_test_split(test_size=0.1, verbose=False)
 
     features = df_train.column_names[:6]
@@ -260,8 +260,8 @@ def test_sklearn_incremental_predictor_serialize(tmpdir):
 
 @pytest.mark.parametrize("batch_size", [6789, 10*1000])
 @pytest.mark.parametrize("num_epochs", [1, 5])
-def test_sklearn_incremental_predictor_partial_fit_calls(batch_size, num_epochs):
-    df = vaex.example()
+def test_sklearn_incremental_predictor_partial_fit_calls(batch_size, num_epochs, df_example):
+    df = df_example
     df_train, df_test = df.ml.train_test_split(test_size=0.1, verbose=False)
 
     features = df_train.column_names[:6]

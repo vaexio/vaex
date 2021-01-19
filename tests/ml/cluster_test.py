@@ -10,8 +10,8 @@ init = np.array([[0, 1/5], [1.2/2, 4/5], [2.5/2, 6/5]])
 features = ['petal_width/2', 'petal_length/5']
 
 
-def test_serialize():
-    df = vaex.ml.datasets.load_iris()
+def test_serialize(df_iris):
+    df = df_iris
     kmeans = vaex.ml.cluster.KMeans(n_clusters=3, features=features, init='random', random_state=42, max_iter=1)
     kmeans.fit(df)
 

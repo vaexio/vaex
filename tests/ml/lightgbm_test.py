@@ -37,8 +37,8 @@ params_reg = {
 
 
 @pytest.mark.skipif(sys.version_info < (3, 6), reason="requires python3.6 or higher")
-def test_light_gbm_virtual_columns():
-    ds = vaex.ml.datasets.load_iris()
+def test_light_gbm_virtual_columns(df_iris):
+    ds = df_iris
     ds['x'] = ds.sepal_length * 1
     ds['y'] = ds.sepal_width * 1
     ds['w'] = ds.petal_length * 1
@@ -53,8 +53,8 @@ def test_light_gbm_virtual_columns():
 
 
 @pytest.mark.skipif(sys.version_info < (3, 6), reason="requires python3.6 or higher")
-def test_lightgbm():
-    ds = vaex.ml.datasets.load_iris()
+def test_lightgbm(df_iris):
+    ds = df_iris
     ds_train, ds_test = ds.ml.train_test_split(test_size=0.2, verbose=False)
     features = ['sepal_length', 'sepal_width', 'petal_length', 'petal_width']
     features = _ensure_strings_from_expressions(features)
@@ -72,8 +72,8 @@ def test_lightgbm():
 
 
 @pytest.mark.skipif(sys.version_info < (3, 6), reason="requires python3.6 or higher")
-def test_lightgbm_serialize(tmpdir):
-    ds = vaex.ml.datasets.load_iris()
+def test_lightgbm_serialize(tmpdir, df_iris):
+    ds = df_iris
     features = ['sepal_length', 'sepal_width', 'petal_length', 'petal_width']
     target = 'class_'
 
@@ -90,13 +90,13 @@ def test_lightgbm_serialize(tmpdir):
 
 
 @pytest.mark.skipif(sys.version_info < (3, 6), reason="requires python3.6 or higher")
-def test_lightgbm_numerical_validation():
-    ds = vaex.ml.datasets.load_iris()
+def test_lightgbm_numerical_validation(df_iris):
+    ds = df_iris
     features = ['sepal_width', 'petal_length', 'sepal_length', 'petal_width']
 
     # Vanilla lightgbm
     X = np.array(ds[features])
-    dtrain = lgb.Dataset(X, label=ds.class_.values)
+    dtrain = lgb.Dataset(X, label=ds.class_.to_numpy())
     lgb_bst = lgb.train(params, dtrain, 3)
     lgb_pred = lgb_bst.predict(X)
 
@@ -109,9 +109,8 @@ def test_lightgbm_numerical_validation():
 
 
 @pytest.mark.skipif(sys.version_info < (3, 6), reason="requires python3.6 or higher")
-def test_lightgbm_validation_set():
-    # read data
-    ds = vaex.example()
+def test_lightgbm_validation_set(df_example):
+    ds = df_example
     # Train and test split
     train, test = ds.ml.train_test_split(verbose=False)
     # Define the training featuress
@@ -134,9 +133,8 @@ def test_lightgbm_validation_set():
 
 
 @pytest.mark.skipif(sys.version_info < (3, 6), reason="requires python3.6 or higher")
-def test_lightgbm_pipeline():
-    # read data
-    ds = vaex.example()
+def test_lightgbm_pipeline(df_example):
+    ds = df_example
     # train test splot
     train, test = ds.ml.train_test_split(verbose=False)
     # add virtual columns
