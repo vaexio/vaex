@@ -103,6 +103,7 @@ class KMeans(vaex.ml.state.HasState):
 
     def _calculate_distances_squared(self, *blocks):
         N = len(blocks[0])  # they are all the same length
+        blocks = [np.asarray(k) for k in blocks]
         centroids = np.array(self.cluster_centers)
         k = centroids.shape[0]
         dimensions = centroids.shape[1]
@@ -122,7 +123,7 @@ class KMeans(vaex.ml.state.HasState):
 
     def generate_cluster_centers_random(self, dataframe, rng):
         indices = rng.randint(0, len(dataframe), self.n_clusters)
-        return [[dataframe.evaluate(feature, i1=i, i2=i+1)[0] for feature in self.features] for i in indices]
+        return [[dataframe.evaluate(feature, i1=i, i2=i+1, array_type='python')[0] for feature in self.features] for i in indices]
 
     def transform(self, dataframe):
         '''
@@ -201,6 +202,7 @@ class KMeans(vaex.ml.state.HasState):
             sumpos = np.zeros((runs, clusters, dimensions))
             counts = np.zeros((runs, clusters))
             inertia = np.zeros((runs))
+            blocks = [np.asarray(k) for k in blocks]
             if True:
                 centroid_stats(centroids, counts, sumpos, inertia,  *blocks)
             else:

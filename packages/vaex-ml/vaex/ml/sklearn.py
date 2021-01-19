@@ -64,7 +64,7 @@ class Predictor(state.HasState):
     #     raise AttributeError(f'The specified sklearn model does not have a {prediction_type} attribute')
 
     def __call__(self, *args):
-        X = np.vstack([arg.astype(np.float64) for arg in args]).T.copy()
+        X = np.stack([np.asarray(arg, np.float64) for arg in args], axis=1)
         if self.prediction_type == 'predict':
             return self.model.predict(X)
         elif self.prediction_type == 'predict_proba':
@@ -181,7 +181,7 @@ class IncrementalPredictor(state.HasState):
     partial_fit_kwargs = traitlets.Dict(default_value={}, help='A dictionary of key word arguments to be passed on to the `fit_predict` method of the `model`.')
 
     def __call__(self, *args):
-        X = np.vstack([arg.astype(np.float64) for arg in args]).T.copy()
+        X = np.stack([np.asarray(arg, np.float64) for arg in args], axis=1)
         if self.prediction_type == 'predict':
             return self.model.predict(X)
         elif self.prediction_type == 'predict_proba':
@@ -232,7 +232,7 @@ class IncrementalPredictor(state.HasState):
         expressions = self.features + [self.target]
 
         for epoch in range(self.num_epochs):
-            for i1, i2, chunks in df.evaluate_iterator(expressions, chunk_size=self.batch_size):
+            for i1, i2, chunks in df.evaluate_iterator(expressions, chunk_size=self.batch_size, array_type='numpy'):
                 progressbar((n_samples * epoch + i1) / (self.num_epochs * n_samples))
                 X = np.array(chunks[:-1]).T  # the most efficient way depends on the algorithm (row of column based access)
                 y = np.array(chunks[-1], copy=False)

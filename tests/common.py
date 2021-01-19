@@ -391,18 +391,18 @@ def array_factory_arrow(request, array_factory_arrow_normal, array_factory_arrow
 array_factory1 = array_factory
 array_factory2 = array_factory
 
-@pytest.fixture(params=['df_factory_numpy', 'df_factory_arrow'])#, 'df_factory_parquet'])
+@pytest.fixture(params=['df_factory_numpy', 'df_factory_arrow'], scope='session')#, 'df_factory_parquet'])
 def df_factory(request, df_factory_numpy, df_factory_arrow):#, df_factory_parquet):
     named = dict(df_factory_numpy=df_factory_numpy, df_factory_arrow=df_factory_arrow)#, df_factory_parquet=df_factory_parquet)
     return named[request.param]
 
 
-@pytest.fixture
+@pytest.fixture(scope='session')
 def df_factory_numpy():
     return vaex.from_arrays
 
 
-@pytest.fixture
+@pytest.fixture(scope='session')
 def df_factory_arrow():
     def create(**arrays):
         def try_convert(ar):
@@ -422,3 +422,13 @@ def df_factory_parquet(tmpdir):
         df.export(path)
         return vaex.open(path)
     return create
+
+
+@pytest.fixture(scope='session')
+def df_example_original():
+    return vaex.example()
+
+
+@pytest.fixture(scope='session')
+def df_example(df_example_original, df_factory):
+   return df_factory(**df_example_original.to_dict())

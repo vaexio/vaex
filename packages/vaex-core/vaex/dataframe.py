@@ -396,6 +396,8 @@ class DataFrame(object):
                 ar = _to_string_sequence(ar)
                 if not transient:
                     assert ar is previous_ar.string_sequence
+            else:
+                ar = vaex.array_types.to_numpy(ar)
             if np.ma.isMaskedArray(ar):
                 mask = np.ma.getmaskarray(ar)
                 sets[thread_index].update(ar, mask)

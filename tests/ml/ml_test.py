@@ -8,8 +8,8 @@ from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler, MinMaxScaler, MaxAbsScaler, RobustScaler
 
 
-def test_pca():
-    ds = vaex.ml.datasets.load_iris()
+def test_pca(df_iris):
+    ds = df_iris
     pca1 = ds.ml.pca(features=[ds.petal_width, ds.petal_length], n_components=2, transform=False)
     pca2 = ds.ml.pca(features=[ds.sepal_width, ds.sepal_length, ds.petal_length], n_components=3, transform=False)
     ds = pca1.transform(ds)
@@ -24,8 +24,8 @@ def test_pca():
     ds = pca.fit_transform(ds)
 
 
-def test_valid_sklearn_pca():
-    ds = vaex.ml.datasets.load_iris()
+def test_valid_sklearn_pca(df_iris):
+    ds = df_iris
     features = ['sepal_width', 'petal_length', 'sepal_length', 'petal_width']
     # sklearn approach
     pca = PCA(n_components=3, random_state=33, svd_solver='full', whiten=False)
@@ -37,8 +37,8 @@ def test_valid_sklearn_pca():
     np.testing.assert_almost_equal(ds_pca.evaluate('PCA_0'), sklearn_trans[:, 0])
 
 
-def test_standard_scaler():
-    ds = vaex.ml.datasets.load_iris()
+def test_standard_scaler(df_iris):
+    ds = df_iris
     ss1 = ds.ml.standard_scaler(features=[ds.petal_width, ds.petal_length], with_mean=True, with_std=True, transform=False)
     ss2 = ds.ml.standard_scaler(features=[ds.petal_width, ds.petal_length], with_mean=True, with_std=False, transform=False)
     ss3 = ds.ml.standard_scaler(features=[ds.petal_width, ds.petal_length], with_mean=False, with_std=True, transform=False)
@@ -68,8 +68,8 @@ def test_standard_scaler():
     ds = scaler.fit_transform(ds)
 
 
-def test_minmax_scaler():
-    ds = vaex.ml.datasets.load_iris()
+def test_minmax_scaler(df_iris):
+    ds = df_iris
     mms1 = ds.ml.minmax_scaler(features=[ds.petal_width, ds.petal_length], transform=False)
     mms2 = ds.ml.minmax_scaler(features=[ds.petal_width, ds.petal_length], feature_range=(-5, 2), transform=False)
     ds1 = mms1.transform(ds)
@@ -101,9 +101,9 @@ def test_minmax_scaler():
     ds = scaler.fit_transform(ds)
 
 
-def test_train_test_split_values():
+def test_train_test_split_values(df_factory):
     # Create a dataset
-    ds = vaex.from_arrays(x=np.arange(100))
+    ds = df_factory(x=np.arange(100))
     # Set active range to begin with
     ds.set_active_range(50, 100)
     # do the splitting
@@ -113,13 +113,13 @@ def test_train_test_split_values():
     np.testing.assert_equal(np.arange(60, 100), train.evaluate('x'))
 
 
-def test_frequency_encoder():
+def test_frequency_encoder(df_factory):
     animals = np.array(['dog', 'dog', 'cat', 'dog', 'mouse', 'mouse'])
     numbers = np.array([1, 2, 3, 1, 1, np.nan])
-    train = vaex.from_arrays(animals=animals, numbers=numbers)
+    train = df_factory(animals=animals, numbers=numbers)
     animals = np.array(['dog', 'cat', 'mouse', 'ant', np.nan])
     numbers = np.array([2, 1, np.nan, np.nan, 5])
-    test = vaex.from_arrays(animals=animals, numbers=numbers)
+    test = df_factory(animals=animals, numbers=numbers)
     features = ['animals', 'numbers']
 
     fe = train.ml.frequency_encoder(features=features, unseen='nan', transform=False)
@@ -143,7 +143,7 @@ def test_frequency_encoder():
                                    decimal=3)
 
 
-def test_label_encoder():
+def test_label_encoder(df_factory):
     # Create sample data
     x1 = np.array(['dog', 'cat', 'mouse', 'mouse', 'dog', 'dog', 'dog', 'cat', 'cat', 'mouse', 'dog'])
     x2 = np.array(['dog', 'dog', 'cat', 'cat', 'mouse'])
@@ -153,9 +153,9 @@ def test_label_encoder():
     y3 = np.array([3, 2, 1, 4])  # unseen value 4
 
     # Create
-    df_train = vaex.from_arrays(x=x1, y=y1)
-    df_test = vaex.from_arrays(x=x2, y=y2)
-    df_unseen = vaex.from_arrays(x=x3, y=y3)
+    df_train = df_factory(x=x1, y=y1)
+    df_test = df_factory(x=x2, y=y2)
+    df_unseen = df_factory(x=x3, y=y3)
 
     # # Label Encode with vaex.ml
     label_encoder = df_train.ml.label_encoder(features=['x', 'y'], prefix='mypref_', transform=False)
@@ -183,7 +183,7 @@ def test_label_encoder():
     assert set(df_unseen[df_unseen.y == 4].mypref_x.tolist()) == {-1}
 
 
-def test_one_hot_encoding():
+def test_one_hot_encoding(df_factory):
     # Categories
     a = ['cat', 'dog', 'mouse']
     b = ['boy', 'girl']
@@ -193,7 +193,7 @@ def test_one_hot_encoding():
     y = np.random.choice(b, size=100, replace=True)
     z = np.random.choice(c, size=100, replace=True)
     # Create dataset
-    ds = vaex.from_arrays(animals=x, kids=y, numbers=z)
+    ds = df_factory(animals=x, kids=y, numbers=z)
     # First try to one-hot encode without specifying features: this should raise an exception
     # TODO: should we do this?
     # with pytest.raises(ValueError):
@@ -216,14 +216,14 @@ def test_one_hot_encoding():
     ohe = vaex.ml.OneHotEncoder(features=['kids', 'animals', 'numbers'])
     ohe.fit_transform(ds)
 
-def test_one_hot_encoding_with_na():
+def test_one_hot_encoding_with_na(df_factory):
     x = ['Reggie', 'Michael', None, 'Reggie']
     y = [31, 23, np.nan, 31]
-    df_train = vaex.from_arrays(x=x, y=y)
+    df_train = df_factory(x=x, y=y)
 
     x = ['Michael', 'Reggie', None, None]
     y = [23, 31, np.nan, np.nan]
-    df_test = vaex.from_arrays(x=x, y=y)
+    df_test = df_factory(x=x, y=y)
 
 
     enc = vaex.ml.OneHotEncoder(features=['x', 'y'])
@@ -249,13 +249,13 @@ def test_one_hot_encoding_with_na():
     assert df_test['y_nan'].tolist() == [0, 0, 1, 1]
 
 
-def test_maxabs_scaler():
+def test_maxabs_scaler(df_factory):
     x = np.array([-2.65395789, -7.97116295, -4.76729177, -0.76885033, -6.45609635])
     y = np.array([-8.9480332, -4.81582449, -3.73537263, -3.46051912,  1.35137275])
     z = np.array([-0.47827432, -2.26208059, -3.75151683, -1.90862151, -1.87541903])
     w = np.zeros_like(x)
 
-    ds = vaex.from_arrays(x=x, y=y, z=z, w=w)
+    ds = df_factory(x=x, y=y, z=z, w=w)
     df = ds.to_pandas_df()
 
     features = ['x', 'y', 'w']
@@ -276,13 +276,13 @@ import platform
 version = tuple(map(int, numpy.__version__.split('.')))
 
 @pytest.mark.skipif(platform.system().lower() != 'darwin', reason="strange ref count issue with numpy")
-def test_robust_scaler():
+def test_robust_scaler(df_factory):
     x = np.array([-2.65395789, -7.97116295, -4.76729177, -0.76885033, -6.45609635])
     y = np.array([-8.9480332, -4.81582449, -3.73537263, -3.46051912,  1.35137275])
     z = np.array([-0.47827432, -2.26208059, -3.75151683, -1.90862151, -1.87541903])
     w = np.zeros_like(x)
 
-    ds = vaex.from_arrays(x=x, y=y, z=z, w=w)
+    ds = df_factory(x=x, y=y, z=z, w=w)
     df = ds.to_pandas_df()
 
     features = ['x', 'y']
@@ -300,9 +300,9 @@ def test_robust_scaler():
         result_vaex = scaler_vaex.fit_transform(ds)
 
 
-def test_cyclical_transformer(tmpdir):
-    df_train = vaex.from_arrays(hour=[0, 3, 6])
-    df_test = vaex.from_arrays(hour=[12, 24, 21, 15])
+def test_cyclical_transformer(tmpdir, df_factory):
+    df_train = df_factory(hour=[0, 3, 6])
+    df_test = df_factory(hour=[12, 24, 21, 15])
 
     trans = vaex.ml.CycleTransformer(n=24, features=['hour'], prefix_x='pref_', prefix_y='pref_')
     df_train = trans.fit_transform(df_train)
@@ -316,11 +316,11 @@ def test_cyclical_transformer(tmpdir):
     np.testing.assert_array_almost_equal(df_test.pref_hour_y.values, [0, 0, -0.707107, -0.707107])
 
 
-def test_bayesian_target_encoder(tmpdir):
-    df_train = vaex.from_arrays(x1=['a', 'a', 'a', 'a', 'a', 'b', 'b', 'b', 'b', 'b'],
+def test_bayesian_target_encoder(tmpdir, df_factory):
+    df_train = df_factory(x1=['a', 'a', 'a', 'a', 'a', 'b', 'b', 'b', 'b', 'b'],
                                 x2=['p', 'p', 'p', 'p', 'p', 'p', 'p', 'p', 'q', 'q'],
                                 y=[1, 1, 1, 1, 0, 0, 0, 0, 0, 1])
-    df_test = vaex.from_arrays(x1=['a', 'b', 'c'],
+    df_test = df_factory(x1=['a', 'b', 'c'],
                                x2=['p', 'q', 'w'])
 
     target_encoder = vaex.ml.BayesianTargetEncoder(target='y', features=['x1', 'x2'], unseen='zero', prefix='enc_', weight=10)
@@ -338,13 +338,13 @@ def test_bayesian_target_encoder(tmpdir):
     df_test.enc_x2.tolist() == [0.5, 0.5, 0.0]
 
 @pytest.mark.parametrize("as_bool", [False, True])
-def test_weight_of_evidence_encoder(tmpdir, as_bool):
+def test_weight_of_evidence_encoder(tmpdir, as_bool, df_factory):
     y = [1, 1, 1, 1, 1, 0, 0, 1]
     if as_bool:
         y = [bool(k) for k in y]
-    df_train = vaex.from_arrays(x=['a', 'a',  'b', 'b', 'b', 'b', 'c', 'c'],
+    df_train = df_factory(x=['a', 'a',  'b', 'b', 'b', 'b', 'c', 'c'],
                                 y=y)
-    df_test = vaex.from_arrays(x=['a', 'b', 'c', 'd'])
+    df_test = df_factory(x=['a', 'b', 'c', 'd'])
 
     trans = vaex.ml.WeightOfEvidenceEncoder(target='y', features=['x'])
     df_train = trans.fit_transform(df_train)
@@ -357,47 +357,47 @@ def test_weight_of_evidence_encoder(tmpdir, as_bool):
     df_test.state_load(state_path)
     np.testing.assert_array_almost_equal(df_test.woe_encoded_x.values, [13.815510, 1.098612, 0, np.nan])
 
-def test_weight_of_evidence_encoder_bad_values():
+def test_weight_of_evidence_encoder_bad_values(df_factory):
     y = [1, 2]
-    df = vaex.from_arrays(x=['a', 'b'], y=y)
+    df = df_factory(x=['a', 'b'], y=y)
     trans = vaex.ml.WeightOfEvidenceEncoder(target='y', features=['x'])
     with pytest.raises(ValueError):
         trans.fit_transform(df)
 
     # masked values in target should be ignored
     y = np.ma.array([1, 0], mask=[False, True])
-    df = vaex.from_arrays(x=['a', 'b'], y=y)
+    df = df_factory(x=['a', 'b'], y=y)
     trans.fit_transform(df)
 
     # nan values in target should be ignored
     y = [1, np.nan]
-    df = vaex.from_arrays(x=['a', 'b'], y=y)
+    df = df_factory(x=['a', 'b'], y=y)
     trans.fit_transform(df)
 
     # all 1's
     y = [1, 1]
-    df = vaex.from_arrays(x=['a', 'b'], y=y)
+    df = df_factory(x=['a', 'b'], y=y)
     trans.fit_transform(df)
 
     # all 0's
     y = [0, 0]
-    df = vaex.from_arrays(x=['a', 'b'], y=y)
+    df = df_factory(x=['a', 'b'], y=y)
     trans.fit_transform(df)
 
     # all nan
     y = [np.nan, np.nan]
-    df = vaex.from_arrays(x=['a', 'b'], y=y)
+    df = df_factory(x=['a', 'b'], y=y)
     trans.fit_transform(df)
 
     # masked values in target should be ignored
     y = np.ma.array([1, 0], mask=[True, True])
-    df = vaex.from_arrays(x=['a', 'b'], y=y)
+    df = df_factory(x=['a', 'b'], y=y)
     trans.fit_transform(df)
 
-def test_weight_of_evidence_encoder_edge_cases():
+def test_weight_of_evidence_encoder_edge_cases(df_factory):
     y = [1, 0, 1, 0, 1, 0, 0, 0, 1, 1]
     x = ['a', 'a', 'a', 'b', 'b', 'b', 'c', 'c', 'd', 'd']
-    df = vaex.from_arrays(x=x, y=y)
+    df = df_factory(x=x, y=y)
 
     woe_encoder = vaex.ml.WeightOfEvidenceEncoder(features=['x'], target='y', unseen='zero')
     df = woe_encoder.fit_transform(df)
@@ -408,9 +408,9 @@ def test_weight_of_evidence_encoder_edge_cases():
                                          expected_values,
                                          decimal=5)
 
-def test_groupby_transformer_basics():
-    df_train = vaex.from_arrays(x=['dog', 'dog', 'dog', 'cat', 'cat'], y=[2, 3, 4, 10, 20])
-    df_test = vaex.from_arrays(x=['dog', 'cat', 'dog', 'mouse'], y=[5, 5, 5, 5])
+def test_groupby_transformer_basics(df_factory):
+    df_train = df_factory(x=['dog', 'dog', 'dog', 'cat', 'cat'], y=[2, 3, 4, 10, 20])
+    df_test = df_factory(x=['dog', 'cat', 'dog', 'mouse'], y=[5, 5, 5, 5])
 
     group_trans = vaex.ml.GroupByTransformer(by='x', agg={'mean_y': vaex.agg.mean('y')}, rsuffix='_agg')
     df_train_trans = group_trans.fit_transform(df_train)
@@ -429,9 +429,9 @@ def test_groupby_transformer_basics():
     assert df_test_trans.y.tolist() == df_test_trans_2.y.tolist()
 
 
-def test_groupby_transformer_serialization():
-    df_train = vaex.from_arrays(x=['dog', 'dog', 'dog', 'cat', 'cat'], y=[2, 3, 4, 10, 20])
-    df_test = vaex.from_arrays(x=['dog', 'cat', 'dog', 'mouse'], y=[5, 5, 5, 5])
+def test_groupby_transformer_serialization(df_factory):
+    df_train = df_factory(x=['dog', 'dog', 'dog', 'cat', 'cat'], y=[2, 3, 4, 10, 20])
+    df_test = df_factory(x=['dog', 'cat', 'dog', 'mouse'], y=[5, 5, 5, 5])
 
     group_trans = vaex.ml.GroupByTransformer(by='x', agg={'mean_y': vaex.agg.mean('y')}, rsuffix='_agg')
     df_train_trans = group_trans.fit_transform(df_train)

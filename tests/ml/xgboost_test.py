@@ -38,8 +38,8 @@ params_reg = {
     }
 
 
-def test_xgboost():
-    ds = vaex.ml.datasets.load_iris()
+def test_xgboost(df_iris):
+    ds = df_iris
     ds_train, ds_test = ds.ml.train_test_split(test_size=0.2, verbose=False)
     features = ['sepal_length', 'sepal_width', 'petal_length', 'petal_width']
     booster = vaex.ml.xgboost.XGBoostModel(num_boost_round=10,
@@ -56,12 +56,12 @@ def test_xgboost():
     assert np.all(ds_test.class_.values == ds_test.xgboost_prediction.values)
 
 
-def test_xgboost_numerical_validation():
-    ds = vaex.ml.datasets.load_iris()
+def test_xgboost_numerical_validation(df_iris):
+    ds = df_iris
     features = ['sepal_width', 'petal_length', 'sepal_length', 'petal_width']
 
     # Vanilla xgboost
-    dtrain = xgb.DMatrix(ds[features].values, label=ds.class_.values)
+    dtrain = xgb.DMatrix(ds[features].values, label=ds.class_.to_numpy())
     xgb_bst = xgb.train(params=params_multiclass, dtrain=dtrain, num_boost_round=3)
     xgb_pred = xgb_bst.predict(dtrain)
 
@@ -75,8 +75,8 @@ def test_xgboost_numerical_validation():
                             err_msg='The predictions of vaex.ml.xboost do not match those of pure xgboost')
 
 
-def test_xgboost_serialize(tmpdir):
-    ds = vaex.ml.datasets.load_iris()
+def test_xgboost_serialize(tmpdir, df_iris):
+    ds = df_iris
     features = ['sepal_length', 'sepal_width', 'petal_length', 'petal_width']
     target = 'class_'
 
@@ -92,9 +92,8 @@ def test_xgboost_serialize(tmpdir):
     pl.load(str(tmpdir.join('test.json')))
 
 
-def test_xgboost_validation_set():
-    # read data
-    ds = vaex.example()
+def test_xgboost_validation_set(df_example):
+    ds = df_example
     # Train and test split
     train, test = ds.ml.train_test_split(verbose=False)
     # Define the training featuress
@@ -112,9 +111,8 @@ def test_xgboost_validation_set():
     assert len(history['test']['rmse']) == 10
 
 
-def test_xgboost_pipeline():
-    # read data
-    ds = vaex.example()
+def test_xgboost_pipeline(df_example):
+    ds = df_example
     # train test splot
     train, test = ds.ml.train_test_split(verbose=False)
     # add virtual columns
