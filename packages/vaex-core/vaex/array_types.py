@@ -76,6 +76,8 @@ def same_type(type1, type2):
 
 
 def tolist(ar):
+    if isinstance(ar, list):
+        return ar
     if isinstance(ar, supported_arrow_array_types):
         return ar.to_pylist()
     else:
@@ -144,7 +146,10 @@ def convert(x, type, default_type="numpy"):
     elif type == "xarray":
         return to_xarray(x)
     elif type in ['list', 'python']:
-        return convert(x, 'numpy').tolist()
+        try:
+            return pa.array(x).tolist()
+        except:
+            return np.array(x).tolist()
     elif type is None:
         if isinstance(x, (list, tuple)):
             chunks = [convert(k, type) for k in x]
