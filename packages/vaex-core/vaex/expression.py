@@ -708,15 +708,15 @@ class Expression(with_metaclass(Meta)):
         """Returns the number of Not Availiable (N/A) values in the expression.
         This includes missing values and np.nan values.
         """
-        return self.isna().astype('int').sum().item()  # so the output is int, not array
+        return self.isna().sum().item()  # so the output is int, not array
 
     def countnan(self):
         """Returns the number of NaN values in the expression."""
-        return self.isnan().astype('int').sum().item()  # so the output is int, not array
+        return self.isnan().sum().item()  # so the output is int, not array
 
     def countmissing(self):
         """Returns the number of missing values in the expression."""
-        return self.ismissing().astype('int').sum().item()  # so the output is int, not array
+        return self.ismissing().sum().item()  # so the output is int, not array
 
     def evaluate(self, i1=None, i2=None, out=None, selection=None, parallel=True, array_type=None):
         return self.ds.evaluate(self, i1, i2, out=out, selection=selection, array_type=array_type, parallel=parallel)
