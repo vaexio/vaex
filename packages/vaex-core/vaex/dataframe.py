@@ -372,7 +372,7 @@ class DataFrame(object):
             pass
         return self.map_reduce(map, reduce, expressions, delay=delay, progress=progress, name='nop', to_numpy=False)
 
-    def _set(self, expression, progress=False, selection=None, delay=False):
+    def _set(self, expression, progress=False, selection=None, flatten=True, delay=False):
         column = _ensure_string_from_expression(expression)
         columns = [column]
         from .hash import ordered_set_type_from_dtype
@@ -386,16 +386,16 @@ class DataFrame(object):
                 transient = True
 
         dtype = self.data_type(column)
-        ordered_set_type = ordered_set_type_from_dtype(dtype, transient)
+        dtype_item = self.data_type(column, flatten=flatten)
+        ordered_set_type = ordered_set_type_from_dtype(dtype_item, transient)
         sets = [None] * self.executor.thread_pool.nthreads
         def map(thread_index, i1, i2, ar):
             if sets[thread_index] is None:
                 sets[thread_index] = ordered_set_type()
-            if vaex.array_types.is_string_type(dtype):
-                previous_ar = ar
+            if dtype.is_list and flatten:
+                ar = ar.values
+            if dtype_item.is_string:
                 ar = _to_string_sequence(ar)
-                if not transient:
-                    assert ar is previous_ar.string_sequence
             else:
                 ar = vaex.array_types.to_numpy(ar)
             if np.ma.isMaskedArray(ar):
@@ -471,13 +471,15 @@ class DataFrame(object):
             index0.merge(other)
         return index0
 
-    def unique(self, expression, return_inverse=False, dropna=False, dropnan=False, dropmissing=False, progress=False, selection=None, delay=False):
+    def unique(self, expression, return_inverse=False, dropna=False, dropnan=False, dropmissing=False, progress=False, selection=None, flatten=True, delay=False):
         if dropna:
             dropnan = True
             dropmissing = True
         expression = _ensure_string_from_expression(expression)
-        ordered_set = self._set(expression, progress=progress, selection=selection)
+        ordered_set = self._set(expression, progress=progress, selection=selection, flatten=flatten)
         transient = True
+        data_type_item = self.data_type(expression, flatten=flatten)
+        assert flatten, 'only flattening of lists is supported'
         if return_inverse:
             # inverse type can be smaller, depending on length of set
             inverse = np.zeros(self._length_unfiltered, dtype=np.int64)
@@ -498,7 +500,7 @@ class DataFrame(object):
         if not dropnan:
             if ordered_set.has_nan:
                 keys = [np.nan] + keys
-        if self.is_string(expression):
+        if data_type_item.is_arrow:
             if not dropmissing:
                 if ordered_set.has_null:
                     # arrow handles None as missing
@@ -1936,7 +1938,7 @@ class DataFrame(object):
         return (rows,) + sample.shape[1:]
 
     # TODO: remove array_type and internal arguments?
-    def data_type(self, expression, array_type=None, internal=False):
+    def data_type(self, expression, array_type=None, internal=False, flatten=False):
         """Return the datatype for the given expression, if not a column, the first row will be evaluated to get the data type.
 
         Example:
@@ -1944,6 +1946,7 @@ class DataFrame(object):
         >>> df = vaex.from_scalars(x=1, s='Hi')
 
         :param str array_type: 'numpy', 'arrow' or None, to indicate if the data type should be converted
+        :param bool flatten: If true, an type is a nested type (like list), it will return the type of the nested type
         """
         expression = _ensure_string_from_expression(expression)
         data_type = None
@@ -1989,6 +1992,9 @@ class DataFrame(object):
         if not internal:
             if isinstance(data_type.internal, np.dtype) and data_type.kind in 'US':
                 return DataType(pa.string())
+        if flatten:
+            while data_type.is_list:
+                data_type = data_type.value_type
         return data_type
 
     @property

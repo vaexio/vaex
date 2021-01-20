@@ -113,3 +113,14 @@ def test_value_counts_add_strings():
     value_counts = df.z.value_counts()
     assert list(value_counts.index) == ['car-red', 'boat-blue']
     assert value_counts.values.tolist() == [2, 1]
+
+
+def test_value_counts_list(df_types):
+    df = df_types
+    vc = df.string_list.value_counts()
+    assert vc['aap'] == 2
+    assert vc['mies'] == 1
+
+    vc = df.int_list.value_counts()
+    assert vc[1] == 2
+    assert vc[2] == 1

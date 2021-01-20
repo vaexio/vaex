@@ -34,6 +34,8 @@ class DataType:
             return self.is_float
         if other == int:
             return self.is_integer
+        if other == list:
+            return self.is_list
         if isinstance(other, str):
             tester = 'is_' + other
             if hasattr(self, tester):
@@ -96,6 +98,32 @@ class DataType:
         True
         '''
         return vaex.array_types.to_arrow_type(self.internal)
+
+    @property
+    def is_arrow(self):
+        '''Return True if it wraps an Arrow type
+
+        >>> DataType(pa.string()).is_arrow
+        True
+        >>> DataType(pa.int32()).is_arrow
+        True
+        >>> DataType(np.dtype('f8')).is_arrow
+        False
+        '''
+        return isinstance(self.internal, pa.DataType)
+
+    @property
+    def is_numpy(self):
+        '''Return True if it wraps an NumPy dtype
+
+        >>> DataType(np.dtype('f8')).is_numpy
+        True
+        >>> DataType(pa.string()).is_numpy
+        False
+        >>> DataType(pa.int32()).is_numpy
+        False
+        '''
+        return isinstance(self.internal, np.dtype)
 
     @property
     def is_numeric(self):
@@ -244,6 +272,34 @@ class DataType:
         True
         '''
         return vaex.array_types.is_string_type(self.internal)
+
+    @property
+    def is_list(self):
+        '''Test if an (arrow) list or large_string
+
+        >>> DataType(pa.list_(pa.string())) == list
+        True
+        >>> DataType(pa.large_list(pa.string())) == list
+        True
+        >>> DataType(pa.list_(pa.string())).is_list
+        True
+        >>> DataType(pa.list_(pa.string())) == 'list'
+        True
+        '''
+        return self.is_arrow and (pa.types.is_list(self.internal) or pa.types.is_large_list(self.internal))
+
+    @property
+    def value_type(self):
+        '''Return the DataType of the list values
+
+        >>> DataType(pa.list_(pa.string())).value_type
+        string
+        >>> DataType(pa.list_(pa.float64())).value_type
+        float64
+        '''
+        if not self.is_list:
+            raise TypeError(f'{self} is not a list type')
+        return DataType(self.internal.value_type)
 
     def upcast(self):
         '''Cast to the higest data type matching the type

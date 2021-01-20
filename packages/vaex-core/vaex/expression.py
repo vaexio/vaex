@@ -282,8 +282,8 @@ class Expression(with_metaclass(Meta)):
         return self.df.data_type(self.expression)
 
     # TODO: remove this method?
-    def data_type(self, array_type=None):
-        return self.df.data_type(self.expression)
+    def data_type(self, array_type=None, flatten=False):
+        return self.df.data_type(self.expression, flatten=flatten)
 
     @property
     def shape(self):
@@ -600,7 +600,7 @@ class Expression(with_metaclass(Meta)):
         """Alias to df.is_masked(expression)"""
         return self.ds.is_masked(self.expression)
 
-    def value_counts(self, dropna=False, dropnan=False, dropmissing=False, ascending=False, progress=False):
+    def value_counts(self, dropna=False, dropnan=False, dropmissing=False, ascending=False, progress=False, flatten=True):
         """Computes counts of unique values.
 
          WARNING:
@@ -614,7 +614,9 @@ class Expression(with_metaclass(Meta)):
         :returns: Pandas series containing the counts
         """
         from pandas import Series
+        assert flatten, 'only flattening of lists is supported'
         data_type = self.data_type()
+        data_type_item = self.data_type(flatten=flatten)
 
         transient = self.transient or self.ds.filtered or self.ds.is_masked(self.expression)
         if self.is_string() and not transient:
@@ -623,16 +625,17 @@ class Expression(with_metaclass(Meta)):
             if not isinstance(ar, ColumnString):
                 transient = True
 
-        counter_type = counter_type_from_dtype(data_type, transient)
+        counter_type = counter_type_from_dtype(data_type_item, transient)
         counters = [None] * self.ds.executor.thread_pool.nthreads
         def map(thread_index, i1, i2, ar):
             if counters[thread_index] is None:
                 counters[thread_index] = counter_type()
-            if vaex.array_types.is_string_type(data_type):
-                previous_ar = ar
+            if data_type.is_list and flatten:
+                ar = ar.values
+            if data_type_item.is_string:
                 ar = _to_string_sequence(ar)
-                if not transient:
-                    assert ar is previous_ar.string_sequence
+            else:
+                ar = vaex.array_types.to_numpy(ar)
             if np.ma.isMaskedArray(ar):
                 mask = np.ma.getmaskarray(ar)
                 counters[thread_index].update(ar, mask)
@@ -686,12 +689,13 @@ class Expression(with_metaclass(Meta)):
 
         return Series(counts, index=index)
 
-    def unique(self, dropna=False, dropnan=False, dropmissing=False, selection=None, delay=False):
+    def unique(self, dropna=False, dropnan=False, dropmissing=False, selection=None, flatten=True, delay=False):
         """Returns all unique values.
 
         :param dropmissing: do not count missing values
         :param dropnan: do not count nan values
         :param dropna: short for any of the above, (see :func:`Expression.isna`)
+        :param bool flatten: Flatten lists before finding the unique elements.
         """
         return self.ds.unique(self.expression, dropna=dropna, dropnan=dropnan, dropmissing=dropmissing, selection=selection, delay=delay)
 
