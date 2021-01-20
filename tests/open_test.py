@@ -32,6 +32,11 @@ def test_open_convert_kwargs():
     assert df.x.dtype == 'float64'
 
 
+def test_open_convert_non_hdf5():
+    csv2 = os.path.join(path, 'data', 'small2.csv')
+    df = vaex.open(csv2, convert='small2.parquet')
+
+
 def test_open_convert_explicit_path():
     # explicit path, also a truthy
     if not os.path.exists(target_path):

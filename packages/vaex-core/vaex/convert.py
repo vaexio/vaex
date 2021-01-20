@@ -47,19 +47,14 @@ def convert_csv(path_input, fs_options_input, fs_input, path_output, fs_options_
         if 'chunk_size' not in kwargs:
             # make it memory efficient by default
             kwargs['chunk_size'] = 5_000_000
-        _from_csv_convert_and_read(path_input, maybe_convert_path=path_output, fs_options=fs_options_input, fs=fs_input, **kwargs)
+        _from_csv_convert_and_read(path_input, path_output=path_output, fs_options=fs_options_input, fs=fs_input, **kwargs)
     cached_output(*args, **kwargs)
 
 
-def _from_csv_convert_and_read(filename_or_buffer, maybe_convert_path, chunk_size, fs_options, fs=None, copy_index=False, **kwargs):
+def _from_csv_convert_and_read(filename_or_buffer, path_output, chunk_size, fs_options, fs=None, copy_index=False, **kwargs):
     # figure out the CSV file path
-    if isinstance(maybe_convert_path, str):
-        csv_path = re.sub(r'\.hdf5$', '', str(maybe_convert_path), flags=re.IGNORECASE)
-    elif isinstance(filename_or_buffer, str):
-        csv_path = filename_or_buffer
-    else:
-        raise ValueError('Cannot derive filename to use for converted HDF5 file, '
-                         'please specify it using convert="my.csv.hdf5"')
+    csv_path = vaex.file.stringyfy(filename_or_buffer)
+    path_output_bare, ext, _ = vaex.file.split_ext(path_output)
 
     combined_hdf5 = _convert_name(csv_path)
 
@@ -70,20 +65,20 @@ def _from_csv_convert_and_read(filename_or_buffer, maybe_convert_path, chunk_siz
         csv_reader = pd.read_csv(filename_or_buffer, chunksize=chunk_size, **kwargs)
         for i, df_pandas in enumerate(csv_reader):
             df = vaex.from_pandas(df_pandas, copy_index=copy_index)
-            filename_hdf5 = _convert_name(csv_path, suffix='_chunk%d' % i)
-            df.export_hdf5(filename_hdf5)
-            converted_paths.append(filename_hdf5)
-            log.info('saved chunk #%d to %s' % (i, filename_hdf5))
+            chunk_name = f'{path_output_bare}_chunk_{i}.{ext}'
+            df.export(chunk_name)
+            converted_paths.append(chunk_name)
+            log.info('saved chunk #%d to %s' % (i, chunk_name))
 
     # combine chunks into one HDF5 file
     if len(converted_paths) == 1:
         # no need to merge several HDF5 files
-        os.rename(converted_paths[0], combined_hdf5)
+        os.rename(converted_paths[0], path_output)
     else:
-        log.info('converting %d chunks into single HDF5 file %s' % (len(converted_paths), combined_hdf5))
+        log.info('converting %d chunks into single file %s' % (len(converted_paths), path_output))
         dfs = [vaex.open(p) for p in converted_paths]
         df_combined = vaex.concat(dfs)
-        df_combined.export_hdf5(combined_hdf5)
+        df_combined.export(path_output)
 
         log.info('deleting %d chunk files' % len(converted_paths))
         for df, df_path in zip(dfs, converted_paths):
@@ -91,8 +86,7 @@ def _from_csv_convert_and_read(filename_or_buffer, maybe_convert_path, chunk_siz
                 df.close()
                 os.remove(df_path)
             except Exception as e:
-                log.error('Could not close or delete intermediate hdf5 file %s used to convert %s to hdf5: %s' % (
-                    df_path, csv_path, e))
+                log.error('Could not close or delete intermediate file %s used to convert %s to single file: %s', (df_path, csv_path, path_output))
 
 
 def main(argv):
