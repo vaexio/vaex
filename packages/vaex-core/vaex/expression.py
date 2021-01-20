@@ -13,6 +13,7 @@ import numpy as np
 import tabulate
 import pyarrow as pa
 from vaex.datatype import DataType
+from vaex.docstrings import docsubst
 
 from vaex.utils import _ensure_strings_from_expressions, _ensure_string_from_expression
 from vaex.column import ColumnString, _to_string_sequence
@@ -689,15 +690,17 @@ class Expression(with_metaclass(Meta)):
 
         return Series(counts, index=index)
 
-    def unique(self, dropna=False, dropnan=False, dropmissing=False, selection=None, flatten=True, delay=False):
+    @docsubst
+    def unique(self, dropna=False, dropnan=False, dropmissing=False, selection=None, flatten=True, array_type='list', delay=False):
         """Returns all unique values.
 
         :param dropmissing: do not count missing values
         :param dropnan: do not count nan values
         :param dropna: short for any of the above, (see :func:`Expression.isna`)
         :param bool flatten: Flatten lists before finding the unique elements.
+        :param bool array_type: {array_type}
         """
-        return self.ds.unique(self.expression, dropna=dropna, dropnan=dropnan, dropmissing=dropmissing, selection=selection, delay=delay)
+        return self.ds.unique(self.expression, dropna=dropna, dropnan=dropnan, dropmissing=dropmissing, selection=selection, array_type=array_type, delay=delay)
 
     def nunique(self, dropna=False, dropnan=False, dropmissing=False, selection=None, delay=False):
         """Counts number of unique values, i.e. `len(df.x.unique()) == df.x.nunique()`.

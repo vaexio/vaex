@@ -471,7 +471,16 @@ class DataFrame(object):
             index0.merge(other)
         return index0
 
-    def unique(self, expression, return_inverse=False, dropna=False, dropnan=False, dropmissing=False, progress=False, selection=None, flatten=True, delay=False):
+    @docsubst
+    def unique(self, expression, return_inverse=False, dropna=False, dropnan=False, dropmissing=False, progress=False, selection=None, flatten=True, delay=False, array_type='python'):
+        """Returns all unique values.
+
+        :param dropmissing: do not count missing values
+        :param dropnan: do not count nan values
+        :param dropna: short for any of the above, (see :func:`Expression.isna`)
+        :param bool flatten: Flatten lists before finding the unique elements.
+        :param str array_type: {array_type}
+        """
         if dropna:
             dropnan = True
             dropmissing = True
@@ -497,22 +506,11 @@ class DataFrame(object):
                 pass
             self.map_reduce(map, reduce, [expression], delay=delay, name='unique_return_inverse', info=True, to_numpy=False, selection=selection)
         keys = ordered_set.keys()
-        if not dropnan:
-            if ordered_set.has_nan:
-                keys = [np.nan] + keys
-        if data_type_item.is_arrow:
-            if not dropmissing:
-                if ordered_set.has_null:
-                    # arrow handles None as missing
-                    keys = [None] + keys
-            keys = pa.array(keys)
-        else:
-            masked = False
-            if not dropmissing:
-                if ordered_set.has_null:
-                    masked = True
-                    keys = [np.ma.core.MaskedConstant()] + keys
-            keys = np.ma.asarray(keys) if masked else np.asarray(keys)
+        if not dropnan and ordered_set.has_nan:
+            keys = [math.nan] + keys
+        if not dropmissing and ordered_set.has_null:
+            keys = [None] + keys
+        keys = vaex.array_types.convert(keys, array_type)
         if return_inverse:
             return keys, inverse
         else:
