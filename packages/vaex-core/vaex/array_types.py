@@ -31,7 +31,6 @@ def concat(arrays):
         return arrays[0]
     if any([isinstance(k, vaex.array_types.supported_arrow_array_types) for k in arrays]):
         flat_chunks = []
-        type = arrays[0].type
         for chunk in arrays:
             if len(chunk) == 0:
                 continue
@@ -39,7 +38,7 @@ def concat(arrays):
                 flat_chunks.extend(chunk.chunks)
             else:
                 flat_chunks.append(chunk)
-        return pa.chunked_array(flat_chunks, type=type)
+        return pa.chunked_array(flat_chunks)
 
         return pa.chunked_array(arrays)
     else:

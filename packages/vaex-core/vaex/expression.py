@@ -1017,8 +1017,9 @@ class FunctionSerializable(object):
 
 @vaex.serialize.register
 class FunctionSerializablePickle(FunctionSerializable):
-    def __init__(self, f=None, multiprocessing=False):
+    def __init__(self, f=None, multiprocessing=False, dtype=None):
         self.f = f
+        self.dtype = dtype
         self.multiprocessing = multiprocessing
 
     def pickle(self, function):
@@ -1035,11 +1036,9 @@ class FunctionSerializablePickle(FunctionSerializable):
 
     def state_get(self):
         data = self.pickle(self.f)
-        if vaex.utils.PY2:
-            pickled = base64.encodestring(data)
-        else:
-            pickled = base64.encodebytes(data).decode('ascii')
-        return dict(pickled=pickled)
+        dtype = base64.encodebytes(self.pickle(self.dtype)).decode('ascii')
+        pickled = base64.encodebytes(data).decode('ascii')
+        return dict(pickled=pickled, dtype=dtype)
 
     @classmethod
     def state_from(cls, state, trusted=True):
@@ -1049,13 +1048,14 @@ class FunctionSerializablePickle(FunctionSerializable):
 
     def state_set(self, state, trusted=True):
         data = state['pickled']
-        if vaex.utils.PY2:
-            data = base64.decodestring(data)
-        else:
-            data = base64.decodebytes(data.encode('ascii'))
+        data = base64.decodebytes(data.encode('ascii'))
         if trusted is False:
             raise ValueError("Will not unpickle data when source is not trusted")
         self.f = self.unpickle(data)
+        if 'dtype' in state:
+            self.dtype = self.unpickle(base64.decodebytes(state['dtype']).encode('ascii'))
+        else:
+            self.dtype = None  # backwards compatible
 
     def __call__(self, *args, **kwargs):
         '''Forward the call to the real function'''
@@ -1194,7 +1194,14 @@ class FunctionToScalar(FunctionSerializablePickle):
         for i in range(length):
             scalar_result = self.f(*[fix_type(k[i]) for k in args], **{key: value[i] for key, value in kwargs.items()})
             result.append(scalar_result)
-        result = np.array(result)
+        if self.dtype is not None:
+            dtype = vaex.datatype.DataType(self.dtype)
+            if dtype.is_arrow:
+                result = pa.array(result, type=dtype.internal)
+            else:
+                result = np.array(result, dtype=dtype.internal)
+        else:
+            result = pa.array(result)
         return result
 
 

@@ -33,7 +33,8 @@ def small_buffer(ds, size=3):
 
 # these need to be global for pickling
 def function_upper(x):
-	return np.array(x.upper())
+	return x.upper()
+
 import vaex.serialize
 @vaex.serialize.register
 class Multiply:
@@ -190,10 +191,10 @@ class TestDataset(unittest.TestCase):
 			upper = ds.apply(function_upper, arguments=[ds['name']])
 			ds['NAME'] = upper
 
-			name = ds.evaluate('NAME')
+			name = ds['NAME'].tolist()
 			self.assertEqual(name[0], u'0.0BLA')
 			ds_copy.state_set(ds.state_get())
-			name = ds_copy.evaluate('NAME')
+			name = ds_copy['NAME'].tolist()
 			self.assertEqual(name[0], u'0.0BLA')
 
 		ds['a1'] = ds.apply(lambda x: x+1, arguments=['x'])

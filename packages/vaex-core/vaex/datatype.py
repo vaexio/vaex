@@ -21,6 +21,8 @@ class DataType:
 
     """
     def __init__(self, internal):
+        if isinstance(internal , DataType):
+            internal = internal.internal
         self.internal = internal
 
     def to_native(self):
