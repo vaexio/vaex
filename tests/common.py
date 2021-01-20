@@ -444,3 +444,14 @@ def df_example_original():
 @pytest.fixture(scope='session')
 def df_example(df_example_original, df_factory):
    return df_factory(**df_example_original.to_dict())
+
+
+@pytest.fixture(scope='session')
+def df_types():
+    data = ['aap', 'noot', None], None, [], ['aap', 'noot', 'mies']
+    string_list = pa.array(data)
+
+    data = [1, 2, None], None, [], [1, 3, 4, 5]
+    int_list = pa.array(data)
+
+    return vaex.from_arrays(string_list=string_list, int_list=int_list)

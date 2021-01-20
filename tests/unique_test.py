@@ -1,6 +1,7 @@
 from common import small_buffer
 
 import numpy as np
+import pyarrow as pa
 
 import vaex
 
@@ -69,3 +70,9 @@ def test_unique_string_missing(df_factory):
     assert'John' in result
     assert None in result
     assert 'Sally'
+
+
+def test_unique_list(df_types):
+    df = df_types
+    assert set(df.string_list.unique().tolist()) == {'aap', 'noot', 'mies', None}
+    assert set(df.int_list.unique().tolist()) == {1, 2, 3, 4, 5, None}
