@@ -430,8 +430,11 @@ def _to_string_sequence(x, force=True):
         table = pa.Table.from_arrays([x], ["single"])
         table_concat = table.combine_chunks()
         column = table_concat.columns[0]
-        assert column.num_chunks == 1
-        x = column.chunk(0)
+        if column.num_chunks == 0:
+            x = pa.array([], type=column.type)
+        else:
+            assert column.num_chunks == 1
+            x = column.chunk(0)
 
     if isinstance(x, ColumnString):
         return x.string_sequence

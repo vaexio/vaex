@@ -465,3 +465,8 @@ def test_string_operations_from_mmap_file(tmpdir):
     df_from_file = vaex.open(filename)
     assert df_from_file.y.str.slice(start=0, stop=2).tolist() == ['Th', 'is', 'a', None, 'te']
     assert df_from_file.y.str.upper().tolist() == ['THIS', 'IS', 'A', None, 'TEST']
+
+
+def test_string_operation_empty_df(df_factory):
+    df = df_factory(s=["aap", "noot"])
+    df[df.s == "MIES"].s.unique()
