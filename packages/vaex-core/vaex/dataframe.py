@@ -673,6 +673,8 @@ class DataFrame(object):
         grid = self._create_grid(binby, limits, shape, selection=selection, delay=True)
         @delayed
         def compute(expression, grid, selection, edges, progressbar):
+            if not hasattr(self.local, '_aggregator_nest_count'):
+                self.local._aggregator_nest_count = 0
             self.local._aggregator_nest_count += 1
             try:
                 if expression in ["*", None]:

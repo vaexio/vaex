@@ -2,6 +2,7 @@ from unittest.mock import MagicMock
 from concurrent.futures import ThreadPoolExecutor
 import concurrent.futures
 import platform
+import threading
 
 import pytest
 
@@ -90,6 +91,18 @@ def test_nested_task(df):
     assert total_promise.get() == df.sum(df.x) + df.sum(df.y)
 
 
+def test_executor_from_other_thread():
+    df = vaex.from_arrays(x=[1, 2])
+    def execute():
+        # but call execute from a different thread
+        df.execute()
+    # we add a tasks from the main thread, we use binby without limits to force
+    # a double computation.
+    c = df.count('x', binby='x', delay=True, edges=True)
+    thread = threading.Thread(target=execute)
+    thread.start()
+    thread.join()
+    assert sum(c.get()) == 2
 # def test_add_and_cancel_tasks(df_executor):
 #     df = df_executor
 
