@@ -9,6 +9,14 @@ supported_array_types = (np.ndarray, ) + supported_arrow_array_types
 string_types = [pa.string(), pa.large_string()]
 
 
+def is_arrow_array(ar):
+    return isinstance(ar, supported_arrow_array_types)
+
+
+def is_numpy_array(ar):
+    return isinstance(ar, np.ndarray)
+
+
 def filter(ar, boolean_mask):
     if isinstance(ar, supported_arrow_array_types):
         return ar.filter(pa.array(boolean_mask))

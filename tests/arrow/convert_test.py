@@ -23,6 +23,19 @@ def test_bool_sliced():
     assert b.tolist() == bools[1:]
 
 
+def test_trim_buffers():
+    values = ["aap", "noot", None, "mies"]
+    ar = pa.array(values)
+    ar = ar.slice(1)
+    assert ar.offset == 1
+    assert ar.tolist() == ["noot", None, "mies"]
+    buffers = ar.buffers()
+    length = 3
+    buffers = [*convert.trim_offsets(ar.offset, len(ar), *ar.buffers()[:2]), ar.buffers()[2][3:]]
+    ar_no_offset = pa.Array.from_buffers(pa.string(), length, buffers)
+    assert ar_no_offset.tolist() == ar.tolist()
+
+
 @pytest.mark.skipif(pa.__version__.split(".")[0] == '1', reason="segfaults in arrow v1")
 @pytest.mark.parametrize("offset", list(range(1, 17)))
 @pytest.mark.parametrize("chunked", [True, False])

@@ -757,3 +757,17 @@ def vrange(start, stop, step=1, dtype='f8'):
 def string_column(strings):
     import pyarrow as pa
     return pa.array(strings)
+
+
+def dtype(type):
+    '''Creates a Vaex DataType based on a NumPy or Arrow type'''
+    return vaex.datatype.DataType(type)
+
+def dtype_of(ar):
+    '''Creates a Vaex DataType from a NumPy or Arrow array'''
+    if vaex.array_types.is_arrow_array(ar):
+        return dtype(ar.type)
+    elif vaex.array_types.is_numpy_array(ar):
+        return dtype(ar.dtype)
+    else:
+        raise TypeError(f'{ar} is not a an Arrow or NumPy array')

@@ -2308,6 +2308,29 @@ def _choose_masked(ar, choices):
     return np.ma.array(ar, mask=mask)
 
 
+@register_function()
+def _map(ar, value_to_index, choices, default_value=None, use_missing=False, flatten=True):
+    if flatten:
+        import vaex.arrow.utils
+        ar, wrapper = vaex.arrow.utils.list_unwrap(ar)
+
+    if not isinstance(ar, vaex.array_types.supported_array_types) or isinstance(value_to_index, vaex.superutils.ordered_set_string):
+        # sometimes the dtype can be object, but seen as an string array
+        ar = _to_string_sequence(ar)
+        # -1 points to missing
+        indices = value_to_index.map_ordinal(ar) + 1
+    else:
+        ar = vaex.array_types.to_numpy(ar)
+        indices = value_to_index.map_ordinal(ar) + 1
+        if np.ma.isMaskedArray(ar):
+            mask = np.ma.getmaskarray(ar)
+            indices[mask] = 1  # missing values are at offset 1 (see expression.map)
+    values = choices.take(indices)
+    if flatten:
+        values = wrapper(values)
+    return values
+
+
 @register_function(name='float')
 def _float(x):
     return x.astype(np.float64)
