@@ -1,5 +1,6 @@
 import json
 import os
+import pyarrow as pa
 
 import vaex
 
@@ -16,3 +17,11 @@ def test_export_json():
     assert 'A' in data
     assert len(data['A']) == 3
     assert data['B'][0] == '1'
+
+
+def test_export_json_arrow(tmpdir):
+    temp_path = str(tmpdir / './temp.json')
+    ar = pa.array([1, 2, None])
+    vaex.utils.write_json_or_yaml(temp_path, {'ar': ar})
+    data = vaex.utils.read_json_or_yaml(temp_path)
+    assert data['ar'].equals(ar)

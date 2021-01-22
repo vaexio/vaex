@@ -4,6 +4,7 @@ import numpy as np
 import datetime
 import re
 import vaex.hash
+import pyarrow as pa
 
 
 serializers = []
@@ -80,6 +81,34 @@ class NumpySerializer:
         else:
             value = np.array(data['data']['values'], dtype)
         return value
+
+
+
+
+@register
+class ArrowSerializer:
+    @staticmethod
+    def can_encode(obj):
+        return isinstance(obj, pa.Array)
+
+    @staticmethod
+    def encode(obj):
+        encoding = vaex.encoding.Encoding()
+        data = encoding.encode('arrow-array', obj)
+        wiredata = vaex.encoding.inline.serialize(data, encoding)
+        return {'type': 'arrow-array', 'data': wiredata}
+
+    @staticmethod
+    def can_decode(data):
+        return data.get('type') == 'arrow-array'
+
+    @staticmethod
+    def decode(data):
+        wiredata = data['data']
+        encoding = vaex.encoding.Encoding()
+        data = vaex.encoding.inline.deserialize(wiredata, encoding)
+        ar = encoding.decode('arrow-array', data)
+        return ar
 
 
 @register

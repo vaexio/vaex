@@ -890,7 +890,7 @@ def f({0}):
         df = df.dropna(column_names=[self.expression])
         return df._expr(self.expression)
 
-    def map(self, mapper, nan_value=None, missing_value=None, default_value=None, allow_missing=False):
+    def map(self, mapper, nan_value=None, missing_value=None, default_value=None, allow_missing=False, flatten=True):
         """Map values of an expression or in memory column according to an input
         dictionary or a custom callable function.
 
@@ -940,6 +940,7 @@ def f({0}):
         :rtype: vaex.expression.Expression
         """
         assert isinstance(mapper, collectionsAbc.Mapping), "mapper should be a dict like object"
+        assert flatten, 'only flattening of lists is supported'
 
         df = self.ds
         mapper_keys = list(mapper.keys())
@@ -956,9 +957,16 @@ def f({0}):
         mapper_has_nan = mapper_nan_key_mask.sum() > 0
         if mapper_nan_key_mask.sum() > 1:
             raise ValueError('Insanity, you provided multiple nan values as keys for your dict')
+        if mapper_has_nan:
+            for key, value in mapper.items():
+                if key != key:
+                    nan_value = value
+        for key, value in mapper.items():
+            if key is None:
+                missing_value = value
 
         # we map the keys to a ordinal values [0, N-1] using the set
-        key_set = df._set(self.expression)
+        key_set = df._set(self.expression, flatten=flatten)
         found_keys = key_set.keys()
 
         # we want all possible values to be converted
@@ -986,28 +994,36 @@ def f({0}):
         # note that here we map 'planned' unknown values to the default values
         # and later on in _choose, we map values not even seen in the dataframe
         # to the default_value
-        choices = [mapper.get(key, default_value) for key in found_keys]
-        if key_set.has_nan:
-            if mapper_has_nan:
-                # since np.nan is not np.nan/2, we have to use the real key object
-                nan_index = np.arange(len(mapper_keys))[mapper_nan_key_mask][0]
-                nan_key_used = mapper_keys[nan_index]
-                choices = [mapper[nan_key_used]] + choices
-            else:
-                choices = [nan_value] + choices
-        if key_set.has_null:
-            choices = [missing_value] + choices
-        choices = np.array(choices)
+        dtype = self.data_type(self.expression)
+        dtype_item = self.data_type(self.expression, flatten=flatten)
+        if dtype_item.is_float:
+            print(nan_value)
+            values  = [np.nan, None] + [key for key in mapper if key == key and key is not None]
+            choices = [default_value, nan_value, missing_value] + [mapper[key] for key in mapper if key == key and key is not None]
+        else:
+            values  = [None] + [key for key in mapper if key is not None]
+            choices = [default_value, missing_value] + [mapper[key] for key in mapper if key is not None]
+        values = pa.array(values)
+        choices = pa.array(choices)
+        from .hash import ordered_set_type_from_dtype
+        ordered_set_type = ordered_set_type_from_dtype(dtype_item)
+        ordered_set = ordered_set_type()
+        if vaex.array_types.is_string_type(dtype_item):
+            values = _to_string_sequence(values)
+        else:
+            values = vaex.array_types.to_numpy(values)
+        if np.ma.isMaskedArray(values):
+            mask = np.ma.getmaskarray(values)
+            ordered_set.update(values.data, mask)
+        else:
+            ordered_set.update(values)
 
-        key_set_name = df.add_variable('map_key_set', key_set, unique=True)
+        key_set_name = df.add_variable('map_key_set', ordered_set, unique=True)
         choices_name = df.add_variable('map_choices', choices, unique=True)
         if allow_missing:
-            if use_masked_array:
-                expr = '_choose_masked(_ordinal_values({}, {}), {})'.format(self, key_set_name, choices_name)
-            else:
-                expr = '_choose(_ordinal_values({}, {}), {}, {!r})'.format(self, key_set_name, choices_name, default_value)
+            expr = '_map({}, {}, {}, use_missing={!r}, flatten={!r})'.format(self, key_set_name, choices_name, use_masked_array, flatten)
         else:
-            expr = '_choose(_ordinal_values({}, {}), {})'.format(self, key_set_name, choices_name)
+            expr = '_map({}, {}, {}, flatten={!r})'.format(self, key_set_name, choices_name, flatten)
         return Expression(df, expr)
 
     @property
