@@ -476,3 +476,13 @@ def test_format_xarray_and_list(df_local):
     count = df.sum([df.x, df.g], binby='g', array_type='xarray')
     assert count.coords['expression'].data.tolist() == ['x', 'g']
     assert count.coords['g'].data.tolist() == ['aap', 'noot', 'mies']
+
+
+@pytest.mark.parametrize("offset", [0, 1])
+def test_list_sum(offset):
+    data = [1, 2, None], None, [], [1, 3, 4, 5]
+    df = vaex.from_arrays(i=pa.array(data).slice(offset))
+    assert df.i.sum() == [16, 13][offset]
+    assert df.i.sum(axis=1).tolist() == [3, None, 0, 13][offset:]
+    assert df.i.sum(axis=[0, 1]) == [16, 13][offset]
+    # assert df.i.sum(axis=0)  # not supported, not sure what this should return

@@ -173,6 +173,38 @@ for name, numpy_name in numpy_function_mapping:
 
 
 @register_function()
+def list_sum(ar,  fill_empty=0):
+    fill_missing_item = 0  # a missing value gets replaced by 0, so it is effectively ignored
+    fill_empty = 0  # empty list [], would result in 0
+    # TODO: we might want to extract some of this to vaex.arrow.utils or even
+    # upstream (it Arrow)
+    dtype = vaex.dtype_of(ar)
+    assert dtype.is_list
+    offsets = vaex.array_types.to_numpy(ar.offsets)
+    values = pc.fill_null(ar.values.slice(offsets[0]), fill_missing_item)
+    values = vaex.array_types.to_numpy(values)
+
+    zero_length = (offsets[1:] - offsets[:-1]) == 0
+    if len(zero_length) == 1:  # special case, values is an empy array
+        return pa.array([fill_empty], type=dtype.value_type.arrow)
+
+    # we skip over empty lists and nulls, otherwise we'll have indices of -1
+    skips = (~zero_length).argmax(axis=0)
+    cumsum = values.cumsum()
+    list_end_offset = offsets[skips+1:] - offsets[0] - 1
+    sums = np.diff(cumsum[list_end_offset], prepend=0)
+    if skips:
+        sums = np.concatenate([np.zeros(skips, dtype=sums.dtype), sums])
+
+    if fill_empty != 0:  # by default this is already the case
+        sums[zero_length] = fill_empty
+    sums = vaex.array_types.to_arrow(sums)
+    from .arrow.utils import combine_missing
+    sums = combine_missing(sums, ar)
+    return sums
+
+
+@register_function()
 def fillmissing(ar, value):
     '''Returns an array where missing values are replaced by value.
     See :`ismissing` for the definition of missing values.
