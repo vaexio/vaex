@@ -64,3 +64,20 @@ def test_dtype_str_virtual_column():
     assert df.data_type('v', array_type='numpy') == 'object'
     assert df.data_type('v', array_type='numpy-arrow') == 'string'
     assert df['v'].dtype == 'string'
+
+
+def test_dtype_nested():
+    data = ['aap', 'noot', None], ['app', 'noot', 'mies']
+    df = vaex.from_arrays(s=pa.array(data))
+    assert df.s.dtype == pa.list_(pa.string())
+    assert df.s.data_type(axis=0) == pa.list_(pa.string())
+    assert df.s.data_type(axis=-2) == pa.list_(pa.string())
+    assert df.s.data_type(axis=1) == pa.string()
+    assert df.s.data_type(axis=-1) == pa.string()
+
+    data = [['aap', 'noot', None], ['app', 'noot', 'mies']], [], None
+    df = vaex.from_arrays(s=pa.array(data))
+    assert df.s.dtype == pa.list_(pa.list_(pa.string()))
+    assert df.s.data_type(axis=-3) == pa.list_(pa.list_(pa.string()))
+    assert df.s.data_type(axis=-2) == pa.list_(pa.string())
+    assert df.s.data_type(axis=-1) == pa.string()

@@ -2309,7 +2309,8 @@ def _choose_masked(ar, choices):
 
 
 @register_function()
-def _map(ar, value_to_index, choices, default_value=None, use_missing=False, flatten=True):
+def _map(ar, value_to_index, choices, default_value=None, use_missing=False, axis=None):
+    flatten = axis is None
     if flatten:
         import vaex.arrow.utils
         ar, wrapper = vaex.arrow.utils.list_unwrap(ar)
