@@ -538,12 +538,51 @@ class Expression(with_metaclass(Meta)):
         kwargs['expression'] = self.expression
         return self.ds.count(**kwargs)
 
-    def sum(self, binby=[], limits=None, shape=default_shape, selection=False, delay=False, progress=None):
-        '''Shortcut for ds.sum(expression, ...), see `Dataset.sum`'''
-        kwargs = dict(locals())
-        del kwargs['self']
-        kwargs['expression'] = self.expression
-        return self.ds.sum(**kwargs)
+    def sum(self, axis=None, binby=[], limits=None, shape=default_shape, selection=False, delay=False, progress=None):
+        '''Sum elements over given axis.
+
+        If no axis is given, it will sum over all axes.
+
+        For non list elements, this is a shortcut for ds.sum(expression, ...), see `Dataset.sum`.
+
+        >>> list_data = [1, 2, None], None, [], [1, 3, 4, 5]
+        >>> df = vaex.from_arrays(some_list=pa.array(list_data))
+        >>> df.some_list.sum().item()  # will sum over all axis
+        16
+        >>> df.some_list.sum(axis=1).tolist()  # sums the list elements
+        [3, None, 0, 13]
+
+        :param int axis: Axis over which to determine the unique elements (None will flatten arrays or lists)
+        '''
+        expression = self
+        if axis is None:
+            axis = [0]
+            dtype = self.dtype
+            while dtype.is_list:
+                axis.append(axis[-1] + 1)
+                dtype = dtype.value_type
+        elif not isinstance(axis, list):
+            axis = [axis]
+            axis = list(set(axis))  # remove repeated elements
+        dtype = self.dtype
+        if 1 in axis:
+            if self.dtype.is_list:
+                expression = expression.list_sum()
+                if axis:
+                    axis.remove(1)
+            else:
+                raise ValueError(f'axis=1 not supported for dtype={dtype}')
+        if axis and axis[0] != 0:
+            raise ValueError(f'Only axis 0 or 1 is supported')
+        if axis is None or 0 in axis:
+            kwargs = dict(locals())
+            del kwargs['self']
+            del kwargs['axis']
+            del kwargs['dtype']
+            kwargs['expression'] = expression.expression
+            return self.ds.sum(**kwargs)
+        else:
+            return expression
 
     def mean(self, binby=[], limits=None, shape=default_shape, selection=False, delay=False, progress=None):
         '''Shortcut for ds.mean(expression, ...), see `Dataset.mean`'''
