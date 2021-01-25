@@ -25,6 +25,7 @@ def list_unwrap(ar):
                     buffers = buffers[:2]
                     buffers = trim_offsets(offset, length, *buffers)
                     offset = 0
+                    new_values = vaex.array_types.to_arrow(new_values)
                     type = pa.list_(new_values.type)
                     ar = pa.ListArray.from_buffers(type, length, [buffers[0], buffers[1]], null_count, offset, children=[new_values])
                 else:

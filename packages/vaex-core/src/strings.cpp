@@ -1913,6 +1913,46 @@ StringSequenceBase* StringListList::join(std::string sep) {
     return sl;
 }
 
+template<class T>
+T* join(std::string sep, py::array_t<typename T::index_type, py::array::c_style> offsets_list, T* input, int64_t offset=0) {
+    py::gil_scoped_release release;
+    int64_t list_length = offsets_list.size() - 1;
+    auto offsets = offsets_list.template mutable_unchecked<1>();
+    T* sl = new T(1, list_length);
+    char* target = sl->bytes;
+    size_t byte_offset;
+    for(int64_t i = 0; i < list_length; i++) {
+        byte_offset = target - sl->bytes;
+        sl->indices[i] = byte_offset;
+        int64_t i1 = offsets[i] - offset;
+        int64_t i2 = offsets[i+1] - offset;
+        size_t count = i2 - i1;
+        for(size_t j = 0; j < count; j++) {
+            auto str = input->get(i1 + j);
+            // make sure the buffer is large enough
+            while((byte_offset + str.length()) > sl->byte_length) {
+                sl->grow();
+                target = sl->bytes + byte_offset;
+            }
+            copy(str, target);
+            byte_offset = target - sl->bytes;
+            // copy separator
+            if(j < (count - 1)) {
+
+                while((byte_offset + sep.length()) > sl->byte_length) {
+                    sl->grow();
+                    target = sl->bytes + byte_offset;
+                }
+                copy(sep, target);
+                byte_offset = target - sl->bytes;
+            }
+        }
+    }
+    byte_offset = target - sl->bytes;
+    sl->indices[list_length] = byte_offset;
+    return sl;
+}
+
 template<class StringList, class Base, class Module>
 void add_string_list(Module m, Base& base, const char* class_name) {
 
@@ -2248,4 +2288,6 @@ PYBIND11_MODULE(superstrings, m) {
     m.def("format", &format<uint8_t>);
     m.def("format", &format<bool>);
     m.def("format", &format_string);
+    m.def("join", &join<StringList32>);
+    m.def("join", &join<StringList64>);
 }

@@ -767,7 +767,7 @@ def dtype_of(ar):
     '''Creates a Vaex DataType from a NumPy or Arrow array'''
     if vaex.array_types.is_arrow_array(ar):
         return dtype(ar.type)
-    elif vaex.array_types.is_numpy_array(ar):
+    elif vaex.array_types.is_numpy_array(ar) or isinstance(ar, vaex.column.supported_column_types):
         return dtype(ar.dtype)
     else:
         raise TypeError(f'{ar} is not a an Arrow or NumPy array')

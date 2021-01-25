@@ -631,13 +631,16 @@ class ColumnStringArrow(ColumnString):
                 references=references)
 
     @classmethod
-    def from_string_sequence(cls, string_sequence):
+    def from_string_sequence(cls, string_sequence, copy=False):
         s = string_sequence
         null_bitmap = s.null_bitmap
         if s.null_offset != 0:
             mask = ~s.mask()
             null_bitmap = np.frombuffer(pa.array(mask, pa.bool_()).buffers()[1], dtype='b')
-        return cls(s.indices, s.bytes, s.length, s.offset, string_sequence=s, null_bitmap=null_bitmap)
+        if copy:
+            return cls(s.indices.copy(), s.bytes.copy(), s.length, s.offset, string_sequence=s, null_bitmap=null_bitmap)
+        else:
+            return cls(s.indices, s.bytes, s.length, s.offset, string_sequence=s, null_bitmap=null_bitmap)
 
     @classmethod
     def from_arrow(cls, ar):

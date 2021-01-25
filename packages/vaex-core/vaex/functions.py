@@ -113,6 +113,22 @@ def register_function(scope=None, as_property=False, name=None, on_expression=Tr
         return f  # we leave the original function as is
     return wrapper
 
+
+def auto_str_unwrap(f):
+    '''Will take the first argument, and if a list, will unwrap/unraval, and apply f, and wrap again'''
+    @functools.wraps(f)
+    def decorated(x, *args, **kwargs):
+        if not isinstance(x, vaex.column.supported_column_types):
+            return f(x, *args, **kwargs)
+        dtype = vaex.dtype_of(x)
+        if dtype.is_list:
+            x, wrapper = vaex.arrow.utils.list_unwrap(x)
+            x = f(x, *args, **kwargs)
+            return wrapper(x)
+        else:
+            return f(x, *args, **kwargs)
+    return decorated
+
 # name maps to numpy function
 # <vaex name>:<numpy name>
 numpy_function_mapping = [name.strip().split(":") if ":" in name else (name, name) for name in """
@@ -971,6 +987,7 @@ def td_total_seconds(x):
 ########## string operations ##########
 
 @register_function(scope='str')
+@auto_str_unwrap
 def str_equals(x, y):
     """Tests if strings x and y are the same
 
@@ -1020,6 +1037,7 @@ def str_equals(x, y):
 
 
 @register_function(scope='str')
+@auto_str_unwrap
 def str_capitalize(x):
     """Capitalize the first letter of a string sample.
 
@@ -1052,6 +1070,7 @@ def str_capitalize(x):
     return column.ColumnStringArrow.from_string_sequence(sl)
 
 @register_function(scope='str')
+@auto_str_unwrap
 def str_cat(x, other):
     """Concatenate two string columns on a row-by-row basis.
 
@@ -1092,6 +1111,7 @@ def str_cat(x, other):
     return column.ColumnStringArrow.from_string_sequence(sl)
 
 @register_function(scope='str')
+@auto_str_unwrap
 def str_center(x, width, fillchar=' '):
     """ Fills the left and right side of the strings with additional characters, such that the sample has a total of `width`
     characters.
@@ -1128,6 +1148,7 @@ def str_center(x, width, fillchar=' '):
 
 
 @register_function(scope='str')
+@auto_str_unwrap
 def str_contains(x, pattern, regex=True):
     """Check if a string pattern or regex is contained within a sample of a string column.
 
@@ -1364,11 +1385,23 @@ def str_index(x, sub, start=0, end=None):
     """
     return str_find(x, sub, start, end)
 
+
 @register_function(scope='str')
 def str_join(x, sep):
     """Same as find (difference with pandas is that it does not raise a ValueError)"""
-    sl = _to_string_list_sequence(x).join(sep)
-    return column.ColumnStringArrow.from_string_sequence(sl)
+    dtype = vaex.dtype_of(x)
+    assert dtype.is_list
+
+    values = x.values
+    offsets = vaex.array_types.to_numpy(x.offsets)
+    ss = _to_string_sequence(values)
+    x_joined_ss = vaex.strings.join(sep, offsets, ss, x.offset)
+    # TODO: we require a copy here, because the x_column and the string_seqence will be
+    # garbage collected, this is not idea, but once https://github.com/apache/arrow/pull/8990 is
+    # released, we can rely on that
+    x_column = column.ColumnStringArrow.from_string_sequence(x_joined_ss, copy=True)
+    x_joined = pa.array(x_column)
+    return x_joined
 
 
 @register_function(scope='str')
@@ -1859,16 +1892,27 @@ def str_slice(x, start=0, stop=None):  # TODO: support n
     return column.ColumnStringArrow.from_string_sequence(ss)
 
 # TODO: slice_replace (not sure it this makes sense)
-# TODO: n argument and rsplit
+
 @register_function(scope='str')
-def str_split(x, pattern=None):  # TODO: support n
-    x = _to_string_sequence(x)
-    if isinstance(x, vaex.strings.StringArray):
-        x = x.to_arrow()
-    if pattern == '':
-        raise ValueError('empty separator')
-    sll = x.split('' if pattern is None else pattern)
-    return sll
+def str_rsplit(x, pattern=None, max_splits=-1):
+    if not isinstance(x, vaex.array_types.supported_arrow_array_types):
+        x = pa.array(x)
+    if pattern is None:
+        return pc.utf8_split_whitespace(x, reverse=True, max_splits=max_splits)
+    else:
+        return pc.split_pattern(x, reverse=True, max_splits=max_splits)
+
+
+@register_function(scope='str')
+def str_split(x, pattern=None, max_splits=-1):
+    if not isinstance(x, vaex.array_types.supported_arrow_array_types):
+        x = pa.array(x)
+    if pattern is None:
+        return pc.utf8_split_whitespace(x, max_splits=max_splits)
+    else:
+        return pc.split_pattern(x, pattern=pattern, max_splits=max_splits)
+
+
 
 @register_function(scope='str')
 def str_startswith(x, pat):
@@ -1978,6 +2022,7 @@ def str_title(x):
 
 @register_function(scope='str')
 @docsubst
+@auto_str_unwrap
 def str_upper(x, ascii=False):
     """Converts all strings in a column to uppercase.
 
@@ -2020,6 +2065,7 @@ def str_upper(x, ascii=False):
 # TODO: wrap, is*, get_dummies(maybe?)
 
 @register_function(scope='str')
+@auto_str_unwrap
 def str_zfill(x, width):
     """Pad strings in a column by prepanding "0" characters.
 
@@ -2055,6 +2101,7 @@ def str_zfill(x, width):
 
 @register_function(scope='str')
 @docsubst
+@auto_str_unwrap
 def str_isalnum(x, ascii=False):
     """Check if all characters in a string sample are alphanumeric.
 
@@ -2091,6 +2138,7 @@ def str_isalnum(x, ascii=False):
 
 
 @register_function(scope='str')
+@auto_str_unwrap
 def str_isalpha(x):
     """Check if all characters in a string sample are alphabetic.
 
@@ -2122,6 +2170,7 @@ def str_isalpha(x):
     return _to_string_sequence(x).isalpha()
 
 @register_function(scope='str')
+@auto_str_unwrap
 def str_isdigit(x):
     """Check if all characters in a string sample are digits.
 
@@ -2153,6 +2202,7 @@ def str_isdigit(x):
     return _to_string_sequence(x).isdigit()
 
 @register_function(scope='str')
+@auto_str_unwrap
 def str_isspace(x):
     """Check if all characters in a string sample are whitespaces.
 
@@ -2184,6 +2234,7 @@ def str_isspace(x):
     return _to_string_sequence(x).isspace()
 
 @register_function(scope='str')
+@auto_str_unwrap
 def str_islower(x):
     """Check if all characters in a string sample are lowercase characters.
 
@@ -2215,6 +2266,7 @@ def str_islower(x):
     return _to_string_sequence(x).islower()
 
 @register_function(scope='str')
+@auto_str_unwrap
 def str_isupper(x):
     """Check if all characters in a string sample are lowercase characters.
 
@@ -2246,6 +2298,7 @@ def str_isupper(x):
     return _to_string_sequence(x).isupper()
 
 @register_function(scope='str')
+@auto_str_unwrap
 def str_istitle(x, ascii=False):
     '''TODO'''
     return _arrow_string_kernel_dispatch('is_title', ascii, x)
