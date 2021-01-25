@@ -59,8 +59,11 @@ def output_file(callable=None, path_input=None, fs_options_input={}, fs_input=No
                 with vaex.file.open(path_output_meta, fs_options=fs_options_output_, fs=fs_output) as f:
                     output_meta = vaex.utils.yaml_load(f)
 
-                if output_meta['fingerprint'] != fp:
-                    log.info('fingerprint for %s is out of date, rerunning conversion to %s', path_input, path_output)
+                if output_meta is None or output_meta['fingerprint'] != fp:
+                    if output_meta is None:
+                        log.error('fingerprint for %s (%s) was empty', path_input, path_output_meta)
+                    else:
+                        log.info('fingerprint for %s is out of date, rerunning conversion to %s', path_input, path_output)
                     value = callable(*args, **kwargs)
                     write_fingerprint()
                     return value
