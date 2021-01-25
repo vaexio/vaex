@@ -98,12 +98,12 @@ class DataFrameRemote(DataFrame):
         return (rows,)
         # return (rows,) + sample.shape[1:]
 
-    def data_type(self, expression, internal=False, array_type=None, flatten=False):
+    def data_type(self, expression, internal=False, array_type=None, axis=0):
         if str(expression) in self._dtypes:
             return self._dtypes[str(expression)]
         else:
             if str(expression) not in self._dtype_cache:
-                self._dtype_cache[str(expression)] = super().data_type(expression, array_type=array_type, flatten=flatten)
+                self._dtype_cache[str(expression)] = super().data_type(expression, array_type=array_type, axis=axis)
             # TODO: invalidate cache
             return self._dtype_cache[str(expression)]
 

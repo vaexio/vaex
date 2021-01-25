@@ -283,8 +283,8 @@ class Expression(with_metaclass(Meta)):
         return self.df.data_type(self.expression)
 
     # TODO: remove this method?
-    def data_type(self, array_type=None, flatten=False):
-        return self.df.data_type(self.expression, flatten=flatten)
+    def data_type(self, array_type=None, axis=0):
+        return self.df.data_type(self.expression, axis=axis)
 
     @property
     def shape(self):
@@ -601,7 +601,7 @@ class Expression(with_metaclass(Meta)):
         """Alias to df.is_masked(expression)"""
         return self.ds.is_masked(self.expression)
 
-    def value_counts(self, dropna=False, dropnan=False, dropmissing=False, ascending=False, progress=False, flatten=True):
+    def value_counts(self, dropna=False, dropnan=False, dropmissing=False, ascending=False, progress=False, axis=None):
         """Computes counts of unique values.
 
          WARNING:
@@ -612,12 +612,15 @@ class Expression(with_metaclass(Meta)):
         :param dropnan: when True, it will not report the nans(see :func:`Expression.isnan`)
         :param dropmissing: when True, it will not report the missing values (see :func:`Expression.ismissing`)
         :param ascending: when False (default) it will report the most frequent occuring item first
+        :param bool axis: Axis over which to determine the unique elements (None will flatten arrays or lists)
         :returns: Pandas series containing the counts
         """
         from pandas import Series
-        assert flatten, 'only flattening of lists is supported'
+        if axis is not None:
+            raise ValueError('only axis=None is supported')
+
         data_type = self.data_type()
-        data_type_item = self.data_type(flatten=flatten)
+        data_type_item = self.data_type(axis=-1)
 
         transient = self.transient or self.ds.filtered or self.ds.is_masked(self.expression)
         if self.is_string() and not transient:
@@ -631,7 +634,7 @@ class Expression(with_metaclass(Meta)):
         def map(thread_index, i1, i2, ar):
             if counters[thread_index] is None:
                 counters[thread_index] = counter_type()
-            if data_type.is_list and flatten:
+            if data_type.is_list and axis is None:
                 ar = ar.values
             if data_type_item.is_string:
                 ar = _to_string_sequence(ar)
@@ -691,25 +694,26 @@ class Expression(with_metaclass(Meta)):
         return Series(counts, index=index)
 
     @docsubst
-    def unique(self, dropna=False, dropnan=False, dropmissing=False, selection=None, flatten=True, array_type='list', delay=False):
+    def unique(self, dropna=False, dropnan=False, dropmissing=False, selection=None, axis=None, array_type='list', delay=False):
         """Returns all unique values.
 
         :param dropmissing: do not count missing values
         :param dropnan: do not count nan values
         :param dropna: short for any of the above, (see :func:`Expression.isna`)
-        :param bool flatten: Flatten lists before finding the unique elements.
+        :param bool axis: Axis over which to determine the unique elements (None will flatten arrays or lists)
         :param bool array_type: {array_type}
         """
-        return self.ds.unique(self.expression, dropna=dropna, dropnan=dropnan, dropmissing=dropmissing, selection=selection, array_type=array_type, delay=delay)
+        return self.ds.unique(self.expression, dropna=dropna, dropnan=dropnan, dropmissing=dropmissing, selection=selection, array_type=array_type, axis=axis, delay=delay)
 
-    def nunique(self, dropna=False, dropnan=False, dropmissing=False, selection=None, delay=False):
+    def nunique(self, dropna=False, dropnan=False, dropmissing=False, selection=None, axis=None, delay=False):
         """Counts number of unique values, i.e. `len(df.x.unique()) == df.x.nunique()`.
 
         :param dropmissing: do not count missing values
         :param dropnan: do not count nan values
         :param dropna: short for any of the above, (see :func:`Expression.isna`)
+        :param bool axis: Axis over which to determine the unique elements (None will flatten arrays or lists)
         """
-        return len(self.unique(dropna=dropna, dropnan=dropnan, dropmissing=dropmissing, selection=selection, delay=delay))
+        return len(self.unique(dropna=dropna, dropnan=dropnan, dropmissing=dropmissing, selection=selection, axis=axis, delay=delay))
 
     def countna(self):
         """Returns the number of Not Availiable (N/A) values in the expression.
@@ -890,7 +894,7 @@ def f({0}):
         df = df.dropna(column_names=[self.expression])
         return df._expr(self.expression)
 
-    def map(self, mapper, nan_value=None, missing_value=None, default_value=None, allow_missing=False, flatten=True):
+    def map(self, mapper, nan_value=None, missing_value=None, default_value=None, allow_missing=False, axis=None):
         """Map values of an expression or in memory column according to an input
         dictionary or a custom callable function.
 
@@ -936,11 +940,13 @@ def f({0}):
         :param default_value: value to be used when a value is not in the mapper (like dict.get(key, default))
         :param allow_missing: used to signal that values in the mapper should map to a masked array with missing values,
             assumed True when default_value is not None.
+        :param bool axis: Axis over which to determine the unique elements (None will flatten arrays or lists)
         :return: A vaex expression
         :rtype: vaex.expression.Expression
         """
         assert isinstance(mapper, collectionsAbc.Mapping), "mapper should be a dict like object"
-        assert flatten, 'only flattening of lists is supported'
+        if axis is not None:
+            raise ValueError('only axis=None is supported')
 
         df = self.ds
         mapper_keys = list(mapper.keys())
@@ -965,8 +971,10 @@ def f({0}):
             if key is None:
                 missing_value = value
 
+        if axis is not None:
+            raise ValueError('only axis=None is supported')
         # we map the keys to a ordinal values [0, N-1] using the set
-        key_set = df._set(self.expression, flatten=flatten)
+        key_set = df._set(self.expression, flatten=axis is None)
         found_keys = key_set.keys()
 
         # we want all possible values to be converted
@@ -995,7 +1003,7 @@ def f({0}):
         # and later on in _choose, we map values not even seen in the dataframe
         # to the default_value
         dtype = self.data_type(self.expression)
-        dtype_item = self.data_type(self.expression, flatten=flatten)
+        dtype_item = self.data_type(self.expression, axis=-1)
         if dtype_item.is_float:
             print(nan_value)
             values  = [np.nan, None] + [key for key in mapper if key == key and key is not None]
@@ -1021,9 +1029,9 @@ def f({0}):
         key_set_name = df.add_variable('map_key_set', ordered_set, unique=True)
         choices_name = df.add_variable('map_choices', choices, unique=True)
         if allow_missing:
-            expr = '_map({}, {}, {}, use_missing={!r}, flatten={!r})'.format(self, key_set_name, choices_name, use_masked_array, flatten)
+            expr = '_map({}, {}, {}, use_missing={!r}, axis={!r})'.format(self, key_set_name, choices_name, use_masked_array, axis)
         else:
-            expr = '_map({}, {}, {}, flatten={!r})'.format(self, key_set_name, choices_name, flatten)
+            expr = '_map({}, {}, {}, axis={!r})'.format(self, key_set_name, choices_name, axis)
         return Expression(df, expr)
 
     @property
