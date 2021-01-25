@@ -237,7 +237,7 @@ def fingerprint(path, fs_options={}, fs=None):
     return vaex.cache.fingerprint(('file', (path, mtime, size)))
 
 
-def open(path, mode='rb', fs_options={}, fs=None, for_arrow=False, mmap=False):
+def open(path, mode='rb', fs_options={}, fs=None, for_arrow=False, mmap=False, encoding="utf8"):
     if is_file_object(path):
         return path
     fs, path = parse(path, fs_options=fs_options, fs=fs, for_arrow=for_arrow)
@@ -251,19 +251,22 @@ def open(path, mode='rb', fs_options={}, fs=None, for_arrow=False, mmap=False):
             else:
                 return pa.OSFile(path, mode)
         else:
-            return normal_open(path, mode)
+            if 'b' not in mode:
+                return normal_open(path, mode, encoding=encoding)
+            else:
+                return normal_open(path, mode)
     if mode == 'rb':
         def create():
             return fs.open_input_file(path)
     elif mode == "r":
         def create():
-            return io.TextIOWrapper(fs.open_input_file(path))
+            return io.TextIOWrapper(fs.open_input_file(path), encoding=encoding)
     elif mode == 'wb':
         def create():
             return fs.open_output_stream(path)
     elif mode == "w":
         def create():
-            return io.TextIOWrapper(fs.open_output_stream(path))
+            return io.TextIOWrapper(fs.open_output_stream(path), encoding=encoding)
     else:
         raise ValueError(f'Only mode=rb/bw/r/w are supported, not {mode}')
     return FileProxy(create(), path, create)
