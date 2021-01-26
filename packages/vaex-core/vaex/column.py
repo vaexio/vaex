@@ -213,15 +213,15 @@ class ColumnIndexed(Column):
                 indices = indices - i1
             else:
                 indices = indices - i1
+        take_indices = indices
+        if self.masked:
+            # arrow and numpy do not like the negative indices, so we set them to 0
+            take_indices = indices.copy()
+            take_indices[mask] = 0
         if isinstance(ar_unfiltered, supported_arrow_array_types):
-            take_indices = indices
-            if self.masked:
-                # arrow does not like the -1 index, so we set them to 0
-                take_indices = indices.copy()
-                take_indices[mask] = 0
             ar = ar_unfiltered.take(vaex.array_types.to_arrow(take_indices))
         else:
-            ar = ar_unfiltered[indices]
+            ar = ar_unfiltered[take_indices]
         assert not np.ma.isMaskedArray(indices)
         if self.masked:
             # TODO: we probably want to keep this as arrow array if it originally was
