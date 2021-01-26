@@ -485,3 +485,15 @@ def test_string_split_upper():
 def test_string_split_contains():
     df = vaex.from_arrays(s=["aap noot  mies", None, "kees", ""])
     assert df.s.str.split().str.contains('aap').tolist() == [[True, False, False], None, [False], [False]]
+
+
+def test_string_join_split_nested():
+    df = vaex.from_arrays(s=['foo-bar a-b', '1-2 3-4-5'])
+    level1 = df.s.str.split(' ')
+    assert level1.tolist() == [['foo-bar', 'a-b'], ['1-2', '3-4-5']]
+    level2 = level1.str.split('-')
+    assert level2.tolist() == [[['foo', 'bar'], ['a', 'b']], [['1', '2'], ['3', '4', '5']]]
+    level1 = level2.str.join('**')
+    assert level1.tolist() == [['foo**bar', 'a**b'], ['1**2', '3**4**5']]
+    level0 = level1.str.join('--')
+    assert level0.tolist() == ['foo**bar--a**b', '1**2--3**4**5']

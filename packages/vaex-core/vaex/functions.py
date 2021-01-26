@@ -7,6 +7,7 @@ from vaex import column
 from vaex.column import _to_string_sequence, _to_string_column, _to_string_list_sequence, _is_stringy
 from vaex.dataframe import docsubst
 import vaex.arrow.numpy_dispatch
+import vaex.arrow.utils
 import re
 import vaex.expression
 import functools
@@ -1187,6 +1188,7 @@ def str_contains(x, pattern, regex=True):
 
 # TODO: default regex is False, which breaks with pandas
 @register_function(scope='str')
+@auto_str_unwrap
 def str_count(x, pat, regex=False):
     """Count the occurences of a pattern in sample of a string column.
 
@@ -1222,6 +1224,7 @@ def str_count(x, pat, regex=False):
 # TODO: what to do with decode and encode
 
 @register_function(scope='str')
+@auto_str_unwrap
 def str_endswith(x, pat):
     """Check if the end of each string sample matches the specified pattern.
 
@@ -1272,6 +1275,7 @@ def str_endswith(x, pat):
 # TODO: extract/extractall
 
 @register_function(scope='str')
+@auto_str_unwrap
 def str_find(x, sub, start=0, end=None):
     """Returns the lowest indices in each string in a column, where the provided substring is fully contained between within a
     sample. If the substring is not found, -1 is returned.
@@ -1311,6 +1315,7 @@ def str_find(x, sub, start=0, end=None):
 # TODO get/index/join
 
 @register_function(scope='str')
+@auto_str_unwrap
 def str_get(x, i):
     """Extract a character from each sample at the specified position from a string column.
     Note that if the specified position is out of bound of the string sample, this method returns '', while pandas retunrs nan.
@@ -1350,6 +1355,7 @@ def str_get(x, i):
 
 
 @register_function(scope='str')
+@auto_str_unwrap
 def str_index(x, sub, start=0, end=None):
     """Returns the lowest indices in each string in a column, where the provided substring is fully contained between within a
     sample. If the substring is not found, -1 is returned. It is the same as `str.find`.
@@ -1389,8 +1395,10 @@ def str_index(x, sub, start=0, end=None):
 def str_join(x, sep):
     """Same as find (difference with pandas is that it does not raise a ValueError)"""
     dtype = vaex.dtype_of(x)
-    assert dtype.is_list
+    if not dtype.is_list:
+        raise TypeError(f'join expected a list, not {x}')
 
+    x, wrapper = vaex.arrow.utils.list_unwrap(x, level=-2)
     values = x.values
     offsets = vaex.array_types.to_numpy(x.offsets)
     ss = _to_string_sequence(values)
@@ -1400,10 +1408,11 @@ def str_join(x, sep):
     # released, we can rely on that
     x_column = column.ColumnStringArrow.from_string_sequence(x_joined_ss, copy=True)
     x_joined = pa.array(x_column)
-    return x_joined
+    return wrapper(x_joined)
 
 
 @register_function(scope='str')
+@auto_str_unwrap
 def str_len(x):
     """Returns the length of a string sample.
 
@@ -1435,6 +1444,7 @@ def str_len(x):
     return _to_string_sequence(x).len()
 
 @register_function(scope='str')
+@auto_str_unwrap
 def str_byte_length(x):
     """Returns the number of bytes in a string sample.
 
@@ -1466,6 +1476,7 @@ def str_byte_length(x):
     return _to_string_sequence(x).byte_length()
 
 @register_function(scope='str')
+@auto_str_unwrap
 def str_ljust(x, width, fillchar=' '):
     """Fills the right side of string samples with a specified character such that the strings are right-hand justified.
 
@@ -1501,6 +1512,7 @@ def str_ljust(x, width, fillchar=' '):
 
 
 @register_function(scope='str')
+@auto_str_unwrap
 def str_lower(x):
     """Converts string samples to lower case.
 
@@ -1535,6 +1547,7 @@ def str_lower(x):
 
 
 @register_function(scope='str')
+@auto_str_unwrap
 def str_lstrip(x, to_strip=None):
     """Remove leading characters from a string sample.
 
@@ -1570,6 +1583,7 @@ def str_lstrip(x, to_strip=None):
 
 
 @register_function(scope='str')
+@auto_str_unwrap
 def str_match(x, pattern):
     """Check if a string sample matches a given regular expression.
 
@@ -1604,6 +1618,7 @@ def str_match(x, pattern):
 # TODO: normalize, partition
 
 @register_function(scope='str')
+@auto_str_unwrap
 def str_pad(x, width, side='left', fillchar=' '):
     """Pad strings in a given column.
 
@@ -1640,6 +1655,7 @@ def str_pad(x, width, side='left', fillchar=' '):
 
 
 @register_function(scope='str')
+@auto_str_unwrap
 def str_repeat(x, repeats):
     """Duplicate each string in a column.
 
@@ -1674,6 +1690,7 @@ def str_repeat(x, repeats):
 
 
 @register_function(scope='str')
+@auto_str_unwrap
 def str_replace(x, pat, repl, n=-1, flags=0, regex=False):
     """Replace occurences of a pattern/regex in a column with some other string.
 
@@ -1712,6 +1729,7 @@ def str_replace(x, pat, repl, n=-1, flags=0, regex=False):
 
 
 @register_function(scope='str')
+@auto_str_unwrap
 def str_rfind(x, sub, start=0, end=None):
     """Returns the highest indices in each string in a column, where the provided substring is fully contained between within a
     sample. If the substring is not found, -1 is returned.
@@ -1747,6 +1765,7 @@ def str_rfind(x, sub, start=0, end=None):
     return _to_string_sequence(x).find(sub, start, 0 if end is None else end, end is None, False)
 
 @register_function(scope='str')
+@auto_str_unwrap
 def str_rindex(x, sub, start=0, end=None):
     """Returns the highest indices in each string in a column, where the provided substring is fully contained between within a
     sample. If the substring is not found, -1 is returned. Same as `str.rfind`.
@@ -1782,6 +1801,7 @@ def str_rindex(x, sub, start=0, end=None):
     return str_rfind(x, sub, start, end)
 
 @register_function(scope='str')
+@auto_str_unwrap
 def str_rjust(x, width, fillchar=' '):
     """Fills the left side of string samples with a specified character such that the strings are left-hand justified.
 
@@ -1819,6 +1839,7 @@ def str_rjust(x, width, fillchar=' '):
 # TODO: rpartition
 
 @register_function(scope='str')
+@auto_str_unwrap
 def str_rstrip(x, to_strip=None):
     """Remove trailing characters from a string sample.
 
@@ -1854,6 +1875,7 @@ def str_rstrip(x, to_strip=None):
 
 
 @register_function(scope='str')
+@auto_str_unwrap
 def str_slice(x, start=0, stop=None):  # TODO: support n
     """Slice substrings from each string element in a column.
 
@@ -1893,6 +1915,7 @@ def str_slice(x, start=0, stop=None):  # TODO: support n
 # TODO: slice_replace (not sure it this makes sense)
 
 @register_function(scope='str')
+@auto_str_unwrap
 def str_rsplit(x, pattern=None, max_splits=-1):
     if not isinstance(x, vaex.array_types.supported_arrow_array_types):
         x = pa.array(x)
@@ -1903,6 +1926,7 @@ def str_rsplit(x, pattern=None, max_splits=-1):
 
 
 @register_function(scope='str')
+@auto_str_unwrap
 def str_split(x, pattern=None, max_splits=-1):
     if not isinstance(x, vaex.array_types.supported_arrow_array_types):
         x = pa.array(x)
@@ -1914,6 +1938,7 @@ def str_split(x, pattern=None, max_splits=-1):
 
 
 @register_function(scope='str')
+@auto_str_unwrap
 def str_startswith(x, pat):
     """Check if a start of a string matches a pattern.
 
@@ -1946,6 +1971,7 @@ def str_startswith(x, pat):
     return _to_string_sequence(x).startswith(pat)
 
 @register_function(scope='str')
+@auto_str_unwrap
 def str_strip(x, to_strip=None):
     """Removes leading and trailing characters.
 
@@ -1982,11 +2008,12 @@ def str_strip(x, to_strip=None):
     """
     # in c++ we give empty string the same meaning as None
     sl = _to_string_sequence(x).strip('' if to_strip is None else to_strip) if to_strip != '' else x
-    return column.ColumnStringArrow.from_string_sequence(sl)
+    return column.ColumnStringArrow.from_string_sequence(sl, copy=True)
 
 # TODO: swapcase, translate
 
 @register_function(scope='str')
+@auto_str_unwrap
 def str_title(x):
     """Converts all string samples to titlecase.
 
