@@ -2,21 +2,30 @@ import vaex
 import pyarrow as pa
 import pyarrow.compute as pc
 
-def list_unwrap(ar):
+
+def list_unwrap(ar, level=-1):
     '''Returns the values in a (nested) list, and a callable that puts it back in the same structure'''
     from .convert import trim_offsets
     list_parameters = []
-    dtype = vaex.dtype_of(ar)   
+    dtype = vaex.dtype_of(ar)
+    array_levels = [ar]
     while dtype.is_list:
         list_parameters.append([ar.type, len(ar), ar.buffers(), ar.null_count, ar.offset])
         # flattened.append(ar.type)
         i1 = ar.offsets[0].as_py()
         i2 = ar.offsets[-1].as_py()
         ar = ar.values.slice(i1, i2)
+        array_levels.append(ar)
         dtype = dtype.value_type
 
+    if level == -1:
+        ar = array_levels[-1]
+    else:
+        ar = array_levels[level]
+        list_parameters = list_parameters[:level+1]
+
     def wrapper(new_values):
-        if list_parameters:
+        if list_parameters and list_parameters:
             ar = None
             for type, length, buffers, null_count, offset in list_parameters[::-1]:
                 if ar is None:
