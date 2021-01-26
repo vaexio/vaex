@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import numpy as np
 import pandas as pd
+import pyarrow as pa
 import pytest
 import vaex
 
@@ -80,6 +81,13 @@ def test_map_to_string():
     df = vaex.from_arrays(type=[0, 1, 2, 2, 2, np.nan])
     df['role'] = df['type'].map({0: 'admin', 1: 'maintainer', 2: 'user', np.nan: 'unknown'})
     assert df['role'].tolist() == ['admin', 'maintainer', 'user', 'user', 'user', 'unknown']
+
+
+@pytest.mark.parametrize("type", [pa.string(), pa.large_string()])
+def test_map_from_string(type):
+    df = vaex.from_arrays(type=pa.array(['admin', 'maintainer', 'user', 'user', 'user', None], type=type))
+    df['role'] = df['type'].map({'admin':0, 'maintainer':1, 'user':2, None: -1})
+    assert df['role'].tolist() == [0, 1, 2, 2, 2, -1]
 
 
 def test_map_serialize(tmpdir):
