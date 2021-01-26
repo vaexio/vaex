@@ -145,7 +145,10 @@ class DataType:
         >>> DataType(pa.bool_()).is_primitive
         True
         '''
-        return self.kind in 'fiub'
+        try:
+            return self.kind in 'fiub'
+        except NotImplementedError:
+            return False
 
     @property
     def is_datetime(self):
@@ -202,7 +205,7 @@ class DataType:
         >>> DataType(pa.float32()) == float
         True
         '''
-        return vaex.array_types.to_numpy_type(self.internal).kind in 'f'
+        return self.is_primitive and vaex.array_types.to_numpy_type(self.internal).kind in 'f'
 
     @property
     def is_unsigned(self):
@@ -220,7 +223,7 @@ class DataType:
         >>> DataType(pa.uint32()).is_unsigned
         True
         '''
-        return vaex.array_types.to_numpy_type(self.internal).kind in 'u'
+        return self.is_primitive and vaex.array_types.to_numpy_type(self.internal).kind in 'u'
 
     @property
     def is_signed(self):
@@ -236,7 +239,7 @@ class DataType:
         >>> DataType(pa.int32()).is_signed
         True
         '''
-        return vaex.array_types.to_numpy_type(self.internal).kind in 'i'
+        return self.is_primitive and vaex.array_types.to_numpy_type(self.internal).kind in 'i'
 
     @property
     def is_integer(self):
@@ -256,7 +259,7 @@ class DataType:
         True
 
         '''
-        return vaex.array_types.to_numpy_type(self.internal).kind in 'iu'
+        return self.is_primitive and vaex.array_types.to_numpy_type(self.internal).kind in 'iu'
 
     @property
     def is_string(self):

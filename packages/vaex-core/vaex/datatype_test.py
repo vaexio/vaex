@@ -24,3 +24,4 @@ def test_string(type):
     t1 = DataType(type)
     assert t1 == 'string'
     assert t1 == str
+    assert not t1.is_float
