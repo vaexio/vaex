@@ -192,11 +192,9 @@ def fillmissing(ar, value):
     '''Returns an array where missing values are replaced by value.
     See :`ismissing` for the definition of missing values.
     '''
-    # TODO: optimize once https://github.com/apache/arrow/pull/7656 gets in
-    was_string = _is_stringy(ar)
-    if was_string:
-        ar = np.array(ar)
-
+    dtype = vaex.dtype_of(ar)
+    if dtype == str:
+        return pc.fill_null(ar, value)
     ar = ar if not isinstance(ar, column.Column) else ar.to_numpy()
     mask = ismissing(ar)
     if np.any(mask):
@@ -205,8 +203,6 @@ def fillmissing(ar, value):
         else:
             ar = ar.copy()
         ar[mask] = value
-    if was_string:
-        vaex.array_types.to_arrow(ar)
     return ar
 
 
@@ -234,6 +230,10 @@ def fillna(ar, value):
     See :`isna` for the definition of missing values.
 
     '''
+    dtype = vaex.dtype_of(ar)
+    if dtype == str:
+        # str cannot contain anything other than missing values
+        return fillmissing(ar, value)
     # TODO: should use arrow fill_null in the future
     if isinstance(ar, vaex.array_types.supported_arrow_array_types):
         ar = fillna(vaex.array_types.to_numpy(ar, strict=True), value)
