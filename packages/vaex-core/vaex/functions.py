@@ -7,6 +7,7 @@ from vaex import column
 from vaex.column import _to_string_sequence, _to_string_column, _to_string_list_sequence, _is_stringy
 from vaex.dataframe import docsubst
 import vaex.arrow.numpy_dispatch
+import vaex.arrow.utils
 import re
 import vaex.expression
 import functools
@@ -24,11 +25,12 @@ def _arrow_string_might_grow(ar, factor):
     return ar
 
 
-def _arrow_string_kernel_dispatch(name, ascii, *args):
+def _arrow_string_kernel_dispatch(name, ascii, *args, **kwargs):
     # helper function to call a pyarrow kernel
     variant = 'ascii' if ascii else 'utf8'
     kernel_name = f'{variant}_{name}'  # eg utf8_istitle / ascii_istitle
-    return pc.call_function(kernel_name, args)
+    kernel = getattr(pc, kernel_name)
+    return kernel(*args, **kwargs)
 
 
 scopes = {
@@ -1471,10 +1473,12 @@ def str_lower(x):
 
 
 @register_function(scope='str')
-def str_lstrip(x, to_strip=None):
+@docsubst
+def str_lstrip(x, to_strip=None, ascii=False):
     """Remove leading characters from a string sample.
 
     :param str to_strip: The string to be removed
+    :param bool ascii: {ascii}
     :returns: an expression containing the modified string column.
 
     Example:
@@ -1500,9 +1504,11 @@ def str_lstrip(x, to_strip=None):
     3        our
     4       way.
     """
-    # in c++ we give empty string the same meaning as None
-    sl = _to_string_sequence(x).lstrip('' if to_strip is None else to_strip) if to_strip != '' else x
-    return column.ColumnStringArrow.from_string_sequence(sl)
+    x = vaex.array_types.to_arrow(x)
+    if to_strip is None:
+        return _arrow_string_kernel_dispatch('ltrim_whitespace', ascii, x)
+    else:
+        return _arrow_string_kernel_dispatch('ltrim', ascii, x, characters=to_strip)
 
 
 @register_function(scope='str')
@@ -1755,10 +1761,12 @@ def str_rjust(x, width, fillchar=' '):
 # TODO: rpartition
 
 @register_function(scope='str')
-def str_rstrip(x, to_strip=None):
+@docsubst
+def str_rstrip(x, to_strip=None, ascii=False):
     """Remove trailing characters from a string sample.
 
     :param str to_strip: The string to be removed
+    :param bool ascii: {ascii}
     :returns: an expression containing the modified string column.
 
     Example:
@@ -1784,9 +1792,11 @@ def str_rstrip(x, to_strip=None):
     3          our
     4         way.
     """
-    # in c++ we give empty string the same meaning as None
-    sl = _to_string_sequence(x).rstrip('' if to_strip is None else to_strip) if to_strip != '' else x
-    return column.ColumnStringArrow.from_string_sequence(sl)
+    x = vaex.array_types.to_arrow(x)
+    if to_strip is None:
+        return _arrow_string_kernel_dispatch('rtrim_whitespace', ascii, x)
+    else:
+        return _arrow_string_kernel_dispatch('rtrim', ascii, x)
 
 
 @register_function(scope='str')
@@ -1871,7 +1881,8 @@ def str_startswith(x, pat):
     return _to_string_sequence(x).startswith(pat)
 
 @register_function(scope='str')
-def str_strip(x, to_strip=None):
+@docsubst
+def str_strip(x, to_strip=None, ascii=False):
     """Removes leading and trailing characters.
 
     Strips whitespaces (including new lines), or a set of specified
@@ -1880,6 +1891,7 @@ def str_strip(x, to_strip=None):
 
     :param str to_strip: The characters to be removed. All combinations of the characters will be removed.
                          If None, it removes whitespaces.
+    :param bool ascii: {ascii}
     :param returns: an expression containing the modified string samples.
 
     Example:
@@ -1905,9 +1917,11 @@ def str_strip(x, to_strip=None):
     3         ou
     4       way.
     """
-    # in c++ we give empty string the same meaning as None
-    sl = _to_string_sequence(x).strip('' if to_strip is None else to_strip) if to_strip != '' else x
-    return column.ColumnStringArrow.from_string_sequence(sl)
+    x = vaex.array_types.to_arrow(x)
+    if to_strip is None:
+        return _arrow_string_kernel_dispatch('trim_whitespace', ascii, x)
+    else:
+        return _arrow_string_kernel_dispatch('trim', ascii, x)
 
 # TODO: swapcase, translate
 
