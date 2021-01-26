@@ -163,7 +163,6 @@ sinh
 sqrt
 tan
 tanh
-where
 """.strip().split()]
 for name, numpy_name in numpy_function_mapping:
     if not hasattr(np, numpy_name):
@@ -2531,3 +2530,60 @@ def add_geo_json(ds, json_or_file, column_name, longitude_expression, latitude_e
         return ds, mapping_dict
     else:
         return ds
+
+import vaex.arrow.numpy_dispatch
+
+@register_function()
+def where(condition, x, y):
+    # special where support for strings
+    # TODO: this should be replaced by an arrow compute function in the future
+    if type(x) == str:
+        if type(y) == str:
+            condition = vaex.array_types.to_arrow(condition).cast(pa.int8())
+            choices = pa.array([y, x])
+            values = choices.take(condition)
+            return values
+        else:
+            condition = vaex.array_types.to_arrow(condition)
+            indices = np.arange(len(y), dtype=np.int64)
+            # point to the last value
+            indices[vaex.array_types.to_numpy(condition)] = len(y)
+            indices = vaex.array_types.to_arrow(indices)
+
+            indices = vaex.arrow.numpy_dispatch.combine_missing(indices, condition)
+            y = vaex.array_types.to_arrow(y)
+            choices = vaex.array_types.concat([y, pa.array([x], type=y.type)])
+            values = choices.take(indices)
+            return values
+    elif type(y) == str:
+        condition = vaex.array_types.to_arrow(condition)
+        indices = np.arange(len(x), dtype=np.int64)
+        # point to the last value
+        indices[~vaex.array_types.to_numpy(condition)] = len(x)
+        indices = vaex.array_types.to_arrow(indices)
+
+        indices = vaex.arrow.numpy_dispatch.combine_missing(indices, condition)
+        x = vaex.array_types.to_arrow(x)
+        choices = vaex.array_types.concat([x, pa.array([y], type=x.type)])
+        values = choices.take(indices)
+        return values
+    elif vaex.column.is_column_like(x) and vaex.dtype_of(x).is_string:
+        assert vaex.dtype_of(y).is_string
+        condition = vaex.array_types.to_arrow(condition)
+        assert len(x) == len(y) == len(condition)
+        N = len(x)
+        indices = np.arange(N, dtype=np.int64)
+        mask = vaex.array_types.to_numpy(condition)
+        indices[~mask] += len(x)
+        indices = vaex.array_types.to_arrow(indices)
+
+        indices = vaex.arrow.numpy_dispatch.combine_missing(indices, condition)
+        x = vaex.array_types.to_arrow(x)
+        y = vaex.array_types.to_arrow(y)
+        x, y = vaex.arrow.convert.same_type(x, y)
+        choices = vaex.array_types.concat([x, y])
+        values = choices.take(indices)
+        return values
+    # default callback is on numpy
+    ar = np.where(condition, x, y)
+    return ar

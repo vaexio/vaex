@@ -27,6 +27,9 @@ class Column(object):
 
 supported_column_types = (Column, ) + supported_array_types
 
+def is_column_like(col):
+    return isinstance(col, supported_column_types)
+
 
 class ColumnVirtualRange(Column):
     def __init__(self, start, stop, step=1, dtype=None):

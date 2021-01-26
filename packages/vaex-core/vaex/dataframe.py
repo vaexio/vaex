@@ -478,7 +478,7 @@ class DataFrame(object):
         :param dropmissing: do not count missing values
         :param dropnan: do not count nan values
         :param dropna: short for any of the above, (see :func:`Expression.isna`)
-        :param bool axis: Axis over which to determine the unique elements (None will flatten arrays or lists)
+        :param int axis: Axis over which to determine the unique elements (None will flatten arrays or lists)
         :param str array_type: {array_type}
         """
         if dropna:

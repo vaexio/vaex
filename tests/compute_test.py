@@ -68,3 +68,39 @@ def test_where(s):
     df = vaex.from_arrays(s=s)
     expr = df.func.where(df['s'] == 'a', 'A', df['s'])
     assert expr.tolist() == ['A', 'b', None, 'd']
+    assert expr.dtype.is_string
+
+
+def test_where_large():
+    df = vaex.from_arrays(s=pa.array(['a', 'b', None, 'd'], type=pa.large_string()))
+    assert (df['s'] + df['s']).dtype.internal == pa.large_string()
+    expr = df.func.where(df['s'] == 'a', 'A', df['s'])
+    assert expr.tolist() == ['A', 'b', None, 'd']
+    assert expr.dtype.is_string
+
+def test_where_str_str(x):
+    df = vaex.from_arrays(x=x)
+    df['s'] = (df.x==1).where('a', 'b')
+    assert df.s.tolist() == ['b', 'a', 'b', None]
+    assert df.s.dtype.is_string
+
+
+def test_where_str_array(x, s):
+    df = vaex.from_arrays(x=x, s=s)
+    df['s2'] = (df.x==1).where('c', df.s)
+    assert df.s2.tolist() == ['a', 'c', None, None]
+    assert df.s2.dtype.is_string
+
+
+def test_where_array_str(x, s):
+    df = vaex.from_arrays(x=x, s=s)
+    df['s2'] = (df.x==1).where(df.s, 'c')
+    assert df.s2.tolist() == ['c', 'b', 'c', None]
+    assert df.s2.dtype.is_string
+
+
+def test_where_array_array(x, s):
+    df = vaex.from_arrays(x=x, s=s)
+    df['s2'] = (df.x==1).where(df.s, df.s + df.s)
+    assert df.s2.tolist() == ['aa', 'b', None, None]
+    assert df.s2.dtype.is_string
