@@ -119,9 +119,11 @@ def test_concat_mixed():
     assert len(ds) == len(ds1) + len(ds2)
     assert ds.data_type(ds.names) == ds1.names.dtype
 
-def test_strip():
+
+@pytest.mark.parametrize("ascii", [True, False])
+def test_strip(ascii):
     ds = vaex.from_arrays(names=['this ', ' has', ' space'])
-    ds['stripped'] = ds.names.str.strip()
+    ds['stripped'] = ds.names.str.strip(ascii=ascii)
     ds.stripped.tolist() == ['this', 'has', 'space']
 
 
@@ -252,9 +254,10 @@ def test_string_lower(dfs):
     assert dfs.s.str.lower().tolist() == dfs.s.str_pandas.lower().tolist()
 
 
-def test_string_lstrip(dfs):
-    assert dfs.s.str.lstrip().tolist() == dfs.s.str_pandas.lstrip().tolist()
-    assert dfs.s.str.lstrip('vV ').tolist() == dfs.s.str_pandas.lstrip('vV ').tolist()
+@pytest.mark.parametrize("ascii", [True, False])
+def test_string_lstrip(dfs, ascii):
+    assert dfs.s.str.lstrip(ascii=ascii).tolist() == dfs.s.str_pandas.lstrip().tolist()
+    assert dfs.s.str.lstrip('vV ', ascii=ascii).tolist() == dfs.s.str_pandas.lstrip('vV ').tolist()
 
 
 def test_string_match(dfs):
@@ -320,9 +323,10 @@ def test_string_rjust(dfs, width):
     assert dfs.s.str.rjust(width).tolist() == dfs.s.str_pandas.rjust(width).tolist()
 
 
-def test_string_rstrip(dfs):
-    assert dfs.s.str.rstrip().tolist() == dfs.s.str_pandas.rstrip().tolist()
-    assert dfs.s.str.rstrip('x! ').tolist() == dfs.s.str_pandas.rstrip('x! ').tolist()
+@pytest.mark.parametrize("ascii", [True, False])
+def test_string_rstrip(dfs, ascii):
+    assert dfs.s.str.rstrip(ascii=ascii).tolist() == dfs.s.str_pandas.rstrip().tolist()
+    assert dfs.s.str.rstrip('x! ', ascii=ascii).tolist() == dfs.s.str_pandas.rstrip('x! ').tolist()
 
 
 # @pytest.mark.parametrize("start", [0, 3, 5])
