@@ -289,3 +289,14 @@ def align(a, b):
     else:
         return a, b
     return
+
+
+def same_type(*arrays):
+    types = [ar.type for ar in arrays]
+    if any(types[0] != type for type in types):
+        if vaex.dtype(types[0]) == str:
+            # we have mixed large and normal string
+            return [large_string_to_string(ar) if ar.type == pa.large_string() else ar for ar in arrays]
+        else:
+            raise NotImplementedError
+    return arrays
