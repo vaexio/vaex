@@ -506,7 +506,7 @@ def _trim_bits(column, i1, i2):
 
 class ColumnStringArrow(ColumnString):
     """Column that unpacks the arrow string column on the fly"""
-    def __init__(self, indices, bytes, length=None, offset=0, string_sequence=None, null_bitmap=None, references=None):
+    def __init__(self, indices, bytes, length=None, offset=0, string_sequence=None, null_bitmap=None):
         self._string_sequence = string_sequence
         self.indices = indices
         self.offset = offset  # to avoid memory copies in trim
@@ -521,8 +521,6 @@ class ColumnStringArrow(ColumnString):
         self.shape = (self.__len__(),)
         self.nbytes = self.bytes.nbytes + self.indices.nbytes
         self.null_bitmap = null_bitmap
-        # references is to keep other objects alive, similar to pybind11's keep_alive
-        self.references = references or []
 
         if not (self.indices.dtype.kind == 'i' and self.indices.dtype.itemsize in [4,8]):
             raise ValueError('unsupported index type' + str(self.indices.dtype))
@@ -629,21 +627,16 @@ class ColumnStringArrow(ColumnString):
 
     def trim(self, i1, i2):
         assert i2 >= i1
-        references = self.references + [self]
-        return type(self)(self.indices, self.bytes, i2-i1, self.offset + i1, null_bitmap=self.null_bitmap,
-                references=references)
+        return type(self)(self.indices, self.bytes, i2-i1, self.offset + i1, null_bitmap=self.null_bitmap)
 
     @classmethod
-    def from_string_sequence(cls, string_sequence, copy=False):
+    def from_string_sequence(cls, string_sequence):
         s = string_sequence
         null_bitmap = s.null_bitmap
         if s.null_offset != 0:
             mask = ~s.mask()
             null_bitmap = np.frombuffer(pa.array(mask, pa.bool_()).buffers()[1], dtype='b')
-        if copy:
-            return cls(s.indices.copy(), s.bytes.copy(), s.length, s.offset, string_sequence=s, null_bitmap=null_bitmap)
-        else:
-            return cls(s.indices, s.bytes, s.length, s.offset, string_sequence=s, null_bitmap=null_bitmap)
+        return cls(s.indices, s.bytes, s.length, s.offset, string_sequence=s, null_bitmap=null_bitmap)
 
     @classmethod
     def from_arrow(cls, ar):
