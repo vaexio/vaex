@@ -7,6 +7,7 @@ h5py
 lightgbm
 matplotlib-base
 notebook
+numba
 numpy
 pandas
 pcre
