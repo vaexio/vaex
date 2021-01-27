@@ -143,3 +143,19 @@ def test_fillna_string_dtype():
 
     # Confirm that the column "name" is still of type string after fillna
     assert df['name'].is_string()
+
+def test_fillna_num_to_string_dtype():
+    # Generate the input
+    inp = vaex.from_arrays(
+        int1=np.ma.array([1, 0], mask=[0, 1], dtype=int),
+        float1=np.ma.array([3.14, 0], mask=[0, 1], dtype=float),
+    )
+
+    # Convert to string
+    inp['int1'] = inp['int1'].astype('string')
+    inp['float1'] = inp['float1'].astype('string')
+
+    assert inp['int1'].is_string
+    assert inp['float1'].is_string
+    assert inp['int1'].fillna('').tolist() == ['1', '']
+    assert inp['float1'].fillna('').tolist() == ['3.14', '']

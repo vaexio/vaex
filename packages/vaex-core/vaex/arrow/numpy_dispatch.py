@@ -10,6 +10,7 @@ class NumpyDispatch:
         self._array = ar
         if isinstance(ar, vaex.column.ColumnStringArrow):
             ar = pa.array(ar)
+            self._array = ar
         if isinstance(ar, np.ndarray):
             self._numpy_array = ar
             self._arrow_array = None
