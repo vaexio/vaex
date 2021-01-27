@@ -1,7 +1,20 @@
 import numpy as np
+import vaex
 
 def tolist(x):
     return np.array(x).tolist()
+
+
+def test_category():
+    df = vaex.from_arrays(g=[1,2,3])
+    df.categorize('g', inplace=True)
+    passes = df.executor.passes
+    g_limits = df.limits('g')
+    assert df.executor.passes == passes
+    assert vaex.utils._expand_limits(g_limits, 2) == (g_limits, g_limits)
+    assert vaex.utils._expand_limits([None, g_limits], 2) == (None, g_limits)
+    # df.limits(['g')
+    # df.count()
 
 
 def test_limits(df):

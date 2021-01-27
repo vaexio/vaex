@@ -789,11 +789,11 @@ def _expand_shape(shape, dimension):
 
 def _expand_limits(limits, dimension):
     if isinstance(limits, (tuple, list, np.ndarray)) and \
-            (isinstance(limits[0], (tuple, list, np.ndarray)) or isinstance(limits[0], six.string_types)):
+            (isinstance(limits[0], (tuple, list, np.ndarray)) or isinstance(limits[0], str) or limits[0] is None):
         assert len(limits) == dimension, "wants to expand shape %r to dimension %d" % (limits, dimension)
         return tuple(limits)
     else:
-        return [limits, ] * dimension
+        return (limits, ) * dimension
 
 
 def as_flat_float(a):
