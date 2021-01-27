@@ -827,9 +827,9 @@ def f({0}):
 
             module = imp.load_dynamic(module_name, module_path)
             function_name = "f_" + m.hexdigest()
-            expression_namespace[function_name] = module.f
+            function = self.ds.add_function(function_name, module.f, unique=True)
 
-            return Expression(self.ds, "{0}({1})".format(function_name, argstring))
+            return Expression(self.ds, "{0}({1})".format(function.name, argstring))
         finally:
                 logger.setLevel(log_level)
 
@@ -1208,8 +1208,13 @@ def f({0}):
         f = scope['f']
 
         # numba part
-        argument_dtypes_numba = [getattr(numba, argument_dtype.numpy.name) for argument_dtype in self.argument_dtypes]
-        return_dtype_numba = getattr(numba, self.return_dtype.numpy.name)
+        def get_type(name):
+            if name == "bool":
+                name = "bool_"
+            return getattr(numba, name)
+
+        argument_dtypes_numba = [get_type(argument_dtype.numpy.name) for argument_dtype in self.argument_dtypes]
+        return_dtype_numba = get_type(self.return_dtype.numpy.name)
         vectorizer = numba.vectorize([return_dtype_numba(*argument_dtypes_numba)])
         return vectorizer(f)
 
