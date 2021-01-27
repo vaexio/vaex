@@ -52,7 +52,7 @@ jobs:
         mamba install -c conda-forge py-xgboost
         # xgboost is not available on windows on conda-forge
     - name: Extra installs
-      if: ${{ matrix.python-version }} != '3.9'
+      if: matrix.python-version != '3.9'
       shell: bash
       run: |
         source activate vaex-dev
