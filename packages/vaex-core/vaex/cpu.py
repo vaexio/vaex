@@ -334,7 +334,10 @@ class TaskPartAggregations:
 
         N = i2 - i1
         if filter_mask is not None:
-            N = filter_mask.astype(np.uint8).sum()
+            if blocks:
+                N = len(blocks[0])
+            else:
+                N == filter_mask.sum()
         blocks = [array_types.to_numpy(block, strict=False) for block in blocks]
         for block in blocks:
             assert len(block) == N, f'Oops, got a block of length {len(block)} while it is expected to be of length {N} (at {i1}-{i2}, filter={filter_mask is not None})'
