@@ -1,5 +1,5 @@
 astropy
-catboost
+# catboost
 cython
 geopandas
 graphviz
@@ -8,7 +8,7 @@ h5py
 lightgbm
 matplotlib-base
 notebook
-numba
+# numba
 numpy
 pandas
 pcre
