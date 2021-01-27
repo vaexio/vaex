@@ -1406,7 +1406,7 @@ def str_join(x, sep):
     # TODO: we require a copy here, because the x_column and the string_seqence will be
     # garbage collected, this is not idea, but once https://github.com/apache/arrow/pull/8990 is
     # released, we can rely on that
-    x_column = column.ColumnStringArrow.from_string_sequence(x_joined_ss, copy=True)
+    x_column = column.ColumnStringArrow.from_string_sequence(x_joined_ss)
     x_joined = pa.array(x_column)
     return wrapper(x_joined)
 
@@ -2008,7 +2008,7 @@ def str_strip(x, to_strip=None):
     """
     # in c++ we give empty string the same meaning as None
     sl = _to_string_sequence(x).strip('' if to_strip is None else to_strip) if to_strip != '' else x
-    return column.ColumnStringArrow.from_string_sequence(sl, copy=True)
+    return column.ColumnStringArrow.from_string_sequence(sl)
 
 # TODO: swapcase, translate
 

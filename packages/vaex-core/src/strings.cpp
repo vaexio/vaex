@@ -2003,14 +2003,11 @@ void add_string_list(Module m, Base& base, const char* class_name) {
         // bug? we have to add this again
         // .def("get", (py::object (StringSequenceBase::*)(size_t, size_t))&StringSequenceBase::get, py::return_value_policy::take_ownership)
         .def_property_readonly("bytes", [](const StringList &sl) {
-                auto capsule = py::capsule(&sl, [](void *v) {  });
-                return py::array_t<char>(sl.byte_length, sl.bytes, capsule);
+                return py::array_t<char>(sl.byte_length, sl.bytes, py::cast(sl));
             }
-
         )
         .def_property_readonly("indices", [](const StringList &sl) {
-                auto capsule = py::capsule(&sl, [](void *v) {  });
-                return py::array_t<typename StringList::index_type>(sl.length+1, sl.indices, capsule);
+                return py::array_t<typename StringList::index_type>(sl.length+1, sl.indices, py::cast(sl));
             }
         )
         .def_property_readonly("null_bitmap", [](const StringList &sl) -> py::object {
