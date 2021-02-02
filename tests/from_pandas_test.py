@@ -11,6 +11,7 @@ def test_from_pandas():
         'text_missing': pd.Series(['Some', 'parts', None, 'missing', None], dtype='string'),
         'float': [1, 30, -2, 1.5, 0.000],
         'float_missing': [1, None, -2, 1.5, 0.000],
+        'float_missing_masked': pd.Series([1, None, -2, 1.5, 0.000], dtype=pd.Float64Dtype()),
         'int_missing': pd.Series([1, None, 5, 1, 10], dtype='Int64'),
         'datetime_1': [pd.NaT, datetime.datetime(2019, 1, 1, 1, 1, 1), datetime.datetime(2019, 1, 1, 1, 1, 1), datetime.datetime(2019, 1, 1, 1, 1, 1), datetime.datetime(2019, 1, 1, 1, 1, 1)],
         'datetime_2': [pd.NaT, None, pd.NaT, pd.NaT, pd.NaT],
@@ -36,7 +37,9 @@ def test_from_pandas():
     # assert vaex_df.text_missing.is_masked == True
     assert vaex_df.int_missing.is_masked == True
     assert vaex_df.float_missing.is_masked == False
+    assert vaex_df.float_missing_masked.is_masked == True
     assert vaex_df.int_missing.tolist() == [1, None, 5, 1, 10]
     assert vaex_df.text_missing.tolist() == ['Some', 'parts', None, 'missing', None]
     assert vaex_df.float_missing.values[[0, 2, 3, 4]].tolist() == [1.0, -2.0, 1.5, 0.0]
     assert np.isnan(vaex_df.float_missing.values[1])
+    assert vaex_df.float_missing_masked.tolist() == [1.0, None, -2.0, 1.5, 0.0]
