@@ -22,6 +22,7 @@ def test_from_pandas():
 
     # Get pandas dataframe
     pandas_df = pd.DataFrame(dd_dict)
+    pandas_df['float_missing_masked'] = pandas_df['float_missing'].astype(pd.Float64Dtype())
     pandas_df['datetime_7'] = pd.to_timedelta(pandas_df['datetime_2'] - pandas_df['datetime_1'])
     vaex_df = vaex.from_pandas(pandas_df)
     repr_value = repr(vaex_df)
@@ -36,7 +37,9 @@ def test_from_pandas():
     # assert vaex_df.text_missing.is_masked == True
     assert vaex_df.int_missing.is_masked == True
     assert vaex_df.float_missing.is_masked == False
+    assert vaex_df.float_missing_masked.is_masked == True
     assert vaex_df.int_missing.tolist() == [1, None, 5, 1, 10]
     assert vaex_df.text_missing.tolist() == ['Some', 'parts', None, 'missing', None]
     assert vaex_df.float_missing.values[[0, 2, 3, 4]].tolist() == [1.0, -2.0, 1.5, 0.0]
     assert np.isnan(vaex_df.float_missing.values[1])
+    assert vaex_df.float_missing_masked.tolist() == [1.0, None, -2.0, 1.5, 0.0]
