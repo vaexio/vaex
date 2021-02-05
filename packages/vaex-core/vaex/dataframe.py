@@ -2363,18 +2363,23 @@ class DataFrame(object):
 
         :param str file: filename (ending in .json or .yaml)
         :param dict fs_options: arguments to pass the the file system handler (s3fs or gcsfs)
+        :param fs: 'Pass a file system object directly, see :func:`vaex.open`'
         """
         fs_options = fs_options or {}
         vaex.utils.write_json_or_yaml(file, self.state_get(), fs_options=fs_options, fs=fs)
 
-    def state_load(self, file, use_active_range=False, fs_options=None, fs=None):
+    def state_load(self, file, use_active_range=False, keep_columns=None, set_filter=True, trusted=True, fs_options=None, fs=None):
         """Load a state previously stored by :meth:`DataFrame.state_write`, see also :meth:`DataFrame.state_set`.
 
         :param str file: filename (ending in .json or .yaml)
+        :param bool use_active_range: Whether to use the active range or not.
+        :param list keep_columns: List of columns that should be kept if the state to be set contains less columns.
+        :param bool set_filter: Set the filter from the state (default), or leave the filter as it is it.
         :param dict fs_options: arguments to pass the the file system handler (s3fs or gcsfs)
+        :param fs: 'Pass a file system object directly, see :func:`vaex.open`'
         """
         state = vaex.utils.read_json_or_yaml(file, fs_options=fs_options, fs=fs)
-        self.state_set(state, use_active_range=use_active_range)
+        self.state_set(state, use_active_range=use_active_range, keep_columns=keep_columns, set_filter=set_filter, trusted=trusted)
 
     def remove_virtual_meta(self):
         """Removes the file with the virtual column etc, it does not change the current virtual columns etc."""
