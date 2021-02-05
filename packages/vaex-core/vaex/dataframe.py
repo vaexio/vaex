@@ -2363,7 +2363,6 @@ class DataFrame(object):
 
         :param str file: filename (ending in .json or .yaml)
         :param dict fs_options: arguments to pass the the file system handler (s3fs or gcsfs)
-        :param dict fs_options: arguments to pass the the file system handler (s3fs or gcsfs)
         :param fs: 'Pass a file system object directly, see :func:`vaex.open`'
         """
         fs_options = fs_options or {}
