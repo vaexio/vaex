@@ -28,7 +28,7 @@ def make_binary_classification_data():
     df = pd.DataFrame(data=X, columns=['feat' + str(i) for i in range(X.shape[1])])
     df['target'] = y
     df = vaex.from_pandas(df, copy_index=False)
-    df_train, df_val, df_test = df.split_random(frac=[0.8, 0.1, 0.1], random_state=42)
+    df_train, df_val, df_test = df.split_random(into=[0.8, 0.1, 0.1], random_state=42)
     features = df.get_column_names(regex='^feat')
     target = 'target'
     return df_train, df_val, df_test, features, target
@@ -47,7 +47,7 @@ def make_multiclass_classification_data():
     df['target'] = y
     df = vaex.from_pandas(df, copy_index=False)
     df = df.ml.one_hot_encoder(features=['target']).transform(df)
-    df_train, df_val, df_test = df.split_random(frac=[0.8, 0.1, 0.1], random_state=42)
+    df_train, df_val, df_test = df.split_random(into=[0.8, 0.1, 0.1], random_state=42)
     features = df.get_column_names(regex='^feat')
     target = 'target'
     targets = df.get_column_names(regex='target_')
@@ -65,7 +65,7 @@ def make_regression_data():
     df = pd.DataFrame(data=X, columns=['feat' + str(i) for i in range(X.shape[1])])
     df['target'] = y
     df = vaex.from_pandas(df, copy_index=False)
-    df_train, df_val, df_test = df.split_random(frac=[0.8, 0.1, 0.1], random_state=42)
+    df_train, df_val, df_test = df.split_random(into=[0.8, 0.1, 0.1], random_state=42)
     features = df.get_column_names(regex='^feat')
     target = 'target'
     return df_train, df_val, df_test, features, target
