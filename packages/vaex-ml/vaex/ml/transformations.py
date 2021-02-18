@@ -73,7 +73,7 @@ class PCA(Transformer):
     # title = traitlets.Unicode(default_value='PCA', read_only=True).tag(ui='HTML')
     n_components = traitlets.Int(help='Number of components to retain. If None, all the components will be retained.').tag(ui='IntText')
     prefix = traitlets.Unicode(default_value="PCA_", help=help_prefix)
-    progress = traitlets.CBool(default_value=False, help='If True, display a progressbar of the PCA fitting process.').tag(ui='Checkbox')
+    progress = traitlets.Any(default_value=False, help='If True, display a progressbar of the PCA fitting process.').tag(ui='Checkbox')
     eigen_vectors_ = traitlets.List(traitlets.List(traitlets.CFloat()), help='The eigen vectors corresponding to each feature').tag(output=True)
     eigen_values_ = traitlets.List(traitlets.CFloat(), help='The eigen values that correspond to each feature.').tag(output=True)
     means_ = traitlets.List(traitlets.CFloat(), help='The mean of each feature').tag(output=True)
