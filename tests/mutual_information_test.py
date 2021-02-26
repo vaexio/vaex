@@ -7,30 +7,46 @@ def test_mutual_information():
     df = vaex.example()
 
     # A single pair
-    desired = df.mutual_information('x', 'y')
-    expected = np.array(0.15118145)
-    np.testing.assert_array_almost_equal(desired, expected)
+    xy = yx = df.mutual_information('x', 'y')
+    expected = np.array(0.068934)
+    np.testing.assert_array_almost_equal(xy, expected)
+
+    np.testing.assert_array_almost_equal(df.mutual_information('y', 'x'), df.mutual_information('x', 'y'))
+
+    xx = df.mutual_information('x', 'x')
+    yy = df.mutual_information('y', 'y')
+    zz = df.mutual_information('z', 'z')
+
+    zx = xz = df.mutual_information('x', 'z')
+    zy = yz = df.mutual_information('y', 'z')
 
     # A list of columns
-    desired = df.mutual_information(x=['x', 'y', 'z'])
-    expected = np.array(([4.80278827, 0.15118145, 0.18439181],
-                         [0.15118145, 4.87766263, 0.21418761],
-                         [0.18439181, 0.21418761, 4.61453743]))
-    np.testing.assert_array_almost_equal(desired, expected)
+    result = df.mutual_information(x=['x', 'y', 'z'])
+    expected = np.array(([xx, xy, xz],
+                         [yx, yy, yz],
+                         [zx, zy, zz]))
+    np.testing.assert_array_almost_equal(result, expected)
 
     # A list of columns and a single target
-    desired = df.mutual_information(x=['vx', 'vy', 'vz'], y='vx')
-    expected = np.array([0.21501621, 0.2370898, 0.24951082])
-    np.testing.assert_array_almost_equal(desired, expected)
+    result = df.mutual_information(x=['x', 'y', 'z'], y='z')
+    expected = np.array([xz, yz, zz])
+    np.testing.assert_array_almost_equal(result, expected)
 
     # A list of columns and targets
-    desired = df.mutual_information(x=['vx', 'vy', 'vz'], y=['Lz', 'FeH'])
-    expected = np.array(([0.21501621, 0.23708980, 0.24951082],
-                         [0.12492044, 0.13276138, 0.14383603]))
-    np.testing.assert_array_almost_equal(desired, expected)
+    result = df.mutual_information(x=['x', 'y', 'z'], y=['y', 'z'])
+    assert result.shape == (3, 2)
+    expected = np.array(([xy, xz],
+                         [yy, yz],
+                         [zy, zz]
+                         ))
+    np.testing.assert_array_almost_equal(result, expected)
 
-    # No arguments (entire DataFrame)
-    desired = df[['x', 'y', 'z']].mutual_information(x=None, y=None)
-    expected = np.array(([4.80278827, 0.15118145, 0.18439181],
-                         [0.15118145, 4.87766263, 0.21418761],
-                         [0.18439181, 0.21418761, 4.61453743]))
+    # a list of custom pairs
+    result = df.mutual_information(x=[['x', 'y'], ['x', 'z'], ['y', 'z']])
+    assert result.shape == (3,)
+    expected = np.array([xy, xz, yz])
+    np.testing.assert_array_almost_equal(result, expected)
+
+
+    result = df.mutual_information(x=['x', 'y'], dimension=3, mi_shape=4)
+    assert result.shape == (2, 2, 2)

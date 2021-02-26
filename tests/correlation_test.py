@@ -7,29 +7,36 @@ def test_correlation():
     df = vaex.example()
 
     # A single column pair
-    desired = df.correlation('x', 'y')
-    expected = np.array(-0.066913)
-    np.testing.assert_array_almost_equal(desired, expected)
+    xy = yx = df.corr('x', 'y')
+    xy_expected = np.corrcoef(df.x.values, df.y.values)[0,1]
+    np.testing.assert_array_almost_equal(xy, xy_expected, decimal=5)
+
+    np.testing.assert_array_almost_equal(df.corr('x', 'y'), df.corr('y', 'x'))
+
+    xx = df.corr('x', 'x')
+    yy = df.corr('y', 'y')
+    zz = df.corr('z', 'z')
+    
+    zx = xz = df.corr('x', 'z')
+    zy = yz = df.corr('y', 'z')
+
 
     # A list of columns
-    desired = df.correlation(x=['x', 'y', 'z'])
-    expected = np.array([[ 1.00000000, -0.06691309, -0.02656313],
-                         [-0.06691309,  1.00000000,  0.03083857],
-                         [-0.02656313,  0.03083857,  1.00000000]])
-    np.testing.assert_array_almost_equal(desired, expected)
+    result = df.corr(x=['x', 'y', 'z'])
+    expected = np.array(([xx, xy, xz],
+                         [yx, yy, yz],
+                         [zx, zy, zz]))
+    np.testing.assert_array_almost_equal(result, expected)
 
     # A list of columns and a single target
-    desired = df.correlation(x=['x', 'y', 'z'], y='vx')
-    expected = np.array([-0.00779179,  0.01804911, -0.02175331])
+    desired = df.corr(x=['x', 'y', 'z'], y='z')
+    expected = np.array([xz, yz, zz])
     np.testing.assert_array_almost_equal(desired, expected)
 
-    # A list of columns and a list of targets
-    desired = df.correlation(x=['x', 'y', 'z'], y=['vx', 'vy'])
-    expected = np.array(([-0.00779179,  0.01804911, -0.02175331],
-                         [0.00014019, -0.00411498, 0.02988355]))
-
-    # No arguments (entire DataFrame)
-    desired = df[['x', 'y', 'z']].correlation(x=None, y=None)
-    expected = np.array([[ 1.00000000, -0.06691309, -0.02656313],
-                         [-0.06691309,  1.00000000,  0.03083857],
-                         [-0.02656313,  0.03083857,  1.00000000]])
+    result = df.corr(x=['x', 'y', 'z'], y=['y', 'z'])
+    assert result.shape == (3, 2)
+    expected = np.array(([xy, xz],
+                         [yy, yz],
+                         [zy, zz]
+                         ))
+    np.testing.assert_array_almost_equal(result, expected)

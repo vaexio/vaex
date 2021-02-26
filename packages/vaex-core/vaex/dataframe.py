@@ -628,7 +628,7 @@ class DataFrame(object):
             return keys
 
     @docsubst
-    def mutual_information(self, x, y=None, mi_limits=None, mi_shape=256, binby=[], limits=None, shape=default_shape, sort=False, selection=False, delay=False):
+    def mutual_information(self, x, y=None, dimension=2, mi_limits=None, mi_shape=256, binby=[], limits=None, shape=default_shape, sort=False, selection=False, delay=False):
         """Estimate the mutual information between and x and y on a grid with shape mi_shape and mi_limits, possibly on a grid defined by binby.
 
         If sort is True, the mutual information is returned in sorted (descending) order and the list of expressions is returned in the same order.
@@ -656,18 +656,40 @@ class DataFrame(object):
         :param delay: {delay}
         :return: {return_stat_scalar},
         """
-        if y is None:
-            waslist, [x, ] = vaex.utils.listify(x)
+        # either a list of tuples with custom combinations
+        if y is None and _issequence(x) and all([_issequence(k) for k in x]):
+            waslist, [combinations, ] = vaex.utils.listify(x)
+            shape_result = (len(combinations),)
+        elif _issequence(x) and (_issequence(y) or y is None):
+            # or ask for a matrix of combinations
+            if y is None:
+                combinations = list(itertools.product(x, repeat=dimension))
+                shape_result = (len(x), ) * dimension
+            else:
+                shape_result = (len(x), len(y))
+                combinations = np.array([[(i, j) for i in y] for j in x]).reshape((-1, 2)).tolist()
+            waslist = True
+        elif _issequence(x):
+            shape_result = (len(x),)
+            combinations = [(i, y) for i in x]
+            waslist = True
+        elif _issequence(y):
+            shape_result = (len(y),)
+            combinations = [(i, y) for i in x]
+            waslist = True
         else:
-            waslist, [x, y] = vaex.utils.listify(x, y)
-            x = list(zip(x, y))
+            shape_result = tuple()
+            combinations = [(x, y)]
+            waslist = False
             if mi_limits:
                 mi_limits = [mi_limits]
-        # print("x, mi_limits", x, mi_limits)
+
         limits = self.limits(binby, limits, delay=True)
-        # print("$"*80)
-        mi_limits = self.limits(x, mi_limits, delay=True)
-        # print("@"*80)
+        # make sure we only do the unique combinations
+        combinations_sorted = [tuple(sorted(k)) for k in combinations]
+        combinations_unique, unique_reverse = np.unique(combinations_sorted, return_inverse=True, axis=0)
+        combinations_unique = list(map(tuple, combinations_unique.tolist()))
+        mi_limits = self.limits(combinations_unique, mi_limits, delay=True)
 
         @delayed
         def calculate(counts):
@@ -701,14 +723,8 @@ class DataFrame(object):
             if not _issequence(binby):
                 limits = [list(limits)]
             values = []
-            for expressions, expression_limits in zip(x, mi_limits):
-                # print("mi for", expressions, expression_limits)
-                # total_shape =  _expand_shape(mi_shape, len(expressions)) + _expand_shape(shape, len(binby))
+            for expressions, expression_limits in zip(combinations_unique, mi_limits):
                 total_shape = _expand_shape(mi_shape, len(expressions)) + _expand_shape(shape, len(binby))
-                # print("expressions", expressions)
-                # print("total_shape", total_shape)
-                # print("limits", limits,expression_limits)
-                # print("limits>", list(limits) + list(expression_limits))
                 counts = self.count(binby=list(expressions) + list(binby), limits=list(expression_limits) + list(limits),
                                     shape=total_shape, delay=True, selection=selection)
                 values.append(calculate(counts))
@@ -722,7 +738,12 @@ class DataFrame(object):
                 sorted_x = list([x[k] for k in indices])
                 return mi_list[indices], sorted_x
             else:
-                return np.array(vaex.utils.unlistify(waslist, mi_list))
+                mi_list = np.array(mi_list)
+                # reconstruct original ordering
+                mi_list = mi_list[unique_reverse]
+                total_shape = _expand_shape(shape, len(binby))
+                total_shape += shape_result
+                return np.array(vaex.utils.unlistify(waslist, mi_list)).reshape(total_shape)
         values = finish(delayed_list(has_limits(limits, mi_limits)))
         return self._delay(delay, values)
 
@@ -1198,6 +1219,29 @@ class DataFrame(object):
             value = np.array(vaex.utils.unlistify(waslist, correlations))
             return value
         return self._delay(delay, finish(delayed_list(correlations)))
+
+
+    @docsubst
+    def corr(self, x, y=None, binby=[], limits=None, shape=default_shape, selection=False, delay=False, progress=None):
+        @delayed
+        def normalize(cov_matrix):
+            norm = cov_matrix[:]
+            diag = np.diag(cov_matrix)
+            norm = np.outer(diag, diag)**0.5
+            return cov_matrix/norm
+        if y is None:
+            result = normalize(self.cov(x, y, delay=True))
+        elif _issequence(x) and _issequence(y):
+            result = delayed(np.array)([[self.correlation(x_, y_, delay=True) for y_ in y] for x_ in x])
+        elif _issequence(x):
+            combinations = [(k, y) for k in x]
+            result = self.correlation(combinations, delay=True)
+        elif _issequence(y):
+            combinations = [(x, k) for k in y]
+            result = self.correlation(combinations, delay=True)
+        else:
+            result = self.correlation(x, y, delay=True)
+        return self._delay(delay, result)
 
     @docsubst
     def cov(self, x, y=None, binby=[], limits=None, shape=default_shape, selection=False, delay=False, progress=None):
