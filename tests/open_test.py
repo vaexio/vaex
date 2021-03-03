@@ -12,6 +12,7 @@ if sys.platform.startswith("win"):
     pytest.skip("skipping windows, since it has issues re-opening files", allow_module_level=True)
 
 csv2 = os.path.join(path, 'data', 'small2.csv')
+csv3 = os.path.join(path, 'data', 'small2.csv')
 h51 = os.path.join(path, 'data', 'small2.csv.hdf5')
 h52 = os.path.join(path, 'data', 'small3.csv.hdf5')
 target_path = os.path.join(path, 'data', 'output')
@@ -96,6 +97,13 @@ def test_open():
             vaex.open(in_f.name, convert=target)
         assert 'Cannot open' in str(exc.value)
     assert not os.path.exists(target)
+
+
+def test_open_list():
+    df2 = vaex.open(csv2)
+    df3 = vaex.open(csv3)
+    df = vaex.open([csv2, csv3])
+    assert df.x.tolist() == (df2.x.tolist() + df3.x.tolist())
 
 
 def _cleanup_generated_files():

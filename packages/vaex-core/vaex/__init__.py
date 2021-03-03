@@ -159,82 +159,88 @@ def open(path, convert=False, shuffle=False, fs_options={}, fs=None, *args, **kw
     import vaex
     import vaex.convert
     try:
-        path = vaex.file.stringyfy(path)
-        if path in aliases:
-            path = aliases[path]
-        path = vaex.file.stringyfy(path)
-        if path.startswith("http://") or path.startswith("ws://") or \
-           path.startswith("vaex+http://") or path.startswith("vaex+ws://"):  # TODO: think about https and wss
-            server, name = path.rsplit("/", 1)
-            url = urlparse(path)
-            if '?' in name:
-                name = name[:name.index('?')]
-            extra_args = {key: values[0] for key, values in parse_qs(url.query).items()}
-            if 'token' in extra_args:
-                kwargs['token'] = extra_args['token']
-            if 'token_trusted' in extra_args:
-                kwargs['token_trusted'] = extra_args['token_trusted']
-            client = vaex.connect(server, **kwargs)
-            return client[name]
-        if path.startswith("cluster"):
-            import vaex.enterprise.distributed
-            return vaex.enterprise.distributed.open(path, *args, **kwargs)
+        if not isinstance(path, (list, tuple)):
+            # remote and clusters only support single path, not a list
+            path = vaex.file.stringyfy(path)
+            if path in aliases:
+                path = aliases[path]
+            path = vaex.file.stringyfy(path)
+            if path.startswith("http://") or path.startswith("ws://") or \
+            path.startswith("vaex+http://") or path.startswith("vaex+ws://"):  # TODO: think about https and wss
+                server, name = path.rsplit("/", 1)
+                url = urlparse(path)
+                if '?' in name:
+                    name = name[:name.index('?')]
+                extra_args = {key: values[0] for key, values in parse_qs(url.query).items()}
+                if 'token' in extra_args:
+                    kwargs['token'] = extra_args['token']
+                if 'token_trusted' in extra_args:
+                    kwargs['token_trusted'] = extra_args['token_trusted']
+                client = vaex.connect(server, **kwargs)
+                return client[name]
+            if path.startswith("cluster"):
+                import vaex.enterprise.distributed
+                return vaex.enterprise.distributed.open(path, *args, **kwargs)
+
+        import vaex.file
+        import glob
+        if isinstance(path, str):
+            paths = [path]
         else:
-            import vaex.file
-            import glob
-            if isinstance(path, str):
-                paths = [path]
+            paths = path
+        filenames = []
+        for path in paths:
+            path = vaex.file.stringyfy(path)
+            if path in aliases:
+                path = aliases[path]
+            path = vaex.file.stringyfy(path)
+            naked_path, options = vaex.file.split_options(path)
+            if glob.has_magic(naked_path):
+                filenames.extend(list(sorted(vaex.file.glob(path, **kwargs))))
             else:
-                paths = path
-            filenames = []
-            for path in paths:
-                naked_path, options = vaex.file.split_options(path)
-                if glob.has_magic(naked_path):
-                    filenames.extend(list(sorted(vaex.file.glob(path, **kwargs))))
-                else:
-                    filenames.append(path)
-            df = None
-            if len(filenames) == 0:
-                raise IOError(f'File pattern did not match anything {path}')
-            filename_hdf5 = vaex.convert._convert_name(filenames, shuffle=shuffle)
-            filename_hdf5_noshuffle = vaex.convert._convert_name(filenames, shuffle=False)
-            if len(filenames) == 1:
-                path = filenames[0]
-                # # naked_path, _ = vaex.file.split_options(path, fs_options)
-                _, ext, _ = vaex.file.split_ext(path)
-                if ext == '.csv':  # special case for csv
-                    return vaex.from_csv(path, fs_options=fs_options, fs=fs, convert=convert, **kwargs)
+                filenames.append(path)
+        df = None
+        if len(filenames) == 0:
+            raise IOError(f'File pattern did not match anything {path}')
+        filename_hdf5 = vaex.convert._convert_name(filenames, shuffle=shuffle)
+        filename_hdf5_noshuffle = vaex.convert._convert_name(filenames, shuffle=False)
+        if len(filenames) == 1:
+            path = filenames[0]
+            # # naked_path, _ = vaex.file.split_options(path, fs_options)
+            _, ext, _ = vaex.file.split_ext(path)
+            if ext == '.csv':  # special case for csv
+                return vaex.from_csv(path, fs_options=fs_options, fs=fs, convert=convert, **kwargs)
+            if convert:
+                path_output = convert if isinstance(convert, str) else filename_hdf5
+                vaex.convert.convert(
+                    path_input=path, fs_options_input=fs_options, fs_input=fs,
+                    path_output=path_output, fs_options_output=fs_options, fs_output=fs,
+                    *args, **kwargs
+                )
+                ds = vaex.dataset.open(path_output, fs_options=fs_options, fs=fs, **kwargs)
+            else:
+                ds = vaex.dataset.open(path, fs_options=fs_options, fs=fs, **kwargs)
+            df = vaex.from_dataset(ds)
+            if df is None:
+                if os.path.exists(path):
+                    raise IOError('Could not open file: {}, did you install vaex-hdf5? Is the format supported?'.format(path))
+        elif len(filenames) > 1:
+            if convert not in [True, False]:
+                filename_hdf5 = convert
+            else:
+                filename_hdf5 = vaex.convert._convert_name(filenames, shuffle=shuffle)
+            if os.path.exists(filename_hdf5) and convert:  # also check mtime
+                df = vaex.open(filename_hdf5)
+            else:
+                dfs = []
+                for filename in filenames:
+                    dfs.append(vaex.open(filename, convert=bool(convert), shuffle=shuffle, **kwargs))
+                df = vaex.concat(dfs)
                 if convert:
-                    path_output = convert if isinstance(convert, str) else filename_hdf5
-                    vaex.convert.convert(
-                        path_input=path, fs_options_input=fs_options, fs_input=fs,
-                        path_output=path_output, fs_options_output=fs_options, fs_output=fs,
-                        *args, **kwargs
-                    )
-                    ds = vaex.dataset.open(path_output, fs_options=fs_options, fs=fs, **kwargs)
-                else:
-                    ds = vaex.dataset.open(path, fs_options=fs_options, fs=fs, **kwargs)
-                df = vaex.from_dataset(ds)
-                if df is None:
-                    if os.path.exists(path):
-                        raise IOError('Could not open file: {}, did you install vaex-hdf5? Is the format supported?'.format(path))
-            elif len(filenames) > 1:
-                if convert not in [True, False]:
-                    filename_hdf5 = convert
-                else:
-                    filename_hdf5 = vaex.convert._convert_name(filenames, shuffle=shuffle)
-                if os.path.exists(filename_hdf5) and convert:  # also check mtime
+                    if shuffle:
+                        df = df.shuffle()
+                    df.export_hdf5(filename_hdf5)
                     df = vaex.open(filename_hdf5)
-                else:
-                    dfs = []
-                    for filename in filenames:
-                        dfs.append(vaex.open(filename, convert=bool(convert), shuffle=shuffle, **kwargs))
-                    df = vaex.concat(dfs)
-                    if convert:
-                        if shuffle:
-                            df = df.shuffle()
-                        df.export_hdf5(filename_hdf5)
-                        df = vaex.open(filename_hdf5)
 
         if df is None:
             raise IOError('Unknown error opening: {}'.format(path))
