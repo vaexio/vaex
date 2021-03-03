@@ -52,7 +52,7 @@
                 "has_default": false,
                 "help": "If True, display a progressbar of the PCA fitting process.",
                 "name": "progress",
-                "type": "CBool"
+                "type": "Any"
             }
         ],
         "version": "1.0.0"
