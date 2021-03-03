@@ -20,6 +20,13 @@ def test_non_existing_column(df_local):
         df.copy(column_names=['x', 'x_'])
 
 
+def test_copy_alias(df_local):
+    df = df_local
+    df['alias'] = df.x
+    dfc = df.copy(['alias'])
+    assert set(dfc.get_column_names(hidden=True)) == {'alias', '__x'}
+
+
 def test_copy_dependencies():
     df = vaex.from_scalars(x=1)
     df['y'] = df.x + 1
