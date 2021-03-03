@@ -3607,10 +3607,9 @@ class DataFrame(object):
         # print(values_list)
         import tabulate
         table_text = str(tabulate.tabulate(values_list, headers="keys", tablefmt=format))
-        if tabulate.__version__ == '0.8.7':
-            # Tabulate 0.8.7 escapes html :()
-            table_text = table_text.replace('&lt;i style=&#x27;opacity: 0.6&#x27;&gt;', "<i style='opacity: 0.6'>")
-            table_text = table_text.replace('&lt;/i&gt;', "</i>")
+        # Tabulate 0.8.7+ escapes html :()
+        table_text = table_text.replace('&lt;i style=&#x27;opacity: 0.6&#x27;&gt;', "<i style='opacity: 0.6'>")
+        table_text = table_text.replace('&lt;/i&gt;', "</i>")
         if i2 - i1 == 0:
             if self._length_unfiltered != len(self):
                 footer_text = 'No rows to display (because of filtering).'
