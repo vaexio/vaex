@@ -196,7 +196,7 @@ def open(path, convert=False, shuffle=False, fs_options={}, fs=None, *args, **kw
             path = vaex.file.stringyfy(path)
             naked_path, options = vaex.file.split_options(path)
             if glob.has_magic(naked_path):
-                filenames.extend(list(sorted(vaex.file.glob(path, **kwargs))))
+                filenames.extend(list(sorted(vaex.file.glob(path, fs_options=fs_options, fs=fs))))
             else:
                 filenames.append(path)
         df = None
