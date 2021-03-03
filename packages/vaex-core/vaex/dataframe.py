@@ -5111,7 +5111,8 @@ class DataFrameLocal(DataFrame):
                         expression_columns.add(name)
                         expr = self[name]
                     # we expand it ourselves
-                    deps = expr.variables(expand_virtual=False)
+                    deps = expr.variables(ourself=True, expand_virtual=False)
+                    deps -= {name}
                     # the columns we didn't know we required yet
                     missing = deps - required
                     required.update(deps)
