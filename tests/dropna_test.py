@@ -121,3 +121,17 @@ def test_dropna_all_columns():
     df_dropped = df.dropna()
     assert df_dropped.x.tolist() == [1, 2, 4]
     assert df_dropped.y.tolist() == ['dog', 'dog', 'cat']
+
+
+def test_dropna_string_columns():
+    data_dict = {'10': [1, 2, np.nan],
+                 '20': [0.5, 0.6, np.nan],
+                 '30': [-1, np.nan, np.nan]}
+    df = vaex.from_dict(data_dict)
+
+    df_dropped = df.dropna()
+
+    assert df_dropped.shape == (1, 3)
+    assert df_dropped['10'].tolist() == [1]
+    assert df_dropped['20'].tolist() == [0.5]
+    assert df_dropped['30'].tolist() == [-1]

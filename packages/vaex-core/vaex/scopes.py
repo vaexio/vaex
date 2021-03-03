@@ -192,6 +192,8 @@ class _BlockScopeSelection(ScopeBase):
     def __getitem__(self, variable):
         if variable == "__tracebackhide__":  # required for tracebacks
             return False
+        if variable == 'df':
+            return self  # to support df['no!identifier']
         # logger.debug("getitem for selection: %s", variable)
         try:
             selection = self.selection
