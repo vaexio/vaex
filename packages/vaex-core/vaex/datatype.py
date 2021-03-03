@@ -221,6 +221,9 @@ class DataType:
         datetime64[ns]
         >>> date_type == 'datetime'
         True
+        >>> date_type = DataType(pa.large_string())
+        >>> date_type.is_datetime
+        False
         """
         if self.is_arrow:
             return pa.types.is_timestamp(self.internal)
@@ -238,7 +241,12 @@ class DataType:
         True
         >>> dtype.is_timedelta
         True
+        >>> date_type = DataType(pa.large_string())
+        >>> date_type.is_timedelta
+        False
         '''
+        if self.is_string:
+            return False
         return vaex.array_types.to_numpy_type(self.internal).kind in 'm'
 
     @property
