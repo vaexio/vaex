@@ -40,3 +40,10 @@ def test_correlation():
                          [zy, zz]
                          ))
     np.testing.assert_array_almost_equal(result, expected)
+
+
+    result = df.corr(x=['x', 'y', 'z'], y=['y', 'z'])
+
+    result = df.corr(['x', 'y'], binby='x', shape=4, limits=[-2, 2])
+    result0 = df.corr(['x', 'y'], selection=(df.x >= -2) & (df.x < -1))
+    np.testing.assert_array_almost_equal(result[0], result0)

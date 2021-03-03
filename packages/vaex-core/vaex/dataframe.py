@@ -1173,19 +1173,23 @@ class DataFrame(object):
         @delayed
         def corr(cov):
             with np.errstate(divide='ignore', invalid='ignore'):  # these are fine, we are ok with nan's in vaex
-                return cov[..., 0, 1] / (cov[..., 0, 0] * cov[..., 1, 1])**0.5
+                corr = cov[..., 0, 1] / (cov[..., 0, 0] * cov[..., 1, 1])**0.5
+            return corr
 
         if y is None:
             if not isinstance(x, (tuple, list)):
                 raise ValueError("if y not given, x is expected to be a list or tuple, not %r" % x)
             if _issequence(x) and not _issequence(x[0]) and len(x) == 2:
                 x = [x]
-            if not(_issequence(x) and all([_issequence(k) and len(k) == 2 for k in x])):
+            if _issequence(x) and not all([_issequence(k) and len(k) == 2 for k in x]):
+                xlist = [x]
+                ylist = [None]
+                waslist = False
+            elif _issequence(x) and all([_issequence(k) and len(k) == 2 for k in x]):
+                waslist = True
+                xlist, ylist = zip(*x)
+            else:
                 raise ValueError("if y not given, x is expected to be a list of lists with length 2, not %r" % x)
-            # waslist, [xlist,ylist] = vaex.utils.listify(*x)
-            waslist = True
-            xlist, ylist = zip(*x)
-            # print xlist, ylist
         else:
             waslist, [xlist, ylist] = vaex.utils.listify(x, y)
         xlist = _ensure_strings_from_expressions(xlist)
@@ -1226,21 +1230,23 @@ class DataFrame(object):
         @delayed
         def normalize(cov_matrix):
             norm = cov_matrix[:]
-            diag = np.diag(cov_matrix)
-            norm = np.outer(diag, diag)**0.5
+            diag = np.diagonal(cov_matrix, axis1=-2, axis2=-1)
+            # generalized outer product
+            norm = (diag[...,np.newaxis,:] * diag[...,np.newaxis]) ** 0.5
+            # norm = np.outer(diag, diag)**0.5
             return cov_matrix/norm
         if y is None:
-            result = normalize(self.cov(x, y, delay=True))
+            result = normalize(self.cov(x, y, binby=binby, limits=limits, shape=shape, selection=selection, delay=True, progress=progress))
         elif _issequence(x) and _issequence(y):
-            result = delayed(np.array)([[self.correlation(x_, y_, delay=True) for y_ in y] for x_ in x])
+            result = delayed(np.array)([[self.correlation(x_, y_, binby=binby, limits=limits, shape=shape, selection=selection, delay=True, progress=progress) for y_ in y] for x_ in x])
         elif _issequence(x):
             combinations = [(k, y) for k in x]
-            result = self.correlation(combinations, delay=True)
+            result = self.correlation(combinations, binby=binby, limits=limits, shape=shape, selection=selection, delay=True, progress=progress)
         elif _issequence(y):
             combinations = [(x, k) for k in y]
-            result = self.correlation(combinations, delay=True)
+            result = self.correlation(combinations, binby=binby, limits=limits, shape=shape, selection=selection, delay=True, progress=progress)
         else:
-            result = self.correlation(x, y, delay=True)
+            result = self.correlation(x, y, binby=binby, limits=limits, shape=shape, selection=selection, delay=True, progress=progress)
         return self._delay(delay, result)
 
     @docsubst
