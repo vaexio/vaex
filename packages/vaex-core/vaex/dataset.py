@@ -8,14 +8,17 @@ import uuid
 from urllib.parse import urlparse
 
 import numpy as np
-import blake3
 from frozendict import frozendict
 import pyarrow as pa
 
 import vaex
+import vaex.utils
 from vaex.array_types import data_type
 from .column import Column, ColumnIndexed, supported_column_types
 from . import array_types
+
+
+blake3 = vaex.utils.optional_import('blake3')
 
 logger = logging.getLogger('vaex.dataset')
 
@@ -631,9 +634,15 @@ class DatasetTake(Dataset):
         self.original = original
         self.indices = indices
         self.masked = masked
-        self._hash_index = hash_array(indices)
+        self._lazy_hash_index = None
         self._create_columns()
         self._set_row_count()
+
+    @property
+    def _hash_index(self):
+        if self._lazy_hash_index is None:
+            self._lazy_hash_index = hash_array(self.indices)
+        return self._lazy_hash_index
 
     def _create_columns(self):
         # if the columns in ds already have a ColumnIndex
