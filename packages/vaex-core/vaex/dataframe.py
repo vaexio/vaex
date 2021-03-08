@@ -2060,7 +2060,7 @@ class DataFrame(object):
             # if an expression like pi * <some_expr> it will evaluate to a quantity instead of a unit
             unit_or_quantity = eval(expression, expression_namespace, scopes.UnitScope(self))
             unit = unit_or_quantity.unit if hasattr(unit_or_quantity, "unit") else unit_or_quantity
-            return unit
+            return unit if isinstance(unit, astropy.units.Unit) else None
         except:
             # logger.exception("error evaluating unit expression: %s", expression)
             # astropy doesn't add units, so we try with a quatiti
