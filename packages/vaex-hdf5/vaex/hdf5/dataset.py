@@ -1,17 +1,10 @@
 __author__ = 'maartenbreddels'
 import os
-import mmap
-import itertools
-import functools
-import collections
 import logging
 import numpy as np
 import numpy.ma
 import vaex
-import astropy.table
-import astropy.units
 from vaex.utils import ensure_string
-import astropy.io.fits as fits
 import re
 import six
 import vaex.dataset
@@ -24,6 +17,9 @@ from vaex.file.column import ColumnFile
 import vaex.arrow.convert
 
 from .utils import h5mmap
+
+astropy = vaex.utils.optional_import("astropy.units")
+
 
 logger = logging.getLogger("vaex.file")
 

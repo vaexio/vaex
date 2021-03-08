@@ -972,7 +972,10 @@ class ProxyModule:
         if self.module is None:
             import importlib
             try:
-                self.module = importlib.import_module(self.name)
+                importlib.import_module(self.name)
+                # the module object itself needs to be the top module
+                top_name = self.name.split(".")[0]
+                self.module = importlib.import_module(top_name)
             except Exception as e:
                 raise ImportError(f'''Error importing module {self.name}: {e}
 
