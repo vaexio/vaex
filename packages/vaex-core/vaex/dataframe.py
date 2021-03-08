@@ -1521,7 +1521,6 @@ class DataFrame(object):
         :param delay: {delay}
         :return: {return_limits}
         """
-        import scipy
         logger.info("limits_percentage for %r, with percentage=%r", expression, percentage)
         waslist, [expressions, ] = vaex.utils.listify(expression)
         limits = []
@@ -1535,7 +1534,7 @@ class DataFrame(object):
             # TODO: this is crude.. see the details!
             f = (1 - percentage / 100.) / 2
             x = np.linspace(vmin, vmax, size + 1)
-            l = scipy.interp([f, 1 - f], cumcounts, x)
+            l = np.interp([f, 1 - f], cumcounts, x)
             limits.append(l)
         return vaex.utils.unlistify(waslist, limits)
 

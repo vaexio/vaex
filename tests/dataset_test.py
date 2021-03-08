@@ -9,6 +9,8 @@ import pyarrow.parquet
 import vaex
 import vaex.dataset as dataset
 
+pytest.importorskip("blake3")
+
 HERE = Path(__file__).parent
 
 
