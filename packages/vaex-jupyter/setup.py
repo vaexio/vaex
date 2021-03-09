@@ -14,7 +14,7 @@ author_email = 'maartenbreddels@gmail.com'
 license = 'MIT'
 version = version.__version__
 url = 'https://www.github.com/maartenbreddels/vaex'
-install_requires_jupyter = ['vaex-core>=4.0.0-alpha.3,<5', 'vaex-viz', 'bqplot>=0.10.1', 'ipyvolume>=0.4', 'ipyleaflet', 'ipympl', 'ipyvuetify>=1.2.2,<2', 'xarray']
+install_requires_jupyter = ['vaex-core>=4.0.0,<5', 'vaex-viz', 'bqplot>=0.10.1', 'ipyvolume>=0.4', 'ipyleaflet', 'ipympl', 'ipyvuetify>=1.2.2,<2', 'xarray']
 
 setup(name=name + '-jupyter',
       version=version,
