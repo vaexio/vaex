@@ -14,7 +14,7 @@ author_email = 'maartenbreddels@gmail.com'
 license = 'MIT'
 version = version.__version__
 url = 'https://www.github.com/maartenbreddels/vaex'
-install_requires_server = ['vaex-core>=4.0.0-alpha.3,<5', 'tornado>4.1', 'cachetools']
+install_requires_server = ['vaex-core>=4.0.0,<5', 'tornado>4.1', 'cachetools']
 
 setup(name=name + '-server',
       version=version,
