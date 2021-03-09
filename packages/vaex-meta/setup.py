@@ -13,7 +13,7 @@ author = 'Maarten A. Breddels'
 author_email = 'maartenbreddels@gmail.com'
 license = 'MIT'
 version = version.__version__
-url = 'https://www.github.com/maartenbreddels/vaex'
+url = 'https://www.github.com/vaexio/vaex'
 
 install_requires = [
       'vaex-core>=4.0.0,<5',
