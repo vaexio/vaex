@@ -2218,7 +2218,7 @@ class DataFrame(object):
                      active_range=[self._index_start, self._index_end])
         return state
 
-    def state_set(self, state, use_active_range=False, keep_columns=None, set_filter=True, trusted=True):
+    def state_set(self, state, use_active_range=False, keep_columns=None, set_filter=True, trusted=True, warn=True):
         """Sets the internal state of the df
 
         Example:
@@ -2252,6 +2252,7 @@ class DataFrame(object):
         :param bool use_active_range: Whether to use the active range or not.
         :param list keep_columns: List of columns that should be kept if the state to be set contains less columns.
         :param bool set_filter: Set the filter from the state (default), or leave the filter as it is it.
+        :param bool warn: Give warning when issues are found in the state transfer that are recoverable.
         """
         self.description = state['description']
         if use_active_range:
@@ -2264,7 +2265,10 @@ class DataFrame(object):
                     raise KeyError(f'Column name {column_name} does not exist')
         if 'renamed_columns' in state:
             for old, new in state['renamed_columns']:
-                self._rename(old, new)
+                if old in self:
+                    self._rename(old, new)
+                elif warn:
+                    warnings.warn(f'The state wants to rename {old} to {new}, but {new} was not found, ignoring the rename')
         for name, value in state['functions'].items():
             self.add_function(name, vaex.serialize.from_dict(value, trusted=trusted))
         if 'column_names' in state:
