@@ -9,6 +9,15 @@ supported_array_types = (np.ndarray, ) + supported_arrow_array_types
 string_types = [pa.string(), pa.large_string()]
 
 
+def full(n, value, dtype):
+    from .datatype import DataType
+    dtype = DataType(dtype)
+    values = np.full(n, value, dtype=dtype.numpy)
+    if dtype.is_arrow:
+        return pa.array(values)
+    else:
+        return values
+
 def is_arrow_array(ar):
     return isinstance(ar, supported_arrow_array_types)
 
@@ -38,6 +47,7 @@ def concat(arrays):
     if len(arrays) == 1:
         return arrays[0]
     if any([isinstance(k, vaex.array_types.supported_arrow_array_types) for k in arrays]):
+        arrays = [to_arrow(k) for k in arrays]
         flat_chunks = []
         type = arrays[0].type
         for chunk in arrays:
