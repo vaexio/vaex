@@ -161,6 +161,14 @@ PYBIND11_MODULE(superutils, m) {
 
     py::class_<Mask>(m, "Mask", py::buffer_protocol())
         .def(py::init<size_t>())
+        .def(py::init([](py::buffer mask_array) {
+                py::buffer_info info = mask_array.request();
+                if(info.ndim != 1) {
+                    throw std::runtime_error("Expected a 1d byte buffer");
+                }
+                return new Mask((uint8_t*)info.ptr, info.shape[0]);
+            })
+        )
         .def_buffer([](Mask &mask) -> py::buffer_info {
             std::vector<ssize_t> strides = {1};
             std::vector<ssize_t> shapes = {mask.length};

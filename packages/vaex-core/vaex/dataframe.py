@@ -3912,15 +3912,22 @@ class DataFrame(object):
 
         :rtype: DataFrame
         '''
-        trimmed = self.trim()
-        if trimmed.filtered:
-            self.count()  # make sure the mask is filled
-            mask = self._selection_masks[FILTER_SELECTION_NAME]
-            indices = mask.first(len(self))
-            assert len(indices) == len(self)
-            return self.take(indices, filtered=False)
-        else:
-            return trimmed
+        df = self.trim()
+        if df.filtered:
+            df._push_down_filter()
+            df._invalidate_caches()
+        return df
+
+    def _push_down_filter(self):
+        '''Push the filter down the dataset layer'''
+        self.count()  # make sure the mask is filled
+        mask = self._selection_masks[FILTER_SELECTION_NAME]
+        mask = np.asarray(mask)
+        # indices = mask.first(len(self))
+        # assert len(indices) == len(self)
+        from .dataset import DatasetFiltered
+        self.set_selection(None, name=FILTER_SELECTION_NAME)
+        self.dataset = DatasetFiltered(self.dataset, mask)
 
     def shuffle(self):
         '''Shuffle order of rows (equivalent to df.sample(frac=1))'''
@@ -5390,7 +5397,7 @@ class DataFrameLocal(DataFrame):
     def _invalidate_selection_cache(self):
         self._selection_mask_caches.clear()
         for key in self._selection_masks.keys():
-            self._selection_masks[key] = vaex.superutils.Mask(self._length_original)
+            self._selection_masks[key] = vaex.superutils.Mask(int(self._length_original))
 
     def _filtered_range_to_unfiltered_indices(self, i1, i2):
         assert self.filtered

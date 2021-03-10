@@ -135,6 +135,35 @@ def test_slice():
     assert rebuild(ds1).hashed() != rebuild(ds2).hashed()
 
 
+
+def test_filter():
+    x = np.arange(10)
+    y = x**2
+    filter = (x % 2) == 1
+    ds = dataset.DatasetArrays(x=x, y=y)
+    ds1 = dataset.DatasetFiltered(ds, filter=filter)
+    ds1c = dataset.DatasetFiltered(ds, filter=(x % 2) == 1)
+    ds2 = dataset.DatasetFiltered(ds, filter=(x % 3) == 1)
+    assert ds1.hashed() != ds2.hashed()
+    assert ds1.hashed() == ds1c.hashed()
+    assert ds1.row_count == 5
+    assert ds2.row_count == 3
+    assert ds1.slice(0, 1).row_count == 1
+    assert ds1.slice(1, 3).row_count == 2
+    iter = ds1.chunk_iterator(['x', 'y'], chunk_size=2)
+    for i in range(3):
+        i1, i2, chunks = next(iter)
+        assert i1 == i*2
+        assert i2 == min(5, (i + 1) * 2)
+        chunks['x'].tolist() == x[filter][i1:i2].tolist()
+        chunks['y'].tolist() == y[filter][i1:i2].tolist()
+
+
+    assert ds1['x'].tolist() == x[filter].tolist()
+    assert rebuild(ds1).hashed() != rebuild(ds2).hashed()
+
+
+
 def test_take():
     x = np.arange(10)
     y = x**2

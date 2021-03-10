@@ -233,6 +233,27 @@ def _slice_of_chunks(chunks_ready_list, chunk_size):
             chunks_current_list.append(chunks_current)
     return chunks_current_list, current_row_count
 
+
+def _rechunk(chunk_iter, chunk_size):
+    chunks_ready_list = []
+    i1 = i2 = 0
+    for chunks in chunk_iter:
+        chunks_ready_list.append(chunks)
+        total_row_count = sum([len(list(k.values())[0]) for k in chunks_ready_list])
+        if total_row_count > chunk_size:
+            chunks_current_list, current_row_count = vaex.dataset._slice_of_chunks(chunks_ready_list, chunk_size)
+            i2 += current_row_count
+            chunks = vaex.dataset._concat_chunk_list(chunks_current_list)
+            yield i1, i2, chunks
+            i1 = i2
+
+    while chunks_ready_list:
+        chunks_current_list, current_row_count = vaex.dataset._slice_of_chunks(chunks_ready_list, chunk_size)
+        i2 += current_row_count
+        chunks = vaex.dataset._concat_chunk_list(chunks_current_list)
+        yield i1, i2, chunks
+        i1 = i2
+
 class Dataset(collections.abc.Mapping):
     def __init__(self):
         super().__init__()
@@ -399,7 +420,8 @@ class ColumnProxy(vaex.column.Column):
         return self.ds.row_count
 
     def to_numpy(self):
-        return np.array(self)
+        values = self[:]
+        return np.array(values)
 
     def __getitem__(self, item):
         if isinstance(item, slice):
@@ -432,6 +454,10 @@ class DatasetRenamed(Dataset):
         self._columns = frozendict({self.renaming.get(name, name): ar for name, ar in self.original.items()})
 
     def chunk_iterator(self, columns, chunk_size=None, reverse=False):
+        for name in columns:
+            if name in self.renaming:
+                rename = self.renaming[name]
+                raise KeyError(f'Oops, you tried to get column {name}, but you renamed it to {rename}')
         columns = [self.reverse.get(name, name) for name in columns]
         for i1, i2, chunks in self.original.chunk_iterator(columns, chunk_size, reverse=reverse):
             yield i1, i2, {self.renaming.get(name, name): ar for name, ar in chunks.items()}
@@ -583,7 +609,6 @@ class DatasetConcatenated(Dataset):
     def chunk_iterator(self, columns, chunk_size=None, reverse=False, start=0, end=None):
         chunk_size = chunk_size or 1024*1024
         i1 = 0
-        chunks_ready_list = []
         i1 = i2 = 0
         if not columns:
             end = self.row_count if end is None else end
@@ -595,22 +620,8 @@ class DatasetConcatenated(Dataset):
                 i2 = min(length, i1 + chunk_size)
             return
 
-        for chunks in self._chunk_iterator_non_strict(columns, chunk_size, reverse=reverse, start=start, end=self.row_count if end is None else end):
-            chunks_ready_list.append(chunks)
-            total_row_count = sum([len(list(k.values())[0]) for k in chunks_ready_list])
-            if total_row_count > chunk_size:
-                chunks_current_list, current_row_count = vaex.dataset._slice_of_chunks(chunks_ready_list, chunk_size)
-                i2 += current_row_count
-                chunks = vaex.dataset._concat_chunk_list(chunks_current_list)
-                yield i1, i2, chunks
-                i1 = i2
-
-        while chunks_ready_list:
-            chunks_current_list, current_row_count = vaex.dataset._slice_of_chunks(chunks_ready_list, chunk_size)
-            i2 += current_row_count
-            chunks = vaex.dataset._concat_chunk_list(chunks_current_list)
-            yield i1, i2, chunks
-            i1 = i2
+        chunk_iterator = self._chunk_iterator_non_strict(columns, chunk_size, reverse=reverse, start=start, end=self.row_count if end is None else end)
+        yield from _rechunk(chunk_iterator, chunk_size)
 
     def close(self):
         for ds in self.datasets:
@@ -684,6 +695,77 @@ class DatasetTake(Dataset):
         self.original.close()
 
 
+class DatasetFiltered(Dataset):
+    def __init__(self, original, filter, expected_length=None):
+        super().__init__()
+        self.original = original
+        self._filter = filter
+        self._lazy_hash_filter = None
+        self._create_columns()
+        self._row_count = np.sum(self._filter)
+        if expected_length is not None:
+            if expected_length != self._row_count:
+                raise ValueError(f'Expected filter to have {expected_length} true values, but counted {self._row_count}')
+
+    @property
+    def _hash_index(self):
+        if self._lazy_hash_filter is None:
+            self._lazy_hash_filter = hash_array(self._filter)
+        return self._lazy_hash_filter
+
+    def _create_columns(self):
+        columns = {name: vaex.dataset.ColumnProxy(self, name, data_type(col)) for name, col in self.original._columns.items()}
+        hashes = {}
+        for name, column in self.original.items():
+            if name in self.original._ids:
+                hashes[name] = hash_combine(self._hash_index, self.original._ids[name])
+        self._columns = frozendict(columns)
+        self._ids = frozendict(hashes)
+
+    def chunk_iterator(self, columns, chunk_size=None, reverse=False):
+        chunk_size = chunk_size or 1024**2
+        if not columns:
+            end = self.row_count
+            length = end
+            i1 = i2 = 0
+            i2 = min(length, i1 + chunk_size)
+            while i1 < length:
+                yield i1, i2, {}
+                i1 = i2
+                i2 = min(length, i1 + chunk_size)
+            return
+        def filtered_chunks():
+            for i1, i2, chunks in self.original.chunk_iterator(columns, chunk_size=chunk_size, reverse=reverse):
+                chunks_filtered = {name: vaex.array_types.filter(ar, self._filter[i1:i2]) for name, ar in chunks.items()}
+                yield chunks_filtered
+        yield from _rechunk(filtered_chunks(), chunk_size)
+
+    def is_masked(self, column):
+        return self.original.is_masked(column)
+
+    def shape(self, column):
+        return self.original.shape(column)
+
+    def hashed(self):
+        if set(self._ids) == set(self):
+            return self
+        return type(self)(self.original.hashed(), self._filter)
+
+    def close(self):
+        self.original.close()
+
+    def slice(self, start, end):
+        if start == 0 and end == self.row_count:
+            return self
+        expected_length = end - start
+        mask = vaex.superutils.Mask(memoryview(self._filter))
+        start, end = mask.indices(start, end-1)
+        end += 1
+        filter = self._filter[start:end]
+        assert filter.sum() == expected_length
+        return type(self)(self.original.slice(start, end), filter)
+
+
 class DatasetSliced(Dataset):
     def __init__(self, original, start, end):
         super().__init__()
@@ -695,7 +777,7 @@ class DatasetSliced(Dataset):
         self._ids = {}
 
     def _create_columns(self):
-        self._columns = {name: vaex.dataset.ColumnProxy(self, name, col.dtype) for name, col in self.original._columns.items()}
+        self._columns = {name: vaex.dataset.ColumnProxy(self, name, data_type(col)) for name, col in self.original._columns.items()}
 
     def chunk_iterator(self, columns, chunk_size=None, reverse=False):
         yield from self.original.chunk_iterator(columns, chunk_size=chunk_size, reverse=reverse, start=self.start, end=self.end)
