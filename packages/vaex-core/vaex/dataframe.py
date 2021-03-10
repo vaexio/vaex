@@ -4121,6 +4121,85 @@ class DataFrame(object):
             indices = indices[::-1].copy()  # this may be used a lot, so copy for performance
         return self.take(indices)
 
+    def _shift(self, periods, column=None, fill_value=None, inplace=False):
+        """Shift a column or multiple columns by `periods` amounts of rows.
+
+        :param int periods: Shift column forward (when positive) or backwards (when negative)
+        :param str or list[str] column: Column or list of columns to shift (default is all).
+        :param fill_value: Value to use instead of missing values.
+        :param inplace: {inplace}
+        """
+        df = self.trim(inplace=inplace)
+        if df.filtered:
+            df._push_down_filter()
+        from .shift import DatasetShifted
+        # we want to shows these shifted
+        if column is not None:
+            columns = set(column) if _issequence(column) else {column}
+        else:
+            columns = set(df.get_column_names())
+        columns_all = set(df.get_column_names(hidden=False))
+
+        # these columns we do NOT want to shift, because we didn't ask it
+        # or because we depend on them (virtual column)
+        columns_keep = columns_all - columns
+        columns_keep |= df._depending_columns(columns_keep, check_filter=False)  # TODO: remove filter check
+
+        columns_shift = columns.copy()
+        columns_shift |= df._depending_columns(columns)
+        virtual_columns = df.virtual_columns.copy()
+        # these are the columns we want to shift, but *also* want to keep the original
+        columns_conflict = columns_keep & columns_shift
+
+        column_shift_mapping = {}
+        # we use this dataframe for tracking virtual columns when renaming
+        df_shifted = df.copy()
+        shifted_names = {}
+        unshifted_names = {}
+        for name in columns_shift:
+            if name in columns_conflict:
+                # we want to have two columns, an unshifted and shifted
+
+                # rename the current to unshifted
+                unshifted_name = df.rename(name, f'__{name}_unshifted', unique=True)
+                unshifted_names[name] = unshifted_name
+
+                # now make a shifted one
+                shifted_name = f'__{name}_shifted'
+                shifted_name = vaex.utils.find_valid_name(shifted_name, used=self.get_column_names(hidden=True))
+                shifted_names[name] = shifted_name
+
+                if name not in virtual_columns:
+                    # if not virtual, we let the dataset layer handle it
+                    column_shift_mapping[unshifted_name] = shifted_name
+                # otherwise we can later on copy the virtual columns from this df
+                df_shifted.rename(name, shifted_name)
+            else:
+                if name not in virtual_columns:
+                    # easy case, just shift
+                    column_shift_mapping[name] = name
+
+        # now that we renamed columns into _shifted/_unshifted we
+        # restore the dataframe with the real column names
+        for name in columns_shift:
+            if name in columns_conflict:
+                if name in virtual_columns:
+                    if name in columns:
+                        df.add_virtual_column(name, df_shifted.virtual_columns[shifted_names[name]])
+                    else:
+                        df.add_virtual_column(name, unshifted_names[name])
+                else:
+                    if name in columns:
+                        df.add_virtual_column(name, shifted_names[name])
+                    else:
+                        df.add_virtual_column(name, unshifted_names[name])
+            else:
+                if name in virtual_columns:
+                    df.virtual_columns[name] = df_shifted.virtual_columns[name]
+                    df._virtual_expressions[name] = Expression(df, df.virtual_columns[name])
+        df.dataset = DatasetShifted(dataset=df.dataset, n=periods, column_mapping=column_shift_mapping, fill_value=fill_value)
+        return df
+
     @docsubst
     def fillna(self, value, column_names=None, prefix='__original_', inplace=False):
         '''Return a DataFrame, where missing values/NaN are filled with 'value'.
@@ -4174,12 +4253,16 @@ class DataFrame(object):
         :param inplace: {inplace}
         '''
         df = self.trim(inplace=inplace)
-        virtual_column = _ensure_string_from_expression(virtual_column)
-        if virtual_column not in df.virtual_columns:
-            raise KeyError('Virtual column not found: %r' % virtual_column)
-        ar = df.evaluate(virtual_column, filtered=False)
-        del df[virtual_column]
-        df.add_column(virtual_column, ar)
+        virtual_columns = _ensure_strings_from_expressions(virtual_column)
+        if not isinstance(virtual_columns, list):
+            virtual_columns = [virtual_columns]
+        for virtual_column in df.virtual_columns:
+            if virtual_column not in df.virtual_columns:
+                raise KeyError('Virtual column not found: %r' % virtual_column)
+        arrays = df.evaluate(virtual_columns, filtered=False)
+        for ar, virtual_column in zip(arrays, virtual_columns):
+            del df[virtual_column]
+            df.add_column(virtual_column, ar)
         return df
 
     def _lazy_materialize(self, *virtual_columns):
@@ -4557,7 +4640,7 @@ class DataFrame(object):
         # WARNING: this is a special case where we create a new filter
         # the cache mask chunks still hold references to views on the old
         # mask, and this new mask will be filled when required
-        df._selection_masks[FILTER_SELECTION_NAME] = vaex.superutils.Mask(df._length_unfiltered)
+        df._selection_masks[FILTER_SELECTION_NAME] = vaex.superutils.Mask(int(df._length_unfiltered))
         return df
 
     def __getitem__(self, item):
@@ -5194,7 +5277,7 @@ class DataFrameLocal(DataFrame):
                 if key == FILTER_SELECTION_NAME:
                     df._selection_masks[key] = self._selection_masks[key]
                 else:
-                    df._selection_masks[key] = vaex.superutils.Mask(df._length_original)
+                    df._selection_masks[key] = vaex.superutils.Mask(int(df._length_original))
                 # and make sure the mask is consistent with the cache chunks
                 np.asarray(df._selection_masks[key])[:] = np.asarray(self._selection_masks[key])
         for key, value in self.selection_history_indices.items():
@@ -6276,7 +6359,7 @@ class DataFrameLocal(DataFrame):
             selection = create_selection(current)
             # only create a mask when we have a selection, so we do not waste memory
             if selection is not None and name not in self._selection_masks:
-                self._selection_masks[name] = vaex.superutils.Mask(self._length_unfiltered)
+                self._selection_masks[name] = vaex.superutils.Mask(int(self._length_unfiltered))
             return selection
         return super()._selection(create_wrapper, name, executor, execute_fully)
 
