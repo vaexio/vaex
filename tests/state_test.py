@@ -80,3 +80,22 @@ def test_state_skip_filter():
     assert len(df2) == 1
     df1.state_set(df2.state_get(), set_filter=False)
     assert df1.z.tolist() == [3, 5]
+
+
+def test_filter_rename_column():
+    df = vaex.from_dict({'feat1':[1, 2, 3],
+                         'feat2': [10, 20, 30],
+                         'y': ['word', None, 'Place']})
+    df = df.dropna(column_names=['y'])
+
+    # Now we want only to transfer the stuff done on the features
+    state = df[['feat1', 'feat2']].state_get()
+
+    # And apply it to a test dataframe
+    df_test = vaex.from_scalars(feat1=5, feat2=10)
+    df_test.state_set(state, set_filter=False)
+
+    assert df_test.shape == (1, 2)
+    assert df_test.get_column_names() == ['feat1', 'feat2']
+    assert df_test.feat1.tolist() == [5]
+    assert df_test.feat2.tolist() == [10]
