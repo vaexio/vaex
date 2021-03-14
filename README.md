@@ -22,6 +22,13 @@ Or conda:
 $ conda install -c conda-forge vaex
 ```
 
+# Installing on macOS Big Sur on Apple Silicon (M1)
+```
+$ xcode-select --install
+$ export MACOSX_DEPLOYMENT_TARGET="11"
+$ pip install vaex
+```
+
 [For more details, see the documentation](https://docs.vaex.io/en/latest/installing.html)
 
 # Key features

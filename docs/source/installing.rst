@@ -24,6 +24,11 @@ Short version
  * **Regular Python users (not recommended)**:  ``pip install --user vaex`` 
  * **System install (not recommended)**: ``sudo pip install vaex`` 
 
+macOS Big Sur on Apple Silicon (M1)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+* ``xcode-select --install``
+* ``export MACOSX_DEPLOYMENT_TARGET="11"``
+* ``pip install vaex``
 
 Longer version
 ^^^^^^^^^^^^^^
