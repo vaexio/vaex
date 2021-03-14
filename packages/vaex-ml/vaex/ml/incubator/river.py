@@ -63,7 +63,7 @@ class RiverModel(state.HasState):
       4  -1.85705    -1.5996
     '''
     snake_name = 'river_model'
-    model = traitlets.Any(default_value=None, allow_none=True, help='Write me').tag(**serialize_pickle)
+    model = traitlets.Any(default_value=None, allow_none=True, help='A River model which implements the `learn_many` method.').tag(**serialize_pickle)
     features = traitlets.List(traitlets.Unicode(), help='List of features to use.')
     target = traitlets.Unicode(allow_none=False, help='The name of the target column.')
     batch_size = traitlets.Int(default_value=1_000_000, allow_none=False, help='Number of samples to be sent to the model in each batch.')
