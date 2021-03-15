@@ -12,7 +12,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-18.04, macOS-latest, windows-latest]
-        python-version: [36, 37, 38]
+        python-version: [36, 37, 38, 39]
 
     steps:
     - uses: actions/checkout@v1
@@ -70,8 +70,8 @@ jobs:
     - name: Build vaex-core (windows)
       if: (matrix.os == 'windows-latest')
       env:
-        CIBW_BUILD: cp${{ matrix.python-version }}*64
-        CIBW_ARCHS_MACOS: "universal2"
+        CIBW_BUILD: cp${{ matrix.python-version }}*64 cp${{ matrix.python-version }}-*
+        CIBW_ARCHS_MACOS: "x86_64 universal2 arm64"
         CIBW_ENVIRONMENT_LINUX: "CFLAGS='-Wl,-strip-all' CXXFLAGS='-Wl,-strip-all'"
       run: |
         python -m cibuildwheel --output-dir dist packages/vaex-core
