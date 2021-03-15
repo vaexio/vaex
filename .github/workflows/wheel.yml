@@ -79,7 +79,7 @@ jobs:
       if: (matrix.os != 'windows-latest')
       env:
         CIBW_BEFORE_BUILD: bin/install_pcre.sh
-        CIBW_BUILD: "cp${{ matrix.python-version }}*64 cp${{ matrix.python-version }}-*"
+        CIBW_BUILD: "cp${{ matrix.python-version }}*64 cp${{ matrix.python-version }}-macosx-*"
         CIBW_ENVIRONMENT_LINUX: "CFLAGS='-Wl,-strip-all' CXXFLAGS='-Wl,-strip-all'"
       run: |
         python -m cibuildwheel --output-dir dist packages/vaex-core
@@ -104,4 +104,4 @@ jobs:
         TWINE_USERNAME: __token__
         TWINE_PASSWORD: ${{ secrets.test_pypi_password }}
       run: |
-        twine upload --skip-existing  --repository testpypi dist/vaex-core* dist/vaex_core*
+        twine upload --skip-existing  --repository testpypi dist/vaex?core*
