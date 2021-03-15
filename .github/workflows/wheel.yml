@@ -81,6 +81,7 @@ jobs:
         CIBW_BEFORE_BUILD: bin/install_pcre.sh
         CIBW_BUILD: "cp${{ matrix.python-version }}*64 cp${{ matrix.python-version }}-macosx-*"
         CIBW_ENVIRONMENT_LINUX: "CFLAGS='-Wl,-strip-all' CXXFLAGS='-Wl,-strip-all'"
+        CIBW_ARCHS_MACOS: "x86_64 universal2 arm64"
       run: |
         python -m cibuildwheel --output-dir dist packages/vaex-core
 
