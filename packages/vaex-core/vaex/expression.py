@@ -842,7 +842,10 @@ def f({0}):
         slices = expression._ast_slices
         if old in slices:
             for node in slices[old]:
-                node.slice.value.s = new
+                if node.value.id == 'df' and isinstance(node.slice.value, ast.Str):
+                    node.slice.value.s = new
+                else:  # py39
+                    node.slice.value = new
         expression._expression = None  # resets the cached string representation
         return expression
 

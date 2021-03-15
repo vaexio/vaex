@@ -16,7 +16,7 @@ jobs:
       max-parallel: 10
       matrix:
         os: [ubuntu-latest, windows-latest, macOS-latest]
-        python-version: [3.7, 3.8]
+        python-version: [3.7, 3.8, 3.9]
 
     steps:
     - uses: maxim-lobanov/setup-xcode@v1
@@ -51,6 +51,12 @@ jobs:
         source activate vaex-dev
         mamba install -c conda-forge py-xgboost
         # xgboost is not available on windows on conda-forge
+    - name: Extra installs
+      if: matrix.python-version != '3.9'
+      shell: bash
+      run: |
+        source activate vaex-dev
+        mamba install -y -q --file ci/conda-env-extra.yml
     - name: Extra windows installs
       if: matrix.os == 'windows-latest'
       shell: bash
@@ -111,7 +117,8 @@ jobs:
       run: |
         ./ci/04-run-test-suite.sh
     - name: Check ml spec
-      if: matrix.os != 'windows-latest'
+      # no catboost for py39
+      if: matrix.python-version != '3.9' && matrix.os != 'windows-latest'
       shell: bash
       run: |
         source activate vaex-dev
