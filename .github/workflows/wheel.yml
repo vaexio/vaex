@@ -71,7 +71,7 @@ jobs:
       if: (matrix.os == 'windows-latest')
       env:
         CIBW_BUILD: cp${{ matrix.python-version }}*64
-        CIBW_ARCHS_MACOS: "x86_64 universal2 arm64"
+        CIBW_ARCHS_MACOS: "universal2"
         CIBW_ENVIRONMENT_LINUX: "CFLAGS='-Wl,-strip-all' CXXFLAGS='-Wl,-strip-all'"
       run: |
         python -m cibuildwheel --output-dir dist packages/vaex-core
