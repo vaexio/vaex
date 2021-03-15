@@ -6033,7 +6033,7 @@ class DataFrameLocal(DataFrame):
 
         progressbar = vaex.utils.progressbars(progress)
         progressbar(0)
-        groups = list(self.groupby(by))
+        groups = self.groupby(by)
         _, ext, _ = vaex.file.split_ext(path)
         if not ext:
             path = vaex.file.stringyfy(path) + '/{subdir}/{uuid}.parquet'
