@@ -117,7 +117,8 @@ jobs:
       run: |
         ./ci/04-run-test-suite.sh
     - name: Check ml spec
-      if: matrix.os != 'windows-latest'
+      # no catboost for py39
+      if: matrix.python-version != '3.9' && matrix.os != 'windows-latest'
       shell: bash
       run: |
         source activate vaex-dev
