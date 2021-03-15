@@ -139,8 +139,8 @@ def validate_expression(expr, variable_set, function_set=[], names=None):
         validate_expression(expr.value, variable_set, function_set, names)
         if isinstance(expr.slice.value, ast_Num):
             pass  # numbers are fine
-        elif isinstance(expr.slice.value, _ast.Str):
-            pass  # and strings
+        elif isinstance(expr.slice.value, str) or isinstance(expr.slice.value, _ast.Str):
+            pass  # and strings (from py3.9, value is str)
         else:
             raise ValueError(
                 "Only subscript/slices with numbers allowed, not: %r" % expr.slice.value)
@@ -439,6 +439,10 @@ class ExpressionString(ast.NodeVisitor):
         v = self.visit(node.slice.value)
         return f'{p}[{v}]'
 
+    # required from py3.9, since in visit_Subscript node can be a string
+    def visit_str(self, node):
+        return repr(node)
+
 class SimplifyExpression(ast.NodeTransformer):
 
     def visit_UnaryOp(self, node):
@@ -526,6 +530,9 @@ class SliceCollector(ast.NodeTransformer):
         self.slices = collections.defaultdict(list)
 
     def visit_Subscript(self, node):
+        # py39
+        if node.value.id == 'df' and isinstance(node.slice.value, str):
+            self.slices[node.slice.value].append(node)
         if node.value.id == 'df' and isinstance(node.slice.value, ast.Str):
             self.slices[node.slice.value.s].append(node)
         return node
