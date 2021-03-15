@@ -70,11 +70,19 @@ class RiverModel(state.HasState):
     num_epochs = traitlets.Int(default_value=1, allow_none=False, help='Number of times each batch is sent to the model.')
     shuffle = traitlets.Bool(default_value=False, allow_none=False, help='If True, shuffle the samples before sending them to the model.')
     prediction_name = traitlets.Unicode(default_value='prediction', help='The name of the virtual column housing the predictions.')
+    prediction_type = traitlets.Enum(values=['predict', 'predict_proba'], default_value='predict',
+                                     help='Which method to use to get the predictions. \
+                                     Can be "predict" or "predict_proba" which correspond to \
+                                     "predict_many" and "predict_proba_many in a River model respectively.')
 
     def __call__(self, *args):
         X = {feature: np.asarray(arg, np.float64) for arg, feature in zip(args, self.features)}
         X = pd.DataFrame(X)
-        return self.model.predict_many(X).values
+
+        if self.prediction_type == 'predict':
+            return self.model.predict_many(X).values
+        else:
+            return self.model.predict_proba_many(X).values
 
 
     def predict(self, df):
@@ -84,7 +92,7 @@ class RiverModel(state.HasState):
         :returns: A in-memory numpy array containing the Model predictions
         :rtype: numpy.array
         '''
-        return self.model.predict_many(df.to_pandas_df(column_names=self.features)).values
+        return self.transform(df)[self.prediction_name].values
 
 
     def transform(self, df):
@@ -111,7 +119,7 @@ class RiverModel(state.HasState):
         '''
 
         # Check whether the model is appropriate
-        assert hasattr(self.model, 'learn_many')
+        assert hasattr(self.model, 'learn_many'), 'The model must implement the `.learn_many` method.'
 
         n_samples = len(df)
 
@@ -127,11 +135,12 @@ class RiverModel(state.HasState):
 
                 if self.shuffle:
                     shuffle_index = np.arange(len(df_tmp))
+                    np.random.shuffle(shuffle_index)
                     df_tmp = df_tmp.iloc[shuffle_index]
                     y_tmp = y_tmp.iloc[shuffle_index]
 
                 # Train the model
-                self.model.learn_many(X=df_tmp, y=y_tmp)  # We should also support weights
+                self.model.learn_many(X=df_tmp, y=y_tmp)  # TODO: We should also support weights
         progressbar(1.0)
 
 

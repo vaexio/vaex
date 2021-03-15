@@ -40,8 +40,8 @@ def test_river_regression(df_example):
     pred_in_memory = river_model.predict(df_test)
     np.testing.assert_array_almost_equal(pred_in_memory, df_test.pred.values, decimal=1)
 
-
-def test_river_classification(df_iris_1e5):
+@pytest.mark.parametrize("prediction_type", ['predict', 'predict_proba'])
+def test_river_classification(df_iris_1e5, prediction_type):
     df = df_iris_1e5
     # Convert to a binary problem
     df['target'] = (df['class_'] == 2).astype('int')
@@ -56,7 +56,8 @@ def test_river_classification(df_iris_1e5):
                              batch_size=50_000,
                              num_epochs=3,
                              shuffle=True,
-                             prediction_name='pred')
+                             prediction_name='pred',
+                             prediction_type=prediction_type)
     river_model.fit(df=df_train)
     df_train = river_model.transform(df_train)
 
@@ -65,7 +66,10 @@ def test_river_classification(df_iris_1e5):
     df_test.state_set(state)
 
     assert df_train.column_count() == df_test.column_count()
-    assert df_test.pred.values.shape == (10050,)
+    if prediction_type == 'predict':
+        assert df_test.pred.values.shape == (10050,)
+    else:
+        assert df_test.pred.values.shape == (10050, 2)
 
     pred_in_memory = river_model.predict(df_test)
     np.testing.assert_array_almost_equal(pred_in_memory, df_test.pred.values, decimal=1)
