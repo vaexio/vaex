@@ -44,7 +44,7 @@ function fetch_unpack {
     fi
     # Unpack archive, refreshing contents, echoing dir and file
     # names.
-    tar xfv $out_archive && ls -1d *
+    tar xfv $out_archive
     # rm_mkdir arch_tmp
     # install_rsync
     # (cd arch_tmp && \
