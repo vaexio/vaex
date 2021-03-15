@@ -70,8 +70,7 @@ jobs:
     - name: Build vaex-core (windows)
       if: (matrix.os == 'windows-latest')
       env:
-        CIBW_BUILD: cp${{ matrix.python-version }}*64 cp${{ matrix.python-version }}-*
-        CIBW_ARCHS_MACOS: "x86_64 universal2 arm64"
+        CIBW_BUILD: cp${{ matrix.python-version }}*64
         CIBW_ENVIRONMENT_LINUX: "CFLAGS='-Wl,-strip-all' CXXFLAGS='-Wl,-strip-all'"
       run: |
         python -m cibuildwheel --output-dir dist packages/vaex-core
@@ -80,7 +79,7 @@ jobs:
       if: (matrix.os != 'windows-latest')
       env:
         CIBW_BEFORE_BUILD: bin/install_pcre.sh
-        CIBW_BUILD: cp${{ matrix.python-version }}*64
+        CIBW_BUILD: "cp${{ matrix.python-version }}*64 cp${{ matrix.python-version }}-*"
         CIBW_ENVIRONMENT_LINUX: "CFLAGS='-Wl,-strip-all' CXXFLAGS='-Wl,-strip-all'"
       run: |
         python -m cibuildwheel --output-dir dist packages/vaex-core
