@@ -74,8 +74,24 @@ class DataType:
 
     @property
     def name(self):
-        '''Alias of dtype.numpy.name'''
-        return self.numpy.name
+        '''Alias of dtype.numpy.name or str(dtype.arrow) if not primitive
+
+        >>> DataType(np.dtype('f8')).name
+        'float64'
+        >>> DataType(np.dtype('>f4')).name
+        'float32'
+        >>> DataType(pa.float64()).name
+        'float64'
+        >>> DataType(pa.large_string()).name
+        'large_string'
+        >>> DataType(pa.string()).name
+        'string'
+        >>> DataType(pa.bool_()).name
+        'bool'
+        >>> DataType(np.dtype('?')).name
+        'bool'
+        '''
+        return self.numpy.name if (self.is_primitive or self.is_datetime) else str(self.internal)
 
     @property
     def kind(self):
@@ -133,8 +149,13 @@ class DataType:
         True
         >>> DataType(pa.float32()).is_numeric
         True
+        >>> DataType(pa.large_string()).is_numeric
+        False
         '''
-        return self.kind in 'fiu'
+        try:
+            return self.kind in 'fiu'
+        except NotImplementedError:
+            return False
 
     @property
     def is_primitive(self):
