@@ -232,6 +232,12 @@ class GroupByBase(object):
             dff = self.get_group(values)
             yield tuple(values.tolist()), dff
 
+    def __len__(self):
+        count_agg = vaex.agg.count()
+        counts = self.df._agg(count_agg, self.grid)
+        mask = counts > 0
+        return mask.sum()
+
 
 class BinBy(GroupByBase):
     """Implementation of the binning and aggregation of data, see :method:`binby`."""
