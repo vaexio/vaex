@@ -99,3 +99,19 @@ def test_filter_rename_column():
     assert df_test.get_column_names() == ['feat1', 'feat2']
     assert df_test.feat1.tolist() == [5]
     assert df_test.feat2.tolist() == [10]
+
+
+def test_state_load_gcs():
+    df = vaex.ml.datasets.load_iris()
+    f = vaex.file.open('gs://vaex-data/testing/test_iris_state.json', fs_options={'token': 'anon', 'cache': True})
+    import io
+    f = io.TextIOWrapper(f, encoding='utf8')
+    f.read()
+    df.state_load('gs://vaex-data/testing/test_iris_state.json', fs_options={'token': 'anon', 'cache': True})
+
+    assert df.column_count() == 7
+    assert 'norm_sepal_length' in df.column_names
+    assert 'minmax_petal_width' in df.column_names
+    assert df.minmax_petal_width.minmax().tolist() == [0, 1]
+    assert df.norm_sepal_length.mean().round(decimals=5) == 0
+    assert df.norm_sepal_length.std().round(decimals=5) == 1
