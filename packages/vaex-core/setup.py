@@ -70,8 +70,6 @@ if platform.system().lower() == 'windows':
 else:
     # TODO: maybe enable these flags for non-wheel/conda builds? ["-mtune=native", "-march=native"]
     extra_compile_args = ["-std=c++11", "-O3", "-funroll-loops"]
-    if "x86" in platform.machine():  # not for M1
-        extra_compile_args.append("-mfpmath=sse", )
     extra_compile_args.append("-g")
 if sys.platform == 'darwin':
     extra_compile_args.append("-mmacosx-version-min=10.9")
