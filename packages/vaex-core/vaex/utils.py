@@ -865,7 +865,7 @@ def gen_to_list(fn=None, wrapper=list):
     return listify_return(fn)
 
 
-def find_type_from_dtype(namespace, prefix, dtype, transient=True):
+def find_type_from_dtype(namespace, prefix, dtype, transient=True, support_non_native=True):
     from .array_types import is_string_type
     if dtype == 'string':
         if transient:
@@ -882,7 +882,7 @@ def find_type_from_dtype(namespace, prefix, dtype, transient=True):
         if dtype.kind == "m":
             postfix = "int64"
         # for object there is no non-native version
-        if dtype.kind != 'O' and dtype.byteorder not in ["<", "=", "|"]:
+        if support_non_native and dtype.kind != 'O' and dtype.byteorder not in ["<", "=", "|"]:
             postfix += "_non_native"
     name = prefix + postfix
     if hasattr(namespace, name):

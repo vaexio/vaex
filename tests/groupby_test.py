@@ -1,6 +1,7 @@
 from common import *
 import numpy as np
 import vaex
+import datetime
 
 
 def test_groupby_options():
@@ -293,3 +294,20 @@ def test_groupby_iter():
     assert dfs[0][1].g.tolist() == [0] * 4
     assert dfs[1][0] == (0, '2')
     assert dfs[1][1].g.tolist() == [0] * 1
+
+
+def test_groupby_datetime():
+    data = {'z': [2, 4, 8, 10],
+            't': [np.datetime64('2020-01-01'),
+                  np.datetime64('2020-01-01'),
+                  np.datetime64('2020-02-01'),
+                  np.datetime64('2020-02-01')]
+            }
+
+    df = vaex.from_dict(data)
+    dfg = df.groupby(by='t').agg({'z': 'mean'})
+
+    assert dfg.column_count() == 2
+    assert dfg.z.tolist() == [3, 9]
+    assert dfg.t.dtype.is_datetime
+    assert set(dfg.t.tolist()) == {datetime.date(2020, 1, 1), datetime.date(2020, 2, 1)}

@@ -323,3 +323,9 @@ class DataType:
     @property
     def byteorder(self):
         return self.numpy.byteorder
+
+    def create_array(self, values):
+        if self.is_arrow:
+            return pa.array(values, type=self.arrow)
+        else:
+            return np.asarray(values, dtype=self.numpy)
