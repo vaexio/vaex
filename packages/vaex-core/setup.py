@@ -69,7 +69,7 @@ if platform.system().lower() == 'windows':
     dll_files = ['pcre.dll', 'pcrecpp.dll', 'vcruntime140_1.dll']
 else:
     # TODO: maybe enable these flags for non-wheel/conda builds? ["-mtune=native", "-march=native"]
-    extra_compile_args = ["-std=c++11", "-mfpmath=sse", "-O3", "-funroll-loops"]
+    extra_compile_args = ["-std=c++11", "-O3", "-funroll-loops"]
     extra_compile_args.append("-g")
 if sys.platform == 'darwin':
     extra_compile_args.append("-mmacosx-version-min=10.9")
@@ -92,7 +92,7 @@ extension_strings = Extension("vaex.superstrings", [os.path.relpath(os.path.join
                                library_dirs=[
                                    os.path.join(sys.prefix, 'lib'),
                                    os.path.join(sys.prefix, 'Library', 'lib'), # windows
-                                   os.path.join(dirname, 'vendor', 'pcre', 'Library', 'lib') # windows pcre from conda-forge
+                                   os.path.join(dirname, 'vendor', 'pcre', 'Library', 'lib'), # windows pcre from conda-forge
                                ],
                                extra_compile_args=extra_compile_args,
                                libraries=['pcre', 'pcrecpp']
