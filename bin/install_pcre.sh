@@ -70,7 +70,7 @@ function build_simple {
     local archive=${name_version}.${ext}
     fetch_unpack $url/$archive
     (cd $name_version \
-        && ./configure --prefix=$BUILD_PREFIX $configure_args \
+        && ./configure $configure_args \
         && make -j4 \
         && make install)
     touch "${name}-stamp"
