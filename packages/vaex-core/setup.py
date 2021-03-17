@@ -85,6 +85,7 @@ extension_strings = Extension("vaex.superstrings", [os.path.relpath(os.path.join
                                    get_pybind_include(user=True),
                                    'vendor/string-view-lite/include',
                                    'vendor/boost',
+                                   '/usr/local/include',
                                    os.path.join(sys.prefix, 'include'),
                                    os.path.join(sys.prefix, 'Library', 'include'), # windows
                                    os.path.join(dirname, 'vendor', 'pcre', 'Library', 'include') # windows pcre from conda-forge
