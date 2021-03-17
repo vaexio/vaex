@@ -190,6 +190,8 @@ def parse(path, fs_options={}, fs=None, for_arrow=False):
             import fsspec
             if isinstance(fs, fsspec.AbstractFileSystem):
                 fs = pa.fs.FSSpecHandler(fs)
+            if for_arrow:
+                fs = pyarrow.fs.PyFileSystem(fs)
         return fs, path
     if isinstance(path, (list, tuple)):
         scheme, _ = split_scheme(path[0])
