@@ -96,13 +96,14 @@ class Grouper(BinnerBase):
         keys = self.set.keys()
         self.bin_values = keys
         self.binby_expression = '_ordinal_values(%s, %s)' % (self.expression, self.setname)
-        self.N = len(self.set.keys())
+        self.N = len(self.bin_values)
         if self.set.has_null:
             self.N += 1
-            self.bin_values = ['null'] + self.bin_values
+            self.bin_values = [None] + self.bin_values
         if self.set.has_nan:
             self.N += 1
             self.bin_values = [np.nan] + self.bin_values
+        self.bin_values = self.expression.dtype.create_array(self.bin_values)
         self.binner = self.df._binner_ordinal(self.binby_expression, self.N)
 
 

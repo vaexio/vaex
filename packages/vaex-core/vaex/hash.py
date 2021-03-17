@@ -1,5 +1,6 @@
 import os
 import copyreg
+import vaex
 
 
 on_rtd = os.environ.get('READTHEDOCS', None) == 'True'
@@ -16,49 +17,15 @@ if not on_rtd:
 
 
 def counter_type_from_dtype(dtype, transient=True):
-    from .array_types import is_string_type
-    if is_string_type(dtype):
-        if transient:
-            postfix = 'string'
-        else:
-            postfix = 'string' # view not support atm
-    else:
-        postfix = str(dtype)
-        if postfix == '>f8':
-            postfix = 'float64'
-        if postfix == 'double':  # arrow
-            postfix = 'float64'
-    name = 'counter_' + postfix
-    return globals()[name]
+    return vaex.utils.find_type_from_dtype(vaex.hash, 'counter_', dtype, transient=transient, support_non_native=False)
 
 
 def ordered_set_type_from_dtype(dtype, transient=True):
-    from .array_types import is_string_type
-    if is_string_type(dtype):
-        if transient:
-            postfix = 'string'
-        else:
-            postfix = 'string' #  not support atm
-    else:
-        postfix = str(dtype)
-        if postfix == '>f8':
-            postfix = 'float64'
-    name = 'ordered_set_' + postfix
-    return globals()[name]
+    return vaex.utils.find_type_from_dtype(vaex.hash, 'ordered_set_', dtype, transient=transient, support_non_native=False)
 
 
 def index_type_from_dtype(dtype, transient=True, prime_growth=False):
-    from .array_types import is_string_type
-    if is_string_type(dtype):
-        if transient:
-            postfix = 'string'
-        else:
-            postfix = 'string' #  not support atm
-    else:
-        postfix = str(dtype)
-        if postfix == '>f8':
-            postfix = 'float64'
-    name = 'index_hash_' + postfix
+    name = 'index_hash_'
     if prime_growth:
         name += "_prime_growth"
-    return globals()[name]
+    return vaex.utils.find_type_from_dtype(vaex.hash, name, dtype, transient=transient, support_non_native=False)
