@@ -59,6 +59,21 @@ class FileProxy:
     def __exit__(self, *args):
         self.file.close()
 
+    def readable(self):
+        return True
+
+    def writable(self):
+        return False
+
+    def seekable(self):
+        return True
+
+    def closed(self):
+        return False
+
+    def flush(self):
+        return self.file.flush()
+
 
 def is_file_object(file):
     return hasattr(file, 'read') and hasattr(file, 'seek')
@@ -260,13 +275,17 @@ def open(path, mode='rb', fs_options={}, fs=None, for_arrow=False, mmap=False, e
             return fs.open_input_file(path)
     elif mode == "r":
         def create():
-            return io.TextIOWrapper(fs.open_input_file(path), encoding=encoding)
+            fa = fs.open_input_file(path)
+            fp = FileProxy(fa, path, lambda: fs.open_input_file(path))
+            return io.TextIOWrapper(fp, encoding=encoding)
     elif mode == 'wb':
         def create():
             return fs.open_output_stream(path)
     elif mode == "w":
         def create():
-            return io.TextIOWrapper(fs.open_output_stream(path), encoding=encoding)
+            fa = fs.open_output_stream(path)
+            fp = FileProxy(fa, path, lambda: fs.open_output_stream(path))
+            return io.TextIOWrapper(fa, encoding=encoding)
     else:
         raise ValueError(f'Only mode=rb/bw/r/w are supported, not {mode}')
     return FileProxy(create(), path, create)

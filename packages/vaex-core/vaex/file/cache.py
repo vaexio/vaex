@@ -194,6 +194,21 @@ class CachedFile:
             self.length = self.data_file.length
             self.mask_length = self.mask_file.length
 
+    def readable(self):
+        return True
+
+    def writable(self):
+        return False
+
+    def seekable(self):
+        return True
+
+    def closed(self):
+        return self.file.closed()
+
+    def flush(self):
+        pass
+
     def dup(self):
         if callable(self.file):
             file = self.file
