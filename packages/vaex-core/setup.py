@@ -85,7 +85,7 @@ extension_strings = Extension("vaex.superstrings", [os.path.relpath(os.path.join
                                    get_pybind_include(user=True),
                                    'vendor/string-view-lite/include',
                                    'vendor/boost',
-                                   '/usr/local/include',
+                                   '/usr/local/include',  # needed on osx for m1 builds
                                    os.path.join(sys.prefix, 'include'),
                                    os.path.join(sys.prefix, 'Library', 'include'), # windows
                                    os.path.join(dirname, 'vendor', 'pcre', 'Library', 'include') # windows pcre from conda-forge
@@ -93,7 +93,8 @@ extension_strings = Extension("vaex.superstrings", [os.path.relpath(os.path.join
                                library_dirs=[
                                    os.path.join(sys.prefix, 'lib'),
                                    os.path.join(sys.prefix, 'Library', 'lib'), # windows
-                                   os.path.join(dirname, 'vendor', 'pcre', 'Library', 'lib') # windows pcre from conda-forge
+                                   os.path.join(dirname, 'vendor', 'pcre', 'Library', 'lib'), # windows pcre from conda-forge
+                                   '/usr/local/lib',  # needed on osx for m1 builds
                                ],
                                extra_compile_args=extra_compile_args,
                                libraries=['pcre', 'pcrecpp']
