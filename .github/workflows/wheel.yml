@@ -105,6 +105,6 @@ jobs:
     - name: Publish a Python distribution to PyPI
       env:
         TWINE_USERNAME: __token__
-        TWINE_PASSWORD: ${{ secrets.test_pypi_password }}
+        TWINE_PASSWORD: ${{ secrets.pypi_password_vaex_core }}
       run: |
-        twine upload --skip-existing  --repository testpypi dist/vaex?core*
+        twine upload --skip-existing dist/vaex?core*
