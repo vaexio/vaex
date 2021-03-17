@@ -63,17 +63,17 @@ function build_simple {
     local url=$3
     local ext=${4:-tar.gz}
     local configure_args=${@:5}
-    if [ -e "${name}-stamp" ]; then
-        return
-    fi
+    # if [ -e "${name}-stamp" ]; then
+    #     return
+    # fi
     local name_version="${name}-${version}"
     local archive=${name_version}.${ext}
     fetch_unpack $url/$archive
     (cd $name_version \
-        && ./configure $configure_args \
+        && ./configure --prefix=$BUILD_PREFIX $configure_args \
         && make -j4 \
         && make install)
-    touch "${name}-stamp"
+    # touch "${name}-stamp"
 }
 function build_pcre {
     echo "Buld"
