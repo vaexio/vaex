@@ -1,5 +1,6 @@
 import vaex
 import pytest
+import fsspec
 
 
 fs_options = {'anonymous': 'true'}
@@ -52,3 +53,9 @@ def test_cloud_concat(base_url):
     df = df1.concat(df2)
 
     assert df.x.tolist() == [1, None, 1, 2]
+
+
+def test_fsspec_arrow():
+    fs = fsspec.filesystem('s3', anon=True)
+    df = vaex.open('vaex/testing/xys-masked.parquet', fs=fs)
+    assert df.x.tolist() == [1, None]
