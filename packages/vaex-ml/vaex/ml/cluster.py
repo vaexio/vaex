@@ -1,6 +1,6 @@
 import numpy as np
 import traitlets
-import vaex.ml.state
+import vaex.ml.transformations
 import logging
 import vaex
 import vaex.serialize
@@ -63,7 +63,7 @@ def centroid_stats(centroids, counts, sumpos, inertia, *blocks):
 
 @vaex.serialize.register
 @generate.register
-class KMeans(vaex.ml.state.HasState):
+class KMeans(vaex.ml.transformations.Transformer):
     '''The KMeans clustering algorithm.
 
     Example:
@@ -83,6 +83,7 @@ class KMeans(vaex.ml.state.HasState):
      3            3.3             5.7             6.7            2.1         2                    0
      4            4.2             1.4             5.5            0.2         0                    1
     '''
+    snake_name = 'kmeans'
     features = traitlets.List(traitlets.Unicode(), help='List of features to cluster.')
     n_clusters = traitlets.CInt(default_value=2, help='Number of clusters to form.')
     init = traitlets.Union([Matrix(), traitlets.Unicode()], default_value='random', help='Method for initializing the centroids.')
@@ -91,8 +92,7 @@ class KMeans(vaex.ml.state.HasState):
                                                    and the final results will be the best output of the n_init \
                                                    consecutive runs in terms of inertia.')
     max_iter = traitlets.CInt(default_value=300, help='Maximum number of iterations of the KMeans algorithm for a single run.')
-    random_state = traitlets.CInt(default_value=None, allow_none=True, help='Random number generation for centroid initialization. \
-                                                                             If an int is specified, the randomness becomes deterministic.')
+    random_state = traitlets.CInt(default_value=None, allow_none=True, help='Random number generation for centroid initialization. If an int is specified, the randomness becomes deterministic.')
     verbose = traitlets.CBool(default_value=False, help='If True, enable verbosity mode.')
     cluster_centers = traitlets.List(traitlets.List(traitlets.CFloat()), help='Coordinates of cluster centers.')
     inertia = traitlets.CFloat(default_value=None, allow_none=True, help='Sum of squared distances of samples to their closest cluster center.')
@@ -196,7 +196,7 @@ class KMeans(vaex.ml.state.HasState):
         clusters = centroids.shape[1]
         dimensions = centroids.shape[2]
         # print("k =", k)
-        assert dimensions == len(self.features), "nr of dimensions for centroid should equal nr of features"
+        assert dimensions == len(self.features), "The number of dimensions for the centroid should equal the number of features."
 
         def map(*blocks):  # this will be called with a chunk of the data
             sumpos = np.zeros((runs, clusters, dimensions))

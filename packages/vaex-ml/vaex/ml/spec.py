@@ -9,6 +9,7 @@ from . import generate
 from . import catboost
 from . import lightgbm
 from . import xgboost
+from . import cluster
 
 
 def lmap(f, values):
