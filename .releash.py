@@ -20,7 +20,6 @@ def add_version_replace(package):
         return
     if any(k in package.version_source.semver['prerelease'] for k in "dev alpha beta rc"):
         package.version_targets.append(VersionTargetReplace(package, [
-            'packages/vaex-meta/setup.py',
             'packages/vaex-arrow/setup.py',
             'packages/vaex-graphql/setup.py',
             'packages/vaex-hdf5/setup.py',
@@ -29,9 +28,14 @@ def add_version_replace(package):
             'packages/vaex-server/setup.py',
             'packages/vaex-viz/setup.py',
         ], pattern='{name}(?P<cmp>[^0-9]*)' + str(package.version_source), ))
-
+def add_meta_version_replace(package):
+    # always bump the meta package
+    package.version_targets.append(VersionTargetReplace(package, [
+        'packages/vaex-meta/setup.py',
+    ], pattern='{name}(?P<cmp>[^0-9]*)' + str(package.version_source), ))
 
 add_version_replace(core)
+add_meta_version_replace(core)
 
 core.tag_targets.append(gittag_core)
 core.release_targets.append(ReleaseTargetSourceDist(core))
@@ -52,6 +56,7 @@ for name in names:
     package.version_source = version
     package.version_targets.append(VersionTarget(package, '{path}/vaex/' + name + '/_version.py'))
     add_version_replace(package)
+    add_meta_version_replace(package)
     # it is ok to add this twice, it will only tag once
     package.tag_targets.append(gittag)
     package.release_targets.append(ReleaseTargetSourceDist(package))
