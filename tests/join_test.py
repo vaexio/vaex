@@ -37,6 +37,17 @@ df_e = vaex.from_arrays(a=np.array(['X', 'Y', 'Z']),
                         x2=np.array([3.1, 25, np.nan]),
                         )
 
+df_dt1 = vaex.from_arrays(date=[np.datetime64('2009-10-12T03:00:00'),
+                                np.datetime64('2009-10-12T11:00:00'),
+                                np.datetime64('2009-10-12T12:00:00'),
+                                np.datetime64('2009-12-12T03:00:00')],
+                          value=[1, 2, 3, 4])
+
+df_dt2 = vaex.from_arrays(date=[np.datetime64('2009-10-12T03:00:00'),
+                                np.datetime64('2009-10-12T11:00:00'),
+                                np.datetime64('2009-12-12T03:00:00')],
+                          value=[11, 22, 44])
+
 
 def test_no_on():
     # just adds the columns
@@ -305,3 +316,14 @@ def test_with_masked_no_short_circuit():
     assert dfj[:10].dataset.right._columns['j'].masked
     assert dfj['j'][:10].tolist() == [0, 1, 2, 3, 4, 5, 6, 7, 8, None]
     dfj['j'].tolist()  # make sure we can evaluate the whole column
+
+
+def test_join_datetime():
+    df = df_dt1.join(df_dt2, on='date', rsuffix='_right', how='left')
+    assert df.shape == (4, 4)
+    assert df.value.tolist() == [1, 2, 3, 4]
+    assert df.value_right.tolist() == [11, 22, None, 44]
+    assert df.date_right.tolist() == [np.datetime64('2009-10-12T03:00:00'),
+                                      np.datetime64('2009-10-12T11:00:00'),
+                                      None,
+                                      np.datetime64('2009-12-12T03:00:00')]
