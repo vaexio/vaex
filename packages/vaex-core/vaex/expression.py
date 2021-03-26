@@ -1272,7 +1272,11 @@ class FunctionToScalar(FunctionSerializablePickle):
         for i in range(length):
             scalar_result = self.f(*[fix_type(k[i]) for k in args], **{key: value[i] for key, value in kwargs.items()})
             result.append(scalar_result)
-        result = np.array(result)
+        try:
+            result = np.array(result)
+        except TypeError:
+            # sometimes numpy can be picky, and we try this as a last resort
+            result = np.array(result, dtype="O")
         return result
 
 
