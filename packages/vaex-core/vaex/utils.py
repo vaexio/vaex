@@ -963,10 +963,11 @@ def format_exception_trace(e):
 
 
 class ProxyModule:
-    def __init__(self, name, version):
+    def __init__(self, name, version, package_name=None):
         self.name = name
         self.module = None
         self.version = version
+        self.package_name = package_name or name
 
     def _ensure_import(self):
         if self.module is None:
@@ -981,10 +982,10 @@ class ProxyModule:
 
 Vaex needs an optional dependency '{self.name}' for the feature you are using. To install, use:
 
-$ pip install "{self.name}{self.version}"
+$ pip install "{self.package_name}{self.version}"
 
 Or when using conda:
-$ conda install -c conda-forge "{self.name}{self.version}""
+$ conda install -c conda-forge "{self.package_name}{self.version}""
 
         ''') from e
 
@@ -993,8 +994,8 @@ $ conda install -c conda-forge "{self.name}{self.version}""
         return getattr(self.module, name)
 
 
-def optional_import(name, version=''):
-    return ProxyModule(name, version=version)
+def optional_import(name, version='', package_name=None):
+    return ProxyModule(name, version=version, package_name=package_name)
 
 
 def div_ceil(n, d):

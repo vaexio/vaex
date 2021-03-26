@@ -1,17 +1,40 @@
 __author__ = 'maartenbreddels'
-import PIL.Image
-import PIL.ImageDraw
-try:
-    from StringIO import StringIO
-    py3 = False
-except ImportError:
-    from io import StringIO, BytesIO
-    py3 = True
+
+from io import StringIO, BytesIO
 import collections
 import numpy as np
 import matplotlib.colors
 import warnings
 from base64 import b64encode
+
+import vaex
+import vaex.utils
+
+PIL = vaex.utils.optional_import("PIL.Image", package_name="pillow")
+
+
+@vaex.register_function(scope='image')
+def open(paths):
+    images = [PIL.Image.open(path) for path in vaex.array_types.tolist(paths)]
+    return np.array(images, dtype="O")
+
+
+@vaex.register_function(scope='image')
+def as_numpy(images):
+    images = [np.array(image) for image in images]
+    return np.array(images)
+
+
+@vaex.register_function(scope='image')
+def resize(images, size, resample=3):
+    images = [image.resize(size, resample=resample) for image in images]
+    return np.array(images, dtype="O")
+
+
+@vaex.register_function(scope='image')
+def as_image(arrays):
+    images = [rgba_2_pil(image_array) for image_array in images]
+    return np.array(images, dtype="O")
 
 
 def rgba_2_pil(rgba):
@@ -22,10 +45,7 @@ def rgba_2_pil(rgba):
 
 
 def pil_2_data(im, format="png"):
-    if py3:  # py3 case
-        f = BytesIO()
-    else:
-        f = StringIO()
+    f = BytesIO()
     im.save(f, format)
     return f.getvalue()
 
@@ -37,8 +57,7 @@ def rgba_to_url(rgba):
     im = rgba_2_pil(rgba)
     data = pil_2_data(im)
     data = b64encode(data)
-    if py3:
-        data = data.decode("ascii")
+    data = data.decode("ascii")
     imgurl = "data:image/png;base64," + data + ""
     return imgurl
 

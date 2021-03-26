@@ -71,6 +71,17 @@ def test_dicts():
     print(node)
     assert expr == expr_translate
 
+
+def test_tuple():
+    expr = "fillmissing(o, (1, 2,))"
+    validate_expression(expr, {'o'}, {'fillmissing'})
+    node = parse_expression(expr)
+    assert node is not None
+    expr_translate = translate(expr, lambda x: None)
+    print(node)
+    assert expr == expr_translate
+
+
 def test_validate():
     validate_expression('x + 1', {'x'})
     validate_expression('x == "1"', {'x'})

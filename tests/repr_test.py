@@ -1,6 +1,7 @@
 from common import *
 import pandas as pd
 import datetime
+import PIL.Image
 
 
 def test_repr_invalid_name(df):
@@ -67,3 +68,11 @@ def test_slice_filtered_remte(ds_remote):
     df = ds_remote
     dff = df[df.x > 0]
     assert "0.0bla" not in repr(dff[['x']])
+
+
+def test_pil_image():
+    im = PIL.Image.new('RGB', (32, 32))
+    images = np.array([im], dtype='O')
+    df = vaex.from_arrays(im=images)
+    bundle = df._repr_mimebundle_()
+    assert 'img' in bundle['text/html'].lower()

@@ -130,6 +130,9 @@ def validate_expression(expr, variable_set, function_set=[], names=None):
     elif isinstance(expr, _ast.List):
         for el in expr.elts:
             validate_expression(el, variable_set, function_set, names)
+    elif isinstance(expr, _ast.Tuple):
+        for el in expr.elts:
+            validate_expression(el, variable_set, function_set, names)
     elif isinstance(expr, _ast.Dict):
         for key in expr.keys:
             validate_expression(key, variable_set, function_set, names)
@@ -370,9 +373,13 @@ class ExpressionString(ast.NodeVisitor):
 
     def visit_Call(self, node):
         args = [self.visit(k) for k in node.args]
+        if None in args:
+            raise RuntimeError(f"None in keywords {node.args}")
         keywords = []
         if hasattr(node, 'keywords'):
             keywords = [self.visit(k) for k in node.keywords]
+            if None in keywords:
+                raise RuntimeError(f"None in keywords {node.keywords}")
         return "{}({})".format(node.func.id, ", ".join(args + keywords))
 
     def visit_Str(self, node):
@@ -380,6 +387,9 @@ class ExpressionString(ast.NodeVisitor):
 
     def visit_List(self, node):
         return "[{}]".format(", ".join([self.visit(k) for k in node.elts]))
+
+    def visit_Tuple(self, node):
+        return "({})".format(" ".join([self.visit(k)+","  for k in node.elts]))
 
     def visit_BinOp(self, node):
         newline = indent = ""
