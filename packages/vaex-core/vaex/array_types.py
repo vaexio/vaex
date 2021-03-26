@@ -34,6 +34,8 @@ def filter(ar, boolean_mask):
 
 
 def slice(ar, offset, length=None):
+    if offset == 0 and len(ar) == length:
+        return ar
     if isinstance(ar, supported_arrow_array_types):
         return ar.slice(offset, length)
     else:
