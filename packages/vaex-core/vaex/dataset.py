@@ -234,10 +234,10 @@ def _slice_of_chunks(chunks_ready_list, chunk_size):
     return chunks_current_list, current_row_count
 
 
-def _rechunk(chunk_iter, chunk_size):
+def chunk_rechunk(chunk_iter, chunk_size):
     chunks_ready_list = []
     i1 = i2 = 0
-    for chunks in chunk_iter:
+    for _, _, chunks in chunk_iter:
         chunks_ready_list.append(chunks)
         total_row_count = sum([len(list(k.values())[0]) for k in chunks_ready_list])
         if total_row_count > chunk_size:
@@ -253,6 +253,17 @@ def _rechunk(chunk_iter, chunk_size):
         chunks = vaex.dataset._concat_chunk_list(chunks_current_list)
         yield i1, i2, chunks
         i1 = i2
+
+
+def _rechunk(chunk_iter, chunk_size):
+    def wrapper():
+        i1 = i2 = 0
+        for chunks in chunk_iter:
+            i2 += len(list(chunks.values())[0])
+            yield i1, i2, chunks
+            i1 = i2
+    yield from chunk_rechunk(wrapper(), chunk_size)
+
 
 class Dataset(collections.abc.Mapping):
     def __init__(self):

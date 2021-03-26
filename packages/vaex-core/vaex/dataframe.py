@@ -4171,12 +4171,13 @@ class DataFrame(object):
             indices = indices[::-1].copy()  # this may be used a lot, so copy for performance
         return self.take(indices)
 
-    def _shift(self, periods, column=None, fill_value=None, inplace=False):
+    def _shift(self, periods, column=None, fill_value=None, trim=False, inplace=False):
         """Shift a column or multiple columns by `periods` amounts of rows.
 
         :param int periods: Shift column forward (when positive) or backwards (when negative)
         :param str or list[str] column: Column or list of columns to shift (default is all).
         :param fill_value: Value to use instead of missing values.
+        :param bool trim: Do not include rows that would otherwise have missing values
         :param inplace: {inplace}
         """
         df = self.trim(inplace=inplace)
@@ -4216,12 +4217,13 @@ class DataFrame(object):
 
                 # now make a shifted one
                 shifted_name = f'__{name}_shifted'
-                shifted_name = vaex.utils.find_valid_name(shifted_name, used=self.get_column_names(hidden=True))
+                shifted_name = vaex.utils.find_valid_name(shifted_name, used=df.get_column_names(hidden=True))
                 shifted_names[name] = shifted_name
 
                 if name not in virtual_columns:
                     # if not virtual, we let the dataset layer handle it
                     column_shift_mapping[unshifted_name] = shifted_name
+                    df.column_names.append(shifted_name)
                 # otherwise we can later on copy the virtual columns from this df
                 df_shifted.rename(name, shifted_name)
             else:
@@ -4247,7 +4249,32 @@ class DataFrame(object):
                 if name in virtual_columns:
                     df.virtual_columns[name] = df_shifted.virtual_columns[name]
                     df._virtual_expressions[name] = Expression(df, df.virtual_columns[name])
-        df.dataset = DatasetShifted(dataset=df.dataset, n=periods, column_mapping=column_shift_mapping, fill_value=fill_value)
+        if _issequence(periods):
+            if len(periods) != 2:
+                raise ValueError(f'periods should be a int or a tuple of ints, not {periods}')
+            start, end = periods
+        else:
+            start = end = periods
+        dataset = DatasetShifted(dataset=df.dataset, start=start, end=end, column_mapping=column_shift_mapping, fill_value=fill_value)
+        if trim:
+            # assert start == end
+            slice_start = 0
+            slice_end = dataset.row_count
+            if start > 0:
+                slice_start = start
+            elif start < 0:
+                slice_end = dataset.row_count + start
+            if end != start:
+                if end > start:
+                    slice_end -= end -1
+            dataset = dataset.slice(slice_start, slice_end)
+
+        df.dataset = dataset
+        for name in df.dataset:
+            assert name in df.column_names, f"oops, {name} in dataset, but not in column_names"
+        for name in df.column_names:
+            if name not in df.dataset:
+                assert name in df.virtual_columns
         return df
 
     @docsubst
