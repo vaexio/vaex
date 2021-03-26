@@ -3,12 +3,18 @@ import numbers
 import six
 import datetime
 import pyarrow as pa
-
+from base64 import b64encode
 
 MAX_LENGTH = 50
 
 
-def _format_value(value):
+def _format_value(value, format=None):
+    if format == "html":
+        if hasattr(value, '_repr_png_'):
+            data = value._repr_png_()
+            data_encoded = b64encode(data).decode("ascii")
+            url_data = f"data:image/png;base64,{data_encoded}"
+            return f'<img src="{url_data}"></img>'
     if isinstance(value, six.string_types):
         value = str(value)
     elif isinstance(value, pa.lib.Scalar):

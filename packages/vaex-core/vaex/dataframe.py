@@ -3589,7 +3589,7 @@ class DataFrame(object):
                 values_list[0][1].append(value)
                 for j, name in enumerate(column_names):
                     value = values[name][i]
-                    value = _format_value(value)
+                    value = _format_value(value, format=format)
                     values_list[j+1][1].append(value)
                 # parts += ["</tr>"]
             # return values_list
@@ -3612,7 +3612,10 @@ class DataFrame(object):
         values_list = dict(values_list)
         # print(values_list)
         import tabulate
-        table_text = str(tabulate.tabulate(values_list, headers="keys", tablefmt=format))
+        tablefmt = format
+        if tablefmt == "html":
+            tablefmt = "unsafehtml"
+        table_text = str(tabulate.tabulate(values_list, headers="keys", tablefmt=tablefmt))
         # Tabulate 0.8.7+ escapes html :()
         table_text = table_text.replace('&lt;i style=&#x27;opacity: 0.6&#x27;&gt;', "<i style='opacity: 0.6'>")
         table_text = table_text.replace('&lt;/i&gt;', "</i>")
