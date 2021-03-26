@@ -170,6 +170,13 @@ class TimeDelta(object):
     def __init__(self, expression):
         self.expression = expression
 
+class Image(object):
+    """Image operations
+
+    Operations for images based on PIL/Pillow
+    """
+    def __init__(self, expression):
+        self.expression = expression
 
 class StringOperations(object):
     """String operations.
@@ -344,6 +351,11 @@ class Expression(with_metaclass(Meta)):
     def td(self):
         """Gives access to timedelta operations via :py:class:`TimeDelta`"""
         return TimeDelta(self)
+
+    @property
+    def image(self):
+        """Gives access to image operations via :py:class:`Image`"""
+        return Image(self)
 
     @property
     def str(self):

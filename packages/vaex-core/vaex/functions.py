@@ -36,7 +36,8 @@ scopes = {
     'str': vaex.expression.StringOperations,
     'str_pandas': vaex.expression.StringOperationsPandas,
     'dt': vaex.expression.DateTime,
-    'td': vaex.expression.TimeDelta
+    'td': vaex.expression.TimeDelta,
+    'image': vaex.expression.Image
 }
 
 def register_function(scope=None, as_property=False, name=None, on_expression=True, df_accessor=None, multiprocessing=False):
