@@ -52,6 +52,7 @@ class PCA(Transformer):
     Example:
 
     >>> import vaex
+    >>> import vaex.ml
     >>> df = vaex.from_arrays(x=[2,5,7,2,15], y=[-2,3,0,0,10])
     >>> df
      #   x   y
@@ -73,29 +74,35 @@ class PCA(Transformer):
     # title = traitlets.Unicode(default_value='PCA', read_only=True).tag(ui='HTML')
     n_components = traitlets.Int(help='Number of components to retain. If None, all the components will be retained.').tag(ui='IntText')
     prefix = traitlets.Unicode(default_value="PCA_", help=help_prefix)
-    progress = traitlets.Any(default_value=False, help='If True, display a progressbar of the PCA fitting process.').tag(ui='Checkbox')
+    whiten = traitlets.Bool(default_value=False, allow_none=False, help='If True perform whitening, i.e. remove the relative variance schale of the transformed components.')
+    # progress = traitlets.Any(default_value=False, help='If True, display a progressbar of the PCA fitting process.').tag(ui='Checkbox')
     eigen_vectors_ = traitlets.List(traitlets.List(traitlets.CFloat()), help='The eigen vectors corresponding to each feature').tag(output=True)
     eigen_values_ = traitlets.List(traitlets.CFloat(), help='The eigen values that correspond to each feature.').tag(output=True)
     means_ = traitlets.List(traitlets.CFloat(), help='The mean of each feature').tag(output=True)
+    explained_variance_ = traitlets.List(traitlets.CFloat(), help='Variance explained by each of the components. Same as the eigen values.').tag(output=True)
+    explained_variance_ratio_ = traitlets.List(traitlets.CFloat(), help='Percentage of variance explained by each of the selected components.').tag(output=True)
 
     @traitlets.default('n_components')
     def get_n_components_default(self):
         return len(self.features)
 
-    def fit(self, df):
+    def fit(self, df, progress=None):
         '''Fit the PCA model to the DataFrame.
 
         :param df: A vaex DataFrame.
+        :param progress: If True or 'widget', display a progressbar of the fitting process.
         '''
         self.n_components = self.n_components or len(self.features)
         assert self.n_components >= 2, 'At least two features are required.'
         assert self.n_components <= len(self.features), 'Can not have more components than features.'
-        C = df.cov(self.features, progress=self.progress)
+        C = df.cov(self.features, progress=progress)
         eigen_values, eigen_vectors = np.linalg.eigh(C)
         indices = np.argsort(eigen_values)[::-1]
-        self.means_ = df.mean(self.features, progress=self.progress).tolist()
+        self.means_ = df.mean(self.features, progress=progress).tolist()
         self.eigen_vectors_ = eigen_vectors[:, indices].tolist()
         self.eigen_values_ = eigen_values[indices].tolist()
+        self.explained_variance_ = self.eigen_values_
+        self.explained_variance_ratio_ = (eigen_values[indices] / np.sum(eigen_values)).tolist()
 
     def transform(self, df, n_components=None):
         '''Apply the PCA transformation to the DataFrame.
