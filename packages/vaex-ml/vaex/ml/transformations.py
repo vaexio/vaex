@@ -122,11 +122,84 @@ class PCA(Transformer):
 
         expressions = [copy[feature]-mean for feature, mean in zip(self.features, self.means_)]
         for i in range(n_components):
-            v = eigen_vectors[:, i]
-            expr = dot_product(expressions, v)
+            vector = eigen_vectors[:, i]
+            if self.whiten:
+                expr = dot_product(expressions, vector)
+                expr = f'({expr}) / {np.sqrt(self.explained_variance_[i])}'
+            else:
+                expr = dot_product(expressions, vector)
             name = self.prefix + str(i + name_prefix_offset)
             copy[name] = expr
         return copy
+
+
+@register
+@generate.register
+class PCAIncremental(PCA):
+    '''Transform a set of features using the "sklearn.decomposition.IncrementalPCA" algorithm.
+
+    Note that you need to have scikit-learn installed to fit this Transformer, but not
+    for transformations using an already fitted Transformer.
+
+    Example:
+
+    >>> import vaex
+    >>> import vaex.ml
+    >>> df = vaex.from_arrays(x=[2,5,7,2,15], y=[-2,3,0,0,10])
+    >>> df
+    #    x    y
+    0    2   -2
+    1    5    3
+    2    7    0
+    3    2    0
+    4   15   10
+    >>> pca = vaex.ml.PCAIncremental(n_components=2, features=['x', 'y'], batch_size=3)
+    >>> pca.fit_transform(df)
+    #    x    y      PCA_0      PCA_1
+    0    2   -2  -5.92532   -0.413011
+    1    5    3  -0.380494   1.39112
+    2    7    0  -0.840049  -2.18502
+    3    2    0  -4.61287    1.09612
+    4   15   10  11.7587     0.110794
+    '''
+    snake_name = 'pca_incremental'
+    batch_size = traitlets.Int(default_value=1000, help='Number of samples to be send to the transformer in each batch.')
+    noise_variance_ = traitlets.CFloat(default_value=0, help='The estimated noise covariance following the Probabilistic PCA model from Tipping and Bishop 1999.').tag(output=True)
+    n_samples_seen_ = traitlets.CInt(default_value=0, help='The number of samples processed by the transformer.').tag(output=True)
+
+    @traitlets.default('batch_size')
+    def get_batch_size_defaults(self):
+        return len(self.features) * 5
+
+    def fit(self, df, progress=None):
+        '''Fit the PCAIncremental model to the DataFrame.
+
+        :param df: A vaex DataFrame.
+        :param progress: If True or 'widget', display a progressbar of the fitting process.
+        '''
+
+        sklearn = vaex.utils.optional_import("sklearn.decomposition")
+
+        n_samples = len(df)
+        progressbar = vaex.utils.progressbars(progress)
+        pca = sklearn.decomposition.IncrementalPCA(n_components=self.n_components,
+                                                   batch_size=self.batch_size,
+                                                   whiten=self.whiten)
+
+        for i1, i2, chunk in df.evaluate_iterator(self.features, chunk_size=self.batch_size, array_type='numpy'):
+            progressbar(i1 / n_samples)
+            chunk = np.array(chunk).T.astype(np.float64)
+            pca.partial_fit(X=chunk, check_input=False)
+        progressbar(1.0)
+
+        self.singular_values_ = pca.singular_values_.tolist()
+        self.eigen_vectors_ = pca.components_.T.tolist()
+        self.eigen_values_ = pca.explained_variance_.tolist()
+        self.explained_variance_ = pca.explained_variance_.tolist()
+        self.explained_variance_ratio_ = pca.explained_variance_ratio_.tolist()
+        self.means_ = pca.mean_.tolist()
+        self.noise_variance_ = pca.noise_variance_
+        self.n_samples_seen_ = pca.n_samples_seen_
 
 
 @register
