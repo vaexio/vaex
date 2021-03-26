@@ -2687,3 +2687,11 @@ def index_values(ar):
         return pa.chunked_array([k.indices for k in ar.chunks], type=ar.type.index_type)
     else:
         return ar.indices
+
+
+@register_function(on_expression=False)
+def stack(arrays, strict=False):
+    '''Stack multiple arrays into a multidimensional array'''
+    arrays = [vaex.arrow.numpy_dispatch.unwrap(k) for k in arrays]
+    arrays = [vaex.array_types.to_numpy(k) for k in arrays]
+    return np.ma.stack(arrays, axis=1)
