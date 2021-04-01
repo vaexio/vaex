@@ -32,13 +32,13 @@ def {{ method_name }}(self, {{ signature }}):
 import vaex.dataframe
 # vaex.dataframe.DataFrame.ml._add({{ method_name }}={{ method_name }})
 
-def __init__(self, {{ full_signature }}):
+def __init__(self, {{ full_signature }}, **kwargs):
     \"\"\"
     {{ docstring_args }}
     \"\"\"
     given_kwargs = {key:value for key, value in dict({{ full_args }}).items() if value is not traitlets.Undefined}
 
-    super({{module}}.{{ class_name }}, self).__init__(**given_kwargs)
+    super({{module}}.{{ class_name }}, self).__init__(**given_kwargs, **kwargs)
 
 cls.__init__ = __init__
 cls.__signature__ = __init__

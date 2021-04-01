@@ -40,7 +40,7 @@ def test_valid_sklearn_pca(df_iris):
 def test_pca_incremental(df_iris):
     df = df_iris
     features = ['sepal_width', 'petal_length', 'sepal_length', 'petal_width']
-    pca = vaex.ml.PCAIncremental(features, n_components=2)
+    pca = vaex.ml.PCAIncremental(features=features, n_components=2)
     df_transformed = pca.fit_transform(df)
     assert pca.n_samples_seen_ == 150
     assert len(pca.eigen_values_) == 2
@@ -56,7 +56,7 @@ def test_valid_sklearn_pca_incremental(df_iris):
     sk_pca = IncrementalPCA(batch_size=10)
     sk_result = sk_pca.fit_transform(df[features].values)
     # vaex-ml
-    vaex_pca = vaex.ml.PCAIncremental(features, batch_size=10)
+    vaex_pca = vaex.ml.PCAIncremental(features=features, batch_size=10)
     df_transformed = vaex_pca.fit_transform(df)
     # Compare the results
     np.testing.assert_almost_equal(df_transformed.evaluate('PCA_0'), sk_result[:, 0])
