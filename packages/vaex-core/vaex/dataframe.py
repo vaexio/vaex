@@ -3733,7 +3733,9 @@ class DataFrame(object):
     def get_names(self, hidden=False):
         """Return a list of column names and variable names."""
         names = self.get_column_names(hidden=hidden)
-        return names + [k for k in self.variables.keys() if not hidden or not k.startswith('__')]
+        return names +\
+            [k for k in self.variables.keys() if not hidden or not k.startswith('__')] +\
+            [k for k in self.functions.keys() if not hidden or not k.startswith('__')]
 
     def get_column_names(self, virtual=True, strings=True, hidden=False, regex=None):
         """Return a list of column names
@@ -5962,6 +5964,10 @@ class DataFrameLocal(DataFrame):
                 left.set_variable(name, right.variables[name])
             elif column_name in right.virtual_columns:
                 left.add_virtual_column(name, right.virtual_columns[column_name])
+            elif column_name in right.functions:
+                if name in left.functions:
+                    raise NameError(f'Name collision for function {name}')
+                left.functions[name] = right.functions[name]
             else:
                 right_columns.append(name)
                 # we already add the column name here to get the same order

@@ -302,6 +302,21 @@ def test_join_variables():
     assert df.r_z_rhs.values[0] == 2*3 + 3*4
 
 
+
+def test_join_functions():
+    df1 = vaex.from_scalars(j=444, x=1, y=2)
+    df2 = vaex.from_scalars(k=555, x=1)
+    # df2['x'] = df2.apply(lambda y: y-1, arguments=[df2.y])
+    df2['z'] = df2.apply(lambda x: x+10, arguments=[df1.x])
+    df = df1.join(df2, on='x')
+    assert 'lambda_function' in df.get_names()
+    assert df.x.tolist() == [1]
+    assert df.y.tolist() == [2]
+    assert df.z.tolist() == [11]
+    assert df.j.tolist() == [444]
+    assert df.k.tolist() == [555]
+
+
 def test_with_masked_no_short_circuit():
     # this test that the full table is joined, in some rare condition
     # it can happen that the left table has a value not present in the right
