@@ -115,3 +115,12 @@ def test_state_load_gcs():
     assert df.minmax_petal_width.minmax().tolist() == [0, 1]
     assert df.norm_sepal_length.mean().round(decimals=5) == 0
     assert df.norm_sepal_length.std().round(decimals=5) == 1
+
+
+def test_state_drop():
+    df = vaex.from_scalars(x=1, y=2)
+    dfc = df.copy()
+    df = df.drop('x')
+    dfc.state_set(df.state_get())
+    assert 'x' not in dfc
+    assert 'x' not in dfc.dataset

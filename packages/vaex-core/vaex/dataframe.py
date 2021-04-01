@@ -2328,6 +2328,12 @@ class DataFrame(object):
             else:
                 selection = selections.selection_from_dict(selection_dict)
             self.set_selection(selection, name=name)
+        if self.is_local():
+            for name in self.dataset:
+                if name not in self.column_names:
+                    del self.columns[name]
+
+
 
     def state_write(self, file, fs_options=None, fs=None):
         """Write the internal state to a json or yaml file (see :meth:`DataFrame.state_get`)
