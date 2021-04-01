@@ -8,25 +8,32 @@ import pyarrow as pa
 MAX_LENGTH = 50
 
 
+def _trim_string(value):
+    if len(value) > MAX_LENGTH:
+        value = repr(value[:MAX_LENGTH-3])[:-1] + '...'
+    return value
+
 def _format_value(value):
-    if isinstance(value, six.string_types):
-        value = str(value)
-    elif isinstance(value, pa.lib.Scalar):
+    # print("value = ", value, type(value), isinstance(value, numbers.Number))
+    if isinstance(value, pa.lib.Scalar):
         value = value.as_py()
         if value is None:
-            value = '--'
+            return '--'
         else:
-            value = repr(value)
+            return _trim_string(str(value))
+    if isinstance(value, str):
+        return _trim_string(str(value))
     elif isinstance(value, bytes):
-        value = repr(value)
+        value = _trim_string(repr(value))
     elif isinstance(value, np.ma.core.MaskedConstant):
-        value = str(value)
-    if isinstance(value, np.datetime64):
+        return str(value)
+    elif isinstance(value, np.datetime64):
         if np.isnat(value):
             value = 'NaT'
         else:
             value = ' '.join(str(value).split('T'))
-    if isinstance(value, np.timedelta64):
+        return value
+    elif isinstance(value, np.timedelta64):
         if np.isnat(value):
             value = 'NaT'
         else:
@@ -40,11 +47,10 @@ def _format_value(value):
                 value = str('%i days %+02i:%02i:%02i.%i' % (d,h,m,s,ms))
             else:
                 value = str('%i days %+02i:%02i:%02i' % (d,h,m,s))
-    elif not isinstance(value, numbers.Number):
+        return value
+    elif isinstance(value, numbers.Number):
         value = str(value)
-    if isinstance(value, float):
+    else:
         value = repr(value)
-    if isinstance(value, (str, bytes)):
-        if len(value) > MAX_LENGTH:
-            value = repr(value[:MAX_LENGTH-3])[:-1] + '...'
+        value = _trim_string(value)
     return value

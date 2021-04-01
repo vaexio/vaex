@@ -67,3 +67,10 @@ def test_slice_filtered_remte(ds_remote):
     df = ds_remote
     dff = df[df.x > 0]
     assert "0.0bla" not in repr(dff[['x']])
+
+
+def test_display_large_int(df_factory):
+    large_int = 2**50-1
+    df = df_factory(x=[123, large_int])
+    text = repr(df)
+    assert str(large_int) in text
