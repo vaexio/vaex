@@ -90,7 +90,7 @@ class Grouper(BinnerBase):
         self.set = self.df._set(self.expression)
 
         # TODO: we modify the dataframe in place, this is not nice
-        basename = 'set_%s' % vaex.utils.find_valid_name(str(expression))
+        basename = 'set_%s' % vaex.utils._python_save_name(str(expression))
         self.setname = self.df.add_variable(basename, self.set, unique=True)
 
         keys = self.set.keys()
