@@ -1566,7 +1566,7 @@ class DataFrame(object):
             limits_minmax = self.minmax(expr, selection=selection, delay=delay)
             limits1 = compute(limits_minmax=limits_minmax)
             limits.append(limits1)
-        return delayed(vaex.utils.unlistify)(waslist, limits)
+        return self._delay(delay, delayed(vaex.utils.unlistify)(waslist, limits))
 
     @docsubst
     def limits(self, expression, value=None, square=False, selection=None, delay=False, shape=None):
