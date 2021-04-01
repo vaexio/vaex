@@ -41,6 +41,7 @@ extensions = [
     'sphinx.ext.intersphinx',
     'sphinx_gallery.load_style',
 	'sphinx_sitemap',
+	'myst_parser',
 ]
 # for sphinx_sitemap
 html_baseurl = 'https://vaex.io/docs/'

@@ -313,11 +313,11 @@ def main(argv, WebServer=WebServer):
     filenames = config.filename
     datasets = []
     for filename in filenames:
-        ds = vx.open(filename)
-        if ds is None:
+        df = vx.open(filename)
+        if df is None:
             print("error opening file: %r" % filename)
         else:
-            datasets.append(ds)
+            datasets.append(df)
     datasets = datasets or [vx.example()]
     # datasets = [ds for ds in datasets if ds is not None]
     logger.info("datasets:")

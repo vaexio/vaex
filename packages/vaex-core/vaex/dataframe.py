@@ -379,7 +379,10 @@ class DataFrame(object):
             for task in self.executor.tasks:
                 print(repr(task))
         from .asyncio import just_run
-        just_run(self.execute_async())
+        if self.executor.tasks:
+            # we only run when there are tasks, since we may trigger this
+            # call in an async loop context that cannot be patched (like uvloop)
+            just_run(self.execute_async())
 
     async def execute_async(self):
         '''Async version of execute'''
@@ -1544,18 +1547,26 @@ class DataFrame(object):
         waslist, [expressions, ] = vaex.utils.listify(expression)
         limits = []
         for expr in expressions:
-            limits_minmax = self.minmax(expr, selection=selection)
-            vmin, vmax = limits_minmax
-            size = 1024 * 16
-            counts = self.count(binby=expr, shape=size, limits=limits_minmax, selection=selection)
-            cumcounts = np.concatenate([[0], np.cumsum(counts)])
-            cumcounts = cumcounts / cumcounts.max()
-            # TODO: this is crude.. see the details!
-            f = (1 - percentage / 100.) / 2
-            x = np.linspace(vmin, vmax, size + 1)
-            l = np.interp([f, 1 - f], cumcounts, x)
-            limits.append(l)
-        return vaex.utils.unlistify(waslist, limits)
+            @delayed
+            def compute(limits_minmax, expr=expr):
+                @delayed
+                def compute_limits(counts):
+                    cumcounts = np.concatenate([[0], np.cumsum(counts)])
+                    cumcounts = cumcounts / cumcounts.max()
+                    # TODO: this is crude.. see the details!
+                    f = (1 - percentage / 100.) / 2
+                    x = np.linspace(vmin, vmax, size + 1)
+                    l = np.interp([f, 1 - f], cumcounts, x)
+                    return l
+                vmin, vmax = limits_minmax
+                size = 1024 * 16
+                counts = self.count(binby=expr, shape=size, limits=limits_minmax, selection=selection, delay=delay)
+                return compute_limits(counts)
+                # limits.append(l)
+            limits_minmax = self.minmax(expr, selection=selection, delay=delay)
+            limits1 = compute(limits_minmax=limits_minmax)
+            limits.append(limits1)
+        return delayed(vaex.utils.unlistify)(waslist, limits)
 
     @docsubst
     def limits(self, expression, value=None, square=False, selection=None, delay=False, shape=None):
@@ -1655,7 +1666,7 @@ class DataFrame(object):
                             elif type in ["ss", "sigmasquare"]:
                                 limits = self.limits_sigma(number, square=True)
                             elif type in ["%", "percent"]:
-                                limits = self.limits_percentage(expression, number, selection=selection, delay=False)
+                                limits = self.limits_percentage(expression, number, selection=selection, delay=True)
                             elif type in ["%s", "%square", "percentsquare"]:
                                 limits = self.limits_percentage(expression, number, selection=selection, square=True, delay=True)
                 elif value is None:

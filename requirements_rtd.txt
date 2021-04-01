@@ -22,3 +22,4 @@ lightgbm
 xgboost
 sphinx_gallery
 catboost
+myst-parser
