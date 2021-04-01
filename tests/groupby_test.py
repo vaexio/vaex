@@ -75,6 +75,14 @@ def test_groupby_long_name(df_local):
     assert 'long_name_mean' in dfg
 
 
+def test_groupby_space_in_name(df_local):
+    df = df_local.extract()
+    g = np.array([0, 0, 0, 0, 1, 1, 1, 1, 2, 2])
+    df.add_column('g with space', g)
+    df['long_name'] = df.x
+    dfg = df.groupby(by=df['g with space'], agg=[vaex.agg.mean(df.long_name)]).sort(df['g with space'])
+
+
 def test_groupby_1d(ds_local):
     ds = ds_local.extract()
     g = np.array([0, 0, 0, 0, 1, 1, 1, 1, 2, 2])
