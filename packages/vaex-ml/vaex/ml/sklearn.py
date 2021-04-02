@@ -167,7 +167,7 @@ class IncrementalPredictor(state.HasState):
       3  -1.52088     -1.62225
       4  -2.65534     -1.61991
     '''
-
+    snake_name = 'sklearn_incremental_predictor'
     model = traitlets.Any(default_value=None, allow_none=True, help='A scikit-learn estimator with a `.fit_predict` method.').tag(**serialize_pickle)
     features = traitlets.List(traitlets.Unicode(), help='List of features to use.')
     target = traitlets.Unicode(allow_none=False, help='The name of the target column.')
