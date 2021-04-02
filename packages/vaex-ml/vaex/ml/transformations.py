@@ -72,7 +72,7 @@ class PCA(Transformer):
 
     '''
     # title = traitlets.Unicode(default_value='PCA', read_only=True).tag(ui='HTML')
-    n_components = traitlets.Int(help='Number of components to retain. If None, all the components will be retained.').tag(ui='IntText')
+    n_components = traitlets.Int(default_value=None, allow_none=True, help='Number of components to retain. If None, all the components will be retained.').tag(ui='IntText')
     prefix = traitlets.Unicode(default_value="PCA_", help=help_prefix)
     whiten = traitlets.Bool(default_value=False, allow_none=False, help='If True perform whitening, i.e. remove the relative variance schale of the transformed components.')
     # progress = traitlets.Any(default_value=False, help='If True, display a progressbar of the PCA fitting process.').tag(ui='Checkbox')
@@ -81,10 +81,6 @@ class PCA(Transformer):
     means_ = traitlets.List(traitlets.CFloat(), help='The mean of each feature').tag(output=True)
     explained_variance_ = traitlets.List(traitlets.CFloat(), help='Variance explained by each of the components. Same as the eigen values.').tag(output=True)
     explained_variance_ratio_ = traitlets.List(traitlets.CFloat(), help='Percentage of variance explained by each of the selected components.').tag(output=True)
-
-    @traitlets.default('n_components')
-    def get_n_components_default(self):
-        return len(self.features)
 
     def fit(self, df, progress=None):
         '''Fit the PCA model to the DataFrame.
@@ -175,6 +171,8 @@ class PCAIncremental(PCA):
         '''
 
         sklearn = vaex.utils.optional_import("sklearn.decomposition")
+
+        self.n_components = self.n_components or len(self.features)
 
         n_samples = len(df)
         progressbar = vaex.utils.progressbars(progress)
