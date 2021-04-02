@@ -167,10 +167,6 @@ class PCAIncremental(PCA):
     noise_variance_ = traitlets.CFloat(default_value=0, help='The estimated noise covariance following the Probabilistic PCA model from Tipping and Bishop 1999.').tag(output=True)
     n_samples_seen_ = traitlets.CInt(default_value=0, help='The number of samples processed by the transformer.').tag(output=True)
 
-    @traitlets.default('batch_size')
-    def get_batch_size_defaults(self):
-        return len(self.features) * 5
-
     def fit(self, df, progress=None):
         '''Fit the PCAIncremental model to the DataFrame.
 
