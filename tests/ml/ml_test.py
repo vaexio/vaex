@@ -45,7 +45,7 @@ def test_pca_incremental(df_iris):
     assert pca.n_samples_seen_ == 150
     assert len(pca.eigen_values_) == 2
     assert len(pca.explained_variance_) == 2
-    assert df_transformed.column_count() == 7
+    assert len(df_transformed.get_column_names()) == 7
     assert len(df_transformed.get_column_names(regex='^PCA_')) == 2
 
 
