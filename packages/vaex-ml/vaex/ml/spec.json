@@ -165,6 +165,71 @@
         "version": "1.0.0"
     },
     {
+        "classname": "RandomProjections",
+        "doc": "Reduce dimensionality through a random matrix projection.\n\n    The random projections method is based on the Johnson-Lindenstrauss lemma.\n    For mode details see https://en.wikipedia.org/wiki/Johnson%E2%80%93Lindenstrauss_lemma\n\n    Note that you need scikit-learn to fit this Transformer but not for transformations using an already fitter Transformer.\n    ",
+        "module": "vaex.ml.transformations",
+        "snake_name": "random_projections",
+        "traits": [
+            {
+                "default": null,
+                "has_default": false,
+                "help": "Ratio in the range (0, 1] of non-zero component in the random projection matrix. Only valid if `matrix_type` is \"sparse\". If density is None, the value is set to the minimum density as recommended by Ping Li et al.: 1 / sqrt(n_features).",
+                "name": "density",
+                "type": "Float"
+            },
+            {
+                "default": 0.1,
+                "has_default": false,
+                "help": "Parameter to control the quality of the embedding according to the Johnson-Lindenstrauss lemma when `n_components` is set to None. The value must be positive.",
+                "name": "eps",
+                "type": "Float"
+            },
+            {
+                "default": null,
+                "has_default": true,
+                "help": "List of features to transform.",
+                "name": "features",
+                "type": "List"
+            },
+            {
+                "default": "gaussian",
+                "has_default": false,
+                "help": "The type of random matrix to create. The values can be \"gaussian\" and \"sparse\".",
+                "name": "matrix_type",
+                "type": "Enum"
+            },
+            {
+                "default": null,
+                "has_default": false,
+                "help": "Number of components to retain. If None (default) the number will be set via the Johnson-Lindenstrauss formula. See https://scikit-learn.org/stable/modules/generated/sklearn.random_projection.johnson_lindenstrauss_min_dim.html for more details.",
+                "name": "n_components",
+                "type": "CInt"
+            },
+            {
+                "default": "random_projection_",
+                "has_default": false,
+                "help": "Prefix for the names of the transformed features.",
+                "name": "prefix",
+                "type": "Unicode"
+            },
+            {
+                "default": null,
+                "has_default": true,
+                "help": "The random matrix.",
+                "name": "random_matrix_",
+                "type": "List"
+            },
+            {
+                "default": null,
+                "has_default": false,
+                "help": "Controls the pseudo random number generator used to generate the projection matrix at fit time. Used to get reproducible results.",
+                "name": "random_state",
+                "type": "Int"
+            }
+        ],
+        "version": "1.0.0"
+    },
+    {
         "classname": "LabelEncoder",
         "doc": "Encode categorical columns with integer values between 0 and num_classes-1.\n\n    Example:\n\n    >>> import vaex\n    >>> df = vaex.from_arrays(color=['red', 'green', 'green', 'blue', 'red'])\n    >>> df\n     #  color\n     0  red\n     1  green\n     2  green\n     3  blue\n     4  red\n    >>> encoder = vaex.ml.LabelEncoder(features=['color'])\n    >>> encoder.fit_transform(df)\n     #  color      label_encoded_color\n     0  red                          2\n     1  green                        1\n     2  green                        1\n     3  blue                         0\n     4  red                          2\n    ",
         "module": "vaex.ml.transformations",
@@ -203,7 +268,7 @@
     },
     {
         "classname": "OneHotEncoder",
-        "doc": "Encode categorical columns according ot the One-Hot scheme.\n\n    Example:\n\n    >>> import vaex\n    >>> df = vaex.from_arrays(color=['red', 'green', 'green', 'blue', 'red'])\n    >>> df\n     #  color\n     0  red\n     1  green\n     2  green\n     3  blue\n     4  red\n    >>> encoder = vaex.ml.OneHotEncoder(features=['color'])\n    >>> encoder.fit_transform(df)\n     #  color      color_blue    color_green    color_red\n     0  red                 0              0            1\n     1  green               0              1            0\n     2  green               0              1            0\n     3  blue                1              0            0\n     4  red                 0              0            1\n    ",
+        "doc": "Encode categorical columns according ot the One-Hot scheme.\n\n    Example:\n\n    >>> import vaex\n    >>> df = vaex.from_arrays(color=['red', 'green', 'green', 'blue', 'red'])\n    >>> df\n     #  color\u00ae\n     0  red\n     1  green\n     2  green\n     3  blue\n     4  red\n    >>> encoder = vaex.ml.OneHotEncoder(features=['color'])\n    >>> encoder.fit_transform(df)\n     #  color      color_blue    color_green    color_red\n     0  red                 0              0            1\n     1  green               0              1            0\n     2  green               0              1            0\n     3  blue                1              0            0\n     4  red                 0              0            1\n    ",
         "module": "vaex.ml.transformations",
         "snake_name": "one_hot_encoder",
         "traits": [
