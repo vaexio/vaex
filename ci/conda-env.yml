@@ -25,7 +25,7 @@ pytest-timeout
 python-graphviz
 scikit-learn
 scipy
-s3fs
-gcsfs
+s3fs <0.6
+gcsfs <0.8
 tornado
 xarray
