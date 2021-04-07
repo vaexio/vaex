@@ -1,5 +1,6 @@
 astropy
 cython
+fsspec <0.9
 geopandas
 graphviz
 h5py
@@ -25,6 +26,6 @@ python-graphviz
 scikit-learn
 scipy
 s3fs
-gcsfs <0.8
+gcsfs
 tornado
 xarray
