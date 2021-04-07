@@ -195,10 +195,26 @@ class Expression(with_metaclass(Meta)):
         assert not isinstance(ds, Expression)
         if isinstance(expression, Expression):
             expression = expression.expression
+        if expression is None and ast is None:
+            raise ValueError('Not both expression and the ast can be None')
         self._ast = ast
         self._expression = expression
         self.df._expressions.append(weakref.ref(self))
         self._ast_names = None
+
+    @property
+    def _label(self):
+        '''If a column is an invalid identified, the expression is df['long name']
+        This will return 'long name' in that case, otherwise simply the expression
+        '''
+        ast = self.ast
+        if isinstance(ast, expresso._ast.Subscript):
+            value = ast.slice.value
+            if isinstance(value, expresso.ast_Str):
+                return value.s
+            if isinstance(value, str):  # py39+
+                return value
+        return self.expression
 
     def copy(self, df=None):
         """Efficiently copies an expression.

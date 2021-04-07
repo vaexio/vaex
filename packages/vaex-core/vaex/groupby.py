@@ -46,6 +46,7 @@ class BinnerTime(BinnerBase):
         self.sort_indices = None
         # make sure it's an expression
         self.expression = self.df[str(self.expression)]
+        self.label = self.expression._label
         self.tmin, self.tmax = self.df[str(self.expression)].minmax()
 
         self.resolution_type = 'M8[%s]' % self.resolution
@@ -89,6 +90,7 @@ class Grouper(BinnerBase):
         self.expression = expression
         # make sure it's an expression
         self.expression = self.df[str(self.expression)]
+        self.label = self.expression._label
         set = self.df._set(self.expression)
         keys = set.keys()
         if self.sort:
@@ -134,6 +136,7 @@ class GrouperCategory(BinnerBase):
         self.expression = expression
         # make sure it's an expression
         self.expression = self.df[str(self.expression)]
+        self.label = self.expression._label
 
         self.bin_values = self.df.category_labels(self.expression)
         if self.sort:
@@ -165,13 +168,18 @@ class GroupByBase(object):
             by = [by]
 
         self.by = []
+        self.by_names = []
         for by_value in by:
             if not isinstance(by_value, BinnerBase):
+                self.by_names.append(str(by_value))
                 if df.is_category(by_value):
                     by_value = GrouperCategory(df[str(by_value)], sort=sort)
                 else:
                     by_value = Grouper(df[str(by_value)], sort=sort)
             self.by.append(by_value)
+        else:
+            self.by_names.append(by_value.label)
+
         # self._waslist, [self.by, ] = vaex.utils.listify(by)
         self.coords1d = [k.bin_values for k in self.by]
 
@@ -198,7 +206,7 @@ class GroupByBase(object):
 
         def add(aggregate, column_name=None, override_name=None):
             if column_name is None or override_name is not None:
-                column_name = aggregate.pretty_name(override_name)
+                column_name = aggregate.pretty_name(override_name, df)
             aggregate.edges = True  # is this ok to override?
             values = df._agg(aggregate, self.grid, delay=_USE_DELAY)
             grids[column_name] = values
@@ -336,7 +344,7 @@ class GroupBy(GroupByBase):
 
         mask = counts > 0
         coords = [coord[mask] for coord in np.meshgrid(*self.coords1d, indexing='ij')]
-        labels = {str(by.expression): coord for by, coord in zip(self.by, coords)}
+        labels = {by: coord for by, coord in zip(self.by_names, coords)}
         df_grouped = vaex.from_dict(labels)
         for key, value in arrays.items():
             df_grouped[key] = value[mask]
