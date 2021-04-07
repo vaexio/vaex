@@ -79,8 +79,18 @@ def test_groupby_space_in_name(df_local):
     df = df_local.extract()
     g = np.array([0, 0, 0, 0, 1, 1, 1, 1, 2, 2])
     df.add_column('g with space', g)
+    df['long name'] = df.x
+    dfg = df.groupby(by='g with space', agg=[vaex.agg.sum(df['long name'])]).sort(df['g with space'])
+    assert dfg.get_column_names() == ['g with space', 'long name_sum']
+
+
+def test_groupby_space_in_agg(df_local):
+    df = df_local.extract()
+    g = np.array([0, 0, 0, 0, 1, 1, 1, 1, 2, 2])
+    df.add_column('g with space', g)
     df['long_name'] = df.x
-    dfg = df.groupby(by=df['g with space'], agg=[vaex.agg.mean(df.long_name)]).sort(df['g with space'])
+    dfg = df.groupby(by='g with space', agg=[vaex.agg.mean(df.long_name)]).sort(df['g with space'])
+    assert dfg.get_column_names() == ['g with space', 'long_name_mean']
 
 
 def test_groupby_1d(ds_local):

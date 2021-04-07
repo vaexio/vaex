@@ -4691,8 +4691,9 @@ class DataFrame(object):
             #   return Expression(self, self.virtual_columns[item])
             # if item in self._virtual_expressions:
             #     return self._virtual_expressions[item]
+            if item not in self.column_names:
+                self.validate_expression(item)
             item = vaex.utils.valid_expression(self.get_column_names(), item)
-            self.validate_expression(item)
             return Expression(self, item)  # TODO we'd like to return the same expression if possible
         elif isinstance(item, Expression):
             expression = item.expression
@@ -4709,7 +4710,8 @@ class DataFrame(object):
                     names = self.get_column_names().__getitem__(item[1])
                     return df[names]
             for expression in item:
-                self.validate_expression(expression)
+                if expression not in self.column_names:
+                    self.validate_expression(expression)
             df = self.copy(column_names=item)
             return df
         elif isinstance(item, slice):

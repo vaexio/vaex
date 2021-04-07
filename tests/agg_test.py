@@ -47,6 +47,10 @@ def test_sum(df, ds_trimmed):
     np.testing.assert_array_almost_equal(df.sum("y", selection=True, binby=["x"], limits=[0, 10], shape=2), [np.nansum(y[:5]), 0])
 
 
+def test_sum_with_space(df):
+    df['with space'] = df.x
+    assert df.sum(df['with space'])
+
 def test_correlation_basics(df_local):
     df = df_local  # TODO: why does this not work with remote?
     correlation = df.correlation(df.y, df.y)

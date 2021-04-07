@@ -44,6 +44,10 @@ class AggregatorDescriptor(object):
     def __repr__(self):
         return 'vaex.agg.{}({!r})'.format(self.short_name, str(self.expression))
 
+    def pretty_name(self, id, df):
+        if id is None:
+            id = "_".join(map(lambda k: df[k]._label, self.expressions))
+        return '{0}_{1}'.format(id, self.short_name)
 
     def finish(self, value):
         return value
@@ -79,10 +83,6 @@ class AggregatorDescriptorBasic(AggregatorDescriptor):
         if self.agg_args:
             spec['parameters'] = self.agg_args
         return spec
-
-    def pretty_name(self, id=None):
-        id = id or "_".join(map(str, self.expressions))
-        return '{0}_{1}'.format(id, self.short_name)
 
     def _prepare_types(self, df):
         if self.expression == '*':
@@ -148,10 +148,6 @@ class AggregatorDescriptorMulti(AggregatorDescriptor):
         self.expressions = [self.expression]
         self.selection = selection
         self.edges = edges
-
-    def pretty_name(self, id=None):
-        id = id or "_".join(map(str, self.expressions))
-        return '{0}_{1}'.format(id, self.short_name)
 
 
 class AggregatorDescriptorMean(AggregatorDescriptorMulti):
