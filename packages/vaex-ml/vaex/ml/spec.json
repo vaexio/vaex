@@ -48,7 +48,7 @@
                 "type": "List"
             },
             {
-                "default": 0,
+                "default": null,
                 "has_default": false,
                 "help": "Number of components to retain. If None, all the components will be retained.",
                 "name": "n_components",
@@ -127,7 +127,7 @@
                 "type": "List"
             },
             {
-                "default": 0,
+                "default": null,
                 "has_default": false,
                 "help": "Number of components to retain. If None, all the components will be retained.",
                 "name": "n_components",
