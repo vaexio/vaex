@@ -128,3 +128,15 @@ def test_arrow_evaluate(parallel):
     assert df.evaluate(df.s.as_arrow(), array_type='arrow', parallel=parallel).type == pa.string()
     assert df.evaluate(df.s.as_arrow(), array_type=None, parallel=parallel).type == pa.string()
     assert df.evaluate(df.l, parallel=parallel).type == pa.list_(l.type.value_type)
+
+
+def test_evaluate_very_long_expression():
+    def data_maker(n_rows, n_cols):
+        return {f'feat_{i}': np.random.normal(loc=np.random.uniform(-100, 100),
+                                            scale=np.random.uniform(0.5, 25),
+                                            size=n_rows) for i in range(n_cols)}
+    df = vaex.from_dict(data=data_maker(n_rows=10, n_cols=100))
+    features = df.get_column_names()
+
+    df_pca = df.ml.pca(features)
+    repr(df_pca[['PCA_0']].values)
