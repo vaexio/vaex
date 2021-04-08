@@ -5065,8 +5065,15 @@ class DataFrameLocal(DataFrame):
 
         >>> import vaex
         >>> df = vaex.from_arrays(year=[2012, 2015, 2019], weekday=[0, 4, 6])
-        >>> df.categorize('year', min_value=2020, max_value=2019)
-        >>> df.categorize('weekday', labels=['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'])
+        >>> df = df.categorize('year', min_value=2020, max_value=2019)
+        >>> df = df.categorize('weekday', labels=['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'])
+        >>> df
+          #    year    weekday
+          0    2012          0
+          1    2015          4
+          2    2019          6
+        >>> df.is_category('year')
+        True
 
         :param column: column to assume is categorical.
         :param labels: labels to associate to the values between min_value and max_value
