@@ -76,8 +76,9 @@ def test_random_projections(n_components, matrix_type):
     df = vaex.from_dict(data=data_maker(n_rows=100_000, n_cols=31))
     features = df.get_column_names()
 
-    rand_proj = vaex.ml.RandomProjections(features=features, n_components=n_components, matrix_type=matrix_type)
+    rand_proj = df.ml.random_projections(features=features, n_components=n_components, matrix_type=matrix_type, transform=False)
     df_trans = rand_proj.fit_transform(df)
+
     assert np.array(rand_proj.random_matrix_).shape == (n_components, 31)
     assert len(df_trans.get_column_names(regex='^rand')) == n_components
 
