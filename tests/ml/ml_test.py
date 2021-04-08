@@ -4,7 +4,7 @@ import vaex
 import vaex.ml
 import vaex.ml.datasets
 pytest.importorskip("sklearn")
-from sklearn.decomposition import PCA
+from sklearn.decomposition import PCA, IncrementalPCA
 from sklearn.preprocessing import StandardScaler, MinMaxScaler, MaxAbsScaler, RobustScaler
 
 
@@ -35,6 +35,32 @@ def test_valid_sklearn_pca(df_iris):
     ds_pca = ds.ml.pca(n_components=3, features=features)
     # Compare the two approaches
     np.testing.assert_almost_equal(ds_pca.evaluate('PCA_0'), sklearn_trans[:, 0])
+
+
+def test_pca_incremental(df_iris):
+    df = df_iris
+    features = ['sepal_width', 'petal_length', 'sepal_length', 'petal_width']
+    pca = vaex.ml.PCAIncremental(features=features, n_components=2)
+    df_transformed = pca.fit_transform(df)
+    assert pca.n_samples_seen_ == 150
+    assert len(pca.eigen_values_) == 2
+    assert len(pca.explained_variance_) == 2
+    assert len(df_transformed.get_column_names()) == 7
+    assert len(df_transformed.get_column_names(regex='^PCA_')) == 2
+
+
+def test_valid_sklearn_pca_incremental(df_iris):
+    df = df_iris
+    features = ['sepal_width', 'petal_length', 'sepal_length', 'petal_width']
+    # scikit-learn
+    sk_pca = IncrementalPCA(batch_size=10)
+    sk_result = sk_pca.fit_transform(df[features].values)
+    # vaex-ml
+    vaex_pca = vaex.ml.PCAIncremental(features=features, batch_size=10)
+    df_transformed = vaex_pca.fit_transform(df)
+    # Compare the results
+    np.testing.assert_almost_equal(df_transformed.evaluate('PCA_0'), sk_result[:, 0])
+    np.testing.assert_almost_equal(df_transformed.evaluate('PCA_1'), sk_result[:, 1])
 
 
 def test_standard_scaler(df_iris):

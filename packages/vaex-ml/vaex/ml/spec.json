@@ -1,7 +1,7 @@
 [
     {
         "classname": "PCA",
-        "doc": "Transform a set of features using a Principal Component Analysis.\n\n    Example:\n\n    >>> import vaex\n    >>> df = vaex.from_arrays(x=[2,5,7,2,15], y=[-2,3,0,0,10])\n    >>> df\n     #   x   y\n     0   2   -2\n     1   5   3\n     2   7   0\n     3   2   0\n     4   15  10\n    >>> pca = vaex.ml.PCA(n_components=2, features=['x', 'y'])\n    >>> pca.fit_transform(df)\n     #    x    y       PCA_0      PCA_1\n     0    2   -2    5.92532    0.413011\n     1    5    3    0.380494  -1.39112\n     2    7    0    0.840049   2.18502\n     3    2    0    4.61287   -1.09612\n     4   15   10  -11.7587    -0.110794\n\n    ",
+        "doc": "Transform a set of features using a Principal Component Analysis.\n\n    Example:\n\n    >>> import vaex\n    >>> import vaex.ml\n    >>> df = vaex.from_arrays(x=[2,5,7,2,15], y=[-2,3,0,0,10])\n    >>> df\n     #   x   y\n     0   2   -2\n     1   5   3\n     2   7   0\n     3   2   0\n     4   15  10\n    >>> pca = vaex.ml.PCA(n_components=2, features=['x', 'y'])\n    >>> pca.fit_transform(df)\n     #    x    y       PCA_0      PCA_1\n     0    2   -2    5.92532    0.413011\n     1    5    3    0.380494  -1.39112\n     2    7    0    0.840049   2.18502\n     3    2    0    4.61287   -1.09612\n     4   15   10  -11.7587    -0.110794\n\n    ",
         "module": "vaex.ml.transformations",
         "snake_name": "pca",
         "traits": [
@@ -22,6 +22,20 @@
             {
                 "default": null,
                 "has_default": true,
+                "help": "Variance explained by each of the components. Same as the eigen values.",
+                "name": "explained_variance_",
+                "type": "List"
+            },
+            {
+                "default": null,
+                "has_default": true,
+                "help": "Percentage of variance explained by each of the selected components.",
+                "name": "explained_variance_ratio_",
+                "type": "List"
+            },
+            {
+                "default": null,
+                "has_default": true,
                 "help": "List of features to transform.",
                 "name": "features",
                 "type": "List"
@@ -34,7 +48,7 @@
                 "type": "List"
             },
             {
-                "default": 0,
+                "default": null,
                 "has_default": false,
                 "help": "Number of components to retain. If None, all the components will be retained.",
                 "name": "n_components",
@@ -50,9 +64,102 @@
             {
                 "default": false,
                 "has_default": false,
-                "help": "If True, display a progressbar of the PCA fitting process.",
-                "name": "progress",
-                "type": "Any"
+                "help": "If True perform whitening, i.e. remove the relative variance schale of the transformed components.",
+                "name": "whiten",
+                "type": "Bool"
+            }
+        ],
+        "version": "1.0.0"
+    },
+    {
+        "classname": "PCAIncremental",
+        "doc": "Transform a set of features using the \"sklearn.decomposition.IncrementalPCA\" algorithm.\n\n    Note that you need to have scikit-learn installed to fit this Transformer, but not\n    for transformations using an already fitted Transformer.\n\n    Example:\n\n    >>> import vaex\n    >>> import vaex.ml\n    >>> df = vaex.from_arrays(x=[2,5,7,2,15], y=[-2,3,0,0,10])\n    >>> df\n    #    x    y\n    0    2   -2\n    1    5    3\n    2    7    0\n    3    2    0\n    4   15   10\n    >>> pca = vaex.ml.PCAIncremental(n_components=2, features=['x', 'y'], batch_size=3)\n    >>> pca.fit_transform(df)\n    #    x    y      PCA_0      PCA_1\n    0    2   -2  -5.92532   -0.413011\n    1    5    3  -0.380494   1.39112\n    2    7    0  -0.840049  -2.18502\n    3    2    0  -4.61287    1.09612\n    4   15   10  11.7587     0.110794\n    ",
+        "module": "vaex.ml.transformations",
+        "snake_name": "pca_incremental",
+        "traits": [
+            {
+                "default": 1000,
+                "has_default": false,
+                "help": "Number of samples to be send to the transformer in each batch.",
+                "name": "batch_size",
+                "type": "Int"
+            },
+            {
+                "default": null,
+                "has_default": true,
+                "help": "The eigen values that correspond to each feature.",
+                "name": "eigen_values_",
+                "type": "List"
+            },
+            {
+                "default": null,
+                "has_default": true,
+                "help": "The eigen vectors corresponding to each feature",
+                "name": "eigen_vectors_",
+                "type": "List"
+            },
+            {
+                "default": null,
+                "has_default": true,
+                "help": "Variance explained by each of the components. Same as the eigen values.",
+                "name": "explained_variance_",
+                "type": "List"
+            },
+            {
+                "default": null,
+                "has_default": true,
+                "help": "Percentage of variance explained by each of the selected components.",
+                "name": "explained_variance_ratio_",
+                "type": "List"
+            },
+            {
+                "default": null,
+                "has_default": true,
+                "help": "List of features to transform.",
+                "name": "features",
+                "type": "List"
+            },
+            {
+                "default": null,
+                "has_default": true,
+                "help": "The mean of each feature",
+                "name": "means_",
+                "type": "List"
+            },
+            {
+                "default": null,
+                "has_default": false,
+                "help": "Number of components to retain. If None, all the components will be retained.",
+                "name": "n_components",
+                "type": "Int"
+            },
+            {
+                "default": 0,
+                "has_default": false,
+                "help": "The number of samples processed by the transformer.",
+                "name": "n_samples_seen_",
+                "type": "CInt"
+            },
+            {
+                "default": 0,
+                "has_default": false,
+                "help": "The estimated noise covariance following the Probabilistic PCA model from Tipping and Bishop 1999.",
+                "name": "noise_variance_",
+                "type": "CFloat"
+            },
+            {
+                "default": "PCA_",
+                "has_default": false,
+                "help": "Prefix for the names of the transformed features.",
+                "name": "prefix",
+                "type": "Unicode"
+            },
+            {
+                "default": false,
+                "has_default": false,
+                "help": "If True perform whitening, i.e. remove the relative variance schale of the transformed components.",
+                "name": "whiten",
+                "type": "Bool"
             }
         ],
         "version": "1.0.0"

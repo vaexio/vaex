@@ -52,6 +52,7 @@ class PCA(Transformer):
     Example:
 
     >>> import vaex
+    >>> import vaex.ml
     >>> df = vaex.from_arrays(x=[2,5,7,2,15], y=[-2,3,0,0,10])
     >>> df
      #   x   y
@@ -71,31 +72,33 @@ class PCA(Transformer):
 
     '''
     # title = traitlets.Unicode(default_value='PCA', read_only=True).tag(ui='HTML')
-    n_components = traitlets.Int(help='Number of components to retain. If None, all the components will be retained.').tag(ui='IntText')
+    n_components = traitlets.Int(default_value=None, allow_none=True, help='Number of components to retain. If None, all the components will be retained.').tag(ui='IntText')
     prefix = traitlets.Unicode(default_value="PCA_", help=help_prefix)
-    progress = traitlets.Any(default_value=False, help='If True, display a progressbar of the PCA fitting process.').tag(ui='Checkbox')
+    whiten = traitlets.Bool(default_value=False, allow_none=False, help='If True perform whitening, i.e. remove the relative variance schale of the transformed components.')
+    # progress = traitlets.Any(default_value=False, help='If True, display a progressbar of the PCA fitting process.').tag(ui='Checkbox')
     eigen_vectors_ = traitlets.List(traitlets.List(traitlets.CFloat()), help='The eigen vectors corresponding to each feature').tag(output=True)
     eigen_values_ = traitlets.List(traitlets.CFloat(), help='The eigen values that correspond to each feature.').tag(output=True)
     means_ = traitlets.List(traitlets.CFloat(), help='The mean of each feature').tag(output=True)
+    explained_variance_ = traitlets.List(traitlets.CFloat(), help='Variance explained by each of the components. Same as the eigen values.').tag(output=True)
+    explained_variance_ratio_ = traitlets.List(traitlets.CFloat(), help='Percentage of variance explained by each of the selected components.').tag(output=True)
 
-    @traitlets.default('n_components')
-    def get_n_components_default(self):
-        return len(self.features)
-
-    def fit(self, df):
+    def fit(self, df, progress=None):
         '''Fit the PCA model to the DataFrame.
 
         :param df: A vaex DataFrame.
+        :param progress: If True or 'widget', display a progressbar of the fitting process.
         '''
         self.n_components = self.n_components or len(self.features)
         assert self.n_components >= 2, 'At least two features are required.'
         assert self.n_components <= len(self.features), 'Can not have more components than features.'
-        C = df.cov(self.features, progress=self.progress)
+        C = df.cov(self.features, progress=progress)
         eigen_values, eigen_vectors = np.linalg.eigh(C)
         indices = np.argsort(eigen_values)[::-1]
-        self.means_ = df.mean(self.features, progress=self.progress).tolist()
+        self.means_ = df.mean(self.features, progress=progress).tolist()
         self.eigen_vectors_ = eigen_vectors[:, indices].tolist()
         self.eigen_values_ = eigen_values[indices].tolist()
+        self.explained_variance_ = self.eigen_values_
+        self.explained_variance_ratio_ = (eigen_values[indices] / np.sum(eigen_values)).tolist()
 
     def transform(self, df, n_components=None):
         '''Apply the PCA transformation to the DataFrame.
@@ -115,11 +118,82 @@ class PCA(Transformer):
 
         expressions = [copy[feature]-mean for feature, mean in zip(self.features, self.means_)]
         for i in range(n_components):
-            v = eigen_vectors[:, i]
-            expr = dot_product(expressions, v)
+            vector = eigen_vectors[:, i]
+            if self.whiten:
+                expr = dot_product(expressions, vector)
+                expr = f'({expr}) / {np.sqrt(self.explained_variance_[i])}'
+            else:
+                expr = dot_product(expressions, vector)
             name = self.prefix + str(i + name_prefix_offset)
             copy[name] = expr
         return copy
+
+
+@register
+@generate.register
+class PCAIncremental(PCA):
+    '''Transform a set of features using the "sklearn.decomposition.IncrementalPCA" algorithm.
+
+    Note that you need to have scikit-learn installed to fit this Transformer, but not
+    for transformations using an already fitted Transformer.
+
+    Example:
+
+    >>> import vaex
+    >>> import vaex.ml
+    >>> df = vaex.from_arrays(x=[2,5,7,2,15], y=[-2,3,0,0,10])
+    >>> df
+    #    x    y
+    0    2   -2
+    1    5    3
+    2    7    0
+    3    2    0
+    4   15   10
+    >>> pca = vaex.ml.PCAIncremental(n_components=2, features=['x', 'y'], batch_size=3)
+    >>> pca.fit_transform(df)
+    #    x    y      PCA_0      PCA_1
+    0    2   -2  -5.92532   -0.413011
+    1    5    3  -0.380494   1.39112
+    2    7    0  -0.840049  -2.18502
+    3    2    0  -4.61287    1.09612
+    4   15   10  11.7587     0.110794
+    '''
+    snake_name = 'pca_incremental'
+    batch_size = traitlets.Int(default_value=1000, help='Number of samples to be send to the transformer in each batch.')
+    noise_variance_ = traitlets.CFloat(default_value=0, help='The estimated noise covariance following the Probabilistic PCA model from Tipping and Bishop 1999.').tag(output=True)
+    n_samples_seen_ = traitlets.CInt(default_value=0, help='The number of samples processed by the transformer.').tag(output=True)
+
+    def fit(self, df, progress=None):
+        '''Fit the PCAIncremental model to the DataFrame.
+
+        :param df: A vaex DataFrame.
+        :param progress: If True or 'widget', display a progressbar of the fitting process.
+        '''
+
+        sklearn = vaex.utils.optional_import("sklearn.decomposition")
+
+        self.n_components = self.n_components or len(self.features)
+
+        n_samples = len(df)
+        progressbar = vaex.utils.progressbars(progress)
+        pca = sklearn.decomposition.IncrementalPCA(n_components=self.n_components,
+                                                   batch_size=self.batch_size,
+                                                   whiten=self.whiten)
+
+        for i1, i2, chunk in df.evaluate_iterator(self.features, chunk_size=self.batch_size, array_type='numpy'):
+            progressbar(i1 / n_samples)
+            chunk = np.array(chunk).T.astype(np.float64)
+            pca.partial_fit(X=chunk, check_input=False)
+        progressbar(1.0)
+
+        self.singular_values_ = pca.singular_values_.tolist()
+        self.eigen_vectors_ = pca.components_.T.tolist()
+        self.eigen_values_ = pca.explained_variance_.tolist()
+        self.explained_variance_ = pca.explained_variance_.tolist()
+        self.explained_variance_ratio_ = pca.explained_variance_ratio_.tolist()
+        self.means_ = pca.mean_.tolist()
+        self.noise_variance_ = pca.noise_variance_
+        self.n_samples_seen_ = pca.n_samples_seen_
 
 
 @register

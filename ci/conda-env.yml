@@ -1,5 +1,6 @@
 astropy
 cython
+fsspec <0.9
 geopandas
 graphviz
 h5py
