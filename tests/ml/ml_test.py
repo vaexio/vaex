@@ -22,6 +22,7 @@ def test_pca(df_iris):
     # Fit-transform
     pca = vaex.ml.PCA(features=['sepal_width', 'petal_length', 'sepal_length', 'petal_width'], n_components=2)
     ds = pca.fit_transform(ds)
+    assert pca.features_ == ['PCA_5', 'PCA_6']
 
 
 def test_valid_sklearn_pca(df_iris):
@@ -92,6 +93,7 @@ def test_standard_scaler(df_iris):
     # Fit-transform
     scaler = vaex.ml.StandardScaler(features=['petal_width', 'petal_length'])
     ds = scaler.fit_transform(ds)
+    assert scaler.features_ == ['standard_scaled_petal_width', 'standard_scaled_petal_length']
 
 
 def test_minmax_scaler(df_iris):
@@ -125,6 +127,7 @@ def test_minmax_scaler(df_iris):
     # Fit-transform
     scaler = vaex.ml.MinMaxScaler(features=['petal_width', 'petal_length'])
     ds = scaler.fit_transform(ds)
+    assert scaler.features_ == ['minmax_scaled_petal_width', 'minmax_scaled_petal_length']
 
 
 def test_train_test_split_values(df_factory):
@@ -167,6 +170,7 @@ def test_frequency_encoder(df_factory):
     np.testing.assert_almost_equal(test_b.frequency_encoded_numbers.values,
                                    [0.166, 0.5, 0.166, 0.166, 0.],
                                    decimal=3)
+    assert fe.features_ == ['frequency_encoded_animals', 'frequency_encoded_numbers']
 
 
 def test_label_encoder(df_factory):
@@ -207,6 +211,7 @@ def test_label_encoder(df_factory):
     df_unseen = label_encoder.transform(df_unseen)
     assert set(df_unseen[df_unseen.x == 'dragon'].mypref_x.tolist()) == {-1}
     assert set(df_unseen[df_unseen.y == 4].mypref_x.tolist()) == {-1}
+    assert label_encoder.features_ == ['mypref_x', 'mypref_y']
 
 
 def test_one_hot_encoding(df_factory):
@@ -241,6 +246,9 @@ def test_one_hot_encoding(df_factory):
     # Fit-transform
     ohe = vaex.ml.OneHotEncoder(features=['kids', 'animals', 'numbers'])
     ohe.fit_transform(ds)
+    assert ohe.features_ == ['kids_boy', 'kids_girl',
+                             'animals_cat', 'animals_dog', 'animals_mouse',
+                             'numbers_0', 'numbers_1']
 
 def test_one_hot_encoding_with_na(df_factory):
     x = ['Reggie', 'Michael', None, 'Reggie']
@@ -294,6 +302,7 @@ def test_maxabs_scaler(df_factory):
     assert result_vaex.absmax_scaled_x.values.tolist() == result_skl[:, 0].tolist(), "scikit-learn and vaex results do not match"
     assert result_vaex.absmax_scaled_y.values.tolist() == result_skl[:, 1].tolist(), "scikit-learn and vaex results do not match"
     assert result_vaex.absmax_scaled_w.values.tolist() == result_skl[:, 2].tolist(), "scikit-learn and vaex results do not match"
+    assert scaler_vaex.features_ == ['absmax_scaled_x', 'absmax_scaled_y', 'absmax_scaled_w']
 
 
 import numpy
@@ -319,6 +328,7 @@ def test_robust_scaler(df_factory):
     result_vaex = scaler_vaex.fit_transform(ds)
 
     np.testing.assert_array_almost_equal(scaler_vaex.center_, scaler_skl.center_, decimal=0.2)
+    assert scaler_vaex.features_ == ['robust_scaled_x', 'robust_scaled_y']
 
     # check that an exception is rased for invalid percentile range
     scaler_vaex = vaex.ml.RobustScaler(features=features, percentile_range=(12, 175))
@@ -340,6 +350,7 @@ def test_cyclical_transformer(tmpdir, df_factory):
     df_test.state_load(state_path)
     np.testing.assert_array_almost_equal(df_test.pref_hour_x.values, [-1, 1, 0.707107, -0.707107])
     np.testing.assert_array_almost_equal(df_test.pref_hour_y.values, [0, 0, -0.707107, -0.707107])
+    assert trans.features_ == ['pref_hour_x', 'pref_hour_y']
 
 
 def test_bayesian_target_encoder(tmpdir, df_factory):
@@ -355,6 +366,7 @@ def test_bayesian_target_encoder(tmpdir, df_factory):
     assert df_train.enc_x1.tolist() == [0.6, 0.6, 0.6, 0.6, 0.6, 0.4, 0.4, 0.4, 0.4, 0.4]
     assert df_train.enc_x2.tolist() == [0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5]
     assert target_encoder.mappings_ == {'x1': {'a': 0.6, 'b': 0.4}, 'x2': {'p': 0.5, 'q': 0.5}}
+    assert target_encoder.features_ == ['enc_x1', 'enc_x2']
 
     state_path = str(tmpdir.join('state.json'))
     df_train.state_write(state_path)
@@ -377,6 +389,7 @@ def test_weight_of_evidence_encoder(tmpdir, as_bool, df_factory):
     np.testing.assert_array_almost_equal(df_train.woe_encoded_x.values,
                                          [13.815510, 13.815510, 1.098612, 1.098612, 1.098612, 1.098612, 0., 0.])
     assert trans.mappings_ == {'x': {'a': 13.815510557964274, 'b': 1.0986122886681098, 'c': 0.0}}
+    assert trans.features_ == ['woe_encoded_x']
 
     state_path = str(tmpdir.join('state.json'))
     df_train.state_write(state_path)
