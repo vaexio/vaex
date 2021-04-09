@@ -314,6 +314,10 @@ class Expression(with_metaclass(Meta)):
     def shape(self):
         return self.df._shape_of(self)
 
+    @property
+    def ndim(self):
+        return 1 if self.dtype.is_list else len(self.df._shape_of(self))
+
     def to_arrow(self, convert_to_native=False):
         '''Convert to Apache Arrow array (will byteswap/copy if convert_to_native=True).'''
         values = self.values
@@ -580,16 +584,30 @@ class Expression(with_metaclass(Meta)):
         '''
         expression = self
         if axis is None:
-            axis = [0]
             dtype = self.dtype
-            while dtype.is_list:
-                axis.append(axis[-1] + 1)
-                dtype = dtype.value_type
+            if dtype.is_list:
+                axis = [0]
+                while dtype.is_list:
+                    axis.append(axis[-1] + 1)
+                    dtype = dtype.value_type
+            elif self.ndim > 1:
+                axis = list(range(self.ndim))
+            else:
+                axis = [0]
         elif not isinstance(axis, list):
             axis = [axis]
             axis = list(set(axis))  # remove repeated elements
         dtype = self.dtype
-        if 1 in axis:
+        if self.ndim > 1:
+            array_axes = axis.copy()
+            if 0 in array_axes:
+                array_axes.remove(0)
+            expression = expression.array_sum(axis=array_axes)
+            for i in array_axes:
+                axis.remove(i)
+                del i
+            del array_axes
+        elif 1 in axis:
             if self.dtype.is_list:
                 expression = expression.list_sum()
                 if axis:
@@ -598,6 +616,8 @@ class Expression(with_metaclass(Meta)):
                 raise ValueError(f'axis=1 not supported for dtype={dtype}')
         if axis and axis[0] != 0:
             raise ValueError(f'Only axis 0 or 1 is supported')
+        if expression.ndim > 1:
+            raise ValueError(f'Cannot sum non-scalar (ndim={expression.ndim})')
         if axis is None or 0 in axis:
             kwargs = dict(locals())
             del kwargs['self']
