@@ -84,26 +84,10 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
         self.h5file = h5py.File(file, "r+" if self.write else "r")
 
 
-    def encode(self, encoding, skip=set()):
-        spec = {'dataset_type': self.snake_name,
-                'path': self.path,
-                'write': self.write,
-                'fs_options': self.fs_options,
-                'fs': self.fs}
-        return spec
-
     @classmethod
     def decode(cls, encoding, spec):
         ds = cls(**spec)
         return ds
-
-    def __getstate__(self):
-        return {
-            **super().__getstate__(),
-            'nommap': self.nommap,
-            'fs_options': self.fs_options,
-            'fs': self.fs,
-        }
 
     def __setstate__(self, state):
         super().__setstate__(state)

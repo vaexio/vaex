@@ -2214,6 +2214,7 @@ class DataFrame(object):
         'virtual_columns': {'r': '(((x ** 2) + (y ** 2)) ** 0.5)'}}
         """
 
+        virtual_names = list(self.virtual_columns.keys()) + list(self.variables.keys())
         units = {key: str(value) for key, value in self.units.items()}
         ucds = {key: value for key, value in self.ucds.items() if key in virtual_names}
         descriptions = {key: value for key, value in self.descriptions.items()}
@@ -4107,7 +4108,7 @@ class DataFrame(object):
         selection = self.get_selection(FILTER_SELECTION_NAME)
         from .dataset import DatasetFiltered
         self.set_selection(None, name=FILTER_SELECTION_NAME)
-        self.dataset = DatasetFiltered(self.dataset, mask, state=self.state_get(), selection=selection)
+        self.dataset = DatasetFiltered(self.dataset, mask, state=self.state_get(skip=[self.dataset]), selection=selection)
 
     @docsubst
     def shuffle(self, random_state=None):
@@ -4325,7 +4326,32 @@ class DataFrame(object):
             indices = indices[::-1].copy()  # this may be used a lot, so copy for performance
         return self.take(indices)
 
-    def _shift(self, periods, column=None, fill_value=None, trim=False, inplace=False):
+    def diff(self, periods=1, column=None, fill_value=None, trim=False, inplace=False, reverse=False):
+        """Calculate the difference between the current row and the row offset by periods
+
+        :param int periods: Which row to take the difference with
+        :param str or list[str] column: Column or list of columns to use (default is all).
+        :param fill_value: Value to use instead of missing values.
+        :param bool trim: Do not include rows that would otherwise have missing values
+        :param bool reverse: When true, calculate `row[periods] - row[current]`
+        :param inplace: {inplace}
+        """
+        df = self.trim(inplace=inplace)
+        columns = self.get_column_names() if column is None else [column]
+        originals = {}
+        for column in columns:
+            new_name = df._find_valid_name(f'__{column}_original')
+            df[new_name] = df[column]
+            originals[column] = new_name
+        df = df.shift(periods, columns, fill_value=fill_value, trim=trim, inplace=inplace)
+        for column in columns:
+            if reverse:
+                df[column] = df[column] - df[originals[column]]
+            else:
+                df[column] = df[originals[column]] - df[column]
+        return df
+
+    def shift(self, periods, column=None, fill_value=None, trim=False, inplace=False):
         """Shift a column or multiple columns by `periods` amounts of rows.
 
         :param int periods: Shift column forward (when positive) or backwards (when negative)
@@ -4343,7 +4369,7 @@ class DataFrame(object):
             columns = set(column) if _issequence(column) else {column}
         else:
             columns = set(df.get_column_names())
-        columns_all = set(df.get_column_names(hidden=False))
+        columns_all = set(df.get_column_names(hidden=True))
 
         # these columns we do NOT want to shift, because we didn't ask it
         # or because we depend on them (virtual column)
@@ -4409,7 +4435,7 @@ class DataFrame(object):
             start, end = periods
         else:
             start = end = periods
-        dataset = DatasetShifted(dataset=df.dataset, start=start, end=end, column_mapping=column_shift_mapping, fill_value=fill_value)
+        dataset = DatasetShifted(original=df.dataset, start=start, end=end, column_mapping=column_shift_mapping, fill_value=fill_value)
         if trim:
             # assert start == end
             slice_start = 0
@@ -5161,6 +5187,21 @@ class DataFrame(object):
         def finish(*binners):
             return self._grid(binners)
         return self._delay(delay, finish(*binners))
+
+    @docsubst
+    def rolling(self, window, trim=False, column=None, fill_value=None, edge="right"):
+        '''Create a :py:data:`vaex.rolling.Rolling` rolling window object
+
+        :param int window: Size of the rolling window.
+        :param bool trim: {trim}
+        :param str or list[str] column: Column name or column names of columns affected (None for all)
+        :param any fill_value: Scalar value to use for data outside of existing rows.
+        :param str edge: Where the edge of the rolling window is for the current row.
+        '''
+        columns = self.get_column_names() if column is None else [column]
+        from .rolling import Rolling
+        return Rolling(self, window, trim=trim, columns=columns, fill_value=fill_value, edge=edge)
+
 
 DataFrame.__hidden__ = {}
 hidden = [name for name, func in vars(DataFrame).items() if getattr(func, '__hidden__', False)]

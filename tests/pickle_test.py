@@ -35,7 +35,7 @@ def test_pick_file(tmpdir, file_extension):
         df.export(path)
         df = vaex.open(path)
         data = pickle.dumps(df)
-        assert len(data) < 900
+        assert len(data) < 1000
         assert df.x.sum() == xsum
         assert df.y.sum() == ysum
 

@@ -1361,9 +1361,11 @@ class DatasetFile(Dataset):
     """Datasets that map to a file can keep their ids/hashes in the file itself,
     or keep them in a meta file.
     """
-    def __init__(self, path, write=False):
+    def __init__(self, path, write=False, fs_options={}, fs=None):
         super().__init__()
         self.path = path
+        self.fs_options = fs_options
+        self.fs = fs
         self.write = write
         self._columns = {}
         self._ids = {}
@@ -1377,6 +1379,10 @@ class DatasetFile(Dataset):
         base, ext, fs_options = vaex.file.split_ext(self.path)
         base = os.path.basename(base)
         return base
+
+    def id(self):
+        fingerprint = vaex.file.fingerprint(self.path, fs_options=self.fs_options, fs=self.fs)
+        return f'dataset-{self.snake_name}-{fingerprint}'
 
     def leafs(self) -> List[Dataset]:
         return [self]
@@ -1437,12 +1443,22 @@ class DatasetFile(Dataset):
         self._set_row_count()
         self._frozen = True
 
+    def encode(self, encoding, skip=set()):
+        spec = {'dataset_type': self.snake_name,
+                'write': self.write,
+                'path': self.path,
+                'fs_options': self.fs_options,
+                'fs': self.fs}
+        return spec
+
     def __getstate__(self):
         # we don't have the columns in the state, since we should be able
         # to get them from disk again
         return {
             'write': self.write,
             'path': self.path,
+            'fs_options': self.fs_options,
+            'fs': self.fs,
             '_ids': dict(self._ids)  # serialize the hases as non-frozen dict
         }
 

@@ -77,51 +77,99 @@ def test_sliding_matrix(chunk_size=2):
     xappend = pa.array([99, 88])
     xexpected = np.array([[0, 1], [1, 2], [2, -1], [-1, 4], [4, -1]])
     xexpected = np.ma.array(xexpected, mask=xexpected==-1)
-    xexpected3 = np.array([[0, 1, 2], [1, 2, -1], [2, -1, 4], [-1, 4, -1], [4, -1, -1]])
-    xexpected3 = np.ma.array(xexpected3, mask=xexpected3==-1)
-    xresult = vaex.shift.sliding_matrix(x, None, 2)
+
+    xresult = vaex.shift.sliding_matrix(None, x, None, 2, 0)
     assert xresult.tolist() == xexpected.tolist()
 
-    xresult3 = vaex.shift.sliding_matrix(x, None, 3)
+    xresult = vaex.shift.sliding_matrix(x[:2], x[2:4], x[4:], 2, 0)
+    assert xresult.tolist() == xexpected[2:4].tolist()
+
+    # with 3 elements
+    xexpected3 = np.array([[0, 1, 2], [1, 2, -1], [2, -1, 4], [-1, 4, -1], [4, -1, -1]])
+    xexpected3 = np.ma.array(xexpected3, mask=xexpected3==-1)
+
+    xresult3 = vaex.shift.sliding_matrix(None, x, None, 3, 0)
     assert xresult3.tolist() == xexpected3.tolist()
 
-    # xresult = vaex.shift.sliding_matrix(x[:2], x[2:], 2)
-    # assert xresult.tolist() == xexpected[:2].tolist()
+    xresult3 = vaex.shift.sliding_matrix(x[:2], x[2:4], x[4:], 3, 0)
+    assert xresult3.tolist() == xexpected3[2:4].tolist()
 
-    xresult3 = vaex.shift.sliding_matrix(x[:2], x[2:], 3)
-    assert xresult3.tolist() == xexpected3[:2].tolist()
 
+    # using offset
+    xexpected = np.array([[-1, 0], [0, 1], [1, 2], [2, -1], [-1, 4]])
+    xexpected = np.ma.array(xexpected, mask=xexpected==-1)
+
+    xresult = vaex.shift.sliding_matrix(None, x, None, 2, 1)
+    assert xresult.tolist() == xexpected.tolist()
+
+    xresult = vaex.shift.sliding_matrix(x[:2], x[2:4], x[4:], 2, 1)
+    assert xresult.tolist() == xexpected[2:4].tolist()
+
+    # offset 2
+    xexpected = np.array([[-1, -1], [-1, 0], [0, 1], [1, 2], [2, -1]])
+    xexpected = np.ma.array(xexpected, mask=xexpected==-1)
+
+    xresult = vaex.shift.sliding_matrix(None, x, None, 2, 2)
+    assert xresult.tolist() == xexpected.tolist()
+
+    xresult = vaex.shift.sliding_matrix(x[:2], x[2:4], x[4:], 2, 2)
+    assert xresult.tolist() == xexpected[2:4].tolist()
+
+    # offset 1 and 3 elements
+    xexpected3 = np.array([[None, 0, 1], [0, 1, 2], [1, 2, -1], [2, -1, 4], [-1, 4, -1]])
+    xexpected3 = np.ma.array(xexpected3, mask=xexpected3==-1)
+
+    xresult3 = vaex.shift.sliding_matrix(None, x, None, 3, 1)
+    assert xresult3.tolist() == xexpected3.tolist()
+
+    xresult3 = vaex.shift.sliding_matrix(x[:2], x[2:4], x[4:], 3, 1)
+    assert xresult3.tolist() == xexpected3[2:4].tolist()
+
+    # offset 2 and 3 elements
+    xexpected3 = np.array([[None, None, 0], [None, 0, 1], [0, 1, 2], [1, 2, -1], [2, -1, 4]])
+    xexpected3 = np.ma.array(xexpected3, mask=xexpected3==-1)
+
+    xresult3 = vaex.shift.sliding_matrix(None, x, None, 3, 2)
+    assert xresult3.tolist() == xexpected3.tolist()
+
+    xresult3 = vaex.shift.sliding_matrix(x[:2], x[2:4], x[4:], 3, 2)
+    assert xresult3.tolist() == xexpected3[2:4].tolist()
 
 
 @pytest.mark.parametrize("virtual", [False, True])
-def test_shift_basics(df_factory, virtual):
+def test_shift_basics(df_factory, virtual, rebuild_dataset):
     x = [0, 1, 2, None, 4]
     y = [0, 1, None, 9, 16]
     df = df_factory(x=x, y=y)
     if virtual:
         df['x'] = df.x + 0
-    dfp1 = df._shift(1, ['x'])
-    dfn1 = df._shift(-1, ['x'])
+    dfp1 = df.shift(1, ['x'])
+    dfn1 = df.shift(-1, ['x'])
     assert dfp1.x.tolist() == [None, 0, 1, 2, None]
     assert dfp1.y.tolist() == [0, 1, None, 9, 16]
     assert dfn1.x.tolist() == [1, 2, None, 4, None]
     assert dfn1.y.tolist() == [0, 1, None, 9, 16]
 
-    assert dfp1._shift(1).x.tolist() == [None, None, 0, 1, 2]
-    assert dfp1._shift(-1).x.tolist() == [0, 1, 2, None, None]
-    assert dfp1._shift(-1, fill_value=99).x.tolist() == [0, 1, 2, None, 99]
+    assert dfp1.shift(1).x.tolist() == [None, None, 0, 1, 2]
+    assert dfp1.shift(-1).x.tolist() == [0, 1, 2, None, None]
+    assert dfp1.shift(-1, fill_value=99).x.tolist() == [0, 1, 2, None, 99]
 
-    assert dfn1._shift(1).x.tolist() == [None, 1, 2, None, 4]
-    assert dfn1._shift(-1).x.tolist() == [2, None, 4, None, None]
-    assert dfn1._shift(-1, fill_value=99).x.tolist() == [2, None, 4, None, 99]
+    assert dfn1.shift(1).x.tolist() == [None, 1, 2, None, 4]
+    assert dfn1.shift(-1).x.tolist() == [2, None, 4, None, None]
+    assert dfn1.shift(-1, fill_value=99).x.tolist() == [2, None, 4, None, 99]
 
-    assert df._shift(4).x.tolist() == [None, None, None, None, 0]
-    assert df._shift(5).x.tolist() == [None, None, None, None, None]
-    assert df._shift(6).x.tolist() == [None, None, None, None, None]
+    assert df.shift(4).x.tolist() == [None, None, None, None, 0]
+    assert df.shift(5).x.tolist() == [None, None, None, None, None]
+    assert df.shift(6).x.tolist() == [None, None, None, None, None]
 
-    assert df._shift(-4).x.tolist() == [4, None, None, None, None]
-    assert df._shift(-5).x.tolist() == [None, None, None, None, None]
-    assert df._shift(-6).x.tolist() == [None, None, None, None, None]
+    assert df.shift(-4).x.tolist() == [4, None, None, None, None]
+    assert df.shift(-5).x.tolist() == [None, None, None, None, None]
+    assert df.shift(-6).x.tolist() == [None, None, None, None, None]
+
+    dfp1_rebuild = vaex.from_dataset(rebuild_dataset(dfp1.dataset))
+    dfp1_rebuild.state_set(dfp1.state_get())
+    assert dfp1_rebuild.x.tolist() == dfp1.x.tolist()
+    # assert rebuild_dataset(df.shift(1).hashed()) == df.shift(1).hashed()
 
 
 @pytest.mark.parametrize("length", list(range(1, 3)))
@@ -130,8 +178,8 @@ def test_shift_slice(df_factory, i1, length):
     x = [0, 1, 2, None, 4]
     y = [0, 1, None, 9, 16]
     df = df_factory(x=x, y=y)
-    dfp1 = df._shift(1, ['x'])
-    dfn1 = df._shift(-1, ['x'])
+    dfp1 = df.shift(1, ['x'])
+    dfn1 = df.shift(-1, ['x'])
     i2 = i1 + length + 1
     assert dfp1[i1:i2].x.tolist() == [None, 0, 1, 2, None][i1:i2]
     assert dfp1[i1:i2].y.tolist() == [0, 1, None, 9, 16][i1:i2]
@@ -141,15 +189,15 @@ def test_shift_basics_trim(df_factory):
     x = [0, 1, 2, None, 4]
     y = [0, 1, None, 9, 16]
     df = df_factory(x=x, y=y)
-    dfp1 = df._shift(1, ['x'], trim=True)
-    dfn1 = df._shift(-1, ['x'], trim=True)
+    dfp1 = df.shift(1, ['x'], trim=True)
+    dfn1 = df.shift(-1, ['x'], trim=True)
     assert dfp1.x.tolist() == [0, 1, 2, None]
     assert dfp1.y.tolist() == [1, None, 9, 16]
     assert dfn1.x.tolist() == [1, 2, None, 4]
     assert dfn1.y.tolist() == [0, 1, None, 9]
 
-    assert dfp1._shift(1, trim=True).x.tolist() == [0, 1, 2]
-    assert dfp1._shift(-1, trim=True).x.tolist() == [1, 2, None]
+    assert dfp1.shift(1, trim=True).x.tolist() == [0, 1, 2]
+    assert dfp1.shift(-1, trim=True).x.tolist() == [1, 2, None]
 
 
 def test_shift_range(df_factory):
@@ -159,18 +207,18 @@ def test_shift_range(df_factory):
     df = df_factory(x=x, y=y)
     df['x1'] = df['x']
     df['x2'] = df['x']
-    df._shift(0, ['x1'], inplace=True)
-    df._shift(-1, ['x2'], inplace=True)
+    df.shift(0, ['x1'], inplace=True)
+    df.shift(-1, ['x2'], inplace=True)
     assert df.x1.tolist() == x
     assert df.x2.tolist() == xm1
     assert df.func.stack([df.x1, df.x2]).tolist() == [[0, 1], [1, 2], [2, 3], [3, 4], [4, None]]
     df = df_factory(x=x, y=y)
-    df._shift((0, 2), 'x', inplace=True)
+    df.shift((0, 2), 'x', inplace=True)
     assert df.x.tolist() == [[0, 1], [1, 2], [2, 3], [3, 4], [4, None]]
 
     # trim with range
     df = df_factory(x=x, y=y)
-    df._shift((0, 3), 'x', inplace=True, trim=True)
+    df.shift((0, 3), 'x', inplace=True, trim=True)
     assert df.x.tolist() == [[0, 1, 2], [1, 2, 3], [2, 3, 4]]
 
 
@@ -181,38 +229,38 @@ def test_shift_filtered(df_factory):
     assert len(x) == len(y)
     df = df0 = df_factory(x=x, y=y)
     df = df[((df.x != 99) | df.x.ismissing()).fillna(True)]
-    dfp1 = df._shift(1, ['x'])
-    dfn1 = df._shift(-1, ['x'])
+    dfp1 = df.shift(1, ['x'])
+    dfn1 = df.shift(-1, ['x'])
     assert dfp1.x.tolist() == [None, 0, 1, 2, None]
     assert dfp1.y.tolist() == [0, 1, None, 9, 16]
     assert dfn1.x.tolist() == [1, 2, None, 4, None]
     assert dfn1.y.tolist() == [0, 1, None, 9, 16]
 
-    assert dfp1._shift(1).x.tolist() == [None, None, 0, 1, 2]
-    assert dfp1._shift(-1).x.tolist() == [0, 1, 2, None, None]
-    assert dfp1._shift(-1, fill_value=99).x.tolist() == [0, 1, 2, None, 99]
+    assert dfp1.shift(1).x.tolist() == [None, None, 0, 1, 2]
+    assert dfp1.shift(-1).x.tolist() == [0, 1, 2, None, None]
+    assert dfp1.shift(-1, fill_value=99).x.tolist() == [0, 1, 2, None, 99]
 
-    assert dfn1._shift(1).x.tolist() == [None, 1, 2, None, 4]
-    assert dfn1._shift(-1).x.tolist() == [2, None, 4, None, None]
-    assert dfn1._shift(-1, fill_value=99).x.tolist() == [2, None, 4, None, 99]
+    assert dfn1.shift(1).x.tolist() == [None, 1, 2, None, 4]
+    assert dfn1.shift(-1).x.tolist() == [2, None, 4, None, None]
+    assert dfn1.shift(-1, fill_value=99).x.tolist() == [2, None, 4, None, 99]
 
-    assert df._shift(4).x.tolist() == [None, None, None, None, 0]
-    assert df._shift(5).x.tolist() == [None, None, None, None, None]
-    assert df._shift(6).x.tolist() == [None, None, None, None, None]
+    assert df.shift(4).x.tolist() == [None, None, None, None, 0]
+    assert df.shift(5).x.tolist() == [None, None, None, None, None]
+    assert df.shift(6).x.tolist() == [None, None, None, None, None]
 
-    assert df._shift(-4).x.tolist() == [4, None, None, None, None]
-    assert df._shift(-5).x.tolist() == [None, None, None, None, None]
-    assert df._shift(-6).x.tolist() == [None, None, None, None, None]
+    assert df.shift(-4).x.tolist() == [4, None, None, None, None]
+    assert df.shift(-5).x.tolist() == [None, None, None, None, None]
+    assert df.shift(-6).x.tolist() == [None, None, None, None, None]
 
 
 def test_shift_string(df_factory):
     x = np.arange(4)
     s = pa.array(['aap', None, 'noot', 'mies'])
     df = df_factory(x=x, s=s)
-    assert df._shift(1).s.tolist() == [None, 'aap', None, 'noot']
-    assert df._shift(-1).s.tolist() == [None, 'noot', 'mies', None]
-    assert df._shift(1, ['s'], fill_value='VAEX').s.tolist() == ['VAEX', 'aap', None, 'noot']
-    assert df._shift(-1, ['s'], fill_value='VAEX').s.tolist() == [None, 'noot', 'mies', 'VAEX']
+    assert df.shift(1).s.tolist() == [None, 'aap', None, 'noot']
+    assert df.shift(-1).s.tolist() == [None, 'noot', 'mies', None]
+    assert df.shift(1, ['s'], fill_value='VAEX').s.tolist() == ['VAEX', 'aap', None, 'noot']
+    assert df.shift(-1, ['s'], fill_value='VAEX').s.tolist() == [None, 'noot', 'mies', 'VAEX']
 
 
 def test_shift_virtual(df_factory):
@@ -225,11 +273,11 @@ def test_shift_virtual(df_factory):
     # # a is a virtual column that depends on x, but we don't shift a
     df['a'] = df.x + 0
     df['b'] = df.a
-    dfs = df._shift(1, ['x'])
+    dfs = df.shift(1, ['x'])
     assert dfs.x.tolist() == xsp1
     assert dfs.a.tolist() == x
     assert dfs.y.tolist() == y
-    dfs = df._shift(-1, ['x'])
+    dfs = df.shift(-1, ['x'])
     assert dfs.x.tolist() == xsn1
     assert dfs.a.tolist() == x
     assert dfs.y.tolist() == y
@@ -238,11 +286,11 @@ def test_shift_virtual(df_factory):
     # we expect, a: __x_shifted, x: __x
     df = df_factory(x=x, y=y)
     df['a'] = df.x + 0
-    dfs = df._shift(1, ['a'])
+    dfs = df.shift(1, ['a'])
     assert dfs.x.tolist() == x
     assert dfs.a.tolist() == xsp1
     assert dfs.y.tolist() == y
-    dfs = df._shift(-1, ['a'])
+    dfs = df.shift(-1, ['a'])
     assert dfs.x.tolist() == x
     assert dfs.a.tolist() == xsn1
     assert dfs.y.tolist() == y
@@ -251,12 +299,12 @@ def test_shift_virtual(df_factory):
     df = df_factory(x=x, y=y)
     df['a'] = df.x + 0
     df['b'] = df.a + 0
-    dfs = df._shift(1, ['a'])
+    dfs = df.shift(1, ['a'])
     assert dfs.x.tolist() == x
     assert dfs.a.tolist() == xsp1
     assert dfs.b.tolist() == x
     assert dfs.y.tolist() == y
-    dfs = df._shift(-1, ['a'])
+    dfs = df.shift(-1, ['a'])
     assert dfs.x.tolist() == x
     assert dfs.a.tolist() == xsn1
     assert dfs.b.tolist() == x
@@ -301,3 +349,18 @@ def test_shift_dataset(chunk_size=2):
 
     assert not dss.is_masked('x_shift')
     assert dss_range.is_masked('x_shift')
+
+
+
+@pytest.mark.parametrize("periods", [-1, 1, 2, -2])
+def test_diff(df_factory, periods):
+    x = [0, 1, 2, 3, 4.0]
+    df = df_factory(x=x)
+    dfp = df.to_pandas_df()
+    df = df.diff(periods, fill_value=np.nan)
+    dfp = dfp.diff(periods)
+    result = df['x'].to_numpy()
+    expected = dfp['x'].to_numpy()
+    assert np.all(np.isnan(result) == np.isnan(expected))
+    mask = ~np.isnan(result)
+    assert result[mask].tolist() == expected[mask].tolist()

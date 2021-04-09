@@ -221,6 +221,11 @@ def list_sum(ar,  fill_empty=0):
 
 
 @register_function()
+def array_sum(ar, axis):
+    return np.sum(ar, axis=tuple(axis))
+
+
+@register_function()
 def fillmissing(ar, value):
     '''Returns an array where missing values are replaced by value.
     See :`ismissing` for the definition of missing values.

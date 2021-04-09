@@ -486,10 +486,22 @@ def test_format_xarray_and_list(df_local):
 def test_list_sum(offset):
     data = [1, 2, None], None, [], [1, 3, 4, 5]
     df = vaex.from_arrays(i=pa.array(data).slice(offset))
+    assert df.i.ndim == 1
     assert df.i.sum() == [16, 13][offset]
     assert df.i.sum(axis=1).tolist() == [3, None, 0, 13][offset:]
     assert df.i.sum(axis=[0, 1]) == [16, 13][offset]
     # assert df.i.sum(axis=0)  # not supported, not sure what this should return
+
+
+def test_array_sum():
+    x = np.arange(6)
+    X = np.array([x[0:-1], x[1:]])
+    df = vaex.from_arrays(X=X)
+    assert df.X.ndim == 2
+    assert df.X.sum() == X.sum()
+    assert df.X.sum(axis=1).tolist() == X.sum(axis=1).tolist()
+    assert df.X.sum(axis=[0, 1]) == X.sum().tolist()
+    # assert df.X.sum(axis=0) == X.sum(axis=0)# not supported
 
 
 def test_agg_count_with_custom_name():
