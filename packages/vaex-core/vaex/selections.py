@@ -1,5 +1,6 @@
 import logging
 import numpy as np
+import dask.base
 
 import vaex.expression
 from .utils import _split_and_combine_mask, as_flat_float
@@ -231,3 +232,7 @@ def selection_from_dict(values):
         return SelectionDropNa(**kwargs)
     else:
         raise ValueError("unknown type: %r, in dict: %r" % (values["type"], values))
+
+@dask.base.normalize_token.register(Selection)
+def normalize(e):
+    return e.to_dict()

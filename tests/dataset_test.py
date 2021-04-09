@@ -8,24 +8,32 @@ import pyarrow.parquet
 
 import vaex
 import vaex.dataset as dataset
+import vaex.encoding
 
 pytest.importorskip("blake3")
 
 HERE = Path(__file__).parent
 
+def rebuild_with_skip(ds, skip):
+    # encoding and decode
+    encoding = vaex.encoding.Encoding()
+    encoding.set_object_spec(skip.id, None)  # this will cause it to skip serialization
+    data = encoding.encode('dataset', ds)
+    assert encoding._object_specs[skip.id] is None
+    del encoding._object_specs[skip.id]
+    blob = vaex.encoding.serialize(data, encoding)
 
-def rebuild(ds):
-    # pick and unpickle
-    f = BytesIO()
-    picked = pickle.dump(ds, f)
-    f.seek(0)
-    return pickle.load(f)
+    encoding = vaex.encoding.Encoding()
+    encoding.set_object(skip.id, skip)
+    data = vaex.encoding.deserialize(blob, encoding)
+    return encoding.decode('dataset', data)
 
-def test_array_pickle():
+
+def test_array_rebuild_dataset(rebuild_dataset):
     x = np.arange(10)
     y = x**2
     ds = dataset.DatasetArrays(x=x, y=y).hashed()
-    assert ds == rebuild(ds)
+    assert ds == rebuild_dataset(ds)
 
 
 def test_no_hash():
@@ -46,12 +54,22 @@ def test_no_hash():
     ds1.hashed() == ds2.hashed()
 
 
-def test_array_eq():
+def test_merge_array():
+    # we prefer a single DatasetArrays instead of a tree with Merged
+    x = np.arange(10)
+    df = vaex.from_arrays(x=x)
+    df['y'] = x**2
+    assert isinstance(df.dataset, vaex.dataset.DatasetArrays)
+
+
+def test_array_eq(rebuild_dataset):
     x1 = np.arange(10)
     y1 = x1**2
     ds1 = dataset.DatasetArrays(x=x1, y=y1).hashed()
     assert ds1['x'] is x1
     assert ds1['y'] is y1
+
+    assert set(ds1.leafs()) == {ds1}
 
     x2 = np.arange(10)
     y2 = x2**2
@@ -61,21 +79,22 @@ def test_array_eq():
 
     # different data, but same ids/hashes
     assert ds1 == ds2
-    assert ds1 == rebuild(ds2)
+    assert ds1 == rebuild_dataset(ds2)
 
 
-def test_array_rename():
+def test_array_rename(rebuild_dataset):
     x = np.arange(10)
     y = x**2
     ds1 = dataset.DatasetArrays(x=x, y=y).hashed()
     ds2 = ds1.renamed({'x': 'z'})
+    assert set(ds2.leafs()) == {ds1}
     assert ds2['y'] is y
     assert ds2['z'] is x
 
     assert 'z' in list(ds2.chunk_iterator(['z']))[0][-1]
 
     assert ds1 != ds2
-    assert rebuild(ds1) != rebuild(ds2)
+    assert rebuild_dataset(ds1) != rebuild_dataset(ds2)
 
     ds3 = ds2.renamed({'z': 'x'})
     assert ds3.original is ds1, "no nested renaming"
@@ -84,7 +103,7 @@ def test_array_rename():
 
     # different data, but same ids/hashes
     assert ds1 == ds3
-    assert rebuild(ds1) == rebuild(ds3)
+    assert rebuild_dataset(ds1) == rebuild_dataset(ds3)
 
     # testing that
     # {'a': 'x', 'b': 'y'} and {'x': 'a', 'b': 'z', 'c', 'q'} -> {'b': 'z', 'c': 'q'}
@@ -94,21 +113,25 @@ def test_array_rename():
     assert ds3.original is ds1
     assert ds3.renaming == {'b': 'z', 'c': 'q'}
 
+    assert rebuild_with_skip(ds2, ds1) == ds2
 
-def test_merge():
-    x = np.arange(10)
-    y = x**2
+
+def test_merge(rebuild_dataset, array_factory):
+    x = array_factory(np.arange(10))
+    y = array_factory(np.arange(10)**2)
     ds1 = dataset.DatasetArrays(x=x, y=y).hashed()
     dsx = dataset.DatasetArrays(x=x)
     dsy = dataset.DatasetArrays(y=y)
     ds2 = dsx.merged(dsy).hashed()
+    assert set(ds2.leafs()) == {dsx.hashed(), dsy.hashed()}
 
     assert ds1 == ds2
-    assert rebuild(ds1) == rebuild(ds2)
+    assert rebuild_dataset(ds1) == rebuild_dataset(ds2)
 
     with pytest.raises(NameError):
         ds2.merged(dsx)
 
+    assert rebuild_with_skip(ds2, dsx.hashed()) == ds1
 
 def test_slice_column():
     # slicing a colunm type should keep it column type
@@ -121,7 +144,7 @@ def test_slice_column():
     assert isinstance(ds3['x'], vaex.column.ColumnIndexed)
 
 
-def test_slice():
+def test_slice(rebuild_dataset):
     x = np.arange(10)
     y = x**2
     ds1 = dataset.DatasetArrays(x=x, y=y)
@@ -141,11 +164,15 @@ def test_slice():
     ds3 = dataset.DatasetArrays(x=x[1:8], y=y[1:8])
 
     assert ds2.hashed() != ds3.hashed()
-    assert rebuild(ds1).hashed() != rebuild(ds2).hashed()
+    assert rebuild_dataset(ds1.hashed()) != rebuild_dataset(ds2.hashed())
+    # TODO: support unhashed?
+    assert rebuild_dataset(ds1).hashed() != rebuild_dataset(ds2).hashed()
+
+    assert rebuild_with_skip(ds2.hashed(), ds1.hashed()) == ds2.hashed()
 
 
 
-def test_filter():
+def test_filter(rebuild_dataset):
     x = np.arange(10)
     y = x**2
     filter = (x % 2) == 1
@@ -169,11 +196,25 @@ def test_filter():
 
 
     assert ds1['x'].tolist() == x[filter].tolist()
-    assert rebuild(ds1).hashed() != rebuild(ds2).hashed()
+    # TODO unhashed
+    # assert rebuild_dataset(ds1).hashed() != rebuild_dataset(ds2).hashed()
+    assert rebuild_dataset(ds1.hashed()) != rebuild_dataset(ds2.hashed())
+    assert rebuild_with_skip(ds2.hashed(), ds.hashed()) == ds2.hashed()
+
+    # testing the encoding of the expression instead of the array
+    df = vaex.from_arrays(x=x, y=y)
+    df['z'] = df.x % 2
+    dff = df[df.z == 1]
+    dff._push_down_filter()
+    # df = vaex.from_arrays(x=[11, 12, 13, 15], y=[33, 44, 55, 66])
+    ds = dff.dataset.hashed()
+    # assert ds.state is not None
+    assert ds == rebuild_dataset(ds)
 
 
 
-def test_take():
+
+def test_take(rebuild_dataset):
     x = np.arange(10)
     y = x**2
     ds1 = dataset.DatasetArrays(x=x, y=y)
@@ -194,10 +235,10 @@ def test_take():
     ds3 = dataset.DatasetArrays(x=x[indices], y=y[indices])
 
     assert ds2.hashed() != ds3.hashed()
-    assert rebuild(ds1).hashed() != rebuild(ds2).hashed()
+    assert rebuild_dataset(ds1).hashed() != rebuild_dataset(ds2).hashed()
 
 
-def test_project():
+def test_project(rebuild_dataset):
     x = np.arange(10)
     y = x**2
     ds1 = dataset.DatasetArrays(x=x, y=y)
@@ -205,10 +246,10 @@ def test_project():
     ds3 = dataset.DatasetArrays(x=x)
     assert ds1.hashed() != ds2.hashed()
     assert ds2.hashed() == ds3.hashed()
-    assert rebuild(ds2).hashed() == rebuild(ds3).hashed()
+    assert rebuild_dataset(ds2).hashed() == rebuild_dataset(ds3).hashed()
 
 
-def test_drop():
+def test_drop(rebuild_dataset):
     x = np.arange(10)
     y = x**2
     ds1 = dataset.DatasetArrays(x=x, y=y)
@@ -217,10 +258,10 @@ def test_drop():
     ds3 = ds1.dropped('y')
     assert 'y' not in ds3
     assert ds1.hashed() == ds2.merged(ds3).hashed()
-    assert rebuild(ds1).hashed() == rebuild(ds2.merged(ds3)).hashed()
+    assert rebuild_dataset(ds1).hashed() == rebuild_dataset(ds2.merged(ds3)).hashed()
 
 
-def test_concat():
+def test_concat(rebuild_dataset):
     x = np.arange(10)
     y = x**2
     ds = dataset.DatasetArrays(x=x, y=y)
@@ -235,16 +276,19 @@ def test_concat():
     assert list(dsc.chunk_iterator([])) == [(0, 10, {})]
     assert list(dsc.chunk_iterator([], start=5, end=10)) == [(0, 5, {})]
 
+    assert rebuild_dataset(dsc).hashed() == dsc.hashed()
 
-def test_example():
+
+
+def test_example(rebuild_dataset):
     df = vaex.example().hashed()
     path_data = HERE / 'data' / 'test.hdf5'
     assert isinstance(df, vaex.dataframe.DataFrame)
     assert isinstance(df.dataset, vaex.hdf5.dataset.Hdf5MemoryMapped)
-    assert rebuild(df.dataset) == df.dataset
+    assert rebuild_dataset(df.dataset) == df.dataset
 
 
-def test_hashable():
+def test_hashable(rebuild_dataset):
     # tests if we can use datasets as keys of dicts
     x = np.arange(10)
     y = x**2
@@ -254,11 +298,11 @@ def test_hashable():
     assert some_dict[ds1] == '1'
     assert some_dict[df.dataset] == '2'
 
-    assert some_dict[rebuild(ds1)] == '1'
-    assert some_dict[rebuild(df.dataset)] == '2'
+    assert some_dict[rebuild_dataset(ds1)] == '1'
+    assert some_dict[rebuild_dataset(df.dataset)] == '2'
 
 
-def test_cache_hash():
+def test_cache_hash(rebuild_dataset):
     # TODO: what if the directory is not writable?
     # ds1 = dataset.DatasetArrays(x=x, y=y)
     path_data = HERE / 'data' / 'test.hdf5'
@@ -279,7 +323,7 @@ def test_cache_hash():
 
     # and pickling
     ds = df2.dataset
-    ds2 = rebuild(ds)
+    ds2 = rebuild_dataset(ds)
     assert ds2._hash_calculations == 0
     assert ds == ds2
 

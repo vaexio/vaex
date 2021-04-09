@@ -4,8 +4,10 @@ import base64
 import io
 import json
 import numbers
+import pickle
 import uuid
 import struct
+import collections.abc
 
 import numpy as np
 import pyarrow as pa
@@ -63,40 +65,64 @@ class vaex_evaluate_results_encoding:
         if isinstance(result, (list, tuple)):
             return [cls.encode(encoding, k) for k in result]
         else:
-            if isinstance(result, np.ndarray):
-                return {'type': 'ndarray', 'data': encoding.encode('ndarray', result)}
-            elif isinstance(result, vaex.array_types.supported_arrow_array_types):
-                return {'type': 'arrow-array', 'data': encoding.encode('arrow-array', result)}
-            elif isinstance(result, numbers.Number):
-                try:
-                    result = result.item()  # for numpy scalars
-                except:  # noqa
-                    pass
-                return {'type': 'json', 'data': result}
-            else:
-                raise ValueError('Cannot encode: %r' % result)
+           return encoding.encode('array', result)
 
     @classmethod
     def decode(cls, encoding, result_encoded):
         if isinstance(result_encoded, (list, tuple)):
             return [cls.decode(encoding, k) for k in result_encoded]
         else:
-            return encoding.decode(result_encoded['type'], result_encoded['data'])
+            return encoding.decode('array', result_encoded)
 
+
+@register("array")
+class array_encoding:
+    @classmethod
+    def encode(cls, encoding, result):
+        if isinstance(result, np.ndarray):
+            return {'type': 'ndarray', 'data': encoding.encode('ndarray', result)}
+        elif isinstance(result, vaex.array_types.supported_arrow_array_types):
+            return {'type': 'arrow-array', 'data': encoding.encode('arrow-array', result)}
+        elif isinstance(result, numbers.Number):
+            try:
+                result = result.item()  # for numpy scalars
+            except:  # noqa
+                pass
+            return {'type': 'json', 'data': result}
+        else:
+            raise ValueError('Cannot encode: %r' % result)
+
+    @classmethod
+    def decode(cls, encoding, result_encoded):
+        return encoding.decode(result_encoded['type'], result_encoded['data'])
 
 
 @register("arrow-array")
 class arrow_array_encoding:
     @classmethod
     def encode(cls, encoding, array):
-        blob = pa.serialize(array).to_buffer()
-        return {'arrow-serialized-blob': encoding.add_blob(blob)}
+        schema = pa.schema({'x': array.type})
+        with pa.BufferOutputStream() as sink:
+            with pa.ipc.new_stream(sink, schema) as writer:
+                writer.write_table(pa.table({'x': array}))
+        blob = sink.getvalue()
+        return {'arrow-ipc-blob': encoding.add_blob(blob)}
 
     @classmethod
     def decode(cls, encoding, result_encoded):
-        blob = encoding.get_blob(result_encoded['arrow-serialized-blob'])
-        return pa.deserialize(blob)
-
+        if 'arrow-serialized-blob' in result_encoded:  # backward compatibility
+            blob = encoding.get_blob(result_encoded['arrow-serialized-blob'])
+            return pa.deserialize(blob)
+        else:
+            blob = encoding.get_blob(result_encoded['arrow-ipc-blob'])
+            with pa.BufferReader(blob) as source:
+                with pa.ipc.open_stream(source) as reader:
+                    table = reader.read_all()
+                    assert table.num_columns == 1
+                    ar = table.column(0)
+                    if len(ar.chunks) == 1:
+                        ar = ar.chunks[0]
+            return ar
 
 @register("ndarray")
 class ndarray_encoding:
@@ -169,6 +195,57 @@ class dtype_encoding:
             return DataType(np.dtype(type_spec))
 
 
+@register("dataframe-state")
+class dataframe_state_encoding:
+    @staticmethod
+    def encode(encoding, state):
+        return state
+
+    @staticmethod
+    def decode(encoding, state_spec):
+        return state_spec
+
+
+@register("selection")
+class selection_encoding:
+    @staticmethod
+    def encode(encoding, selection):
+        return selection.to_dict() if selection is not None else None
+
+    @staticmethod
+    def decode(encoding, selection_spec):
+        if selection_spec is None:
+            return None
+        selection = vaex.selections.selection_from_dict(selection_spec)
+        return selection
+
+
+@register("function")
+class function_encoding:
+    @staticmethod
+    def encode(encoding, function):
+        return vaex.serialize.to_dict(function.f)
+
+    @staticmethod
+    def decode(encoding, function_spec, trusted=False):
+        if function_spec is None:
+            return None
+        function = vaex.serialize.from_dict(function_spec, trusted=trusted)
+        return function
+
+
+
+@register("variable")
+class selection_encoding:
+    @staticmethod
+    def encode(encoding, selection):
+        return selection
+
+    @staticmethod
+    def decode(encoding, selection_spec):
+        return selection_spec
+
+
 @register("binner")
 class binner_encoding:
     @staticmethod
@@ -218,6 +295,29 @@ class Encoding:
     def __init__(self, next=None):
         self.registry = {**registry}
         self.blobs = {}
+        # for sharing objects
+        self._object_specs = {}
+        self._objects = {}
+
+    def set_object(self, id, obj):
+        assert id not in self._objects
+        self._objects[id] = obj
+
+    def get_object(self, id):
+        return self._objects[id]
+
+    def has_object(self, id):
+        return id in self._objects
+
+    def set_object_spec(self, id, obj):
+        assert id not in self._object_specs, f"Overwriting id {id}"
+        self._object_specs[id] = obj
+
+    def get_object_spec(self, id):
+        return self._object_specs[id]
+
+    def has_object_spec(self, id):
+        return id in self._object_specs
 
     def encode(self, typename, value):
         encoded = self.registry[typename].encode(self, value)
@@ -308,7 +408,7 @@ class binary:
     def serialize(data, encoding):
         blob_refs = list(encoding.blobs.keys())
         blobs = [encoding.blobs[k] for k in blob_refs]
-        json_blob = json.dumps({'data': data, 'blob_refs': blob_refs})
+        json_blob = json.dumps({'data': data, 'blob_refs': blob_refs, 'objects': encoding._object_specs})
         return _pack_blobs(json_blob.encode('utf8'), *blobs)
 
     @staticmethod
@@ -318,6 +418,7 @@ class binary:
         json_data = json.loads(json_data)
         data = json_data['data']
         encoding.blobs = {key: blob for key, blob in zip(json_data['blob_refs'], blobs)}
+        encoding._object_specs = json_data['objects']
         return data
 
 

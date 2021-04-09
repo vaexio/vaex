@@ -16,7 +16,7 @@ def to_dict(obj):
     return dict(cls=fullname(obj.__class__), state=obj.state_get())
 
 
-def from_dict(d, trusted=True):
+def from_dict(d, trusted=False):
     cls_name = d['cls']
     if cls_name not in registry:
         # lets load the module, so we give it a chance to register
