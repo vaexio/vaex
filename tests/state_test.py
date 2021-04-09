@@ -2,6 +2,32 @@ from common import *
 import vaex.ml
 
 
+def test_state_skip_main(df_factory):
+    df = df_factory(x=[1, 2]).hashed()
+    dff = df[df.x > 1]
+    dff._push_down_filter()
+    state = dff.state_get()
+    assert dff.dataset.id in state['objects']
+    assert df.dataset.id not in state['objects']
+
+
+def test_state_skip_slice(df_factory):
+    df = df_factory(x=[1, 2, 2]).hashed()
+    dfs = df[:2]
+    state = dfs.state_get()
+    assert dfs.dataset.id in state['objects']
+    # assert df.dataset.id not in state['objects']
+
+
+def test_apply_state():
+    x = [1, 2, 3, 4, 5]
+    df = vaex.from_arrays(x=x)
+    dfc = df.copy()
+    df['y'] = df.x.apply(lambda x: x**2)
+    dfc.state_set(df.state_get())
+    assert df.y.tolist() == dfc.y.tolist()
+
+
 def test_state_get_set(ds_local):
     ds = ds_local
 
@@ -16,6 +42,15 @@ def test_state_get_set(ds_local):
     # making a copy when the state is set should work as well
     assert ds_copy.copy().v.values.tolist() == ds.v.values.tolist()
     assert 'v' in ds_copy.get_column_names()
+
+
+def test_state_rename(df_factory):
+    df = df_factory(x=[1])
+    dfc = df.copy()
+    df.rename('x', 'y')
+    df.y.tolist() == [1]
+    dfc.state_set(df.state_get())
+    assert dfc.y.tolist() == [1]
 
 
 def test_state_mem_waste(df_trimmed):

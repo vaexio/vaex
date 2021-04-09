@@ -44,13 +44,24 @@ class Server:
         results = self.service.execute(df, tasks)
         return results
 
-    def _rmi(self, df, methodname, args, kwargs):
-        method = getattr(self.df_map[df.name], methodname)
+    async def execute_async(self, df_name, spec_data):
+        encoding = Encoding()
+        specs = deserialize(spec_data, encoding)
+        df = self.service.df_map[df_name]
+        tasks = encoding.decode_list('task', specs, df=df)
+        results = self.service.execute(df, tasks)
+        return results
+
+    def _rmi(self, df_name, methodname, state, args, kwargs):
+        df = self.service.df_map[df_name].copy()
+        df.state_set(state)
+        method = getattr(df, methodname)
         return method(*args, **kwargs)
 
 
 class Client(client.Client):
     def __init__(self, server):
+        self._msg_id_to_tasks = {}
         self.server = server
         self.executor = executor.Executor(self)
         self.update()
@@ -66,5 +77,8 @@ class Client(client.Client):
         task_specs = encoding.encode_list("task", tasks)
         return self.server.execute(df.name, serialize(task_specs, encoding))
 
+    async def execute_async(self, df, tasks):
+        return self.execute(df, tasks)
+
     def _rmi(self, df, methodname, args, kwargs):
-        self.server._rmi(df.name, methodname, args, kwargs)
+        return self.server._rmi(df.name, methodname, df.state_get(), args, kwargs)

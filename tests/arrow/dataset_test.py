@@ -8,9 +8,18 @@ import vaex.arrow.dataset
 
 HERE = Path(__file__).parent
 
+@pytest.mark.parametrize("as_stream", [True, False])
+def test_arrow(tmpdir, as_stream, rebuild_dataset):
+    df = vaex.from_arrays(x=[1,2])
+    path = str(tmpdir.join('test.arrow'))
+    df.export_arrow(path, as_stream=as_stream)
+    df = vaex.open(path)
+    assert rebuild_dataset(df.dataset) == df.dataset
+
+
 @pytest.mark.parametrize("l1", list(range(1, 6)))
 @pytest.mark.parametrize("l2", list(range(1, 6)))
-def test_parquet(l1, l2):
+def test_parquet(l1, l2, rebuild_dataset):
     i1 = 0
     i2 = i1 + l1
     i3 = i2 + l2
@@ -90,3 +99,5 @@ def test_parquet(l1, l2):
 
     ds_dropped = ds.dropped('x')
     assert 'x' not in ds_dropped
+
+    rebuild_dataset(ds).hashed() == ds.hashed()

@@ -24,8 +24,8 @@ def test_encoding():
     assert values['someblob'] == b'1234'
 
 
-def test_encoding_arrow():
-    x = pa.array(np.arange(10, dtype='f4'))
+def test_encoding_arrow(array_factory_arrow):
+    x = array_factory_arrow(np.arange(10, dtype='f4'))
     encoding = vaex.encoding.Encoding()
     data = encoding.encode('arrow-array', x)
     wiredata = vaex.encoding.serialize(data, encoding)

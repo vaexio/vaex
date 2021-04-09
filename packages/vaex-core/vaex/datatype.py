@@ -1,8 +1,9 @@
-import vaex
-import vaex.array_types
+import dask.base
 import numpy as np
 import pyarrow as pa
 
+import vaex
+import vaex.array_types
 
 class DataType:
     """Wraps numpy and arrow data types in a uniform interface
@@ -385,3 +386,7 @@ class DataType:
             return pa.array(values, type=self.arrow)
         else:
             return np.asarray(values, dtype=self.numpy)
+
+@dask.base.normalize_token.register(DataType)
+def normalize_DataType(t):
+    return type(t).__name__, t.internal

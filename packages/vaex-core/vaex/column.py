@@ -1,3 +1,4 @@
+from abc import abstractmethod
 import logging
 import os
 import warnings
@@ -7,6 +8,7 @@ import numpy as np
 import pyarrow as pa
 
 import vaex
+import vaex.cache
 from .array_types import supported_array_types, supported_arrow_array_types, string_types, is_string_type
 
 on_rtd = os.environ.get('READTHEDOCS', None) == 'True'
@@ -21,9 +23,12 @@ class Column(object):
     def tolist(self):
         return self.to_numpy().tolist()
 
+    @abstractmethod
+    def fingerprint(self):
+        pass
+
     def to_arrow(self, type=None):
         return pa.array(self, type=type)
-
 
 supported_column_types = (Column, ) + supported_array_types
 
@@ -41,6 +46,9 @@ class ColumnVirtualRange(Column):
 
     def __len__(self):
         return (self.stop - self.start) // self.step
+
+    def fingerprint(self):
+        return vaex.cache.fingerprint('vrange', self.start, self.stop, self.step, self.dtype, self.shape)
 
     def __getitem__(self,  slice):
         start, stop, step = slice.start, slice.stop, slice.step
@@ -112,6 +120,13 @@ class ColumnArrowLazyCast(Column):
     def __init__(self, ar, type):
         self.ar = ar  # this should behave like a numpy array
         self.type = type
+
+    def __arrow_array__(self, type=None):
+        return pa.array(self.ar)
+
+    def fingerprint(self):
+        hash = vaex.dataset.hash_array_data(self.ar)
+        return vaex.cache.fingerprint('arrow-lazy-cast', hash, self.type)
 
     @property
     def nbytes(self):

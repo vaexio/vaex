@@ -3,12 +3,15 @@ import numpy
 import dask.base
 import logging
 import uuid
+import pyarrow as pa
+
+import vaex.utils
 
 
 log = logging.getLogger('vaex.cache')
 
+dask.base.normalize_token.register(pa.DataType, repr)
 
-import vaex.utils
 
 def fingerprint(*args, **kwargs):
     try:

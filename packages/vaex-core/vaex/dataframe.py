@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from __future__ import division, print_function
 import difflib
+import base64
 import os
 import math
 import time
@@ -2191,7 +2192,153 @@ class DataFrame(object):
             os.makedirs(dir)
         return dir
 
-    def state_get(self):
+    def state_get(self, skip=None):
+        """Return the internal state of the DataFrame in a dictionary
+
+        Example:
+
+        >>> import vaex
+        >>> df = vaex.from_scalars(x=1, y=2)
+        >>> df['r'] = (df.x**2 + df.y**2)**0.5
+        >>> df.state_get()
+        {'active_range': [0, 1],
+        'column_names': ['x', 'y', 'r'],
+        'description': None,
+        'descriptions': {},
+        'functions': {},
+        'renamed_columns': [],
+        'selections': {'__filter__': None},
+        'ucds': {},
+        'units': {},
+        'variables': {},
+        'virtual_columns': {'r': '(((x ** 2) + (y ** 2)) ** 0.5)'}}
+        """
+
+        units = {key: str(value) for key, value in self.units.items()}
+        ucds = {key: value for key, value in self.ucds.items() if key in virtual_names}
+        descriptions = {key: value for key, value in self.descriptions.items()}
+        selections = {name: self.get_selection(name) for name, history in self.selection_histories.items()}
+        encoding = vaex.encoding.Encoding()
+        state = dict(virtual_columns=dict(self.virtual_columns),
+                     column_names=list(self.column_names),
+                     variables={name: encoding.encode("variable", value) for name, value in self.variables.items()},
+                     functions={name: encoding.encode("function", value) for name, value in self.functions.items()},
+                     selections={name: encoding.encode("selection", value) for name, value in selections.items()},
+                     description=self.description,
+                     ucds=ucds,
+                     units=units,
+                     descriptions=descriptions,
+                     active_range=[self._index_start, self._index_end]
+        )
+        datasets = self.dataset.leafs() if skip is None else skip 
+        for dataset in datasets:
+            # mark leafs to not encode
+            encoding._object_specs[dataset.id] = None
+            assert encoding.has_object_spec(dataset.id)
+        if len(datasets) != 1:
+            raise ValueError('Multiple datasets present, please pass skip= argument so we know which dataset not to include in the state.')
+        dataset_main = datasets[0]
+        if dataset_main is not self.dataset:
+            # encode without the leafs
+            data = encoding.encode('dataset', self.dataset)
+            # remove the dummy leaf data
+            for dataset in datasets:
+                assert encoding._object_specs[dataset.id] is None
+                del encoding._object_specs[dataset.id]
+            blobs = {key: base64.b64encode(value).decode('ascii') for key, value in encoding.blobs.items()}
+            if data is not None:
+                state['dataset'] = data
+                state['dataset_missing'] = {'main': dataset_main.id}
+            state['blobs'] = blobs
+        if encoding._object_specs:
+            state['objects'] = encoding._object_specs
+        return state
+
+    def state_set(self, state, use_active_range=False, keep_columns=None, set_filter=True, trusted=True, warn=True):
+        """Sets the internal state of the df
+
+        Example:
+
+        >>> import vaex
+        >>> df = vaex.from_scalars(x=1, y=2)
+        >>> df
+          #    x    y        r
+          0    1    2  2.23607
+        >>> df['r'] = (df.x**2 + df.y**2)**0.5
+        >>> state = df.state_get()
+        >>> state
+        {'active_range': [0, 1],
+        'column_names': ['x', 'y', 'r'],
+        'description': None,
+        'descriptions': {},
+        'functions': {},
+        'renamed_columns': [],
+        'selections': {'__filter__': None},
+        'ucds': {},
+        'units': {},
+        'variables': {},
+        'virtual_columns': {'r': '(((x ** 2) + (y ** 2)) ** 0.5)'}}
+        >>> df2 = vaex.from_scalars(x=3, y=4)
+        >>> df2.state_set(state)  # now the virtual functions are 'copied'
+        >>> df2
+          #    x    y    r
+          0    3    4    5
+
+        :param state: dict as returned by :meth:`DataFrame.state_get`.
+        :param bool use_active_range: Whether to use the active range or not.
+        :param list keep_columns: List of columns that should be kept if the state to be set contains less columns.
+        :param bool set_filter: Set the filter from the state (default), or leave the filter as it is it.
+        :param bool warn: Give warning when issues are found in the state transfer that are recoverable.
+        """
+        self.description = state['description']
+        if use_active_range:
+            self._index_start, self._index_end = state['active_range']
+        self._length_unfiltered = self._index_end - self._index_start
+        if keep_columns:
+            all_columns = self.get_column_names()
+            for column_name in keep_columns:
+                if column_name not in all_columns:
+                    raise KeyError(f'Column name {column_name} does not exist')
+        encoding = vaex.encoding.Encoding()
+        if 'blobs' in state:
+            encoding.blob = {key: base64.b64decode(value.encode('ascii')) for key, value in state['blobs'].items()}
+        if 'objects' in state:
+            encoding._object_specs = state['objects']
+        if 'dataset' in state:
+            encoding.set_object(state['dataset_missing']['main'], self.dataset)
+            self.dataset = encoding.decode('dataset', state['dataset'])
+
+        for name, value in state['functions'].items():
+            self.add_function(name, encoding.decode("function", value, trusted=trusted))
+        # we clear all columns, and add them later on, since otherwise self[name] = ... will try
+        # to rename the columns (which is unsupported for remote dfs)
+        self.column_names = []
+        self.virtual_columns = {}
+        for name, value in state['virtual_columns'].items():
+            self[name] = self._expr(value)
+            # self._save_assign_expression(name)
+        self.column_names = list(state['column_names'])
+        if keep_columns:
+            self.column_names += list(keep_columns)
+        for name in self.column_names:
+            self._save_assign_expression(name)
+        if 'variables' in state:
+            self.variables = {name: encoding.decode("variable", value) for name, value in state['variables'].items()}
+        if "units" in state:
+            units = {key: astropy.units.Unit(value) for key, value in state["units"].items()}
+            self.units.update(units)
+        if 'selections' in state:
+            for name, selection_dict in state['selections'].items():
+                selection = encoding.decode('selection', selection_dict)
+                if name == FILTER_SELECTION_NAME and not set_filter:
+                    continue
+                self.set_selection(selection, name=name)
+        if self.is_local():
+            for name in self.dataset:
+                if name not in self.column_names:
+                    del self.columns[name]
+
+    def _state_get_v0(self):
         """Return the internal state of the DataFrame in a dictionary
 
         Example:
@@ -2245,7 +2392,7 @@ class DataFrame(object):
                      active_range=[self._index_start, self._index_end])
         return state
 
-    def state_set(self, state, use_active_range=False, keep_columns=None, set_filter=True, trusted=True, warn=True):
+    def _state_set_v0(self, state, use_active_range=False, keep_columns=None, set_filter=True, trusted=True, warn=True):
         """Sets the internal state of the df
 
         Example:
@@ -3957,9 +4104,10 @@ class DataFrame(object):
         mask = np.asarray(mask)
         # indices = mask.first(len(self))
         # assert len(indices) == len(self)
+        selection = self.get_selection(FILTER_SELECTION_NAME)
         from .dataset import DatasetFiltered
         self.set_selection(None, name=FILTER_SELECTION_NAME)
-        self.dataset = DatasetFiltered(self.dataset, mask)
+        self.dataset = DatasetFiltered(self.dataset, mask, state=self.state_get(), selection=selection)
 
     @docsubst
     def shuffle(self, random_state=None):
@@ -5038,12 +5186,14 @@ class ColumnProxy(collections.abc.MutableMapping):
         return len(self.dataset)
 
     def __setitem__(self, item, value):
-        # import pdb; pdb.set_trace()
-        left = self.dataset
-        if item in self.dataset:
-            left = left.dropped(item)
-        right = vaex.dataset.DatasetArrays({item: value})
-        merged = left.merged(right)
+        if isinstance(self.dataset, vaex.dataset.DatasetArrays):
+            merged = vaex.dataset.DatasetArrays({**self.dataset._columns, item: value})
+        else:
+            left = self.dataset
+            if item in self.dataset:
+                left = left.dropped(item)
+            right = vaex.dataset.DatasetArrays({item: value})
+            merged = left.merged(right)
         self.df._dataset = merged
 
         self.df._length = len(value)
@@ -5057,6 +5207,7 @@ class ColumnProxy(collections.abc.MutableMapping):
 
     def __getitem__(self, item):
         return self.dataset[item]
+
 
 class DataFrameLocal(DataFrame):
     """Base class for DataFrames that work with local file/data"""
@@ -5089,9 +5240,7 @@ class DataFrameLocal(DataFrame):
         self.columns = ColumnProxy(self)
 
     def __getstate__(self):
-        state = self.state_get()
-        # renamed is already reflected in the dataset
-        del state['renamed_columns']
+        state = self.state_get(skip=[self.dataset])
         return {
             'state': state,
             'dataset': self.dataset,
@@ -5128,9 +5277,9 @@ class DataFrameLocal(DataFrame):
         self._dataset = dataset
         self._invalidate_caches()
 
-    def hashed(self) -> DataFrame:
+    def hashed(self, inplace=False) -> DataFrame:
         '''Return a DataFrame with a hashed dataset'''
-        df = self.copy()
+        df = self.copy() if not inplace else self
         df.dataset = df.dataset.hashed()
         return df
 

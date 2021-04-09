@@ -28,13 +28,20 @@ no_mmap = os.environ.get('VAEX_NO_MMAP', False)
 class DatasetMemoryMapped(vaex.dataset.DatasetFile):
     """Represents a dataset where the data is memory mapped for efficient reading"""
 
-    def __init__(self, path, write=False, nommap=False):
+    def __init__(self, path, write=False, nommap=False, fs_options={}, fs=None):
         super().__init__(path=path, write=write)
         self.nommap = nommap
+        self.fs_options = fs_options
+        self.fs = fs
         self.file_map = {}
         self.fileno_map = {}
         self.mapping_map = {}
         self.tls_map = collections.defaultdict(threading.local)
+
+    @property
+    def id(self):
+        fingerprint = vaex.file.fingerprint(self.path, fs_options=self.fs_options, fs=self.fs)
+        return f'dataset-{self.snake_name}-{fingerprint}'
 
     def chunk_iterator(self, columns, chunk_size=None, reverse=False):
         if self.nommap:

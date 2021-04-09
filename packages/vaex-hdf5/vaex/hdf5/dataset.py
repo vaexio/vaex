@@ -54,15 +54,14 @@ def _try_unit(unit):
     else:
         return unit
 
-
+@vaex.dataset.register
 class Hdf5MemoryMapped(DatasetMemoryMapped):
+    snake_name = "hdf5"
     """Implements the vaex hdf5 file format"""
 
     def __init__(self, path, write=False, fs_options={}, fs=None):
         nommap = not vaex.file.memory_mappable(path)
-        self.fs_options = fs_options
-        self.fs = fs
-        super(Hdf5MemoryMapped, self).__init__(vaex.file.stringyfy(path), write=write, nommap=nommap)
+        super(Hdf5MemoryMapped, self).__init__(vaex.file.stringyfy(path), write=write, nommap=nommap, fs_options=fs_options, fs=fs)
         self._all_mmapped = True
         self._open(path)
         self.units = {}
@@ -84,6 +83,19 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
             self.file_map[self.path] = file
         self.h5file = h5py.File(file, "r+" if self.write else "r")
 
+
+    def encode(self, encoding, skip=set()):
+        spec = {'dataset_type': self.snake_name,
+                'path': self.path,
+                'write': self.write,
+                'fs_options': self.fs_options,
+                'fs': self.fs}
+        return spec
+
+    @classmethod
+    def decode(cls, encoding, spec):
+        ds = cls(**spec)
+        return ds
 
     def __getstate__(self):
         return {
