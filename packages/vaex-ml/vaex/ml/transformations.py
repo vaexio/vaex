@@ -8,8 +8,10 @@ from vaex.utils import _ensure_strings_from_expressions
 import numpy as np
 import warnings
 
-sklearn = vaex.utils.optional_import("sklearn.decomposition")
-sklearn = vaex.utils.optional_import("sklearn.random_projection")
+sklearn = vaex.utils.optional_import("sklearn", modules=[
+    "sklearn.decomposition",
+    "sklearn.random_projection"
+])
 
 help_features = 'List of features to transform.'
 help_prefix = 'Prefix for the names of the transformed features.'
