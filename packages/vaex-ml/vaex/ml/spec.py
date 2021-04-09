@@ -10,6 +10,7 @@ from . import catboost
 from . import lightgbm
 from . import xgboost
 from . import cluster
+from .incubator import river
 
 
 def lmap(f, values):

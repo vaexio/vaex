@@ -1,7 +1,7 @@
 [
     {
         "classname": "PCA",
-        "doc": "Transform a set of features using a Principal Component Analysis.\n\n    Example:\n\n    >>> import vaex\n    >>> import vaex.ml\n    >>> df = vaex.from_arrays(x=[2,5,7,2,15], y=[-2,3,0,0,10])\n    >>> df\n     #   x   y\n     0   2   -2\n     1   5   3\n     2   7   0\n     3   2   0\n     4   15  10\n    >>> pca = vaex.ml.PCA(n_components=2, features=['x', 'y'])\n    >>> pca.fit_transform(df)\n     #    x    y       PCA_0      PCA_1\n     0    2   -2    5.92532    0.413011\n     1    5    3    0.380494  -1.39112\n     2    7    0    0.840049   2.18502\n     3    2    0    4.61287   -1.09612\n     4   15   10  -11.7587    -0.110794\n\n    ",
+        "doc": "Transform a set of features using a Principal Component Analysis.\n\n    Example:\n\n    >>> import vaex\n    >>> df = vaex.from_arrays(x=[2,5,7,2,15], y=[-2,3,0,0,10])\n    >>> df\n     #   x   y\n     0   2   -2\n     1   5   3\n     2   7   0\n     3   2   0\n     4   15  10\n    >>> pca = vaex.ml.PCA(n_components=2, features=['x', 'y'])\n    >>> pca.fit_transform(df)\n     #    x    y       PCA_0      PCA_1\n     0    2   -2    5.92532    0.413011\n     1    5    3    0.380494  -1.39112\n     2    7    0    0.840049   2.18502\n     3    2    0    4.61287   -1.09612\n     4   15   10  -11.7587    -0.110794\n\n    ",
         "module": "vaex.ml.transformations",
         "snake_name": "pca",
         "traits": [
@@ -22,20 +22,6 @@
             {
                 "default": null,
                 "has_default": true,
-                "help": "Variance explained by each of the components. Same as the eigen values.",
-                "name": "explained_variance_",
-                "type": "List"
-            },
-            {
-                "default": null,
-                "has_default": true,
-                "help": "Percentage of variance explained by each of the selected components.",
-                "name": "explained_variance_ratio_",
-                "type": "List"
-            },
-            {
-                "default": null,
-                "has_default": true,
                 "help": "List of features to transform.",
                 "name": "features",
                 "type": "List"
@@ -48,7 +34,7 @@
                 "type": "List"
             },
             {
-                "default": null,
+                "default": 0,
                 "has_default": false,
                 "help": "Number of components to retain. If None, all the components will be retained.",
                 "name": "n_components",
@@ -64,167 +50,9 @@
             {
                 "default": false,
                 "has_default": false,
-                "help": "If True perform whitening, i.e. remove the relative variance schale of the transformed components.",
-                "name": "whiten",
-                "type": "Bool"
-            }
-        ],
-        "version": "1.0.0"
-    },
-    {
-        "classname": "PCAIncremental",
-        "doc": "Transform a set of features using the \"sklearn.decomposition.IncrementalPCA\" algorithm.\n\n    Note that you need to have scikit-learn installed to fit this Transformer, but not\n    for transformations using an already fitted Transformer.\n\n    Example:\n\n    >>> import vaex\n    >>> import vaex.ml\n    >>> df = vaex.from_arrays(x=[2,5,7,2,15], y=[-2,3,0,0,10])\n    >>> df\n    #    x    y\n    0    2   -2\n    1    5    3\n    2    7    0\n    3    2    0\n    4   15   10\n    >>> pca = vaex.ml.PCAIncremental(n_components=2, features=['x', 'y'], batch_size=3)\n    >>> pca.fit_transform(df)\n    #    x    y      PCA_0      PCA_1\n    0    2   -2  -5.92532   -0.413011\n    1    5    3  -0.380494   1.39112\n    2    7    0  -0.840049  -2.18502\n    3    2    0  -4.61287    1.09612\n    4   15   10  11.7587     0.110794\n    ",
-        "module": "vaex.ml.transformations",
-        "snake_name": "pca_incremental",
-        "traits": [
-            {
-                "default": 1000,
-                "has_default": false,
-                "help": "Number of samples to be send to the transformer in each batch.",
-                "name": "batch_size",
-                "type": "Int"
-            },
-            {
-                "default": null,
-                "has_default": true,
-                "help": "The eigen values that correspond to each feature.",
-                "name": "eigen_values_",
-                "type": "List"
-            },
-            {
-                "default": null,
-                "has_default": true,
-                "help": "The eigen vectors corresponding to each feature",
-                "name": "eigen_vectors_",
-                "type": "List"
-            },
-            {
-                "default": null,
-                "has_default": true,
-                "help": "Variance explained by each of the components. Same as the eigen values.",
-                "name": "explained_variance_",
-                "type": "List"
-            },
-            {
-                "default": null,
-                "has_default": true,
-                "help": "Percentage of variance explained by each of the selected components.",
-                "name": "explained_variance_ratio_",
-                "type": "List"
-            },
-            {
-                "default": null,
-                "has_default": true,
-                "help": "List of features to transform.",
-                "name": "features",
-                "type": "List"
-            },
-            {
-                "default": null,
-                "has_default": true,
-                "help": "The mean of each feature",
-                "name": "means_",
-                "type": "List"
-            },
-            {
-                "default": null,
-                "has_default": false,
-                "help": "Number of components to retain. If None, all the components will be retained.",
-                "name": "n_components",
-                "type": "Int"
-            },
-            {
-                "default": 0,
-                "has_default": false,
-                "help": "The number of samples processed by the transformer.",
-                "name": "n_samples_seen_",
-                "type": "CInt"
-            },
-            {
-                "default": 0,
-                "has_default": false,
-                "help": "The estimated noise covariance following the Probabilistic PCA model from Tipping and Bishop 1999.",
-                "name": "noise_variance_",
-                "type": "CFloat"
-            },
-            {
-                "default": "PCA_",
-                "has_default": false,
-                "help": "Prefix for the names of the transformed features.",
-                "name": "prefix",
-                "type": "Unicode"
-            },
-            {
-                "default": false,
-                "has_default": false,
-                "help": "If True perform whitening, i.e. remove the relative variance schale of the transformed components.",
-                "name": "whiten",
-                "type": "Bool"
-            }
-        ],
-        "version": "1.0.0"
-    },
-    {
-        "classname": "RandomProjections",
-        "doc": "Reduce dimensionality through a random matrix projection.\n\n    The random projections method is based on the Johnson-Lindenstrauss lemma.\n    For mode details see https://en.wikipedia.org/wiki/Johnson%E2%80%93Lindenstrauss_lemma\n\n    Note that you need scikit-learn to fit this Transformer but not for transformations using an already fitter Transformer.\n\n    Example:\n\n    >>> import vaex\n    >>> import vaex.ml\n    >>> df = vaex.from_arrays(x=[2,5,7,2,15], y=[-2,3,0,0,10], z=[2, -10, 2, 3, 0])\n    >>> df\n    #    x    y    z\n    0    2   -2    2\n    1    5    3  -10\n    2    7    0    2\n    3    2    0    3\n    4   15   10    0\n    >>> rand_proj = vaex.ml.RandomProjections(features=['x', 'y', 'z'], n_components=2)\n    >>> rand_proj.fit_transform(df)\n    #    x    y    z    random_projection_0    random_projection_1\n    0    2   -2    2                1.73363             -0.0700273\n    1    5    3  -10              -17.8742             -14.0226\n    2    7    0    2               -3.32911             -8.50181\n    3    2    0    3                2.04843             -1.27538\n    4   15   10    0              -17.0289             -28.6562\n    ",
-        "module": "vaex.ml.transformations",
-        "snake_name": "random_projections",
-        "traits": [
-            {
-                "default": null,
-                "has_default": false,
-                "help": "Ratio in the range (0, 1] of non-zero component in the random projection matrix. Only valid if `matrix_type` is \"sparse\". If density is None, the value is set to the minimum density as recommended by Ping Li et al.: 1 / sqrt(n_features).",
-                "name": "density",
-                "type": "Float"
-            },
-            {
-                "default": 0.1,
-                "has_default": false,
-                "help": "Parameter to control the quality of the embedding according to the Johnson-Lindenstrauss lemma when `n_components` is set to None. The value must be positive.",
-                "name": "eps",
-                "type": "Float"
-            },
-            {
-                "default": null,
-                "has_default": true,
-                "help": "List of features to transform.",
-                "name": "features",
-                "type": "List"
-            },
-            {
-                "default": "gaussian",
-                "has_default": false,
-                "help": "The type of random matrix to create. The values can be \"gaussian\" and \"sparse\".",
-                "name": "matrix_type",
-                "type": "Enum"
-            },
-            {
-                "default": null,
-                "has_default": false,
-                "help": "Number of components to retain. If None (default) the number will be set via the Johnson-Lindenstrauss formula. See https://scikit-learn.org/stable/modules/generated/sklearn.random_projection.johnson_lindenstrauss_min_dim.html for more details.",
-                "name": "n_components",
-                "type": "CInt"
-            },
-            {
-                "default": "random_projection_",
-                "has_default": false,
-                "help": "Prefix for the names of the transformed features.",
-                "name": "prefix",
-                "type": "Unicode"
-            },
-            {
-                "default": null,
-                "has_default": true,
-                "help": "The random matrix.",
-                "name": "random_matrix_",
-                "type": "List"
-            },
-            {
-                "default": null,
-                "has_default": false,
-                "help": "Controls the pseudo random number generator used to generate the projection matrix at fit time. Used to get reproducible results.",
-                "name": "random_state",
-                "type": "Int"
+                "help": "If True, display a progressbar of the PCA fitting process.",
+                "name": "progress",
+                "type": "Any"
             }
         ],
         "version": "1.0.0"
@@ -268,7 +96,7 @@
     },
     {
         "classname": "OneHotEncoder",
-        "doc": "Encode categorical columns according ot the One-Hot scheme.\n\n    Example:\n\n    >>> import vaex\n    >>> df = vaex.from_arrays(color=['red', 'green', 'green', 'blue', 'red'])\n    >>> df\n     #  color\u00ae\n     0  red\n     1  green\n     2  green\n     3  blue\n     4  red\n    >>> encoder = vaex.ml.OneHotEncoder(features=['color'])\n    >>> encoder.fit_transform(df)\n     #  color      color_blue    color_green    color_red\n     0  red                 0              0            1\n     1  green               0              1            0\n     2  green               0              1            0\n     3  blue                1              0            0\n     4  red                 0              0            1\n    ",
+        "doc": "Encode categorical columns according ot the One-Hot scheme.\n\n    Example:\n\n    >>> import vaex\n    >>> df = vaex.from_arrays(color=['red', 'green', 'green', 'blue', 'red'])\n    >>> df\n     #  color\n     0  red\n     1  green\n     2  green\n     3  blue\n     4  red\n    >>> encoder = vaex.ml.OneHotEncoder(features=['color'])\n    >>> encoder.fit_transform(df)\n     #  color      color_blue    color_green    color_red\n     0  red                 0              0            1\n     1  green               0              1            0\n     2  green               0              1            0\n     3  blue                1              0            0\n     4  red                 0              0            1\n    ",
         "module": "vaex.ml.transformations",
         "snake_name": "one_hot_encoder",
         "traits": [
@@ -840,7 +668,7 @@
         "classname": "IncrementalPredictor",
         "doc": "This class wraps any scikit-learn estimator (a.k.a predictions) that has\n    a `.partial_fit` method, and makes it a vaex pipeline object.\n\n    By wrapping \"on-line\" scikit-learn estimators with this class, they become a vaex\n    pipeline object. Thus, they can take full advantage of the serialization and\n    pipeline system of vaex. While the underlying estimator need to call the\n    `.partial_fit` method, this class contains the standard `.fit` method, and\n    the rest happens behind the scenes. One can also iterate over the data\n    multiple times (epochs), and optionally shuffle each batch before it is sent\n    to the estimator. The `predict` method returns a numpy array, while the `transform`\n    method adds the prediction as a virtual column to a vaex DataFrame.\n\n    Note: the `.fit` method will use as much memory as needed to copy one\n    batch of data, while the `.predict` method will require as much memory as\n    needed to output the predictions as a numpy array. The `transform` method is\n    evaluated lazily, and no memory copies are made.\n\n    Note: we are using normal sklearn without modifications here.\n\n    Example:\n\n    >>> import vaex\n    >>> import vaex.ml\n    >>> from vaex.ml.sklearn import IncrementalPredictor\n    >>> from sklearn.linear_model import SGDRegressor\n    >>>\n    >>> df = vaex.example()\n    >>>\n    >>> features = df.column_names[:6]\n    >>> target = 'FeH'\n    >>>\n    >>> standard_scaler = vaex.ml.StandardScaler(features=features)\n    >>> df = standard_scaler.fit_transform(df)\n    >>>\n    >>> features = df.get_column_names(regex='^standard')\n    >>> model = SGDRegressor(learning_rate='constant', eta0=0.01, random_state=42)\n    >>>\n    >>> incremental = IncrementalPredictor(model=model,\n    ...                                    features=features,\n    ...                                    target=target,\n    ...                                    batch_size=10_000,\n    ...                                    num_epochs=3,\n    ...                                    shuffle=True,\n    ...                                    prediction_name='pred_FeH')\n    >>> incremental.fit(df=df)\n    >>> df = incremental.transform(df)\n    >>> df.head(5)[['FeH', 'pred_FeH']]\n      #        FeH    pred_FeH\n      0  -2.30923     -1.66226\n      1  -1.78874     -1.68218\n      2  -0.761811    -1.59562\n      3  -1.52088     -1.62225\n      4  -2.65534     -1.61991\n    ",
         "module": "vaex.ml.sklearn",
-        "snake_name": "sklearn_incremental_predictor",
+        "snake_name": "incremental_predictor",
         "traits": [
             {
                 "default": 1000000,
