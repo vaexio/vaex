@@ -92,7 +92,7 @@ if os.path.exists(filename_spec):
                 setattr(accessor, name, closure())
 
 
-from .transformations import PCA, PCAIncremental
+from .transformations import PCA, PCAIncremental, RandomProjections
 from .transformations import StandardScaler, MinMaxScaler, MaxAbsScaler, RobustScaler
 from .transformations import LabelEncoder, OneHotEncoder, FrequencyEncoder
 from .transformations import CycleTransformer

@@ -971,16 +971,18 @@ def format_exception_trace(e):
 
 
 class ProxyModule:
-    def __init__(self, name, version):
+    def __init__(self, name, version, modules=None):
         self.name = name
         self.module = None
         self.version = version
+        self.modules = modules if modules else [self.name]
 
     def _ensure_import(self):
         if self.module is None:
             import importlib
             try:
-                importlib.import_module(self.name)
+                for module_name in self.modules:
+                    importlib.import_module(module_name)
                 # the module object itself needs to be the top module
                 top_name = self.name.split(".")[0]
                 self.module = importlib.import_module(top_name)
@@ -1001,8 +1003,8 @@ $ conda install -c conda-forge "{self.name}{self.version}""
         return getattr(self.module, name)
 
 
-def optional_import(name, version=''):
-    return ProxyModule(name, version=version)
+def optional_import(name, version='', modules=None):
+    return ProxyModule(name, version=version, modules=modules)
 
 
 def div_ceil(n, d):

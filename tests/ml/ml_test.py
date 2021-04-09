@@ -5,7 +5,14 @@ import vaex.ml
 import vaex.ml.datasets
 pytest.importorskip("sklearn")
 from sklearn.decomposition import PCA, IncrementalPCA
+from sklearn.random_projection import GaussianRandomProjection, SparseRandomProjection
 from sklearn.preprocessing import StandardScaler, MinMaxScaler, MaxAbsScaler, RobustScaler
+
+
+def data_maker(n_rows, n_cols):
+    return {f'feat_{i}': np.random.normal(loc=np.random.uniform(-100, 100),
+                                          scale=np.random.uniform(0.5, 25),
+                                          size=n_rows) for i in range(n_cols)}
 
 
 def test_pca(df_iris):
@@ -61,6 +68,40 @@ def test_valid_sklearn_pca_incremental(df_iris):
     # Compare the results
     np.testing.assert_almost_equal(df_transformed.evaluate('PCA_0'), sk_result[:, 0])
     np.testing.assert_almost_equal(df_transformed.evaluate('PCA_1'), sk_result[:, 1])
+
+
+@pytest.mark.parametrize("n_components", [5, 15, 150])
+@pytest.mark.parametrize("matrix_type", ['gaussian', 'sparse'])
+def test_random_projections(n_components, matrix_type):
+    df = vaex.from_dict(data=data_maker(n_rows=100_000, n_cols=31))
+    features = df.get_column_names()
+
+    rand_proj = df.ml.random_projections(features=features, n_components=n_components, matrix_type=matrix_type, transform=False)
+    df_trans = rand_proj.fit_transform(df)
+
+    assert np.array(rand_proj.random_matrix_).shape == (n_components, 31)
+    assert len(df_trans.get_column_names(regex='^rand')) == n_components
+
+
+@pytest.mark.parametrize("matrix_type", ['gaussian', 'sparse'])
+def test_valid_sklearn_random_projections(df_iris, matrix_type):
+    df = df_iris
+    features = df.get_column_names()[:4]
+    random_state=42
+
+    rand_proj = vaex.ml.RandomProjections(features=features, n_components=3, matrix_type=matrix_type, random_state=random_state)
+    df_trans = rand_proj.fit_transform(df)
+    result = df_trans[df_trans.get_column_names(regex='^rand*')].values
+
+    if matrix_type == 'gaussian':
+        sk_gaus = GaussianRandomProjection(n_components=3, random_state=random_state)
+        sk_trans = sk_gaus.fit_transform(df[features].values)
+
+    else:
+        sk_sparse = SparseRandomProjection(n_components=3, random_state=random_state, dense_output=True)
+        sk_trans = sk_sparse.fit_transform(df[features].values)
+
+    np.testing.assert_almost_equal(result, sk_trans)
 
 
 def test_standard_scaler(df_iris):

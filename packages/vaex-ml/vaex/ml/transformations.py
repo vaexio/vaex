@@ -8,6 +8,11 @@ from vaex.utils import _ensure_strings_from_expressions
 import numpy as np
 import warnings
 
+sklearn = vaex.utils.optional_import("sklearn", modules=[
+    "sklearn.decomposition",
+    "sklearn.random_projection"
+])
+
 help_features = 'List of features to transform.'
 help_prefix = 'Prefix for the names of the transformed features.'
 
@@ -128,6 +133,12 @@ class PCA(Transformer):
             copy[name] = expr
         return copy
 
+def dot_product(a, b):
+    products = ['%s * %s' % (ai, bi) for ai, bi in zip(a, b)]
+    return ' + '.join(products)
+
+help_prefix = 'Prefix for the names of the transformed features.'
+
 
 @register
 @generate.register
@@ -170,8 +181,6 @@ class PCAIncremental(PCA):
         :param progress: If True or 'widget', display a progressbar of the fitting process.
         '''
 
-        sklearn = vaex.utils.optional_import("sklearn.decomposition")
-
         self.n_components = self.n_components or len(self.features)
 
         n_samples = len(df)
@@ -194,6 +203,108 @@ class PCAIncremental(PCA):
         self.means_ = pca.mean_.tolist()
         self.noise_variance_ = pca.noise_variance_
         self.n_samples_seen_ = pca.n_samples_seen_
+
+
+@register
+@generate.register
+class RandomProjections(Transformer):
+    '''Reduce dimensionality through a random matrix projection.
+
+    The random projections method is based on the Johnson-Lindenstrauss lemma.
+    For mode details see https://en.wikipedia.org/wiki/Johnson%E2%80%93Lindenstrauss_lemma
+
+    Note that you need scikit-learn to fit this Transformer but not for transformations using an already fitter Transformer.
+
+    Example:
+
+    >>> import vaex
+    >>> import vaex.ml
+    >>> df = vaex.from_arrays(x=[2,5,7,2,15], y=[-2,3,0,0,10], z=[2, -10, 2, 3, 0])
+    >>> df
+    #    x    y    z
+    0    2   -2    2
+    1    5    3  -10
+    2    7    0    2
+    3    2    0    3
+    4   15   10    0
+    >>> rand_proj = vaex.ml.RandomProjections(features=['x', 'y', 'z'], n_components=2)
+    >>> rand_proj.fit_transform(df)
+    #    x    y    z    random_projection_0    random_projection_1
+    0    2   -2    2                1.73363             -0.0700273
+    1    5    3  -10              -17.8742             -14.0226
+    2    7    0    2               -3.32911             -8.50181
+    3    2    0    3                2.04843             -1.27538
+    4   15   10    0              -17.0289             -28.6562
+    '''
+    snake_name = 'random_projections'
+    n_components = traitlets.CInt(default_value=None, allow_none=True, help='Number of components to retain. If None (default) the number will be set via the Johnson-Lindenstrauss formula. See https://scikit-learn.org/stable/modules/generated/sklearn.random_projection.johnson_lindenstrauss_min_dim.html for more details.')
+    eps = traitlets.Float(default_value=0.1, allow_none=True, help='Parameter to control the quality of the embedding according to the Johnson-Lindenstrauss lemma when `n_components` is set to None. The value must be positive.')
+    matrix_type = traitlets.Enum(values=['gaussian', 'sparse'], default_value='gaussian', help='The type of random matrix to create. The values can be "gaussian" and "sparse".')
+    density = traitlets.Float(default_value=None, allow_none=True, help='Ratio in the range (0, 1] of non-zero component in the random projection matrix. Only valid if `matrix_type` is "sparse". If density is None, the value is set to the minimum density as recommended by Ping Li et al.: 1 / sqrt(n_features).')
+    prefix = traitlets.Unicode(default_value="random_projection_", help=help_prefix)
+    random_state = traitlets.Int(default_value=None, allow_none=True, help='Controls the pseudo random number generator used to generate the projection matrix at fit time. Used to get reproducible results.')
+    random_matrix_ = traitlets.List(traitlets.List(traitlets.CFloat()), help='The random matrix.').tag(output=True)
+
+    @traitlets.validate('eps')
+    def _valid_eps(self, proposal):
+        if (proposal['value'] > 0) & (proposal['value'] < 1):
+            return proposal['value']
+        else:
+            raise traitlets.TraitError('`eps` must be between 0 and 1.')
+
+    @traitlets.validate('density')
+    def _valid_density(self, proposal):
+        if (proposal['value'] > 0) & (proposal['value'] <= 1):
+            return proposal['value']
+        else:
+            raise traitlets.TraitError('`density` must be 0 < density <= 1.')
+
+    def fit(self, df):
+        '''Fit the RandomProjections to the DataFrame.
+
+        :param df: A vaex DataFrame.
+        '''
+        n_samples = len(df)
+        n_features = len(self.features)
+
+        if self.n_components is None:
+            self.n_components = sklearn.random_projection.johnson_lindenstrauss_min_dim(n_samples=n_samples,
+                                                                                        eps=self.eps)
+
+        if self.matrix_type == 'gaussian':
+            self.random_matrix_ = sklearn.random_projection._gaussian_random_matrix(n_components=self.n_components,
+                                                                                    n_features=n_features,
+                                                                                    random_state=self.random_state).tolist()
+
+        else:
+            density = self.density or 'auto'
+            self.random_matrix_ = sklearn.random_projection._sparse_random_matrix(n_components=self.n_components,
+                                                                                  n_features=n_features,
+                                                                                  density=density,
+                                                                                  random_state=self.random_state).toarray().tolist()
+
+
+    def transform(self, df):
+        '''Apply the RandomProjection transformation to the DataFrame.
+
+        :param df: A vaex DataFrame
+
+        :return copy: A shallow copy of the DataFrame that includes the RandomProjection components.
+        :rtype: DataFrame
+        '''
+        copy = df.copy()
+        random_matrix = np.array(self.random_matrix_)
+        name_prefix_offset = 0
+        while self.prefix + str(name_prefix_offset) in copy.get_column_names(virtual=True, strings=True):
+            name_prefix_offset += 1
+
+        for component in range(self.n_components):
+            vector = random_matrix[component]
+            expr = dot_product(self.features, vector)
+            name = self.prefix + str(component + name_prefix_offset)
+            copy[name] = expr
+
+        return copy
 
 
 @register
@@ -270,7 +381,7 @@ class OneHotEncoder(Transformer):
     >>> import vaex
     >>> df = vaex.from_arrays(color=['red', 'green', 'green', 'blue', 'red'])
     >>> df
-     #  color
+     #  color®
      0  red
      1  green
      2  green
