@@ -5,7 +5,6 @@ from . import generate
 from .state import HasState
 import traitlets
 from vaex.utils import _ensure_strings_from_expressions
-import numpy as np
 import warnings
 
 sklearn = vaex.utils.optional_import("sklearn", modules=[
