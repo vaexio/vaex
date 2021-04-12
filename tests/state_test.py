@@ -28,6 +28,18 @@ def test_apply_state():
     assert df.y.tolist() == dfc.y.tolist()
 
 
+def test_isin(tmpdir):
+    df = vaex.from_arrays(x=np.array(['a', 'b', 'c'], dtype='O'),
+                          y=np.array([1, 2, 3], dtype='O'))
+
+    df2 = df.copy()
+    df2['test'] = df2.x.isin(['a'])
+    df2.state_write(tmpdir / 'state.json')
+    # import pdb; pdb.set_trace()
+    df.state_load(tmpdir / 'state.json')
+    assert df.test.tolist() == df2.test.tolist()
+
+
 def test_state_get_set(ds_local):
     ds = ds_local
 
@@ -74,12 +86,16 @@ def test_state_variables(df_local_non_arrow, tmpdir):
     assert len(df.variables) == len(variables) + 1
     var_name = list(set(df.variables) - set(variables))[0]
 
+    # an array
+    df.add_variable('some_array', np.arange(10))
+
     df.state_write(filename)
 
     df_copy.state_load(filename)
     assert isinstance(df_copy.variables[var_name], np.timedelta64)
     assert df.seconds.tolist() == df_copy.seconds.tolist()
     assert df_copy.variables['dt_var'] == t_test
+    assert df_copy.variables['some_array'].tolist() == df.variables['some_array'].tolist()
 
 
 def test_state_transfer_reassign(df):
