@@ -2246,11 +2246,10 @@ class DataFrame(object):
             for dataset in datasets:
                 assert encoding._object_specs[dataset.id] is None
                 del encoding._object_specs[dataset.id]
-            blobs = {key: base64.b64encode(value).decode('ascii') for key, value in encoding.blobs.items()}
             if data is not None:
                 state['dataset'] = data
                 state['dataset_missing'] = {'main': dataset_main.id}
-            state['blobs'] = blobs
+        state['blobs'] = {key: base64.b64encode(value).decode('ascii') for key, value in encoding.blobs.items()}
         if encoding._object_specs:
             state['objects'] = encoding._object_specs
         return state
@@ -2302,7 +2301,7 @@ class DataFrame(object):
                     raise KeyError(f'Column name {column_name} does not exist')
         encoding = vaex.encoding.Encoding()
         if 'blobs' in state:
-            encoding.blob = {key: base64.b64decode(value.encode('ascii')) for key, value in state['blobs'].items()}
+            encoding.blobs = {key: base64.b64decode(value.encode('ascii')) for key, value in state['blobs'].items()}
         if 'objects' in state:
             encoding._object_specs = state['objects']
         if 'dataset' in state:

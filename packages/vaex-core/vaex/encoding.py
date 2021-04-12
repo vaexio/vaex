@@ -175,6 +175,22 @@ class ndarray_encoding:
             return array
 
 
+@register("numpy-scalar")
+class numpy_scalar_encoding:
+    @classmethod
+    def encode(cls, encoding, scalar):
+        if scalar.dtype.kind in 'mM':
+            value = int(scalar.astype(int))
+        else:
+            value = scalar.item()
+        return {'value': value, 'dtype': encoding.encode('dtype', DataType(scalar.dtype))}
+
+    @classmethod
+    def decode(cls, encoding, scalar_spec):
+        dtype = encoding.decode('dtype', scalar_spec['dtype'])
+        value = scalar_spec['value']
+        return np.array([value], dtype=dtype.numpy)[0]
+
 @register("dtype")
 class dtype_encoding:
     @staticmethod
@@ -238,12 +254,36 @@ class function_encoding:
 @register("variable")
 class selection_encoding:
     @staticmethod
-    def encode(encoding, selection):
-        return selection
+    def encode(encoding, obj):
+        if isinstance(obj, np.ndarray):
+            return {'type': 'ndarray', 'data': encoding.encode('ndarray', obj)}
+        elif isinstance(obj, vaex.array_types.supported_arrow_array_types):
+            return {'type': 'arrow-array', 'data': encoding.encode('arrow-array', obj)}
+        elif isinstance(obj, vaex.hash.ordered_set):
+            return {'type': 'ordered-set', 'data': encoding.encode('ordered-set', obj)}
+        elif isinstance(obj, np.generic):
+            return {'type': 'numpy-scalar', 'data': encoding.encode('numpy-scalar', obj)}
+        elif isinstance(obj, np.integer):
+            return obj.item()
+        elif isinstance(obj, np.floating):
+            return obj.item()
+        elif isinstance(obj, np.ndarray):
+            return obj.tolist()
+        elif isinstance(obj, np.bytes_):
+            return obj.decode('UTF-8')
+        elif isinstance(obj, bytes):
+            return str(obj, encoding='utf-8');
+        else:
+            return obj
 
     @staticmethod
-    def decode(encoding, selection_spec):
-        return selection_spec
+    def decode(encoding, obj_spec):
+        if isinstance(obj_spec, dict):
+            return encoding.decode(obj_spec['type'], obj_spec['data'])
+        else:
+            return obj_spec
+
+
 
 
 @register("binner")
@@ -289,6 +329,32 @@ class grid_encoding:
     @staticmethod
     def decode(encoding, grid_spec):
         return vaex.superagg.Grid(encoding.decode_list('binner', grid_spec))
+
+
+@register("ordered-set")
+class ordered_set_encoding:
+    @staticmethod
+    def encode(encoding, obj):
+        values = list(obj.extract().items())
+        clsname = obj.__class__.__name__
+        return {
+            'class': clsname,
+            'data': {
+                'values': values,
+                'count': obj.count,
+                'nan_count': obj.nan_count,
+                'missing_count': obj.null_count
+            }
+        }
+
+
+    @staticmethod
+    def decode(encoding, obj_spec):
+        clsname = obj_spec['class']
+        cls = getattr(vaex.hash, clsname)
+        value = cls(dict(obj_spec['data']['values']), obj_spec['data']['count'], obj_spec['data']['nan_count'], obj_spec['data']['missing_count'])
+        return value
+
 
 
 class Encoding:

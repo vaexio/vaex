@@ -70,8 +70,8 @@ def test_timedelta_arithmetics():
 
     df = vaex.from_arrays(x=x, y=y)
     df['diff'] = df.x-df.y
-    df['diff_dev_hours'] = df.diff / np.timedelta64(1, 'h')
-    df['diff_add_days'] = df.diff + np.timedelta64(5, 'D')
+    df['diff_dev_hours'] = df['diff'] / np.timedelta64(1, 'h')
+    df['diff_add_days'] = df['diff'] + np.timedelta64(5, 'D')
 
     # normal numerical/numpy values
     diff = df.x.values-df.y.values
@@ -83,8 +83,8 @@ def test_timedelta_arithmetics():
     assert diff_add_days.tolist() == df['diff_add_days'].values.tolist()
 
     # check the min/max values for the TimeDelta column
-    assert df.diff.min() == df.diff.values.min()
-    assert df.diff.max() == df.diff.values.max()
+    assert df['diff'].min() == df['diff'].values.min()
+    assert df['diff'].max() == df['diff'].values.max()
 
 
 def test_datetime_binary_operations():

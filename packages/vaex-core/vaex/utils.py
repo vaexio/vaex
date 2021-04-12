@@ -427,7 +427,7 @@ def write_json_or_yaml(file, data, fs_options={}, fs=None):
         else:
             ext = '.json'  # default
         if ext == ".json":
-            json.dump(data, file, indent=2, cls=VaexJsonEncoder)
+            json.dump(data, file, indent=2)
         elif ext == ".yaml":
             yaml_dump(file, data)
         else:
@@ -444,7 +444,7 @@ def read_json_or_yaml(file, fs_options={}, fs=None):
         else:
             ext = '.json'  # default
         if ext == ".json":
-            return json.load(file, cls=VaexJsonDecoder) or {}
+            return json.load(file) or {}
         elif ext == ".yaml":
             return yaml_load(file) or {}
         else:
