@@ -389,6 +389,14 @@ class Encoding:
         encoded = self.registry[typename].encode(self, value)
         return encoded
 
+    def encode_collection(self, typename, values):
+        if isinstance(values, (list, tuple)):
+            return self.encode_list(typename, values)
+        elif isinstance(values, dict):
+            return self.encode_dict(typename, values)
+        else:
+            return self.encode(typename, values)
+
     def encode_list(self, typename, values):
         encoded = [self.registry[typename].encode(self, k) for k in values]
         return encoded
@@ -404,6 +412,14 @@ class Encoding:
     def decode(self, typename, value, **kwargs):
         decoded = self.registry[typename].decode(self, value, **kwargs)
         return decoded
+
+    def decode_collection(self, typename, values, **kwargs):
+        if isinstance(values, (list, tuple)):
+            return self.decode_list(typename, values, **kwargs)
+        elif isinstance(values, dict):
+            return self.decode_dict(typename, values, **kwargs)
+        else:
+            return self.decode(typename, values)
 
     def decode_list(self, typename, values, **kwargs):
         decoded = [self.registry[typename].decode(self, k, **kwargs) for k in values]

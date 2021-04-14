@@ -205,6 +205,18 @@ void add_binner_ordinal_(Module m, Base& base, std::string postfix) {
                 return binner.min_value;
             }
         )
+        .def(py::pickle(
+            [](const Type &binner) { // __getstate__
+                /* Return a tuple that fully encodes the state of the object */
+                return py::make_tuple(binner.expression, binner.ordinal_count, binner.min_value);
+            },
+        [](py::tuple t) { // __setstate__
+            if (t.size() != 3)
+                throw std::runtime_error("Invalid state!");
+            Type binner(t[0].cast<std::string>(), t[1].cast<T>(), t[2].cast<T>());
+            return binner;
+        }
+    ));
     ;
 }
 
@@ -241,6 +253,18 @@ void add_binner_scalar_(Module m, Base& base, std::string postfix) {
                 return binner.vmax;
             }
         )
+        .def(py::pickle(
+            [](const Type &binner) { // __getstate__
+                /* Return a tuple that fully encodes the state of the object */
+                return py::make_tuple(binner.expression, binner.vmin, binner.vmax, binner.bins);
+            },
+            [](py::tuple t) { // __setstate__
+                if (t.size() != 4)
+                    throw std::runtime_error("Invalid state!");
+                Type binner(t[0].cast<std::string>(), t[1].cast<T>(), t[2].cast<T>(), t[3].cast<uint64_t>());
+                return binner;
+            }
+        ));
     ;
 }
 
