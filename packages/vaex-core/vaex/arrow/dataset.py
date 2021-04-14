@@ -205,10 +205,6 @@ class DatasetParquet(DatasetArrowBase):
         fingerprints = [vaex.file.fingerprint(path, fs_options=self.fs_options, fs=self.fs) for path in paths]
         return vaex.cache.fingerprint(*fingerprints)
 
-    @property
-    def id(self):
-        return f'dataset-{self.snake_name}-{self.fingerprint}'
-
     def hashed(self):
         return self
 
@@ -261,11 +257,10 @@ class DatasetArrowFileBase(vaex.dataset.Dataset):
         self.path = path
         self._create_columns()
         self._set_row_count()
-        self._fingerprint = vaex.file.fingerprint(path, fs_options=self.fs_options, fs=self.fs)
         self._ids = frozendict({name: vaex.cache.fingerprint(self._fingerprint, name) for name in self._columns})
 
     @property
-    def id(self):
+    def _fingerprint(self):
         fingerprint = vaex.file.fingerprint(self.path, fs_options=self.fs_options, fs=self.fs)
         return f'dataset-{self.snake_name}-{fingerprint}'
 

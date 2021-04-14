@@ -74,6 +74,10 @@ class DatasetRemote(vaex.dataset.Dataset):
         id = self._name
         return f'dataset-{self.snake_name}-{id}'
 
+    @property
+    def _fingerprint(self):
+        raise NotImplementedError
+
     def _create_columns(self):
         pass
 
@@ -82,19 +86,19 @@ class DatasetRemote(vaex.dataset.Dataset):
 
     def close(self):
         pass
-    
+
     def hashed(self):
         return self
-    
+
     def is_masked(self):
         pass
-    
+
     def leafs(self):
         return [self]
-    
+
     def shape(self):
         pass
-    
+
     def slice(self):
         pass
 
