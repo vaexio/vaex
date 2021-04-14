@@ -306,19 +306,21 @@ class Dataset(collections.abc.Mapping):
         self._id = str(uuid.uuid4())
         self._cached_fingerprint = None
 
-    @abstractproperty
+    @property
     def id(self):
-        pass
+        '''id that uniquely identifies a dataset at runtime'''
+        return self.fingerprint
 
     @property
     def fingerprint(self):
+        '''id that uniquely identifies a dataset cross runtime, might be more expensive and require hasing'''
         if self._cached_fingerprint is None:
             self._cached_fingerprint = self._fingerprint
         return self._cached_fingerprint
 
-    # @abstractproperty
-    # def _fingerprint(self):
-    #     pass
+    @abstractproperty
+    def _fingerprint(self):
+        pass
 
     def encode(self, encoding):
         print(self.id, encoding.has_object_spec(self.id))
@@ -570,7 +572,7 @@ class DatasetRenamed(DatasetDecorator):
         return DatasetRenamed(self.original, resulting)
 
     @property
-    def id(self):
+    def _fingerprint(self):
         id = vaex.cache.fingerprint(self.original.id, self.renaming)
         return f'dataset-{self.snake_name}-{self.original.id}'
 
@@ -664,7 +666,7 @@ class DatasetConcatenated(Dataset):
         self._set_row_count()
 
     @property
-    def id(self):
+    def _fingerprint(self):
         ids = [ds.id for ds in self.datasets]
         id = vaex.cache.fingerprint(*ids)
         return f'dataset-{self.snake_name}-{id}'
@@ -809,7 +811,7 @@ class DatasetTake(DatasetDecorator):
         self._set_row_count()
 
     @property
-    def id(self):
+    def _fingerprint(self):
         id = vaex.cache.fingerprint(self.original.id, self._hash_index, self.masked)
         return f'dataset-{self.snake_name}-{id}'
 
@@ -889,7 +891,7 @@ class DatasetFiltered(DatasetDecorator):
                 raise ValueError(f'Expected filter to have {expected_length} true values, but counted {self._row_count}')
 
     @property
-    def id(self):
+    def _fingerprint(self):
         id = vaex.cache.fingerprint(self.original.id, self._hash_index, self.state, self.selection)
         return f'dataset-{self.snake_name}-{id}'
 
@@ -990,10 +992,8 @@ class DatasetSliced(DatasetDecorator):
         self._ids = frozendict({name: hash_slice(hash, start, end) for name, hash in original._ids.items()})
 
     @property
-    def id(self):
-        print(self.original.id, self.start, self.end)
+    def _fingerprint(self):
         id = vaex.cache.fingerprint(self.original.id, self.start, self.end)
-        print(" ....", id)
         return f'dataset-{self.snake_name}-{id}'
 
     def leafs(self) -> List[Dataset]:
@@ -1056,7 +1056,7 @@ class DatasetSlicedArrays(DatasetDecorator):
         self._set_row_count()
 
     @property
-    def id(self):
+    def _fingerprint(self):
         id = vaex.cache.fingerprint(self.original.id, self.start, self.end)
         return f'dataset-{self.snake_name}-{id}'
 
@@ -1122,7 +1122,7 @@ class DatasetDropped(DatasetDecorator):
         self._set_row_count()
 
     @property
-    def id(self):
+    def _fingerprint(self):
         id = vaex.cache.fingerprint(self.original.id, self._dropped_names)
         return f'dataset-{self.snake_name}-{id}'
 
@@ -1183,7 +1183,7 @@ class DatasetMerged(Dataset):
         self._set_row_count()
 
     @property
-    def id(self):
+    def _fingerprint(self):
         id = vaex.cache.fingerprint(self.left.id, self.right.id)
         return f'dataset-{self.snake_name}-{id}'
 
@@ -1266,15 +1266,18 @@ class DatasetArrays(Dataset):
         self._columns = frozendict(columns)
         self._ids = frozendict()
         self._set_row_count()
-        self._uuid = str(uuid.uuid4())
 
     @property
     def id(self):
         try:
-            hash = str(self.__hash__())
-            return f'dataset-{self.snake_name}-hashed-{hash}'
+            # requires hashing and is expensive
+            return self.fingerprint()
         except ValueError:
-            return f'dataset-{self.snake_name}-uuid4-{self._uuid}'
+            return f'dataset-{self.snake_name}-uuid4-{self._id}'
+
+    def _fingerprint(self):
+        hash = str(self.__hash__())
+        return f'dataset-{self.snake_name}-hashed-{hash}'
 
     def leafs(self) -> List[Dataset]:
         return [self]
@@ -1380,7 +1383,7 @@ class DatasetFile(Dataset):
         base = os.path.basename(base)
         return base
 
-    def id(self):
+    def _fingerprint(self):
         fingerprint = vaex.file.fingerprint(self.path, fs_options=self.fs_options, fs=self.fs)
         return f'dataset-{self.snake_name}-{fingerprint}'
 

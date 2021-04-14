@@ -5197,7 +5197,7 @@ class DataFrame(object):
         :param any fill_value: Scalar value to use for data outside of existing rows.
         :param str edge: Where the edge of the rolling window is for the current row.
         '''
-        columns = self.get_column_names() if column is None else [column]
+        columns = self.get_column_names() if column is None else (column if _issequence(column) else [column])
         from .rolling import Rolling
         return Rolling(self, window, trim=trim, columns=columns, fill_value=fill_value, edge=edge)
 

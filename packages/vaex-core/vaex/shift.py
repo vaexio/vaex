@@ -223,7 +223,7 @@ class DatasetShifted(vaex.dataset.DatasetDecorator):
         return [self]
 
     @property
-    def id(self):
+    def _fingerprint(self):
         id = vaex.cache.fingerprint(self.original.id, self.column_mapping, self.start, self.end, self.fill_value)
         return f'dataset-{self.snake_name}-{id}'
 
