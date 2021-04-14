@@ -118,6 +118,25 @@ def _hidden(meth):
     meth.__hidden__ = True
     return meth
 
+@vaex.encoding.register("dataframe")
+class _DataFrameEncoder:
+    @staticmethod
+    def encode(encoding, df):
+        state = df.state_get(skip=[df.dataset])
+        return {
+            'state': encoding.encode('dataframe-state', state),
+            'dataset': encoding.encode('dataset', df.dataset)
+        }
+
+    @staticmethod
+    def decode(encoding, spec):
+        dataset = encoding.decode('dataset', spec['dataset'])
+        state = encoding.decode('dataframe-state', spec['state'])
+        df = vaex.from_dataset(dataset)
+        df.state_set(state)
+        return df
+
+
 class DataFrame(object):
     """All local or remote datasets are encapsulated in this class, which provides a pandas
     like API to your dataset.
