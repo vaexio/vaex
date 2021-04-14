@@ -78,12 +78,21 @@ def test_array_rename():
     assert rebuild(ds1) != rebuild(ds2)
 
     ds3 = ds2.renamed({'z': 'x'})
+    assert ds3.original is ds1, "no nested renaming"
     assert ds3['y'] is y
     assert ds3['x'] is x
 
     # different data, but same ids/hashes
     assert ds1 == ds3
     assert rebuild(ds1) == rebuild(ds3)
+
+    # testing that
+    # {'a': 'x', 'b': 'y'} and {'x': 'a', 'b': 'z', 'c', 'q'} -> {'b': 'z', 'c': 'q'}
+    ds1 = dataset.DatasetArrays(a=x, b=y, c=x+y)
+    ds2 = ds1.renamed({'a': 'x', 'b': 'y'})
+    ds3 = ds2.renamed({'x': 'a', 'b': 'z', 'c': 'q'})
+    assert ds3.original is ds1
+    assert ds3.renaming == {'b': 'z', 'c': 'q'}
 
 
 def test_merge():
