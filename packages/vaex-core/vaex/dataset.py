@@ -506,8 +506,12 @@ class DatasetDecorator(Dataset):
     def close(self):
         self.original.close()
 
-    def serialize(self, encoding, skip=set()):
-        return self.original.serialize(skip=skip)
+    def is_masked(self, column):
+        return self.original.is_masked(column)
+
+    def shape(self, column):
+        return self.original.shape(column)
+
 
 class ColumnProxy(vaex.column.Column):
     '''To give the Dataset._columns object useful containers for debugging'''
@@ -953,12 +957,6 @@ class DatasetFiltered(DatasetDecorator):
                 chunks_filtered = {name: vaex.array_types.filter(ar, self._filter[i1:i2]) for name, ar in chunks.items()}
                 yield chunks_filtered
         yield from _rechunk(filtered_chunks(), chunk_size)
-
-    def is_masked(self, column):
-        return self.original.is_masked(column)
-
-    def shape(self, column):
-        return self.original.shape(column)
 
     def hashed(self):
         if set(self._ids) == set(self):

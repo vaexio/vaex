@@ -393,3 +393,22 @@ def test_groupby_datetime():
     assert dfg.z.tolist() == [3, 9]
     assert dfg.t.dtype.is_datetime
     assert set(dfg.t.tolist()) == {datetime.date(2020, 1, 1), datetime.date(2020, 2, 1)}
+
+
+def test_groupby_state(df_factory, rebuild_dataframe):
+    df = df_factory(g=[0, 0, 0, 1, 1, 2], x=[1, 2, 3, 4, 5, 6])
+    dfg = df.groupby(by=df.g, agg={'count': vaex.agg.count(), 'sum': vaex.agg.sum('x')})
+    dfg.sort('g')  # TODO: sort it not yet implemented in the dataset state
+    assert dfg.g.tolist() == [0, 1, 2]
+    assert dfg['count'].tolist() == [3, 2, 1]
+    assert dfg['sum'].tolist() == [1+2+3, 4+5, 6]
+
+    assert rebuild_dataframe(dfg.hashed()).dataset.hashed() == dfg.dataset.hashed()
+    dfg = dfg.hashed()
+
+    df = df_factory(g=[0, 0, 0, 1, 1, 2], x=[2, 3, 4, 5, 6, 7])
+    df.state_set(dfg.state_get())
+    # import pdb; pdb.set_trace()
+    assert df.g.tolist() == [0, 1, 2]
+    assert df['count'].tolist() == [3, 2, 1]
+    assert df['sum'].tolist() == [1+2+3, 4+5, 6]

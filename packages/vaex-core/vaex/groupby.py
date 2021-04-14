@@ -267,6 +267,7 @@ class GroupByBase(object):
             by = [by]
 
         self.by = []
+        self.by_original = by
         for by_value in by:
             if not isinstance(by_value, BinnerBase):
                 if df.is_category(by_value):
@@ -456,12 +457,82 @@ class GroupBy(GroupByBase):
         if self.combine and self.expand and isinstance(self.by[0], GrouperCombined):
             assert len(self.by) == 1
             values = self.by[0].bin_values
-            labels = {field.name: ar for field, ar in zip(values.type, values.flatten())}
+            columns = {field.name: ar for field, ar in zip(values.type, values.flatten())}
         else:
             coords = [coord[mask] for coord in np.meshgrid(*self._coords1d, indexing='ij')]
-            labels = {by.label: coord for by, coord in zip(self.by, coords)}
-        df_grouped = vaex.from_dict(labels)
+            columns = {by.label: coord for by, coord in zip(self.by, coords)}
         for key, value in arrays.items():
-            df_grouped[key] = value[mask]
+            columns[key] = value[mask]
+        dataset_arrays = vaex.dataset.DatasetArrays(columns)
+        dataset = DatasetGroupby(dataset_arrays, self.df, self.by_original, actions, combine=self.combine, expand=self.expand)
+        df_grouped = vaex.from_dataset(dataset)
         return df_grouped
 
+
+@vaex.dataset.register
+class DatasetGroupby(vaex.dataset.DatasetDecorator):
+    '''Wraps a resulting dataset from a dataframe groupby, so the groupby can be serialized'''
+    snake_name = 'groupby'
+    def __init__(self, original, df, by, agg, combine, expand):
+        assert isinstance(original, vaex.dataset.DatasetArrays)
+        super().__init__(original)
+        self.df = df
+        self.by = by
+        self.agg = agg
+        self.combine = combine
+        self.expand = expand
+        self._row_count = self.original.row_count
+        self._create_columns()
+
+    def _create_columns(self):
+        # we know original is a DatasetArrays
+        self._columns = self.original._columns.copy()
+        self._ids = self.original._ids.copy()
+
+    @property
+    def _fingerprint(self):
+        by = self.by
+        by = str(by) if not isinstance(by, (list, tuple)) else list(map(str, by))
+        id = vaex.cache.fingerprint(self.original.fingerprint, self.df, by, self.agg, self.combine, self.expand)
+        return f'dataset-{self.snake_name}-{id}'
+
+    def chunk_iterator(self, *args, **kwargs):
+        yield from self.original.chunk_iterator(*args, **kwargs)
+
+    def hashed(self):
+        return type(self)(self.original.hashed(), df=self.df, by=self.by, agg=self.agg, combine=self.combine, expand=self.expand)
+
+    def _encode(self, encoding):
+        by = self.by
+        by = str(by) if not isinstance(by, (list, tuple)) else list(map(str, by))
+        spec = {
+            'dataframe': encoding.encode('dataframe', self.df),
+            'by': by,
+            'aggregation': encoding.encode_collection('aggregation', self.agg),
+            'combine': self.combine,
+            'expand': self.expand,
+        }
+        return spec
+
+    @classmethod
+    def _decode(cls, encoding, spec):
+        df = encoding.decode('dataframe', spec.pop('dataframe'))
+        by = spec.pop('by')
+        agg = encoding.decode_collection('aggregation', spec.pop('aggregation'))
+        dfg = df.groupby(by, agg=agg)
+        return DatasetGroupby(dfg.dataset.original, df, by, agg, **spec)
+
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        del state['original']
+        return state
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+        self.original = self.df.groupby(self.by, agg=self.agg).dataset.original
+        # self._create_columns()
+
+    def slice(self, start, end):
+        if start == 0 and end == self.row_count:
+            return self
+        return DatasetSlicedArrays(self, start=start, end=end)
