@@ -3,19 +3,14 @@
 
 There are various cases where the calculations and/or aggregations need to happen on a different computer than where the (aggregated) data is needed. For instance, when making a dashboard, the dashboard server might not be powerful enough for the calculations. Another example is where the client lives in a different process, such as a browser.
 
-## DataFrame server
-
-When the client is a Python program, the easiest API is the remote dataframe in the `vaex` packages itself.
-
-```python
-import vaex
-# the data is kept remote
-df = vaex.open('ws://dataframe.vaex.io/example')
-# only the result of the aggregations are send over the wire
-df.x.mean()
-```
-
 ### Starting the dataframe server
+
+
+```{admonition} Use our server first
+:class: tip
+
+You can skip running your own server and first try out using `https://dataframe.vaex.io`
+```
 
 The vaex webserver can be started from the command line like:
 ```bash
@@ -30,8 +25,19 @@ Pass files on the command line, or query help by passing the `--help` flag.
 $ vaex webserver my_large_file.hdf5 my_small_file.parquet
 ```
 
+## DataFrame server
+
+When the client is a Python program, the easiest API is the remote dataframe in the `vaex` packages itself.
+
+```python
+import vaex
+# the data is kept remote
+df = vaex.open('wss://dataframe.vaex.io/example')
+# only the result of the aggregations are send over the wire
+df.x.mean()
 ```
-```
+
+
 
 
 
@@ -60,7 +66,7 @@ While the `POST` method might be more convenient from a Javascript client or usi
 
 ### Python using requests
 
-[Requests](https://docs.python-requests.org/en/master/) is a simple HTTP library.
+[Requests](https://docs.python-requests.org/en/master/) is an easy to use HTTP library.
 ```python
 import requests
 data = {
@@ -73,11 +79,14 @@ data = {
     'max_x': 360,
     'min_y': -90,
     'max_y': 90,
-    'shape': [512, 256],
+    'shape_x': 512,
+    'shape_y': 256,
 }
 response = requests.post('https://dataframe.vaex.io/heatmap', json=data)
 response.json()
+assert response.status_code == 200, 'oops, something went wrong'
 ```
+
 ```python
 {'dataset_id': 'gaia-dr2',
  'centers_x': [22.5, 67.5, 112.5, 157.5, 202.5, 247.5, 292.5, 337.5],
@@ -142,36 +151,14 @@ values: (256) [ …]
 __proto__: Object
 ```
 
-<script>
-        window.__define = window.define;
-        window.__require = window.require;
-        window.define = undefined;
-        window.require = undefined;
-</script>
-<!-- <script src="https://cdn.plot.ly/plotly-latest.min.js"></script> -->
-<script>
-    window.define = window.__define;
-    window.require = window.__require;
-    window.__define = undefined;
-    window.__require = undefined;
-</script>
 <script src="https://unpkg.com/underscore@1.8.3"></script>
-
-<script>
-// require = requirejs_ref;
-// delete require;
-// delete require;
-// delete requirejs;
-// delete define;
-
-
-</script>
-
 
 ## Example using plotly.js
 
 
 Combining the previous with the [plotly.js library](https://plotly.com/javascript/getting-started/) we can make an interactive plot:
+
+### Sky map
 
 First, make sure we have a div
 ```html
@@ -185,149 +172,228 @@ Then load the data, and plot it using plotly.js:
 ```javascript
 
 
-async function loadData(override) {
-    var inputData = {
-        dataset_id: 'gaia-dr2',
-        expression_x: 'l',
-        expression_y: 'b',
-        virtual_columns: {
-            distance: "1/parallax"
-        },
-        filter: this.filter,
-        min_x: 0,
-        max_x: 360,
-        min_y: -90,
-        max_y: 90,
-        shape: [512, 256],
-        ...override
-    };
-    const result = await fetch("https://dataframe.vaex.io/heatmap", {method: 'POST', body: JSON.stringify(inputData)})
+var skyMapInput = {
+    dataset_id: 'gaia-dr2',
+    expression_x: 'l',
+    expression_y: 'b',
+    virtual_columns: {
+        distance: "1/parallax"
+    },
+    filter: this.filter,
+    min_x: 0,
+    max_x: 360,
+    min_y: -90,
+    max_y: 90,
+    shape: [512, 256],
+};
+
+async function loadData(heatmapInput) {
+    const result = await fetch("https://dataframe-dev.vaex.io/heatmap", {method: 'POST', body: JSON.stringify(heatmapInput)})
     const data = await result.json();
     return data;
 }
 
-function plotData(data, log) {
+function plotData(elementId, data, log, xaxis, yaxis) {
     const trace_data = {
         x: data.centers_x,
         y: data.centers_y,
         z: log ? data.values.map((ar1d) => ar1d.map(Math.log1p)) : data.values,
         type: 'heatmap',
         colorscale: 'plasma',
+        transpose: true,
     };
     var layout = {
         xaxis: {
             title: {
-                text: 'Galactic longitude',
+                text: data.expression_x,
             },
+            ...xaxis
         },
         yaxis: {
             title: {
-                text: 'Galactic latitude',
-            }
+                text: data.expression_y,
+            },
+            ...yaxis
         }
     };
-    Plotly.react('plotlyHeatmap', [trace_data], layout);
+    Plotly.react(elementId, [trace_data], layout);
 }
 
-async function plot(override) {
-    const data = await loadData(override);
-    await plotData(data, true);
+async function plot(elementId, heatmapInput, xaxis, yaxis) {
+    const heatmapOutput = await loadData(heatmapInput);
+    await plotData(elementId, heatmapOutput, true, xaxis, yaxis);
 }
 
-plot()
+plot('plotlyHeatmap', skyMapInput);
 ```
 
 Adding an event handler, will refine the data when we zoom in:
-```
+```javascript
 
-async function plot(override) {
-    const data = await loadData(override);
-    await plotData(data, true);
-}
-
-function addZoomHandler() {
-    document.getElementById('plotlyHeatmap').on('plotly_relayout', async (e) => {
-        const override = {
-            min_x: e["xaxis.range[0]"],
-            max_x: e["xaxis.range[1]"],
-            min_y: e["yaxis.range[0]"],
-            max_y: e["yaxis.range[1]"],
-        }
-        plot(override);
+function addZoomHandler(elementId, heatmapInput) {
+    document.getElementById(elementId).on('plotly_relayout', async (e) => {
+        // mutate input data
+        heatmapInput.min_x = e["xaxis.range[0]"]
+        heatmapInput.max_x = e["xaxis.range[1]"]
+        heatmapInput.min_y = e["yaxis.range[0]"]
+        heatmapInput.max_y = e["yaxis.range[1]"]
+        // and plot again
+        plot(elementId, heatmapInput);
     })
 }
 
+
+```
+
+```{include} data/rest/sky.html
 ```
 
 
 <script>
 
-async function loadData(override) {
-    var inputData = {
-        dataset_id: 'gaia-dr2',
-        expression_x: 'l',
-        expression_y: 'b',
-        virtual_columns: {
-            distance: "1/parallax"
-        },
-        filter: this.filter,
-        min_x: 0,
-        max_x: 360,
-        min_y: -90,
-        max_y: 90,
-        shape: [512, 256],
-        ...override
-    };
-    const result = await fetch("https://dataframe.vaex.io/heatmap", {method: 'POST', body: JSON.stringify(inputData)})
+var skyMapInput = {
+    dataset_id: 'gaia-dr2',
+    expression_x: 'l',
+    expression_y: 'b',
+    virtual_columns: {
+        distance: "1/parallax"
+    },
+    filter: this.filter,
+    min_x: 0,
+    max_x: 360,
+    min_y: -90,
+    max_y: 90,
+    shape: [512, 256],
+};
+
+async function loadData(heatmapInput) {
+    const result = await fetch("https://dataframe-dev.vaex.io/heatmap", {method: 'POST', body: JSON.stringify(heatmapInput)})
     const data = await result.json();
     return data;
 }
 
-function plotData(data, log) {
+function plotData(elementId, data, log, xaxis, yaxis) {
     const trace_data = {
         x: data.centers_x,
         y: data.centers_y,
         z: log ? data.values.map((ar1d) => ar1d.map(Math.log1p)) : data.values,
         type: 'heatmap',
         colorscale: 'plasma',
+        transpose: true,
     };
     var layout = {
         xaxis: {
             title: {
-                text: 'Galactic longitude',
+                text: data.expression_x,
             },
+            ...xaxis
         },
         yaxis: {
             title: {
-                text: 'Galactic latitude',
-            }
+                text: data.expression_y,
+            },
+            ...yaxis
         }
     };
-    Plotly.react('plotlyHeatmap', [trace_data], layout);
+    Plotly.react(elementId, [trace_data], layout);
 }
 
-async function plot(override) {
-    const data = await loadData(override);
-    await plotData(data, true);
+async function plot(elementId, heatmapInput, xaxis, yaxis) {
+    const heatmapOutput = await loadData(heatmapInput);
+    await plotData(elementId, heatmapOutput, true, xaxis, yaxis);
 }
 
-function addZoomHandler() {
-    document.getElementById('plotlyHeatmap').on('plotly_relayout', async (e) => {
-        const override = {
-            min_x: e["xaxis.range[0]"],
-            max_x: e["xaxis.range[1]"],
-            min_y: e["yaxis.range[0]"],
-            max_y: e["yaxis.range[1]"],
-        }
-        plot(override);
+function addZoomHandler(elementId, heatmapInput) {
+    document.getElementById(elementId).on('plotly_relayout', async (e) => {
+        // mutate input data
+        heatmapInput.min_x = e["xaxis.range[0]"]
+        heatmapInput.max_x = e["xaxis.range[1]"]
+        heatmapInput.min_y = e["yaxis.range[0]"]
+        heatmapInput.max_y = e["yaxis.range[1]"]
+        // and plot again
+        plot(elementId, heatmapInput);
     })
 }
 
 requirejs(['https://cdn.plot.ly/plotly-1.58.4.min.js'], (Plotly) => {
     window.Plotly = Plotly;
     (async () => {
-        await plot();
-        addZoomHandler();
+        // to update the sky.html data, uncomment the next line, comment the line after
+        // and copy paste the reply in sky.html
+        // await plot('plotlyHeatmap', skyMapInput);
+        await plotData('plotlyHeatmap', skyMapOutput, true);
+        addZoomHandler('plotlyHeatmap', skyMapInput);
+    })();
+});
+
+</script>
+
+### CMD
+
+We can now easily add a second heatmap
+```html
+<div id="plotlyHeatmapCMD"></div>
+```
+
+And plot a different heatmap (a color-magnitude diagram) on this div.
+```javascript
+
+var cmdInput = {
+    dataset_id: 'gaia-dr2',
+    expression_x: 'phot_bp_mean_mag-phot_rp_mean_mag',
+    expression_y: 'M_g',
+    virtual_columns: {
+        distance: "1/parallax",
+        M_g: "phot_g_mean_mag-(5*log10(distance)+10)"
+    },
+    filter: '((pmra**2+pmdec**2)<100)&(parallax_over_error>10)&(abs(b)>20)',
+    min_x: -1,
+    max_x: 5,
+    min_y: 15,
+    max_y: -5,
+    shape_x: 256,
+    shape_y: 256,
+};
+
+async () => {
+    await plot('plotlyHeatmapCMD', cmdInput);
+    addZoomHandler('plotlyHeatmapCMD', cmdInput);
+}
+
+```
+
+```{include} data/rest/cmd.html
+```
+
+
+<div id="plotlyHeatmapCMD"></div>
+
+
+<script>
+
+var cmdInput = {
+    dataset_id: 'gaia-dr2',
+    expression_x: 'phot_bp_mean_mag-phot_rp_mean_mag',
+    expression_y: 'M_g',
+    virtual_columns: {
+        distance: "1/parallax",
+        M_g: "phot_g_mean_mag-(5*log10(distance)+10)"
+    },
+    filter: '((pmra**2+pmdec**2)<100)&(parallax_over_error>10)&(abs(b)>20)',
+    min_x: -1,
+    max_x: 5,
+    min_y: 15,
+    max_y: -5,
+    shape_x: 256,
+    shape_y: 256,
+};
+
+requirejs(['https://cdn.plot.ly/plotly-1.58.4.min.js'], (Plotly) => {
+    window.Plotly = Plotly;
+    (async () => {
+        // await plot('plotlyHeatmapCMD', cmdInput);
+        plotData('plotlyHeatmapCMD', heatmapOutput, true, {}, {autorange: 'reversed'});
+        addZoomHandler('plotlyHeatmapCMD', cmdInput);
     })();
 });
 
