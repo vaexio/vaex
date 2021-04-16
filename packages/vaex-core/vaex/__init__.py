@@ -69,6 +69,8 @@ except:
     print("version file not found, please run git/hooks/post-commit or git/hooks/post-checkout and/or install them as hooks (see git/README)", file=sys.stderr)
     raise
 
+vaex = vaex.utils.optional_import("vaex", modules=["vaex.ml"])
+
 __version__ = version.get_versions()
 
 
@@ -612,12 +614,28 @@ def connect(url, **kwargs):
     return connect(url, **kwargs)
 
 
-def example():
+def example(dataset='astronomy'):
     """Returns an example DataFrame which comes with vaex for testing/learning purposes.
 
+    Available datasets:
+    - 'astronomy': Sample data from Helmi & De Zeeuw 2000
+    - 'taxi': Sample data from the Yellow Taxi New York City dataset
+    - 'titanic': The Titanic passenger dataset
+    - 'iris': The Iris flower dataset
+
+    :param str dataset: Which dataset to load.
     :rtype: DataFrame
     """
-    return vaex.datasets.helmi_de_zeeuw_10percent.fetch()
+    if dataset == 'astronomy':
+        return vaex.datasets.helmi_de_zeeuw_10percent.fetch()
+    elif dataset == 'taxi':
+        return vaex.datasets.yellow_taxi_2012.fetch()
+    elif dataset == 'titanic':
+        return vaex.ml.datasets.load_titanic()
+    elif dataset == 'iris':
+        return vaex.ml.datasets.load_iris()
+    else:
+        raise ValueError(f'Can not find the "{dataset}"" dataset.')
 
 
 def zeldovich(dim=2, N=256, n=-2.5, t=None, scale=1, seed=None):

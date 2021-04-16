@@ -1,8 +1,7 @@
 __author__ = 'maartenbreddels'
 import sys
 import vaex.utils
-import vaex as vx
-import vaex.settings
+import vaex
 import os
 # data_dir = "/tmp/vaex/data"
 data_dir = vaex.settings.main.data.path
@@ -47,7 +46,7 @@ class Hdf5Download(object):
 
     def fetch(self, force_download=False):
         self.download(force=force_download)
-        return vx.open(self.filename)
+        return vaex.open(self.filename, convert=True)
 
     def wget_command(self, i):
         assert i == 0
@@ -78,7 +77,7 @@ class NYCTaxi(object):
         if len(self.filenames) > 1:
             if not os.path.exists(self.filename_single):
                 ds.export_hdf5(self.filename_single)
-            ds = vx.open(self.filename_single)
+            ds = vaex.open(self.filename_single)
         return ds
 
     def fetch_multi(self):
@@ -121,7 +120,7 @@ class NYCTaxi(object):
                 for skip in skips:
                     if skip in df:
                         del df["store_and_fwd_flag"]
-                ds = vx.from_pandas(df)
+                ds = vaex.from_pandas(df)
                 ds.add_virtual_column("pickup_hour", "dt_hour(tpep_pickup_datetime)")
                 ds.add_virtual_column("dropoff_hour", "dt_hour(tpep_dropoff_datetime)")
                 ds.add_virtual_column("pickup_dayofweek", "dt_dayofweek(tpep_pickup_datetime)")
@@ -130,7 +129,7 @@ class NYCTaxi(object):
                 ds.export_hdf5(output, virtual=True, selection=True)
 
     def open(self):
-        return vx.open_many(self.filenames_vaex) if len(self.filenames_vaex) != 1 else vx.open(self.filenames_vaex[0])
+        return vaex.open_many(self.filenames_vaex) if len(self.filenames_vaex) != 1 else vaex.open(self.filenames_vaex[0])
 
 
 urllist = """https://storage.googleapis.com/tlc-trip-data/2013/green_tripdata_2013-08.csv
@@ -255,3 +254,4 @@ helmi_de_zeeuw = Hdf5Download("https://github.com/vaexio/vaex-datasets/releases/
 helmi_de_zeeuw_10percent = Hdf5Download("https://github.com/vaexio/vaex-datasets/releases/download/v1.0/helmi-dezeeuw-2000-FeH-v2-10percent.hdf5")
 tgas = Hdf5Download("https://github.com/vaexio/vaex-datasets/releases/download/v1.0/tgas.hdf5")
 tgas_1percent = Hdf5Download("https://github.com/vaexio/vaex-datasets/releases/download/v1.0/tgas_1percent.hdf5")
+yellow_taxi_2012 = Hdf5Download("https://github.com/vaexio/vaex-datasets/releases/download/1.1/yellow_taxi_2012_zones.parquet")
