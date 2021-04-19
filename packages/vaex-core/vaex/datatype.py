@@ -21,8 +21,11 @@ class DataType:
     True
 
     """
-    def __init__(self, internal):
-        self.internal = internal
+    def __init__(self, dtype):
+        if isinstance(dtype, DataType):
+            self.internal = dtype.internal
+        else:
+            self.internal = dtype
 
     def to_native(self):
         '''Removes non-native endianness'''

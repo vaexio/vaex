@@ -25,6 +25,31 @@ def register(name):
     return wrapper
 
 
+_dataset_types = {}
+
+
+def make_class_registery(name):
+    def register_helper(cls, name=None):
+        name = name or getattr(cls, 'snake_name') or cls.__name__
+        _dataset_types[name] = cls
+        return cls
+
+    @register(name)
+    class dataset_encoding:
+        @staticmethod
+        def encode(encoding, obj):
+            spec = obj.encode(encoding)
+            spec[f'{name}_type'] = obj.snake_name
+            return spec
+
+        @staticmethod
+        def decode(encoding, spec):
+            spec = spec.copy()
+            type = spec.pop(f'{name}_type')
+            cls = _dataset_types[type]
+            return cls.decode(encoding, spec)
+    return register_helper
+
 @register("json")  # this will pass though data as is
 class vaex_json_encoding:
     @classmethod
@@ -83,6 +108,8 @@ class array_encoding:
             return {'type': 'ndarray', 'data': encoding.encode('ndarray', result)}
         elif isinstance(result, vaex.array_types.supported_arrow_array_types):
             return {'type': 'arrow-array', 'data': encoding.encode('arrow-array', result)}
+        if isinstance(result, vaex.column.Column):
+            return {'type': 'column', 'data': encoding.encode('column', result)}
         elif isinstance(result, numbers.Number):
             try:
                 result = result.item()  # for numpy scalars
@@ -195,7 +222,7 @@ class numpy_scalar_encoding:
 class dtype_encoding:
     @staticmethod
     def encode(encoding, dtype):
-        dtype = dtype.internal
+        dtype = DataType(dtype).internal
         return str(dtype)
 
     @staticmethod

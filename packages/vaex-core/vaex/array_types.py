@@ -228,6 +228,7 @@ def arrow_type(x):
 
 
 def to_arrow_type(data_type):
+    data_type = vaex.dtype(data_type).internal
     if isinstance(data_type, np.dtype):
         return arrow_type_from_numpy_dtype(data_type)
     else:

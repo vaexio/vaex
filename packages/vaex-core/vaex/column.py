@@ -18,6 +18,7 @@ if not on_rtd:
 logger = logging.getLogger("vaex.column")
 
 
+register = vaex.encoding.make_class_registery('column')
 
 class Column(object):
     def tolist(self):
@@ -115,11 +116,24 @@ class ColumnNumpyLike(Column):
 
 
 
+@register
 class ColumnArrowLazyCast(Column):
+    snake_name = "lazy_cast"
     """Wraps an array like object and cast it lazily"""
     def __init__(self, ar, type):
         self.ar = ar  # this should behave like a numpy array
-        self.type = type
+        self.type = vaex.dtype(type)
+
+    def encode(self, encoding):
+        return {
+            'array': encoding.encode('array', self.ar),
+            'dtype': encoding.encode('dtype', self.type),
+        }
+
+    @classmethod
+    def decode(cls, encoding, spec):
+        return cls(encoding.decode('array', spec['array']),
+                   encoding.decode('dtype', spec['dtype']))
 
     def __arrow_array__(self, type=None):
         return pa.array(self.ar)
@@ -145,8 +159,8 @@ class ColumnArrowLazyCast(Column):
     def __getitem__(self, slice):
         if self.ar.dtype == object and vaex.array_types.is_string_type(self.type):
             # this seem to be the only way to convert mixed str and nan to include nulls
-            return pa.Array.from_pandas(self.ar[slice], type=self.type)
-        return pa.array(self.ar[slice], type=self.type)
+            return pa.Array.from_pandas(self.ar[slice], type=self.type.arrow)
+        return pa.array(self.ar[slice], type=self.type.arrow)
 
 
 class ColumnIndexed(Column):
