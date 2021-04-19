@@ -535,4 +535,4 @@ class DatasetGroupby(vaex.dataset.DatasetDecorator):
     def slice(self, start, end):
         if start == 0 and end == self.row_count:
             return self
-        return DatasetSlicedArrays(self, start=start, end=end)
+        return vaex.dataset.DatasetSlicedArrays(self, start=start, end=end)

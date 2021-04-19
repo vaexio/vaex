@@ -85,7 +85,7 @@ def test_merge_files(df_file, tmpdir):
     df_join = vaex.open(path)
     df_join.rename('x', 'z')
     df = df_file.join(df_join)
-    assert len(pickle.dumps(df)) < 2000
+    assert len(pickle.dumps(df)) < 2300
     df2 = pickle.loads(pickle.dumps(df))
     assert df.compare(df2) == ([], [], [], [])
     assert df2.sum('x-z') == 0
