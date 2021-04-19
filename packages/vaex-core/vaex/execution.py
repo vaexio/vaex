@@ -97,6 +97,15 @@ class ExecutorLocal(Executor):
         self.signal_cancel.emit()
         run.cancelled = True
 
+    def chunk_size_for(self, row_count):
+        chunk_size = self.chunk_size
+        if chunk_size is None:
+            # we determine it automatically by defaulting to having each thread do 1 chunk
+            chunk_size_1_pass = vaex.utils.div_ceil(row_count, self.thread_pool.nthreads)
+            # brackated by a min and max chunk_size
+            chunk_size = min(self.chunk_size_max, max(self.chunk_size_min, chunk_size_1_pass))
+        return chunk_size
+
     async def execute_async(self):
         logger.debug("starting with execute")
 
@@ -147,12 +156,7 @@ class ExecutorLocal(Executor):
                     if not any(task.signal_progress.emit(0)):
                         task.cancelled = True
                 row_count = run.df._index_end - run.df._index_start
-                chunk_size = self.chunk_size
-                if chunk_size is None:
-                    # we determine it automatically by defaulting to having each thread do 1 chunk
-                    chunk_size_1_pass = vaex.utils.div_ceil(row_count, self.thread_pool.nthreads)
-                    # brackated by a min and max chunk_size
-                    chunk_size = min(self.chunk_size_max, max(self.chunk_size_min, chunk_size_1_pass))
+                chunk_size = self.chunk_size_for(row_count)
                 run.block_scopes = [run.df._block_scope(0, chunk_size) for i in range(self.thread_pool.nthreads)]
                 from .encoding import Encoding
                 encoding = Encoding()

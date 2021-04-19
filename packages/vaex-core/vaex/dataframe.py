@@ -4036,7 +4036,12 @@ class DataFrame(object):
         self.select(None)
         self.set_current_row(None)
         self._length_unfiltered = i2 - i1
-        self._cached_filtered_length = None
+        if self.filtered:
+            mask = self._selection_masks[FILTER_SELECTION_NAME]
+            if not mask.is_dirty():
+                self._cached_filtered_length = mask.view(i1, i2).count()
+            else:
+                self._cached_filtered_length = None
         self.signal_active_fraction_changed.emit(self, self._active_fraction)
 
     @docsubst
@@ -4054,6 +4059,26 @@ class DataFrame(object):
         if self._index_start == 0 and self._index_end == self._length_original:
             return df
         df.dataset = self.dataset[self._index_start:self._index_end]
+        if df.filtered:
+            # we're gonna copy the mask from our parent
+            parent_mask = self._selection_masks[FILTER_SELECTION_NAME].view(self._index_start, self._index_end)
+            mask = df._selection_masks[FILTER_SELECTION_NAME]
+            np.copyto(np.asarray(mask), np.asarray(parent_mask))
+            selection = df.get_selection(FILTER_SELECTION_NAME)
+            if not mask.is_dirty():
+                df._cached_filtered_length = mask.count()
+                cache = df._selection_mask_caches[FILTER_SELECTION_NAME]
+                assert not cache
+                chunk_size = self.executor.chunk_size_for(mask.length)
+                for i in range(vaex.utils.div_ceil(mask.length, chunk_size)):
+                    i1 = i * chunk_size
+                    i2 = min(mask.length, (i + 1) * chunk_size)
+                    key = (i1, i2)
+                    sub_mask = mask.view(i1, i2)
+                    sub_mask_array = np.asarray(sub_mask)
+                    cache[key] = selection, sub_mask_array
+            else:
+                df._cached_filtered_length = None
         return df
 
     @docsubst
@@ -4973,12 +4998,13 @@ class DataFrame(object):
             stop = min(stop, len(self))
             assert step in [None, 1]
             if self.filtered:
-                count_check = self.count()  # fill caches and masks
+                len(self)  # fill caches and masks
                 mask = self._selection_masks[FILTER_SELECTION_NAME]
-                start, stop = mask.indices(start, stop-1) # -1 since it is inclusive
-                assert start != -1
-                assert stop != -1
-                stop = stop+1  # +1 to make it inclusive
+                startf, stopf = mask.indices(start, stop-1) # -1 since it is inclusive
+                assert startf != -1
+                assert stopf != -1
+                stopf = stopf+1  # +1 to make it inclusive
+                start, stop = startf, stopf
             df = self.trim()
             df.set_active_range(start, stop)
             return df.trim()
