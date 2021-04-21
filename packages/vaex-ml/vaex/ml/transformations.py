@@ -422,6 +422,9 @@ class OneHotEncoder(Transformer):
             uniques.append(unique_values)
         self.uniques_ = uniques
 
+        # detect ability to downcast to uint8
+        self.downcast_uint8 = np.can_cast(self.one, np.uint8) and np.can_cast(self.zero, np.uint8)
+
     def transform(self, df):
         '''Transform a DataFrame with a fitted OneHotEncoder.
 
@@ -430,17 +433,18 @@ class OneHotEncoder(Transformer):
         :rtype: DataFrame
         '''
         copy = df.copy()
+        dtype = self.downcast_uint8 and 'uint8' or None
         # for each feature, add a virtual column for each unique entry
         for i, feature in enumerate(self.features):
             for j, value in enumerate(self.uniques_[i]):
                 str_value = str(value) if value is not None else 'missing'
                 column_name = self.prefix + feature + '_' + str_value
                 if value is None:
-                    copy[column_name] = copy.func.where(copy[feature].ismissing(), self.one, self.zero)
+                    copy[column_name] = copy.func.where(copy[feature].ismissing(), self.one, self.zero, dtype=dtype)
                 elif isinstance(value, np.float) and np.isnan(value):
-                    copy[column_name] = copy.func.where(copy[feature].isnan(), self.one, self.zero)
+                    copy[column_name] = copy.func.where(copy[feature].isnan(), self.one, self.zero, dtype=dtype)
                 else:
-                    copy[column_name] = copy.func.where(copy[feature] == value, self.one, self.zero)
+                    copy[column_name] = copy.func.where(copy[feature] == value, self.one, self.zero, dtype=dtype)
         return copy
 
 
