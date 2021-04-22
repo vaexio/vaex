@@ -18,7 +18,8 @@ def create_df(name, info, executor):
 
 
 class Client:
-    def __init__(self):
+    def __init__(self, secure=False):
+        self.secure = secure
         self.df_map = {}
         self.executor = None
         self._msg_id_to_tasks = {}
@@ -102,11 +103,11 @@ class Client:
 
     @property
     def url(self):
-        protocol = "ws"
+        protocol = "wss" if self.secure else "ws"
         return "%s://%s:%d%s" % (protocol, self.hostname, self.port, self.base_path)
 
     @property
     def _url(self):
-        protocol = "ws"
+        protocol = "wss" if self.secure else "ws"
         return "%s://%s:%d%swebsocket" % (protocol, self.hostname, self.port, self.base_path)
 
