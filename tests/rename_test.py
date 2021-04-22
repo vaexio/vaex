@@ -11,6 +11,7 @@ def test_rename(ds_filtered):
     assert ds.r.values.tolist() == xvalues
     assert ds.q.values.tolist() == qvalues
 
+
 def test_rename_existing_expression(df_local):
     df = df_local
     x_old = df['x']
@@ -18,7 +19,6 @@ def test_rename_existing_expression(df_local):
     # the x_old expression needs to be rewritten as well
     df['x'] = df.x * 2
     assert x_old.tolist() == xvalues
-
 
 
 def test_reassign_virtual(ds_local):
