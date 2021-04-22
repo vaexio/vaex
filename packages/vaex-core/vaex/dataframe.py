@@ -4974,10 +4974,13 @@ class ColumnProxy(collections.abc.MutableMapping):
 class DataFrameLocal(DataFrame):
     """Base class for DataFrames that work with local file/data"""
 
-    def __init__(self, dataset=None):
+    def __init__(self, dataset=None, name=None):
         if dataset is None:
             dataset = vaex.dataset.DatasetArrays()
-        super(DataFrameLocal, self).__init__(dataset.keys())
+            name = name or "no-name"
+        else:
+            name = name or dataset.name
+        super(DataFrameLocal, self).__init__(name)
         self._dataset = dataset
         if hasattr(dataset, 'units'):
             self.units.update(dataset.units)

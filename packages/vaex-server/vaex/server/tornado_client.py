@@ -122,11 +122,11 @@ class ClientWebsocket(Client):
 
 def connect(url, **kwargs):
     url = urlparse(url)
-    if url.scheme in ["vaex+ws", "ws"]:
+    if url.scheme in ["vaex+ws", "ws", "vaex+wss", "wss"]:
         websocket = True
     else:
         websocket = False
-    assert url.scheme in ["ws", "http", "vaex+ws", "vaex+http"]
+    assert url.scheme in ["ws", "http", "vaex+ws", "vaex+http", "vaex+wss", "wss"]
     port = url.port
     base_path = url.path
     hostname = url.hostname

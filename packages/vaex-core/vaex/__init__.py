@@ -166,7 +166,8 @@ def open(path, convert=False, shuffle=False, fs_options={}, fs=None, *args, **kw
                 path = aliases[path]
             path = vaex.file.stringyfy(path)
             if path.startswith("http://") or path.startswith("ws://") or \
-            path.startswith("vaex+http://") or path.startswith("vaex+ws://"):  # TODO: think about https and wss
+                path.startswith("vaex+wss://") or path.startswith("wss://") or \
+               path.startswith("vaex+http://") or path.startswith("vaex+ws://"):
                 server, name = path.rsplit("/", 1)
                 url = urlparse(path)
                 if '?' in name:

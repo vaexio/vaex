@@ -264,6 +264,11 @@ class Dataset(collections.abc.Mapping):
     def _create_columns(self):
         pass
 
+    @property
+    def name(self):
+        # TODO: in the future, we might want to use self.fingerprint or self.id
+        return "no-name"
+
     def __getstate__(self):
         state = self.__dict__.copy()
         del state['_columns']
@@ -1067,6 +1072,13 @@ class DatasetFile(Dataset):
         self._hash_calculations = 0  # track it for testing purposes
         self._hash_info = {}
         self._read_hashes()
+
+    @property
+    def name(self):
+        base, ext, fs_options = vaex.file.split_ext(self.path)
+        base = os.path.basename(base)
+        return base
+
 
     def _create_columns(self):
         pass
