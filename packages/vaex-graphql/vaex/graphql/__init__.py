@@ -160,6 +160,7 @@ def create_aggregation_on_field(df, groupby):
     else:
         attrs = {name: map_to_field(df, name)() for name in df.get_column_names()}
     attrs['Meta'] = Meta
+    attrs["__init__"] = AggregationOnFieldBase.__init__
     DataFrameAggregationOnField = type("AggregationOnField"+postfix, (AggregationOnFieldBase, ), attrs)
     return DataFrameAggregationOnField
 
@@ -197,6 +198,7 @@ def create_groupby(df, groupby):
             return Aggregate(df, groupby + [name])
         return graphene.Field(Aggregate, resolver=resolver)
     attrs = {name: field_groupby(name) for name in df.get_column_names()}
+    attrs["__init__"] = GroupByBase.__init__
     GroupBy = type("GroupBy"+postfix, (GroupByBase, ), attrs)
     return GroupBy
 
@@ -205,6 +207,7 @@ def create_row(df):
     class RowBase(graphene.ObjectType):
         pass
     attrs = {name: map_to_field(df, name)() for name in df.get_column_names()}
+    attrs["__init__"] = RowBase.__init__
     Row = type("Row", (RowBase, ), attrs)
     return Row
 
@@ -240,9 +243,7 @@ def create_aggregate(df, groupby=None):
 
         if not groupby:
             def resolve_row(self, info, limit, offset=None):
-                fields = [field for field in info.field_asts if field.name.value == info.field_name]
-                subfields = fields[0].selection_set.selections
-                names = [subfield.name.value for subfield in subfields]
+                names = [str(field) for field in info.return_type.of_type.fields]
                 if offset is None:
                     offset = 0
                 N = min(len(self.df)-offset, limit)
@@ -277,6 +278,7 @@ def create_aggregate(df, groupby=None):
             return AggregationOnField(self.df, 'mean', self.by)
 
     attrs = {}
+    attrs["__init__"] = AggregationBase.__init__
     if len(groupby) < 2:
         GroupBy = create_groupby(df, groupby)
         def resolver(*args, **kwargs):
@@ -315,15 +317,16 @@ def create_boolexp(df):
             return expression
 
     attrs = {}
+    attrs["__init__"] = BoolExpBase.__init__
     for name in column_names:
         attrs[name] = graphene.Field(map_to_comparison(df, name))
     BoolExp = type("BoolExp", (BoolExpBase, ), attrs)
     return BoolExp
 
 def create_query(dfs):
-    class QueryBase(graphene.ObjectType):
-        hello = graphene.String(description='A typical hello world')
+    QueryBase = graphene.ObjectType
     fields = {}
+    fields["__init__"] = QueryBase.__init__
     for name, df in dfs.items():
         columns = df.get_column_names()
         columns = [k for k in columns if df.is_string(k) or df[k].dtype.kind != 'O']
