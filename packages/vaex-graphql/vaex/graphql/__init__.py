@@ -223,7 +223,7 @@ def create_aggregate(df, groupby=None):
         
     else:
         CountType = graphene.Int()
-        
+
     Row = create_row(df)
 
     class AggregationBase(graphene.ObjectType):
@@ -342,5 +342,5 @@ def create_query(dfs):
             return resolve
         Where = create_boolexp(df)
         fields[name] = graphene.Field(Aggregate, resolver=closure(), description="Aggregations for %s" % name, where=graphene.Argument(Where))
-        
+
     return type("Query", (QueryBase, ), fields)
