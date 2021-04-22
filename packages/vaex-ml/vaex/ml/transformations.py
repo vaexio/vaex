@@ -423,7 +423,6 @@ class OneHotEncoder(Transformer):
         self.uniques_ = uniques
 
         # detect ability to downcast to uint8
-        self.downcast_uint8 = np.can_cast(self.one, np.uint8) and np.can_cast(self.zero, np.uint8)
 
     def transform(self, df):
         '''Transform a DataFrame with a fitted OneHotEncoder.
