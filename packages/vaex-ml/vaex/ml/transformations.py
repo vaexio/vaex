@@ -432,7 +432,8 @@ class OneHotEncoder(Transformer):
         :rtype: DataFrame
         '''
         copy = df.copy()
-        dtype = self.downcast_uint8 and 'uint8' or None
+        downcast_uint8 = np.can_cast(self.one, np.uint8) and np.can_cast(self.zero, np.uint8)
+        dtype = 'uint8' if downcast_uint8 else None
         # for each feature, add a virtual column for each unique entry
         for i, feature in enumerate(self.features):
             for j, value in enumerate(self.uniques_[i]):
