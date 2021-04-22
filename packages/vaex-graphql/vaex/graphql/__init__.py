@@ -33,16 +33,16 @@ class DataFrameAccessorGraphQL(object):
         """
         return self.schema().execute(*args, **kwargs)
 
-    def serve(self, port=9001, address='', name='df', verbose=True):
-        """Serve the DataFrame via a http server"""
-        from .tornado import Application
-        schema = self.schema(name=name)
-        app = Application(schema)
-        app.listen(port, address)
-        if not address:
-            address = 'localhost'
-        if verbose:
-            print('serving at: http://{address}:{port}/graphql'.format(**locals()))
+    # def serve(self, port=9001, address='', name='df', verbose=True):
+    #     """Serve the DataFrame via a http server"""
+    #     from .tornado import Application
+    #     schema = self.schema(name=name)
+    #     app = Application(schema)
+    #     app.listen(port, address)
+    #     if not address:
+    #         address = 'localhost'
+    #     if verbose:
+    #         print('serving at: http://{address}:{port}/graphql'.format(**locals()))
 
 
 @pd.api.extensions.register_dataframe_accessor("graphql")
