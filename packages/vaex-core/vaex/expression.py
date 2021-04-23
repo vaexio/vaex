@@ -872,7 +872,7 @@ def f({0}):
             if self.is_string():
                 values = vaex.column._to_string_sequence(values)
             else:
-                values = np.array(values, dtype=self.dtype)
+                values = np.array(values, dtype=self.dtype.numpy)
             var = self.df.add_variable('isin_values', values, unique=True)
             return self.df['isin(%s, %s)' % (self, var)]
 
