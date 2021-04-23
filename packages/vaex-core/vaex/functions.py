@@ -2561,7 +2561,7 @@ def add_geo_json(ds, json_or_file, column_name, longitude_expression, latitude_e
 import vaex.arrow.numpy_dispatch
 
 @register_function()
-def where(condition, x, y):
+def where(condition, x, y, dtype=None):
     # special where support for strings
     # TODO: this should be replaced by an arrow compute function in the future
     if type(x) == str:
@@ -2611,6 +2611,18 @@ def where(condition, x, y):
         choices = vaex.array_types.concat([x, y])
         values = choices.take(indices)
         return values
+
+    # cast x and y
+    if dtype is not None:
+        if np.can_cast(x, dtype):
+            dtype_scalar = np.dtype(dtype)
+            x = dtype_scalar.type(x)
+        if np.can_cast(y, dtype):
+            dtype_scalar = np.dtype(dtype)
+            y = dtype_scalar.type(y)
+
     # default callback is on numpy
+    # where() respects the dtypes of x and y; ex: if x and y are 'uint8', the resulting array will also be 'uint8'
     ar = np.where(condition, x, y)
+
     return ar

@@ -307,6 +307,13 @@ def test_one_hot_encoding_with_na(df_factory):
     assert df_train['y_31.0'].tolist() == [1, 0, 0, 1]
     assert df_train['y_nan'].tolist() == [0, 0, 1, 0]
 
+    assert(str(df_train.x_missing.dtype) == 'uint8')
+    assert(str(df_train.x_Michael.dtype) == 'uint8')
+    assert(str(df_train.x_Reggie.dtype) == 'uint8')
+    assert(str(df_train['y_23.0'].dtype) == 'uint8')
+    assert(str(df_train['y_31.0'].dtype) == 'uint8')
+    assert(str(df_train['y_nan'].dtype) == 'uint8')
+
     df_test = enc.transform(df_test)
     assert df_test.x_missing.tolist() == [0, 0, 1, 1]
     assert df_test.x_Michael.tolist() == [1, 0, 0, 0]
@@ -314,6 +321,13 @@ def test_one_hot_encoding_with_na(df_factory):
     assert df_test['y_23.0'].tolist() == [1, 0, 0, 0]
     assert df_test['y_31.0'].tolist() == [0, 1, 0, 0]
     assert df_test['y_nan'].tolist() == [0, 0, 1, 1]
+
+    assert(str(df_test.x_missing.dtype) == 'uint8')
+    assert(str(df_test.x_Michael.dtype) == 'uint8')
+    assert(str(df_test.x_Reggie.dtype) == 'uint8')
+    assert(str(df_test['y_23.0'].dtype) == 'uint8')
+    assert(str(df_test['y_31.0'].dtype) == 'uint8')
+    assert(str(df_test['y_nan'].dtype) == 'uint8')
 
 
 def test_maxabs_scaler(df_factory):
