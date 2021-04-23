@@ -2611,11 +2611,18 @@ def where(condition, x, y, dtype=None):
         choices = vaex.array_types.concat([x, y])
         values = choices.take(indices)
         return values
-    # default callback is on numpy
-    ar = np.where(condition, x, y)
 
-    # Cast to dtype
+    # cast x and y
     if dtype is not None:
-        ar = ar.astype(dtype)
+        if np.can_cast(x, dtype):
+            dtype_scalar = np.dtype(dtype)
+            x = dtype_scalar.type(x)
+        if np.can_cast(y, dtype):
+            dtype_scalar = np.dtype(dtype)
+            y = dtype_scalar.type(y)
+
+    # default callback is on numpy
+    # where() respects the dtypes of x and y; ex: if x and y are 'uint8', the resulting array will also be 'uint8'
+    ar = np.where(condition, x, y)
 
     return ar
