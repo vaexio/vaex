@@ -12,6 +12,7 @@ def test_isin():
     n = np.array([-5, np.nan, 1])
     df = vaex.from_arrays(x=x, y=y, s=s, sm=sm, w=w, m=m, n=n)
 
+    # use_hashmap = True (default behavior)
     assert df.x.isin([1, 2.02, 5, 6]).tolist() == [False, True, False]
     assert df.y.isin([5, -1, 0]).tolist() == [False, False, True]
     assert df.s.isin(['elephant', 'dog']).tolist() == [True, False, False]
@@ -19,8 +20,15 @@ def test_isin():
     assert df.w.isin([2, None]).tolist() == [True, False, True]
     assert df.m.isin([1, 2, 3]).tolist() == [False, False, True]
     assert df.n.isin([2, np.nan]).tolist() == [False, True, False]
-    # TODO: this fails, we should have a separate issue for it
-    assert df.n.isin([2, np.nan]).tolist() == [False, True, False]
+
+    # use_hashmap = False
+    assert df.x.isin([1, 2.02, 5, 6], use_hashmap=False).tolist() == [False, True, False]
+    assert df.y.isin([5, -1, 0], use_hashmap=False).tolist() == [False, False, True]
+    assert df.s.isin(['elephant', 'dog'], use_hashmap=False).tolist() == [True, False, False]
+    assert df.sm.isin(['cat', 'dog'], use_hashmap=False).tolist() == [True, True, False]
+    assert df.w.isin([2, None], use_hashmap=False).tolist() == [True, False, True]
+    assert df.m.isin([1, 2, 3], use_hashmap=False).tolist() == [False, False, True]
+    assert df.n.isin([2, np.nan], use_hashmap=False).tolist() == [False, True, False]
 
 
 def test_isin_object():
@@ -43,11 +51,7 @@ def test_isin_diff_dtypes():
     # Test cases for use_hashmap=True (default behavior)
     assert df.x.isin([1], use_hashmap=True).tolist() == [False, False, False]
     assert df.x.isin([1.01], use_hashmap=True).tolist() == [True, False, False]
-    assert df.s.isin(['elephant', 'dog'], use_hashmap=True).tolist() == [True, False, False]
-    assert df.sm.isin(['cat', 'dog'], use_hashmap=True).tolist() == [True, True, False]
 
     # Test cases for use_hashmap=False
     assert df.x.isin([1], use_hashmap=False).tolist() == [False, False, False]
     assert df.x.isin([1.01], use_hashmap=False).tolist() == [True, False, False]
-    assert df.s.isin(['elephant', 'dog'], use_hashmap=False).tolist() == [True, False, False]
-    assert df.sm.isin(['cat', 'dog'], use_hashmap=False).tolist() == [True, True, False]
