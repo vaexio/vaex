@@ -32,3 +32,22 @@ def test_isin_object():
 
     assert expr_x.tolist() == [True, False, False]
     assert expr_y.tolist() == [False, True, False]
+
+
+def test_isin_diff_dtypes():
+    x = np.array([1.01, 2.02, 3.03])
+    s = np.array(['dog', 'cat', 'mouse'])
+    sm = np.array(['dog', 'cat', None])
+    df = vaex.from_arrays(x=x, s=s, sm=sm)
+
+    # Test cases for use_hashmap=True (default behavior)
+    assert df.x.isin([1], use_hashmap=True).tolist() == [False, False, False]
+    assert df.x.isin([1.01], use_hashmap=True).tolist() == [True, False, False]
+    assert df.s.isin(['elephant', 'dog'], use_hashmap=True).tolist() == [True, False, False]
+    assert df.sm.isin(['cat', 'dog'], use_hashmap=True).tolist() == [True, True, False]
+
+    # Test cases for use_hashmap=False
+    assert df.x.isin([1], use_hashmap=False).tolist() == [False, False, False]
+    assert df.x.isin([1.01], use_hashmap=False).tolist() == [True, False, False]
+    assert df.s.isin(['elephant', 'dog'], use_hashmap=False).tolist() == [True, False, False]
+    assert df.sm.isin(['cat', 'dog'], use_hashmap=False).tolist() == [True, True, False]
