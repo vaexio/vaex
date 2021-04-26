@@ -1,8 +1,11 @@
+import pytest
+
 import numpy as np
 import vaex
 
 
-def test_isin():
+@pytest.mark.parametrize("use_hashmap", [False, True])
+def test_isin(use_hashmap):
     x = np.array([1.01, 2.02, 3.03])
     y = np.array([1, 3, 5])
     s = np.array(['dog', 'cat', 'mouse'])
@@ -12,15 +15,13 @@ def test_isin():
     n = np.array([-5, np.nan, 1])
     df = vaex.from_arrays(x=x, y=y, s=s, sm=sm, w=w, m=m, n=n)
 
-    assert df.x.isin([1, 2.02, 5, 6]).tolist() == [False, True, False]
-    assert df.y.isin([5, -1, 0]).tolist() == [False, False, True]
-    assert df.s.isin(['elephant', 'dog']).tolist() == [True, False, False]
-    assert df.sm.isin(['cat', 'dog']).tolist() == [True, True, False]
-    assert df.w.isin([2, None]).tolist() == [True, False, True]
-    assert df.m.isin([1, 2, 3]).tolist() == [False, False, True]
-    assert df.n.isin([2, np.nan]).tolist() == [False, True, False]
-    # TODO: this fails, we should have a separate issue for it
-    assert df.n.isin([2, np.nan]).tolist() == [False, True, False]
+    assert df.x.isin([1, 2.02, 5, 6], use_hashmap=use_hashmap).tolist() == [False, True, False]
+    assert df.y.isin([5, -1, 0], use_hashmap=use_hashmap).tolist() == [False, False, True]
+    assert df.s.isin(['elephant', 'dog'], use_hashmap=use_hashmap).tolist() == [True, False, False]
+    assert df.sm.isin(['cat', 'dog'], use_hashmap=use_hashmap).tolist() == [True, True, False]
+    assert df.w.isin([2, None], use_hashmap=use_hashmap).tolist() == [True, False, True]
+    assert df.m.isin([1, 2, 3], use_hashmap=use_hashmap).tolist() == [False, False, True]
+    assert df.n.isin([2, np.nan], use_hashmap=use_hashmap).tolist() == [False, True, False]
 
 
 def test_isin_object():
@@ -32,3 +33,14 @@ def test_isin_object():
 
     assert expr_x.tolist() == [True, False, False]
     assert expr_y.tolist() == [False, True, False]
+
+
+@pytest.mark.parametrize("use_hashmap", [False, True])
+def test_isin_diff_dtypes(use_hashmap):
+    x = np.array([1.01, 2.02, 3.03])
+    s = np.array(['dog', 'cat', 'mouse'])
+    sm = np.array(['dog', 'cat', None])
+    df = vaex.from_arrays(x=x, s=s, sm=sm)
+
+    assert df.x.isin([1], use_hashmap=use_hashmap).tolist() == [False, False, False]
+    assert df.x.isin([1.01], use_hashmap=use_hashmap).tolist() == [True, False, False]

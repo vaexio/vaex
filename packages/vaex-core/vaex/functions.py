@@ -2485,10 +2485,17 @@ def _isin(x, values):
         # but numpy doesn't know what to do with that
         if hasattr(values, 'to_numpy'):
             values = values.to_numpy()
-        if np.ma.isMaskedArray(x):
-            return np.ma.isin(x, values)
+        mask = isnan(values)
+        if np.any(mask):
+            if np.ma.isMaskedArray(x):
+                return np.ma.isin(x, values) | isnan(x)
+            else:
+                return np.isin(x, values) | isnan(x)
         else:
-            return np.isin(x, values)
+            if np.ma.isMaskedArray(x):
+                return np.ma.isin(x, values)
+            else:
+                return np.isin(x, values)
 
 
 @register_function(name='isin_set', on_expression=False)

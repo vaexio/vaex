@@ -377,10 +377,10 @@ class StringSequenceBase : public StringSequence {
             if(has_null() || others->has_null()) {
                 for(size_t i = 0; i < length; i++) {
                     bool found = false;
-                    if(is_null(i)) {
+                    if(!is_null(i)) {
                         auto str = view(i);
                         for(size_t j = 0; j < others->length; j++) {
-                            if(others->is_null(j)) {
+                            if(!others->is_null(j)) {
                                 auto other = others->view(j);
                                 found = str == other;
                                 if(found)

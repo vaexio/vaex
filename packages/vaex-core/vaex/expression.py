@@ -864,6 +864,7 @@ def f({0}):
         """
         if use_hashmap:
             # easiest way to create a set is using the vaex dataframe
+            values = np.array(values, dtype=self.dtype.numpy)  # ensure that values are the same dtype as the expression (otherwise the set downcasts at the C++ level during execution)
             df_values = vaex.from_arrays(x=values)
             ordered_set = df_values._set(df_values.x)
             var = self.df.add_variable('var_isin_ordered_set', ordered_set, unique=True)
@@ -872,7 +873,7 @@ def f({0}):
             if self.is_string():
                 values = vaex.column._to_string_sequence(values)
             else:
-                values = np.array(values, dtype=self.dtype)
+                values = np.array(values, dtype=self.dtype.numpy)
             var = self.df.add_variable('isin_values', values, unique=True)
             return self.df['isin(%s, %s)' % (self, var)]
 
