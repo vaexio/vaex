@@ -329,6 +329,72 @@ def test_one_hot_encoding_with_na(df_factory):
     assert(str(df_test['y_31.0'].dtype) == 'uint8')
     assert(str(df_test['y_nan'].dtype) == 'uint8')
 
+def test_imputer_tranformer():
+    import pyarrow as pa
+    from vaex.ml.transformations import  Imputer
+    df = vaex.from_dict({
+        'floats': [2.0, 3.1, 4.2, np.nan, np.nan],
+        'bool': pa.array([True, True, True, False, None]),
+        'int': pa.array([1, 2, 3, 4, None]),
+        'str': ['a', 'b', 'b', 'c', None],
+        'mean': [1, 2, 4, 5, np.nan],
+        'int_common': pa.array([1, 1, 1, 2, None]),
+        'int_new_value': pa.array([1, 1, 1, 2, np.nan]),
+        'str_common': ['a', 'a', 'a', 'b', None],
+        'mode': [1, 1, 2, 2, np.nan],
+        'str_new_value': ['a', 'c', 'b', None, None],
+        'int_new_value': pa.array([1, 2, 3, 4, None]),
+        'str_value': ['a', 'a', 'a', 'a', None],
+        'int_value': pa.array([1, 2, 3, 4, None]),
+        'float_value': [1.0, 1.1, np.nan, np.nan, np.nan],
+    })
+    assert df.gl.countna() == 17
+    strategy = {
+        int: 0,
+        float: 0.0,
+        str: 'NONE',
+        'mean': Imputer.MEAN,
+        'int_common': Imputer.COMMON,
+        'int_new_value': Imputer.NEW_VALUE,
+        'str_common': Imputer.COMMON,
+        'mode': 'MODE',
+        'str_new_value': Imputer.NEW_VALUE,
+        'float_value': -2,
+        'str_value': 'b',
+    }
+    imputer = Imputer(strategy=strategy)
+
+    transformed = imputer.fit_transform(df)
+    assert transformed.gl.countna() == 0
+    record = transformed.to_records(-1)
+    assert record['floats'] == strategy.get(float)
+    assert record['bool'] is False  # default
+    assert record['int'] == strategy.get(int)
+    assert record['str'] == 'NONE'
+    assert record['mean'] == df['mean'].mean()
+    assert record['mode'] == df.percentile_approx('mode')
+    assert record['int_common'] == 1
+    assert record['int_new_value'] == 5
+    assert record['str_common'] == 'a'
+    assert record['str_value'] == 'b'
+    assert record['str_new_value'] not in df['str_new_value'].tolist()
+    assert record['float_value'] == -2
+
+    # handle missing columns
+    empty = vaex.from_arrays(x=[1])
+    record = imputer.transform(empty).to_records(0)
+    assert record['floats'] == strategy.get(float)
+    assert record['bool'] is False  # default
+    assert record['int'] == strategy.get(int)
+    assert record['str'] == 'NONE'
+    assert record['mean'] == df['mean'].mean()
+    assert record['mode'] == df.percentile_approx('mode')
+    assert record['int_common'] == 1
+    assert record['int_new_value'] == 5
+    assert record['str_common'] == 'a'
+    assert record['str_value'] == 'b'
+    assert record['str_new_value'] not in df['str_new_value'].tolist()
+    assert record['float_value'] == -2
 
 def test_maxabs_scaler(df_factory):
     x = np.array([-2.65395789, -7.97116295, -4.76729177, -0.76885033, -6.45609635])

@@ -2879,6 +2879,31 @@ class DataFrame(object):
                 previous_chunk = previous.result()
                 yield previous_l1, previous_l2, previous_chunk
 
+    def countna(self, columns=None):
+        if columns is None:
+            columns = self.get_column_names()
+        return sum([self[feature].countna() for feature in columns])
+
+    @docsubst
+    def to_records(self, item=None, selection=None, column_names=None, strings=True, virtual=True, parallel=True, chunk_size=None, array_type='python'):
+        if isinstance(item, int):
+            return {key: value[0] for key, value in self[item:item + 1].to_dict(selection=selection, column_names=column_names, strings=strings,virtual=virtual,parallel=parallel, array_type=array_type).items()}
+            # return {key: self.to_python(value) for key, value in zip(self.df.get_column_names(), self.df[item])}
+        if item is not None:
+            raise RuntimeError(f"item can be None or an int - {type(item)} provided")
+        else:
+            if chunk_size is None:
+                records = self.to_dict(selection=selection, column_names=column_names, strings=strings,virtual=virtual,parallel=parallel, array_type=array_type)
+                keys = list(records.keys())
+                return [{key: value for key, value in zip(keys, values)} for values in zip(*records.values())]
+
+            def iterator():
+                for _, _, chunk in self.to_dict(selection=selection, column_names=column_names, strings=strings,virtual=virtual,parallel=parallel, chunk_size=chunk_size, array_type=array_type):
+                    keys = list(chunk.keys())
+                    yield [{key: value for key, value in zip(keys, values)} for values in zip(*chunk.values())]
+
+            return iterator()
+
     @docsubst
     def to_records(self, index=None, selection=None, column_names=None, strings=True, virtual=True, parallel=True,
                    chunk_size=None, array_type='python'):
