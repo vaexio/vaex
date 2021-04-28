@@ -3,6 +3,7 @@ __author__ = 'breddels'
 import numpy as np
 import logging
 from vaex.dataframe import DataFrame
+import vaex
 
 
 logger = logging.getLogger("vaex.server.dataframe")
@@ -27,7 +28,8 @@ def _rmi(f=None):
 # TODO: we should not inherit from local
 class DataFrameRemote(DataFrame):
     def __init__(self, name, column_names, dtypes, length_original):
-        super(DataFrameRemote, self).__init__(name, '', column_names)
+        super(DataFrameRemote, self).__init__(name)
+        self.column_names = column_names
         self._dtypes = dtypes
         for column_name in self.get_column_names(virtual=True, strings=True):
             self._save_assign_expression(column_name)
@@ -36,6 +38,28 @@ class DataFrameRemote(DataFrame):
         self._index_end = length_original
         self._dtype_cache = {}
         self.fraction = 1
+
+    def __getstate__(self):
+        return {
+            'length_original': self._length_original,
+            'column_names': self.column_names,
+            'dtypes': self._dtypes,
+            'url': self.executor.client.url,
+            'state': self.state_get(),
+        }
+
+    def __setstate__(self, state):
+        self._init()
+        self.column_names = state['column_names']
+        self._dtypes = state['dtypes']
+        self._length_original = state['length_original']
+        self._length_unfiltered = self._length_original
+        self._index_start = 0
+        self._index_end = self._length_original
+        self.fraction = 1
+        client = vaex.server.connect(state['url'])
+        self.executor = vaex.server.executor.Executor(client)
+        self.state_set(state['state'], use_active_range=True, trusted=True)
 
     def is_local(self):
         return False
@@ -74,12 +98,12 @@ class DataFrameRemote(DataFrame):
         return (rows,)
         # return (rows,) + sample.shape[1:]
 
-    def data_type(self, expression, internal=False):
+    def data_type(self, expression, internal=False, array_type=None, axis=0):
         if str(expression) in self._dtypes:
             return self._dtypes[str(expression)]
         else:
             if str(expression) not in self._dtype_cache:
-                self._dtype_cache[str(expression)] = super().data_type(expression)
+                self._dtype_cache[str(expression)] = super().data_type(expression, array_type=array_type, axis=axis)
             # TODO: invalidate cache
             return self._dtype_cache[str(expression)]
 

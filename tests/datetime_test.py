@@ -13,20 +13,22 @@ def test_datetime_operations():
     df = vaex.from_arrays(date=date)._readonly()
     pandas_df = df.to_pandas_df()
 
-    assert df.date.dt.hour.values.tolist() == pandas_df.date.dt.hour.values.tolist()
-    assert df.date.dt.minute.values.tolist() == pandas_df.date.dt.minute.values.tolist()
-    assert df.date.dt.second.values.tolist() == pandas_df.date.dt.second.values.tolist()
-    assert df.date.dt.day.values.tolist() == pandas_df.date.dt.day.values.tolist()
-    assert df.date.dt.day_name.values.tolist() == pandas_df.date.dt.day_name().values.tolist()
-    assert df.date.dt.month.values.tolist() == pandas_df.date.dt.month.values.tolist()
-    assert df.date.dt.month_name.values.tolist() == pandas_df.date.dt.month_name().values.tolist()
-    assert df.date.dt.quarter.values.tolist() == pandas_df.date.dt.quarter.values.tolist()
-    assert df.date.dt.year.values.tolist() == pandas_df.date.dt.year.values.tolist()
-    assert df.date.dt.is_leap_year.values.tolist() == pandas_df.date.dt.is_leap_year.values.tolist()
-    assert any(df.date.dt.is_leap_year.values.tolist())
-    assert df.date.dt.weekofyear.values.tolist() == pandas_df.date.dt.weekofyear.values.tolist()
-    assert df.date.dt.dayofyear.values.tolist() == pandas_df.date.dt.dayofyear.values.tolist()
-    assert df.date.dt.dayofweek.values.tolist() == pandas_df.date.dt.dayofweek.values.tolist()
+    assert df.date.dt.hour.tolist() == pandas_df.date.dt.hour.values.tolist()
+    assert df.date.dt.minute.tolist() == pandas_df.date.dt.minute.values.tolist()
+    assert df.date.dt.second.tolist() == pandas_df.date.dt.second.values.tolist()
+    assert df.date.dt.day.tolist() == pandas_df.date.dt.day.values.tolist()
+    assert df.date.dt.day_name.tolist() == pandas_df.date.dt.day_name().values.tolist()
+    assert df.date.dt.month.tolist() == pandas_df.date.dt.month.values.tolist()
+    assert df.date.dt.month_name.tolist() == pandas_df.date.dt.month_name().values.tolist()
+    assert df.date.dt.quarter.tolist() == pandas_df.date.dt.quarter.values.tolist()
+    assert df.date.dt.year.tolist() == pandas_df.date.dt.year.values.tolist()
+    assert df.date.dt.is_leap_year.tolist() == pandas_df.date.dt.is_leap_year.values.tolist()
+    assert any(df.date.dt.is_leap_year.tolist())
+    assert df.date.dt.weekofyear.tolist() == pandas_df.date.dt.weekofyear.values.tolist()
+    assert df.date.dt.dayofyear.tolist() == pandas_df.date.dt.dayofyear.values.tolist()
+    assert df.date.dt.dayofweek.tolist() == pandas_df.date.dt.dayofweek.values.tolist()
+    assert df.date.dt.floor('H').tolist() == pandas_df.date.dt.floor('H').values.tolist()
+    assert df.date.dt.date.tolist() == pandas_df.date.dt.date.values.tolist()
 
 
 def test_datetime_agg():
@@ -113,7 +115,7 @@ def test_create_datetime64_column_from_ints():
     df['minute'] = (df.time % 100).format('%02d')
 
     expr = df.year.format('%4d') + '-' + df.month.format('%02d') + '-' + df.day.format('%02d') + 'T' + df.hour + ':' + df.minute
-    assert expr.values.astype(np.datetime64).tolist() == expr.astype('datetime64').tolist()
+    assert expr.to_numpy().astype(np.datetime64).tolist() == expr.astype('datetime64').tolist()
 
 
 def test_create_datetime64_column_from_str():
@@ -125,9 +127,9 @@ def test_create_datetime64_column_from_str():
     df = vaex.from_arrays(year=year, month=month, day=day, hour=hour, minute=minute)
 
     expr = df.year + '-' + df.month + '-' + df.day + 'T' + df.hour + ':' + df.minute
-    assert expr.values.astype(np.datetime64).tolist() == expr.astype('datetime64').tolist()
-    assert expr.values.astype('datetime64[ns]').tolist() == expr.astype('datetime64[ns]').tolist()
-    
+    assert expr.to_numpy().astype(np.datetime64).tolist() == expr.astype('datetime64').tolist()
+    assert expr.to_numpy().astype('datetime64[ns]').tolist() == expr.astype('datetime64[ns]').to_numpy().tolist()
+
 def test_create_str_column_from_datetime64():
     date = np.array([np.datetime64('2009-10-12T03:31:00'),
                 np.datetime64('2016-02-11T10:17:34'),
@@ -135,10 +137,10 @@ def test_create_str_column_from_datetime64():
                 np.datetime64('2003-03-03T00:33:15'),
                 np.datetime64('2014-07-23T15:08:05'),
                 np.datetime64('2011-01-01T07:02:01')], dtype='<M8[ns]')
-                
+
     df = vaex.from_arrays(date=date)
     pandas_df = df.to_pandas_df()
-    
+
     date_format = "%Y/%m/%d"
 
     assert df.date.dt.strftime(date_format).values.tolist() == pandas_df.date.dt.strftime(date_format).values.tolist()

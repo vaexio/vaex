@@ -12,7 +12,7 @@ author_email= 'maartenbreddels@gmail.com'
 license     = 'MIT'
 version     = version.__version__
 url         = 'https://www.github.com/maartenbreddels/vaex'
-install_requires_astro = ['vaex-core>=2.0.0-alpha.1,<3']
+install_requires_astro = ['vaex-core>=4.0.0,<5', 'astropy']
 
 setup(
     name=name + '-astro',
@@ -28,5 +28,11 @@ setup(
     entry_points={
         'vaex.plugin': ['astro = vaex.astro.legacy:add_plugin'],
         'vaex.dataframe.accessor': ['astro = vaex.astro.transformations:DataFrameAccessorAstro'],
+        'vaex.dataset.opener': [
+                'fits = vaex.astro.fits:FitsBinTable',
+                'gadget = vaex.astro.gadget:MemoryMappedGadget',
+                'votable = vaex.astro.votable:VOTable',
+                'tap = vaex.astro.tap:DatasetTap',
+        ],
     },
 )

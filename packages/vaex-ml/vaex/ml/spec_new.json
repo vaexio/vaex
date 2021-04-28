@@ -1,0 +1,1057 @@
+[
+    {
+        "classname": "PCA",
+        "doc": "Transform a set of features using a Principal Component Analysis.\n\n    Example:\n\n    >>> import vaex\n    >>> df = vaex.from_arrays(x=[2,5,7,2,15], y=[-2,3,0,0,10])\n    >>> df\n     #   x   y\n     0   2   -2\n     1   5   3\n     2   7   0\n     3   2   0\n     4   15  10\n    >>> pca = vaex.ml.PCA(n_components=2, features=['x', 'y'])\n    >>> pca.fit_transform(df)\n     #    x    y       PCA_0      PCA_1\n     0    2   -2    5.92532    0.413011\n     1    5    3    0.380494  -1.39112\n     2    7    0    0.840049   2.18502\n     3    2    0    4.61287   -1.09612\n     4   15   10  -11.7587    -0.110794\n\n    ",
+        "module": "vaex.ml.transformations",
+        "snake_name": "pca",
+        "traits": [
+            {
+                "default": null,
+                "has_default": true,
+                "help": "The eigen values that correspond to each feature.",
+                "name": "eigen_values_",
+                "type": "List"
+            },
+            {
+                "default": null,
+                "has_default": true,
+                "help": "The eigen vectors corresponding to each feature",
+                "name": "eigen_vectors_",
+                "type": "List"
+            },
+            {
+                "default": null,
+                "has_default": true,
+                "help": "List of features to transform.",
+                "name": "features",
+                "type": "List"
+            },
+            {
+                "default": null,
+                "has_default": true,
+                "help": "The mean of each feature",
+                "name": "means_",
+                "type": "List"
+            },
+            {
+                "default": 0,
+                "has_default": false,
+                "help": "Number of components to retain. If None, all the components will be retained.",
+                "name": "n_components",
+                "type": "Int"
+            },
+            {
+                "default": "PCA_",
+                "has_default": false,
+                "help": "Prefix for the names of the transformed features.",
+                "name": "prefix",
+                "type": "Unicode"
+            },
+            {
+                "default": false,
+                "has_default": false,
+                "help": "If True, display a progressbar of the PCA fitting process.",
+                "name": "progress",
+                "type": "Any"
+            }
+        ],
+        "version": "1.0.0"
+    },
+    {
+        "classname": "LabelEncoder",
+        "doc": "Encode categorical columns with integer values between 0 and num_classes-1.\n\n    Example:\n\n    >>> import vaex\n    >>> df = vaex.from_arrays(color=['red', 'green', 'green', 'blue', 'red'])\n    >>> df\n     #  color\n     0  red\n     1  green\n     2  green\n     3  blue\n     4  red\n    >>> encoder = vaex.ml.LabelEncoder(features=['color'])\n    >>> encoder.fit_transform(df)\n     #  color      label_encoded_color\n     0  red                          2\n     1  green                        1\n     2  green                        1\n     3  blue                         0\n     4  red                          2\n    ",
+        "module": "vaex.ml.transformations",
+        "snake_name": "label_encoder",
+        "traits": [
+            {
+                "default": false,
+                "has_default": false,
+                "help": "If True, unseen values will be                                   encoded with -1, otherwise an error is raised",
+                "name": "allow_unseen",
+                "type": "Bool"
+            },
+            {
+                "default": null,
+                "has_default": true,
+                "help": "List of features to transform.",
+                "name": "features",
+                "type": "List"
+            },
+            {
+                "default": null,
+                "has_default": true,
+                "help": "The encoded labels of each feature.",
+                "name": "labels_",
+                "type": "Dict"
+            },
+            {
+                "default": "label_encoded_",
+                "has_default": false,
+                "help": "Prefix for the names of the transformed features.",
+                "name": "prefix",
+                "type": "Unicode"
+            }
+        ],
+        "version": "1.0.0"
+    },
+    {
+        "classname": "OneHotEncoder",
+        "doc": "Encode categorical columns according ot the One-Hot scheme.\n\n    Example:\n\n    >>> import vaex\n    >>> df = vaex.from_arrays(color=['red', 'green', 'green', 'blue', 'red'])\n    >>> df\n     #  color\n     0  red\n     1  green\n     2  green\n     3  blue\n     4  red\n    >>> encoder = vaex.ml.OneHotEncoder(features=['color'])\n    >>> encoder.fit_transform(df)\n     #  color      color_blue    color_green    color_red\n     0  red                 0              0            1\n     1  green               0              1            0\n     2  green               0              1            0\n     3  blue                1              0            0\n     4  red                 0              0            1\n    ",
+        "module": "vaex.ml.transformations",
+        "snake_name": "one_hot_encoder",
+        "traits": [
+            {
+                "default": null,
+                "has_default": true,
+                "help": "List of features to transform.",
+                "name": "features",
+                "type": "List"
+            },
+            {
+                "default": 1,
+                "has_default": false,
+                "help": "Value to encode when a category is present.",
+                "name": "one",
+                "type": "Any"
+            },
+            {
+                "default": "",
+                "has_default": false,
+                "help": "Prefix for the names of the transformed features.",
+                "name": "prefix",
+                "type": "Unicode"
+            },
+            {
+                "default": null,
+                "has_default": true,
+                "help": "The unique elements found in each feature.",
+                "name": "uniques_",
+                "type": "List"
+            },
+            {
+                "default": 0,
+                "has_default": false,
+                "help": "Value to encode when category is absent.",
+                "name": "zero",
+                "type": "Any"
+            }
+        ],
+        "version": "1.0.0"
+    },
+    {
+        "classname": "FrequencyEncoder",
+        "doc": "Encode categorical columns by the frequency of their respective samples.\n\n    Example:\n\n    >>> import vaex\n    >>> df = vaex.from_arrays(color=['red', 'green', 'green', 'blue', 'red', 'green'])\n    >>> df\n     #  color\n     0  red\n     1  green\n     2  green\n     3  blue\n     4  red\n    >>> encoder = vaex.ml.FrequencyEncoder(features=['color'])\n    >>> encoder.fit_transform(df)\n     #  color      frequency_encoded_color\n     0  red                       0.333333\n     1  green                     0.5\n     2  green                     0.5\n     3  blue                      0.166667\n     4  red                       0.333333\n     5  green                     0.5\n    ",
+        "module": "vaex.ml.transformations",
+        "snake_name": "frequency_encoder",
+        "traits": [
+            {
+                "default": null,
+                "has_default": true,
+                "help": "List of features to transform.",
+                "name": "features",
+                "type": "List"
+            },
+            {
+                "default": null,
+                "has_default": true,
+                "help": "",
+                "name": "mappings_",
+                "type": "Dict"
+            },
+            {
+                "default": "frequency_encoded_",
+                "has_default": false,
+                "help": "Prefix for the names of the transformed features.",
+                "name": "prefix",
+                "type": "Unicode"
+            },
+            {
+                "default": "nan",
+                "has_default": false,
+                "help": "Strategy to deal with unseen values.",
+                "name": "unseen",
+                "type": "Enum"
+            }
+        ],
+        "version": "1.0.0"
+    },
+    {
+        "classname": "StandardScaler",
+        "doc": "Standardize features by removing thir mean and scaling them to unit variance.\n\n    Example:\n\n    >>> import vaex\n    >>> df = vaex.from_arrays(x=[2,5,7,2,15], y=[-2,3,0,0,10])\n    >>> df\n     #    x    y\n     0    2   -2\n     1    5    3\n     2    7    0\n     3    2    0\n     4   15   10\n    >>> scaler = vaex.ml.StandardScaler(features=['x', 'y'])\n    >>> scaler.fit_transform(df)\n     #    x    y    standard_scaled_x    standard_scaled_y\n     0    2   -2            -0.876523            -0.996616\n     1    5    3            -0.250435             0.189832\n     2    7    0             0.166957            -0.522037\n     3    2    0            -0.876523            -0.522037\n     4   15   10             1.83652              1.85086\n    ",
+        "module": "vaex.ml.transformations",
+        "snake_name": "standard_scaler",
+        "traits": [
+            {
+                "default": null,
+                "has_default": true,
+                "help": "List of features to transform.",
+                "name": "features",
+                "type": "List"
+            },
+            {
+                "default": null,
+                "has_default": true,
+                "help": "The mean of each feature",
+                "name": "mean_",
+                "type": "List"
+            },
+            {
+                "default": "standard_scaled_",
+                "has_default": false,
+                "help": "Prefix for the names of the transformed features.",
+                "name": "prefix",
+                "type": "Unicode"
+            },
+            {
+                "default": null,
+                "has_default": true,
+                "help": "The standard deviation of each feature.",
+                "name": "std_",
+                "type": "List"
+            },
+            {
+                "default": true,
+                "has_default": false,
+                "help": "If True, remove the mean from each feature.",
+                "name": "with_mean",
+                "type": "CBool"
+            },
+            {
+                "default": true,
+                "has_default": false,
+                "help": "If True, scale each feature to unit variance.",
+                "name": "with_std",
+                "type": "CBool"
+            }
+        ],
+        "version": "1.0.0"
+    },
+    {
+        "classname": "MinMaxScaler",
+        "doc": "Will scale a set of features to a given range.\n\n    Example:\n\n    >>> import vaex\n    >>> df = vaex.from_arrays(x=[2,5,7,2,15], y=[-2,3,0,0,10])\n    >>> df\n     #    x    y\n     0    2   -2\n     1    5    3\n     2    7    0\n     3    2    0\n     4   15   10\n    >>> scaler = vaex.ml.MinMaxScaler(features=['x', 'y'])\n    >>> scaler.fit_transform(df)\n     #    x    y    minmax_scaled_x    minmax_scaled_y\n     0    2   -2           0                  0\n     1    5    3           0.230769           0.416667\n     2    7    0           0.384615           0.166667\n     3    2    0           0                  0.166667\n     4   15   10           1                  1\n    ",
+        "module": "vaex.ml.transformations",
+        "snake_name": "minmax_scaler",
+        "traits": [
+            {
+                "default": null,
+                "has_default": true,
+                "help": "The range the features are scaled to.",
+                "name": "feature_range",
+                "type": "Tuple"
+            },
+            {
+                "default": null,
+                "has_default": true,
+                "help": "List of features to transform.",
+                "name": "features",
+                "type": "List"
+            },
+            {
+                "default": null,
+                "has_default": true,
+                "help": "The minimum value of a feature.",
+                "name": "fmax_",
+                "type": "List"
+            },
+            {
+                "default": null,
+                "has_default": true,
+                "help": "The maximum value of a feature.",
+                "name": "fmin_",
+                "type": "List"
+            },
+            {
+                "default": "minmax_scaled_",
+                "has_default": false,
+                "help": "Prefix for the names of the transformed features.",
+                "name": "prefix",
+                "type": "Unicode"
+            }
+        ],
+        "version": "1.0.0"
+    },
+    {
+        "classname": "MaxAbsScaler",
+        "doc": " Scale features by their maximum absolute value.\n\n    Example:\n\n    >>> import vaex\n    >>> df = vaex.from_arrays(x=[2,5,7,2,15], y=[-2,3,0,0,10])\n    >>> df\n     #    x    y\n     0    2   -2\n     1    5    3\n     2    7    0\n     3    2    0\n     4   15   10\n    >>> scaler = vaex.ml.MaxAbsScaler(features=['x', 'y'])\n    >>> scaler.fit_transform(df)\n     #    x    y    absmax_scaled_x    absmax_scaled_y\n     0    2   -2           0.133333               -0.2\n     1    5    3           0.333333                0.3\n     2    7    0           0.466667                0\n     3    2    0           0.133333                0\n     4   15   10           1                       1\n    ",
+        "module": "vaex.ml.transformations",
+        "snake_name": "max_abs_scaler",
+        "traits": [
+            {
+                "default": null,
+                "has_default": true,
+                "help": "Tha maximum absolute value of a feature.",
+                "name": "absmax_",
+                "type": "List"
+            },
+            {
+                "default": null,
+                "has_default": true,
+                "help": "List of features to transform.",
+                "name": "features",
+                "type": "List"
+            },
+            {
+                "default": "absmax_scaled_",
+                "has_default": false,
+                "help": "Prefix for the names of the transformed features.",
+                "name": "prefix",
+                "type": "Unicode"
+            }
+        ],
+        "version": "1.0.0"
+    },
+    {
+        "classname": "RobustScaler",
+        "doc": " The RobustScaler removes the median and scales the data according to a\n    given percentile range. By default, the scaling is done between the 25th and\n    the 75th percentile. Centering and scaling happens independently for each\n    feature (column).\n\n    Example:\n\n    >>> import vaex\n    >>> df = vaex.from_arrays(x=[2,5,7,2,15], y=[-2,3,0,0,10])\n    >>> df\n     #    x    y\n     0    2   -2\n     1    5    3\n     2    7    0\n     3    2    0\n     4   15   10\n    >>> scaler = vaex.ml.MaxAbsScaler(features=['x', 'y'])\n    >>> scaler.fit_transform(df)\n     #    x    y    robust_scaled_x    robust_scaled_y\n     0    2   -2       -0.333686             -0.266302\n     1    5    3       -0.000596934           0.399453\n     2    7    0        0.221462              0\n     3    2    0       -0.333686              0\n     4   15   10        1.1097                1.33151\n    ",
+        "module": "vaex.ml.transformations",
+        "snake_name": "robust_scaler",
+        "traits": [
+            {
+                "default": null,
+                "has_default": true,
+                "help": "The median of each feature.",
+                "name": "center_",
+                "type": "List"
+            },
+            {
+                "default": null,
+                "has_default": true,
+                "help": "List of features to transform.",
+                "name": "features",
+                "type": "List"
+            },
+            {
+                "default": null,
+                "has_default": true,
+                "help": "The percentile range to which to scale each feature to.",
+                "name": "percentile_range",
+                "type": "Tuple"
+            },
+            {
+                "default": "robust_scaled_",
+                "has_default": false,
+                "help": "Prefix for the names of the transformed features.",
+                "name": "prefix",
+                "type": "Unicode"
+            },
+            {
+                "default": null,
+                "has_default": true,
+                "help": "The percentile range for each feature.",
+                "name": "scale_",
+                "type": "List"
+            },
+            {
+                "default": true,
+                "has_default": false,
+                "help": "If True, remove the median.",
+                "name": "with_centering",
+                "type": "CBool"
+            },
+            {
+                "default": true,
+                "has_default": false,
+                "help": "If True, scale each feature between the specified percentile range.",
+                "name": "with_scaling",
+                "type": "CBool"
+            }
+        ],
+        "version": "1.0.0"
+    },
+    {
+        "classname": "CycleTransformer",
+        "doc": "A strategy for transforming cyclical features (e.g. angles, time).\n\n    Think of each feature as an angle of a unit circle in polar coordinates,\n    and then and then obtaining the x and y coordinate projections,\n    or the cos and sin components respectively.\n\n    Suitable for a variaty of machine learning tasks.\n    It preserves the cyclical continuity of the feature.\n    Inspired by: http://blog.davidkaleko.com/feature-engineering-cyclical-features.html\n    >>> df = vaex.from_arrays(days=[0, 1, 2, 3, 4, 5, 6])\n    >>> cyctrans = vaex.ml.CycleTransformer(n=7, features=['days'])\n    >>> cyctrans.fit_transform(df)\n      #    days     days_x     days_y\n      0       0   1          0\n      1       1   0.62349    0.781831\n      2       2  -0.222521   0.974928\n      3       3  -0.900969   0.433884\n      4       4  -0.900969  -0.433884\n      5       5  -0.222521  -0.974928\n      6       6   0.62349   -0.781831\n    ",
+        "module": "vaex.ml.transformations",
+        "snake_name": "cycle_transformer",
+        "traits": [
+            {
+                "default": null,
+                "has_default": true,
+                "help": "List of features to transform.",
+                "name": "features",
+                "type": "List"
+            },
+            {
+                "default": 0,
+                "has_default": false,
+                "help": "The number of elements in one cycle.",
+                "name": "n",
+                "type": "CInt"
+            },
+            {
+                "default": "",
+                "has_default": false,
+                "help": "Prefix for the x-component of the transformed features.",
+                "name": "prefix_x",
+                "type": "Unicode"
+            },
+            {
+                "default": "",
+                "has_default": false,
+                "help": "Prefix for the y-component of the transformed features.",
+                "name": "prefix_y",
+                "type": "Unicode"
+            },
+            {
+                "default": "_x",
+                "has_default": false,
+                "help": "Suffix for the x-component of the transformed features.",
+                "name": "suffix_x",
+                "type": "Unicode"
+            },
+            {
+                "default": "_y",
+                "has_default": false,
+                "help": "Suffix for the y-component of the transformed features.",
+                "name": "suffix_y",
+                "type": "Unicode"
+            }
+        ],
+        "version": "1.0.0"
+    },
+    {
+        "classname": "BayesianTargetEncoder",
+        "doc": "Encode categorical variables with a Bayesian Target Encoder.\n\n    The categories are encoded by the mean of their target value,\n    which is adjusted by the global mean value of the target variable\n    using a Bayesian schema. For a larger `weight` value, the target\n    encodings are smoothed toward the global mean, while for a\n    `weight` of 0, the encodings are just the mean target value per\n    class.\n\n    Reference: https://www.wikiwand.com/en/Bayes_estimator#/Practical_example_of_Bayes_estimators\n\n    Example:\n\n    >>> import vaex\n    >>> import vaex.ml\n    >>> df = vaex.from_arrays(x=['a', 'a', 'a', 'a', 'b', 'b', 'b', 'b'],\n    ...                       y=[1, 1, 1, 0, 0, 0, 0, 1])\n    >>> target_encoder = vaex.ml.BayesianTargetEncoder(features=['x'], weight=4)\n    >>> target_encoder.fit_transform(df, 'y')\n      #  x      y    mean_encoded_x\n      0  a      1             0.625\n      1  a      1             0.625\n      2  a      1             0.625\n      3  a      0             0.625\n      4  b      0             0.375\n      5  b      0             0.375\n      6  b      0             0.375\n      7  b      1             0.375\n    ",
+        "module": "vaex.ml.transformations",
+        "snake_name": "bayesian_target_encoder",
+        "traits": [
+            {
+                "default": null,
+                "has_default": true,
+                "help": "List of features to transform.",
+                "name": "features",
+                "type": "List"
+            },
+            {
+                "default": null,
+                "has_default": true,
+                "help": "",
+                "name": "mappings_",
+                "type": "Dict"
+            },
+            {
+                "default": "mean_encoded_",
+                "has_default": false,
+                "help": "Prefix for the names of the transformed features.",
+                "name": "prefix",
+                "type": "Unicode"
+            },
+            {
+                "default": "",
+                "has_default": false,
+                "help": "The name of the column containing the target variable.",
+                "name": "target",
+                "type": "Unicode"
+            },
+            {
+                "default": "nan",
+                "has_default": false,
+                "help": "Strategy to deal with unseen values.",
+                "name": "unseen",
+                "type": "Enum"
+            },
+            {
+                "default": 100,
+                "has_default": false,
+                "help": "Weight to be applied to the mean encodings (smoothing parameter).",
+                "name": "weight",
+                "type": "CFloat"
+            }
+        ],
+        "version": "1.0.0"
+    },
+    {
+        "classname": "WeightOfEvidenceEncoder",
+        "doc": "Encode categorical variables with a Weight of Evidence Encoder.\n\n    Weight of Evidence measures how well a particular feature supports\n    the given hypothesis (i.e. the target variable). With this\n    encoder, each category in a categorical feature is encoded by its\n    \"strength\" i.e. Weight of Evidence value. The target feature can be\n    a boolean or numerical column, where True/1 is seen as 'Good', and\n    False/0 is seen as 'Bad'\n\n    Reference: https://www.listendata.com/2015/03/weight-of-evidence-woe-and-information.html\n\n    Example:\n\n    >>> import vaex\n    >>> import vaex.ml\n    >>> df = vaex.from_arrays(x=['a', 'a', 'b', 'b', 'b', 'c', 'c'],\n    ...                       y=[1, 1, 0, 0, 1, 1, 0])\n    >>> woe_encoder = vaex.ml.WeightOfEvidenceEncoder(target='y', features=['x'])\n    >>> woe_encoder.fit_transform(df)\n      #  x      y    mean_encoded_x\n      0  a      1         13.8155\n      1  a      1         13.8155\n      2  b      0         -0.693147\n      3  b      0         -0.693147\n      4  b      1         -0.693147\n      5  c      1          0\n      6  c      0          0\n    ",
+        "module": "vaex.ml.transformations",
+        "snake_name": "weight_of_evidence_encoder",
+        "traits": [
+            {
+                "default": 1e-06,
+                "has_default": false,
+                "help": "Small value taken as minimum fot the negatives, to avoid a division by zero",
+                "name": "epsilon",
+                "type": "Float"
+            },
+            {
+                "default": null,
+                "has_default": true,
+                "help": "List of features to transform.",
+                "name": "features",
+                "type": "List"
+            },
+            {
+                "default": null,
+                "has_default": true,
+                "help": "",
+                "name": "mappings_",
+                "type": "Dict"
+            },
+            {
+                "default": "woe_encoded_",
+                "has_default": false,
+                "help": "Prefix for the names of the transformed features.",
+                "name": "prefix",
+                "type": "Unicode"
+            },
+            {
+                "default": "",
+                "has_default": false,
+                "help": "The name of the column containing the target variable.",
+                "name": "target",
+                "type": "Unicode"
+            },
+            {
+                "default": "nan",
+                "has_default": false,
+                "help": "Strategy to deal with unseen values.",
+                "name": "unseen",
+                "type": "Enum"
+            }
+        ],
+        "version": "1.0.0"
+    },
+    {
+        "classname": "KBinsDiscretizer",
+        "doc": "Bin continous features into discrete bins.\n\n    A stretegy to encode continuous features into discrete bins. The transformed\n    columns contain the bin label each sample falls into. In a way this\n    transformer Label/Ordinal encodes continous features.\n\n    Example:\n\n    >>> import vaex\n    >>> import vaex.ml\n    >>> df = vaex.from_arrays(x=[0, 2.5, 5, 7.5, 10, 12.5, 15])\n    >>> bin_trans = vaex.ml.KBinsDiscretizer(features=['x'], n_bins=3, strategy='uniform')\n    >>> bin_trans.fit_transform(df)\n      #     x    binned_x\n      0   0             0\n      1   2.5           0\n      2   5             1\n      3   7.5           1\n      4  10             2\n      5  12.5           2\n      6  15             2\n    ",
+        "module": "vaex.ml.transformations",
+        "snake_name": "kbins_discretizer",
+        "traits": [
+            {
+                "default": null,
+                "has_default": true,
+                "help": "The bin edges for each binned feature",
+                "name": "bin_edges_",
+                "type": "Dict"
+            },
+            {
+                "default": 1e-08,
+                "has_default": false,
+                "help": "Tiny value added to the bin edges ensuring samples close to the bin edges are binned correcly.",
+                "name": "epsilon",
+                "type": "Float"
+            },
+            {
+                "default": null,
+                "has_default": true,
+                "help": "List of features to transform.",
+                "name": "features",
+                "type": "List"
+            },
+            {
+                "default": 5,
+                "has_default": false,
+                "help": "Number of bins. Must be greater than 1.",
+                "name": "n_bins",
+                "type": "Int"
+            },
+            {
+                "default": null,
+                "has_default": true,
+                "help": "Number of bins per feature.",
+                "name": "n_bins_",
+                "type": "Dict"
+            },
+            {
+                "default": "binned_",
+                "has_default": false,
+                "help": "Prefix for the names of the transformed features.",
+                "name": "prefix",
+                "type": "Unicode"
+            },
+            {
+                "default": "uniform",
+                "has_default": false,
+                "help": "Strategy used to define the widths of the bins.",
+                "name": "strategy",
+                "type": "Enum"
+            }
+        ],
+        "version": "1.0.0"
+    },
+    {
+        "classname": "GroupByTransformer",
+        "doc": "The GroupByTransformer creates aggregations via the groupby operation, which are\n    joined to a DataFrame. This is useful for creating aggregate features.\n\n    Example:\n\n    >>> import vaex\n    >>> import vaex.ml\n    >>> df_train = vaex.from_arrays(x=['dog', 'dog', 'dog', 'cat', 'cat'], y=[2, 3, 4, 10, 20])\n    >>> df_test = vaex.from_arrays(x=['dog', 'cat', 'dog', 'mouse'], y=[5, 5, 5, 5])\n    >>> group_trans = vaex.ml.GroupByTransformer(by='x', agg={'mean_y': vaex.agg.mean('y')}, rsuffix='_agg')\n    >>> group_trans.fit_transform(df_train)\n      #  x      y  x_agg      mean_y\n      0  dog    2  dog             3\n      1  dog    3  dog             3\n      2  dog    4  dog             3\n      3  cat   10  cat            15\n      4  cat   20  cat            15\n    >>> group_trans.transform(df_test)\n      #  x        y  x_agg    mean_y\n      0  dog      5  dog      3.0\n      1  cat      5  cat      15.0\n      2  dog      5  dog      3.0\n      3  mouse    5  --       --\n    ",
+        "module": "vaex.ml.transformations",
+        "snake_name": "groupby_transformer",
+        "traits": [
+            {
+                "default": null,
+                "has_default": true,
+                "help": "Dict where the keys are feature names and the values are vaex.agg objects.",
+                "name": "agg",
+                "type": "Dict"
+            },
+            {
+                "default": "",
+                "has_default": false,
+                "help": "The feature on which to do the grouping.",
+                "name": "by",
+                "type": "Unicode"
+            },
+            {
+                "default": null,
+                "has_default": true,
+                "help": "",
+                "name": "df_group_",
+                "type": "Instance"
+            },
+            {
+                "default": null,
+                "has_default": true,
+                "help": "List of features to transform.",
+                "name": "features",
+                "type": "List"
+            },
+            {
+                "default": "",
+                "has_default": false,
+                "help": "Prefix for the names of the aggregate features in case of a collision.",
+                "name": "rprefix",
+                "type": "Unicode"
+            },
+            {
+                "default": "",
+                "has_default": false,
+                "help": "Suffix for the names of the aggregate features in case of a collision.",
+                "name": "rsuffix",
+                "type": "Unicode"
+            }
+        ],
+        "version": "1.0.0"
+    },
+    {
+        "classname": "Predictor",
+        "doc": "This class wraps any scikit-learn estimator (a.k.a predictor) making it a vaex pipeline object.\n\n    By wrapping any scikit-learn estimators with this class, it becomes a vaex\n    pipeline object. Thus, it can take full advantage of the serialization and\n    pipeline system of vaex. One can use the `predict` method to get a numpy\n    array as an output of a fitted estimator, or the `transform` method do add\n    such a prediction to a vaex DataFrame as a virtual column.\n\n    Note that a full memory copy of the data used is created when the `fit` and\n    `predict` are called. The `transform` method is evaluated lazily.\n\n    The scikit-learn estimators themselves are not modified at all, they are\n    taken from your local installation of scikit-learn.\n\n    Example:\n\n    >>> import vaex.ml\n    >>> from vaex.ml.sklearn import Predictor\n    >>> from sklearn.linear_model import LinearRegression\n    >>> df = vaex.ml.datasets.load_iris()\n    >>> features = ['sepal_width', 'petal_length', 'sepal_length']\n    >>> df_train, df_test = df.ml.train_test_split()\n    >>> model = Predictor(model=LinearRegression(), features=features, target='petal_width', prediction_name='pred')\n    >>> model.fit(df_train)\n    >>> df_train = model.transform(df_train)\n    >>> df_train.head(3)\n     #    sepal_length    sepal_width    petal_length    petal_width    class_      pred\n     0             5.4            3               4.5            1.5         1  1.64701\n     1             4.8            3.4             1.6            0.2         0  0.352236\n     2             6.9            3.1             4.9            1.5         1  1.59336\n    >>> df_test = model.transform(df_test)\n    >>> df_test.head(3)\n     #    sepal_length    sepal_width    petal_length    petal_width    class_     pred\n     0             5.9            3               4.2            1.5         1  1.39437\n     1             6.1            3               4.6            1.4         1  1.56469\n     2             6.6            2.9             4.6            1.3         1  1.44276\n    ",
+        "module": "vaex.ml.sklearn",
+        "snake_name": "sklearn_predictor",
+        "traits": [
+            {
+                "default": null,
+                "has_default": true,
+                "help": "List of features to use.",
+                "name": "features",
+                "type": "List"
+            },
+            {
+                "default": null,
+                "has_default": false,
+                "help": "A scikit-learn estimator.",
+                "name": "model",
+                "type": "Any"
+            },
+            {
+                "default": "prediction",
+                "has_default": false,
+                "help": "The name of the virtual column housing the predictions.",
+                "name": "prediction_name",
+                "type": "Unicode"
+            },
+            {
+                "default": "predict",
+                "has_default": false,
+                "help": "Which method to use to get the predictions.                                      Can be \"predict\", \"predict_proba\" or \"predict_log_proba\".",
+                "name": "prediction_type",
+                "type": "Enum"
+            },
+            {
+                "default": null,
+                "has_default": false,
+                "help": "The name of the target column.",
+                "name": "target",
+                "type": "Unicode"
+            }
+        ],
+        "version": "1.0.0"
+    },
+    {
+        "classname": "IncrementalPredictor",
+        "doc": "This class wraps any scikit-learn estimator (a.k.a predictions) that has\n    a `.partial_fit` method, and makes it a vaex pipeline object.\n\n    By wrapping \"on-line\" scikit-learn estimators with this class, they become a vaex\n    pipeline object. Thus, they can take full advantage of the serialization and\n    pipeline system of vaex. While the underlying estimator need to call the\n    `.partial_fit` method, this class contains the standard `.fit` method, and\n    the rest happens behind the scenes. One can also iterate over the data\n    multiple times (epochs), and optionally shuffle each batch before it is sent\n    to the estimator. The `predict` method returns a numpy array, while the `transform`\n    method adds the prediction as a virtual column to a vaex DataFrame.\n\n    Note: the `.fit` method will use as much memory as needed to copy one\n    batch of data, while the `.predict` method will require as much memory as\n    needed to output the predictions as a numpy array. The `transform` method is\n    evaluated lazily, and no memory copies are made.\n\n    Note: we are using normal sklearn without modifications here.\n\n    Example:\n\n    >>> import vaex\n    >>> import vaex.ml\n    >>> from vaex.ml.sklearn import IncrementalPredictor\n    >>> from sklearn.linear_model import SGDRegressor\n    >>>\n    >>> df = vaex.example()\n    >>>\n    >>> features = df.column_names[:6]\n    >>> target = 'FeH'\n    >>>\n    >>> standard_scaler = vaex.ml.StandardScaler(features=features)\n    >>> df = standard_scaler.fit_transform(df)\n    >>>\n    >>> features = df.get_column_names(regex='^standard')\n    >>> model = SGDRegressor(learning_rate='constant', eta0=0.01, random_state=42)\n    >>>\n    >>> incremental = IncrementalPredictor(model=model,\n    ...                                    features=features,\n    ...                                    target=target,\n    ...                                    batch_size=10_000,\n    ...                                    num_epochs=3,\n    ...                                    shuffle=True,\n    ...                                    prediction_name='pred_FeH')\n    >>> incremental.fit(df=df)\n    >>> df = incremental.transform(df)\n    >>> df.head(5)[['FeH', 'pred_FeH']]\n      #        FeH    pred_FeH\n      0  -2.30923     -1.66226\n      1  -1.78874     -1.68218\n      2  -0.761811    -1.59562\n      3  -1.52088     -1.62225\n      4  -2.65534     -1.61991\n    ",
+        "module": "vaex.ml.sklearn",
+        "snake_name": "incremental_predictor",
+        "traits": [
+            {
+                "default": 1000000,
+                "has_default": false,
+                "help": "Number of samples to be sent to the model in each batch.",
+                "name": "batch_size",
+                "type": "Int"
+            },
+            {
+                "default": null,
+                "has_default": true,
+                "help": "List of features to use.",
+                "name": "features",
+                "type": "List"
+            },
+            {
+                "default": null,
+                "has_default": false,
+                "help": "A scikit-learn estimator with a `.fit_predict` method.",
+                "name": "model",
+                "type": "Any"
+            },
+            {
+                "default": 1,
+                "has_default": false,
+                "help": "Number of times each batch is sent to the model.",
+                "name": "num_epochs",
+                "type": "Int"
+            },
+            {
+                "default": null,
+                "has_default": true,
+                "help": "A dictionary of key word arguments to be passed on to the `fit_predict` method of the `model`.",
+                "name": "partial_fit_kwargs",
+                "type": "Dict"
+            },
+            {
+                "default": "prediction",
+                "has_default": false,
+                "help": "The name of the virtual column housing the predictions.",
+                "name": "prediction_name",
+                "type": "Unicode"
+            },
+            {
+                "default": "predict",
+                "has_default": false,
+                "help": "Which method to use to get the predictions.                                      Can be \"predict\", \"predict_proba\" or \"predict_log_proba\".",
+                "name": "prediction_type",
+                "type": "Enum"
+            },
+            {
+                "default": false,
+                "has_default": false,
+                "help": "If True, shuffle the samples before sending them to the model.",
+                "name": "shuffle",
+                "type": "Bool"
+            },
+            {
+                "default": "",
+                "has_default": false,
+                "help": "The name of the target column.",
+                "name": "target",
+                "type": "Unicode"
+            }
+        ],
+        "version": "1.0.0"
+    },
+    {
+        "classname": "CatBoostModel",
+        "doc": "The CatBoost algorithm.\n\n    This class provides an interface to the CatBoost aloritham.\n    CatBoost is a fast, scalable, high performance Gradient Boosting on\n    Decision Trees library, used for ranking, classification, regression and\n    other machine learning tasks. For more information please visit\n    https://github.com/catboost/catboost\n\n    Example:\n\n    >>> import vaex\n    >>> import vaex.ml.catboost\n    >>> df = vaex.ml.datasets.load_iris()\n    >>> features = ['sepal_width', 'petal_length', 'sepal_length', 'petal_width']\n    >>> df_train, df_test = df.ml.train_test_split()\n    >>> params = {\n        'leaf_estimation_method': 'Gradient',\n        'learning_rate': 0.1,\n        'max_depth': 3,\n        'bootstrap_type': 'Bernoulli',\n        'objective': 'MultiClass',\n        'eval_metric': 'MultiClass',\n        'subsample': 0.8,\n        'random_state': 42,\n        'verbose': 0}\n    >>> booster = vaex.ml.catboost.CatBoostModel(features=features, target='class_', num_boost_round=100, params=params)\n    >>> booster.fit(df_train)\n    >>> df_train = booster.transform(df_train)\n    >>> df_train.head(3)\n    #    sepal_length    sepal_width    petal_length    petal_width    class_  catboost_prediction\n    0             5.4            3               4.5            1.5         1  [0.00615039 0.98024259 0.01360702]\n    1             4.8            3.4             1.6            0.2         0  [0.99034267 0.00526382 0.0043935 ]\n    2             6.9            3.1             4.9            1.5         1  [0.00688241 0.95190908 0.04120851]\n    >>> df_test = booster.transform(df_test)\n    >>> df_test.head(3)\n    #    sepal_length    sepal_width    petal_length    petal_width    class_  catboost_prediction\n    0             5.9            3               4.2            1.5         1  [0.00464228 0.98883351 0.00652421]\n    1             6.1            3               4.6            1.4         1  [0.00350424 0.9882139  0.00828186]\n    2             6.6            2.9             4.6            1.3         1  [0.00325705 0.98891631 0.00782664]\n    ",
+        "module": "vaex.ml.catboost",
+        "snake_name": "catboost_model",
+        "traits": [
+            {
+                "default": null,
+                "has_default": false,
+                "help": "If provided, will train in batches of this size.",
+                "name": "batch_size",
+                "type": "CInt"
+            },
+            {
+                "default": null,
+                "has_default": true,
+                "help": "Weights to sum models at the end of training in batches.",
+                "name": "batch_weights",
+                "type": "List"
+            },
+            {
+                "default": "IntersectingCountersAverage",
+                "has_default": false,
+                "help": "Strategy for summing up models. Only used when training in batches. See the CatBoost documentation for more info.",
+                "name": "ctr_merge_policy",
+                "type": "Enum"
+            },
+            {
+                "default": null,
+                "has_default": true,
+                "help": "Evaluation results",
+                "name": "evals_result_",
+                "type": "List"
+            },
+            {
+                "default": null,
+                "has_default": true,
+                "help": "List of features to use when fitting the CatBoostModel.",
+                "name": "features",
+                "type": "List"
+            },
+            {
+                "default": null,
+                "has_default": false,
+                "help": "Number of boosting iterations.",
+                "name": "num_boost_round",
+                "type": "CInt"
+            },
+            {
+                "default": null,
+                "has_default": true,
+                "help": "A dictionary of parameters to be passed on to the CatBoostModel model.",
+                "name": "params",
+                "type": "Dict"
+            },
+            {
+                "default": null,
+                "has_default": true,
+                "help": "A dictionary of parameters to be passed to the Pool data object construction",
+                "name": "pool_params",
+                "type": "Dict"
+            },
+            {
+                "default": "catboost_prediction",
+                "has_default": false,
+                "help": "The name of the virtual column housing the predictions.",
+                "name": "prediction_name",
+                "type": "Unicode"
+            },
+            {
+                "default": "Probability",
+                "has_default": false,
+                "help": "The form of the predictions. Can be \"RawFormulaVal\", \"Probability\" or \"Class\".",
+                "name": "prediction_type",
+                "type": "Enum"
+            },
+            {
+                "default": "",
+                "has_default": false,
+                "help": "The name of the target column.",
+                "name": "target",
+                "type": "Unicode"
+            }
+        ],
+        "version": "1.0.0"
+    },
+    {
+        "classname": "LightGBMModel",
+        "doc": "The LightGBM algorithm.\n\n    This class provides an interface to the LightGBM algorithm, with some optimizations\n    for better memory efficiency when training large datasets. The algorithm itself is\n    not modified at all.\n\n    LightGBM is a fast gradient boosting algorithm based on decision trees and is\n    mainly used for classification, regression and ranking tasks. It is under the\n    umbrella of the Distributed Machine Learning Toolkit (DMTK) project of Microsoft.\n    For more information, please visit https://github.com/Microsoft/LightGBM/.\n\n    Example:\n\n    >>> import vaex.ml\n    >>> import vaex.ml.lightgbm\n    >>> df = vaex.ml.datasets.load_iris()\n    >>> features = ['sepal_width', 'petal_length', 'sepal_length', 'petal_width']\n    >>> df_train, df_test = df.ml.train_test_split()\n    >>> params = {\n        'boosting': 'gbdt',\n        'max_depth': 5,\n        'learning_rate': 0.1,\n        'application': 'multiclass',\n        'num_class': 3,\n        'subsample': 0.80,\n        'colsample_bytree': 0.80}\n    >>> booster = vaex.ml.lightgbm.LightGBMModel(features=features, target='class_', num_boost_round=100, params=params)\n    >>> booster.fit(df_train)\n    >>> df_train = booster.transform(df_train)\n    >>> df_train.head(3)\n     #    sepal_width    petal_length    sepal_length    petal_width    class_    lightgbm_prediction\n     0            3               4.5             5.4            1.5         1    [0.00165619 0.98097899 0.01736482]\n     1            3.4             1.6             4.8            0.2         0    [9.99803930e-01 1.17346471e-04 7.87235133e-05]\n     2            3.1             4.9             6.9            1.5         1    [0.00107541 0.9848717  0.01405289]\n    >>> df_test = booster.transform(df_test)\n    >>> df_test.head(3)\n     #    sepal_width    petal_length    sepal_length    petal_width    class_    lightgbm_prediction\n     0            3               4.2             5.9            1.5         1    [0.00208904 0.9821348  0.01577616]\n     1            3               4.6             6.1            1.4         1    [0.00182039 0.98491357 0.01326604]\n     2            2.9             4.6             6.6            1.3         1    [2.50915444e-04 9.98431777e-01 1.31730785e-03]\n    ",
+        "module": "vaex.ml.lightgbm",
+        "snake_name": "lightgbm_model",
+        "traits": [
+            {
+                "default": null,
+                "has_default": true,
+                "help": "List of features to use when fitting the LightGBMModel.",
+                "name": "features",
+                "type": "List"
+            },
+            {
+                "default": 0,
+                "has_default": false,
+                "help": "Number of boosting iterations.",
+                "name": "num_boost_round",
+                "type": "CInt"
+            },
+            {
+                "default": null,
+                "has_default": true,
+                "help": "parameters to be passed on the to the LightGBM model.",
+                "name": "params",
+                "type": "Dict"
+            },
+            {
+                "default": "lightgbm_prediction",
+                "has_default": false,
+                "help": "The name of the virtual column housing the predictions.",
+                "name": "prediction_name",
+                "type": "Unicode"
+            },
+            {
+                "default": "",
+                "has_default": false,
+                "help": "The name of the target column.",
+                "name": "target",
+                "type": "Unicode"
+            }
+        ],
+        "version": "1.0.0"
+    },
+    {
+        "classname": "XGBoostModel",
+        "doc": "The XGBoost algorithm.\n\n    XGBoost is an optimized distributed gradient boosting library designed to be\n    highly efficient, flexible and portable. It implements machine learning\n    algorithms under the Gradient Boosting framework. XGBoost provides a parallel\n    tree boosting (also known as GBDT, GBM) that solves many data science\n    problems in a fast and accurate way.\n    (https://github.com/dmlc/xgboost)\n\n    Example:\n\n    >>> import vaex\n    >>> import vaex.ml.xgboost\n    >>> df = vaex.ml.datasets.load_iris()\n    >>> features = ['sepal_width', 'petal_length', 'sepal_length', 'petal_width']\n    >>> df_train, df_test = df.ml.train_test_split()\n    >>> params = {\n        'max_depth': 5,\n        'learning_rate': 0.1,\n        'objective': 'multi:softmax',\n        'num_class': 3,\n        'subsample': 0.80,\n        'colsample_bytree': 0.80,\n        'silent': 1}\n    >>> booster = vaex.ml.xgboost.XGBoostModel(features=features, target='class_', num_boost_round=100, params=params)\n    >>> booster.fit(df_train)\n    >>> df_train = booster.transform(df_train)\n    >>> df_train.head(3)\n    #    sepal_length    sepal_width    petal_length    petal_width    class_    xgboost_prediction\n    0             5.4            3               4.5            1.5         1                     1\n    1             4.8            3.4             1.6            0.2         0                     0\n    2             6.9            3.1             4.9            1.5         1                     1\n    >>> df_test = booster.transform(df_test)\n    >>> df_test.head(3)\n    #    sepal_length    sepal_width    petal_length    petal_width    class_    xgboost_prediction\n    0             5.9            3               4.2            1.5         1                     1\n    1             6.1            3               4.6            1.4         1                     1\n    2             6.6            2.9             4.6            1.3         1                     1\n    ",
+        "module": "vaex.ml.xgboost",
+        "snake_name": "xgboost_model",
+        "traits": [
+            {
+                "default": null,
+                "has_default": true,
+                "help": "List of features to use when fitting the XGBoostModel.",
+                "name": "features",
+                "type": "List"
+            },
+            {
+                "default": 0,
+                "has_default": false,
+                "help": "Number of boosting iterations.",
+                "name": "num_boost_round",
+                "type": "CInt"
+            },
+            {
+                "default": null,
+                "has_default": true,
+                "help": "A dictionary of parameters to be passed on to the XGBoost model.",
+                "name": "params",
+                "type": "Dict"
+            },
+            {
+                "default": "xgboost_prediction",
+                "has_default": false,
+                "help": "The name of the virtual column housing the predictions.",
+                "name": "prediction_name",
+                "type": "Unicode"
+            },
+            {
+                "default": "",
+                "has_default": false,
+                "help": "The name of the target column.",
+                "name": "target",
+                "type": "Unicode"
+            }
+        ],
+        "version": "1.0.0"
+    },
+    {
+        "classname": "KMeans",
+        "doc": "The KMeans clustering algorithm.\n\n    Example:\n\n    >>> import vaex.ml\n    >>> import vaex.ml.cluster\n    >>> df = vaex.ml.datasets.load_iris()\n    >>> features = ['sepal_width', 'petal_length', 'sepal_length', 'petal_width']\n    >>> cls = vaex.ml.cluster.KMeans(n_clusters=3, features=features, init='random', max_iter=10)\n    >>> cls.fit(df)\n    >>> df = cls.transform(df)\n    >>> df.head(5)\n     #    sepal_width    petal_length    sepal_length    petal_width    class_    prediction_kmeans\n     0            3               4.2             5.9            1.5         1                    2\n     1            3               4.6             6.1            1.4         1                    2\n     2            2.9             4.6             6.6            1.3         1                    2\n     3            3.3             5.7             6.7            2.1         2                    0\n     4            4.2             1.4             5.5            0.2         0                    1\n    ",
+        "module": "vaex.ml.cluster",
+        "snake_name": "kmeans",
+        "traits": [
+            {
+                "default": null,
+                "has_default": true,
+                "help": "Coordinates of cluster centers.",
+                "name": "cluster_centers",
+                "type": "List"
+            },
+            {
+                "default": null,
+                "has_default": true,
+                "help": "List of features to cluster.",
+                "name": "features",
+                "type": "List"
+            },
+            {
+                "default": null,
+                "has_default": false,
+                "help": "Sum of squared distances of samples to their closest cluster center.",
+                "name": "inertia",
+                "type": "CFloat"
+            },
+            {
+                "default": "random",
+                "has_default": false,
+                "help": "Method for initializing the centroids.",
+                "name": "init",
+                "type": "Union"
+            },
+            {
+                "default": 300,
+                "has_default": false,
+                "help": "Maximum number of iterations of the KMeans algorithm for a single run.",
+                "name": "max_iter",
+                "type": "CInt"
+            },
+            {
+                "default": 2,
+                "has_default": false,
+                "help": "Number of clusters to form.",
+                "name": "n_clusters",
+                "type": "CInt"
+            },
+            {
+                "default": 1,
+                "has_default": false,
+                "help": "Number of centroid initializations.                                                    The KMeans algorithm will be run for each initialization,                                                    and the final results will be the best output of the n_init                                                    consecutive runs in terms of inertia.",
+                "name": "n_init",
+                "type": "CInt"
+            },
+            {
+                "default": "prediction_kmeans",
+                "has_default": false,
+                "help": "The name of the virtual column that houses the cluster labels for each point.",
+                "name": "prediction_label",
+                "type": "Unicode"
+            },
+            {
+                "default": null,
+                "has_default": false,
+                "help": "Random number generation for centroid initialization. If an int is specified, the randomness becomes deterministic.",
+                "name": "random_state",
+                "type": "CInt"
+            },
+            {
+                "default": false,
+                "has_default": false,
+                "help": "If True, enable verbosity mode.",
+                "name": "verbose",
+                "type": "CBool"
+            }
+        ],
+        "version": "1.0.0"
+    },
+    {
+        "classname": "RiverModel",
+        "doc": "This class wraps River (github.com/online-ml/river) estimators, making them vaex pipeline objects.\n\n    This class conveniently wraps River models making them vaex pipeline objects.\n    Thus they take full advantage of the serialization and pipeline system of vaex.\n    Only the River models that implement the `learn_many` are compatible.\n    One can also wrap an entire River pipeline, as long as each pipeline step\n    implements the `learn_many` method. With the wrapper one can iterate over the\n    data multiple times (epochs), and optinally shuffle each batch before it is\n    sent to the estimator. The `predict` method wil require as much memory as\n    needed to output the predictions as a numpy array, while the `transform`\n    method is evaluated lazily, and no memory copies are made.\n\n    Example:\n    >>> import vaex\n    >>> import vaex.ml\n    >>> from vaex.ml.incubator.river import RiverModel\n    >>> from river.linear_model import LinearRegression\n    >>> from river import optim\n    >>>\n    >>> df = vaex.example()\n    >>>\n    >>> features = df.column_names[:6]\n    >>> target = 'FeH'\n    >>>\n    >>> df = df.ml.standard_scaler(features=features, prefix='scaled_')\n    >>>\n    >>> features = df.get_column_names(regex='^scaled_')\n    >>> model = LinearRegression(optimizer=optim.SGD(lr=0.1), intercept_lr=0.1)\n    >>>\n    >>> river_model = RiverModel(model=model,\n                            features=features,\n                            target=target,\n                            batch_size=10_000,\n                            num_epochs=3,\n                            shuffle=True,\n                            prediction_name='pred_FeH')\n    >>>\n    >>> river_model.fit(df=df)\n    >>> df = river_model.transform(df)\n    >>> df.head(5)[['FeH', 'pred_FeH']]\n      #       FeH    pred_FeH\n      0  -1.00539    -1.6332\n      1  -1.70867    -1.56632\n      2  -1.83361    -1.55338\n      3  -1.47869    -1.60646\n      4  -1.85705    -1.5996\n    ",
+        "module": "vaex.ml.incubator.river",
+        "snake_name": "river_model",
+        "traits": [
+            {
+                "default": 1000000,
+                "has_default": false,
+                "help": "Number of samples to be sent to the model in each batch.",
+                "name": "batch_size",
+                "type": "Int"
+            },
+            {
+                "default": null,
+                "has_default": true,
+                "help": "List of features to use.",
+                "name": "features",
+                "type": "List"
+            },
+            {
+                "default": null,
+                "has_default": false,
+                "help": "A River model which implements the `learn_many` method.",
+                "name": "model",
+                "type": "Any"
+            },
+            {
+                "default": 1,
+                "has_default": false,
+                "help": "Number of times each batch is sent to the model.",
+                "name": "num_epochs",
+                "type": "Int"
+            },
+            {
+                "default": "prediction",
+                "has_default": false,
+                "help": "The name of the virtual column housing the predictions.",
+                "name": "prediction_name",
+                "type": "Unicode"
+            },
+            {
+                "default": "predict",
+                "has_default": false,
+                "help": "Which method to use to get the predictions.                                      Can be \"predict\" or \"predict_proba\" which correspond to                                      \"predict_many\" and \"predict_proba_many in a River model respectively.",
+                "name": "prediction_type",
+                "type": "Enum"
+            },
+            {
+                "default": false,
+                "has_default": false,
+                "help": "If True, shuffle the samples before sending them to the model.",
+                "name": "shuffle",
+                "type": "Bool"
+            },
+            {
+                "default": "",
+                "has_default": false,
+                "help": "The name of the target column.",
+                "name": "target",
+                "type": "Unicode"
+            }
+        ],
+        "version": "1.0.0"
+    }
+]

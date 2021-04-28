@@ -1,8 +1,12 @@
-from common import small_buffer
-import pytest
 from unittest.mock import MagicMock
 from concurrent.futures import ThreadPoolExecutor
 import concurrent.futures
+import platform
+import threading
+
+import pytest
+
+from common import small_buffer
 import vaex
 
 
@@ -35,6 +39,7 @@ def test_reentrant_catch(df_local):
     assert 'nested' in str(exc.value)
 
 
+@pytest.mark.skipif(platform.system().lower() == 'windows', reason="hangs appveyor very often, bug?")
 def test_thread_safe(df_local):
     df = df_local
 
@@ -86,6 +91,18 @@ def test_nested_task(df):
     assert total_promise.get() == df.sum(df.x) + df.sum(df.y)
 
 
+def test_executor_from_other_thread():
+    df = vaex.from_arrays(x=[1, 2])
+    def execute():
+        # but call execute from a different thread
+        df.execute()
+    # we add a tasks from the main thread, we use binby without limits to force
+    # a double computation.
+    c = df.count('x', binby='x', delay=True, edges=True)
+    thread = threading.Thread(target=execute)
+    thread.start()
+    thread.join()
+    assert sum(c.get()) == 2
 # def test_add_and_cancel_tasks(df_executor):
 #     df = df_executor
 

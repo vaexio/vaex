@@ -38,8 +38,8 @@ params_reg = {
     }
 
 
-def test_xgboost():
-    ds = vaex.ml.datasets.load_iris()
+def test_xgboost(df_iris):
+    ds = df_iris
     ds_train, ds_test = ds.ml.train_test_split(test_size=0.2, verbose=False)
     features = ['sepal_length', 'sepal_width', 'petal_length', 'petal_width']
     booster = vaex.ml.xgboost.XGBoostModel(num_boost_round=10,
@@ -56,12 +56,12 @@ def test_xgboost():
     assert np.all(ds_test.class_.values == ds_test.xgboost_prediction.values)
 
 
-def test_xgboost_numerical_validation():
-    ds = vaex.ml.datasets.load_iris()
+def test_xgboost_numerical_validation(df_iris):
+    ds = df_iris
     features = ['sepal_width', 'petal_length', 'sepal_length', 'petal_width']
 
     # Vanilla xgboost
-    dtrain = xgb.DMatrix(ds[features], label=ds.data.class_)
+    dtrain = xgb.DMatrix(ds[features].values, label=ds.class_.to_numpy())
     xgb_bst = xgb.train(params=params_multiclass, dtrain=dtrain, num_boost_round=3)
     xgb_pred = xgb_bst.predict(dtrain)
 
@@ -75,26 +75,25 @@ def test_xgboost_numerical_validation():
                             err_msg='The predictions of vaex.ml.xboost do not match those of pure xgboost')
 
 
-def test_xgboost_serialize(tmpdir):
-    ds = vaex.ml.datasets.load_iris()
+def test_xgboost_serialize(tmpdir, df_iris):
+    ds = df_iris
     features = ['sepal_length', 'sepal_width', 'petal_length', 'petal_width']
     target = 'class_'
 
-    gbm = ds.ml.xgboost_model(target=target, features=features, num_boost_round=20, params=params_multiclass)
+    gbm = ds.ml.xgboost_model(target=target, features=features, num_boost_round=20, params=params_multiclass, transform=False)
     pl = vaex.ml.Pipeline([gbm])
     pl.save(str(tmpdir.join('test.json')))
     pl.load(str(tmpdir.join('test.json')))
 
-    gbm = ds.ml.xgboost_model(target=target, features=features, num_boost_round=20, params=params_multiclass)
+    gbm = ds.ml.xgboost_model(target=target, features=features, num_boost_round=20, params=params_multiclass, transform=False)
     gbm.state_set(gbm.state_get())
     pl = vaex.ml.Pipeline([gbm])
     pl.save(str(tmpdir.join('test.json')))
     pl.load(str(tmpdir.join('test.json')))
 
 
-def test_xgboost_validation_set():
-    # read data
-    ds = vaex.example()
+def test_xgboost_validation_set(df_example):
+    ds = df_example
     # Train and test split
     train, test = ds.ml.train_test_split(verbose=False)
     # Define the training featuress
@@ -112,23 +111,22 @@ def test_xgboost_validation_set():
     assert len(history['test']['rmse']) == 10
 
 
-def test_xgboost_pipeline():
-    # read data
-    ds = vaex.example()
+def test_xgboost_pipeline(df_example):
+    ds = df_example
     # train test splot
     train, test = ds.ml.train_test_split(verbose=False)
     # add virtual columns
     train['r'] = np.sqrt(train.x**2 + train.y**2 + train.z**2)
     # Do a pca
     features = ['vx', 'vy', 'vz', 'Lz', 'L']
-    pca = train.ml.pca(n_components=3, features=features)
+    pca = train.ml.pca(n_components=3, features=features, transform=False)
     train = pca.transform(train)
     # Do state transfer
     st = train.ml.state_transfer()
     # now the xgboost model thingy
     features = ['r', 'PCA_0', 'PCA_1', 'PCA_2']
     # define the boosting model
-    booster = train.ml.xgboost_model(target='E', num_boost_round=10, features=features, params=params_reg)
+    booster = train.ml.xgboost_model(target='E', num_boost_round=10, features=features, params=params_reg, transform=False)
     # Create a pipeline
     pp = vaex.ml.Pipeline([st, booster])
     # Use the pipeline

@@ -5,7 +5,7 @@ import numpy as np
 import vaex.utils
 
 
-def generate_strings():
+def generate_strings(progress=False):
     """
     Generate a dataframe with 10**8 rows and two columns: sequential numbers
     and their string representations. The HDF5 file will be created at the path
@@ -67,4 +67,5 @@ def generate_numerical():
 
 
 if __name__ == '__main__':
+    generate_strings(progress=True)
     generate_numerical()

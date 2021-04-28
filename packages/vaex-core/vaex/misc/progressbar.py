@@ -13,6 +13,12 @@ class ProgressBarBase(object):
         self.fraction = 0
         self.prevfraction = 0
 
+    def update_fraction(self):
+        if (self.max_value-self.min_value) == 0:
+            self.fraction = 1.
+        else:
+            self.fraction = (float(self.value)-self.min_value)/(self.max_value-self.min_value)
+
     def info(self):
         value = self.value
         if value == 0:
@@ -21,10 +27,6 @@ class ProgressBarBase(object):
             self.utime0, self.stime0 = os.times()[:2]
             self.walltime0 = time.time()
         currenttime = time.time()
-        if (self.max_value-self.min_value) == 0:
-            self.fraction = 1.
-        else:
-            self.fraction = (float(value)-self.min_value)/(self.max_value-self.min_value)
         percentage = self.fraction * 100
         self.utime, self.stime = os.times()[:2]
         self.walltime  = time.time()
@@ -56,6 +58,7 @@ class ProgressBarBase(object):
 
     def __repr__(self):
         output = ''
+        self.update_fraction()
         return self.format % self.info()
 
 class ProgressBar(ProgressBarBase):
@@ -99,6 +102,7 @@ class ProgressBar(ProgressBarBase):
 
     def __repr__(self):
         output = ''
+        self.update_fraction()
         count = int(round(self.fraction * self.width))
         space = self.width - count
         bar = "[" + (self.barchar * count) + (self.emptychar * space) + "]"

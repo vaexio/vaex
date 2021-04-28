@@ -16,13 +16,14 @@ import numbers
 import keyword
 
 import numpy as np
+import pyarrow as pa
 import progressbar
 import psutil
 import six
 import yaml
 
-from .column import str_type
 from .json import VaexJsonEncoder, VaexJsonDecoder
+import vaex.file
 
 
 is_frozen = getattr(sys, 'frozen', False)
@@ -203,8 +204,7 @@ def get_private_dir(subdir=None, *extra):
     path = os.path.expanduser('~/.vaex')
     if subdir:
         path = os.path.join(path, subdir, *extra)
-    if not os.path.exists(path):
-        os.makedirs(path)
+    os.makedirs(path,exist_ok=True)
     return path
 
 
@@ -419,28 +419,38 @@ def yaml_load(f):
     return yaml.safe_load(f)
 
 
-def write_json_or_yaml(filename, data):
-    base, ext = os.path.splitext(filename)
-    if ext == ".json":
-        with open(filename, "w") as f:
-            json.dump(data, f, indent=2, cls=VaexJsonEncoder)
-    elif ext == ".yaml":
-        with open(filename, "w") as f:
-            yaml_dump(f, data)
-    else:
-        raise ValueError("file should end in .json or .yaml (not %s)" % ext)
+def write_json_or_yaml(file, data, fs_options={}, fs=None):
+    file, path = vaex.file.file_and_path(file, mode='w', fs_options=fs_options, fs=fs)
+    try:
+        if path:
+            base, ext = os.path.splitext(path)
+        else:
+            ext = '.json'  # default
+        if ext == ".json":
+            json.dump(data, file, indent=2, cls=VaexJsonEncoder)
+        elif ext == ".yaml":
+            yaml_dump(file, data)
+        else:
+            raise ValueError("file should end in .json or .yaml (not %s)" % ext)
+    finally:
+        file.close()
 
 
-def read_json_or_yaml(filename):
-    base, ext = os.path.splitext(filename)
-    if ext == ".json":
-        with open(filename, "r") as f:
-            return json.load(f, cls=VaexJsonDecoder) or {}
-    elif ext == ".yaml":
-        with open(filename, "r") as f:
-            return yaml_load(f) or {}
-    else:
-        raise ValueError("file should end in .json or .yaml (not %s)" % ext)
+def read_json_or_yaml(file, fs_options={}, fs=None):
+    file, path = vaex.file.file_and_path(file, fs_options=fs_options, fs=fs)
+    try:
+        if path:
+            base, ext = os.path.splitext(path)
+        else:
+            ext = '.json'  # default
+        if ext == ".json":
+            return json.load(file, cls=VaexJsonDecoder) or {}
+        elif ext == ".yaml":
+            return yaml_load(file) or {}
+        else:
+            raise ValueError("file should end in .json or .yaml (not %s)" % ext)
+    finally:
+        file.close()
 
 
 # from http://stackoverflow.com/questions/5121931/in-python-how-can-you-load-yaml-mappings-as-ordereddicts
@@ -536,24 +546,21 @@ def unlistify(waslist, *args):
             return values[0]
 
 
+def valid_expression(names, name):
+    if name in names and not valid_identifier(name):
+        return f'df[%r]' % name
+    else:
+        return name
+
+
+def valid_identifier(name):
+    return name.isidentifier() and not keyword.iskeyword(name)
+
+
 def find_valid_name(name, used=[]):
+    if isinstance(name, int):
+        name = str(name)
     first, rest = name[0], name[1:]
-    if not first.isidentifier():
-        if ('col_' + first).isidentifier():
-            first = 'col_' + first
-        else:
-            first = 'col_'
-    name = first
-    for char in rest:
-        # we test if it is an identifier with _ prefixed, since not every first character
-        # and following character are treated the same
-        # https://docs.python.org/3/reference/lexical_analysis.html#identifiers
-        if not ('_' + char).isidentifier():
-            name += '_'
-        else:
-            name += char
-    if keyword.iskeyword(name):
-        name += '_'
     if name in used:
         nr = 1
         while name + ("_%d" % nr) in used:
@@ -562,7 +569,15 @@ def find_valid_name(name, used=[]):
     return name
 
 
-_python_save_name = find_valid_name
+def _python_save_name(name, used=[]):
+	first, rest = name[0], name[1:]
+	name = re.sub("[^a-zA-Z_]", "_", first) +  re.sub("[^a-zA-Z_0-9]", "_", rest)
+	if name in used:
+		nr = 1
+		while name + ("_%d" % nr) in used:
+			nr += 1
+		name = name + ("_%d" % nr)
+	return name
 
 
 @contextlib.contextmanager
@@ -732,7 +747,7 @@ def _issequence(x):
 
 
 def _isnumber(x):
-    return isinstance(x, numbers.Number)
+    return isinstance(x, (numbers.Number, pa.Scalar))
 
 
 def _is_limit(x):
@@ -782,11 +797,11 @@ def _expand_shape(shape, dimension):
 
 def _expand_limits(limits, dimension):
     if isinstance(limits, (tuple, list, np.ndarray)) and \
-            (isinstance(limits[0], (tuple, list, np.ndarray)) or isinstance(limits[0], six.string_types)):
+            (isinstance(limits[0], (tuple, list, np.ndarray)) or isinstance(limits[0], str) or limits[0] is None):
         assert len(limits) == dimension, "wants to expand shape %r to dimension %d" % (limits, dimension)
         return tuple(limits)
     else:
-        return [limits, ] * dimension
+        return (limits, ) * dimension
 
 
 def as_flat_float(a):
@@ -858,13 +873,15 @@ def gen_to_list(fn=None, wrapper=list):
     return listify_return(fn)
 
 
-def find_type_from_dtype(namespace, prefix, dtype, transient=True):
-    if dtype == str_type:
+def find_type_from_dtype(namespace, prefix, dtype, transient=True, support_non_native=True):
+    from .array_types import is_string_type
+    if dtype == 'string':
         if transient:
             postfix = 'string'
         else:
             postfix = 'string' # view not support atm
     else:
+        dtype = dtype.numpy
         postfix = str(dtype)
         if postfix == '>f8':
             postfix = 'float64'
@@ -873,7 +890,7 @@ def find_type_from_dtype(namespace, prefix, dtype, transient=True):
         if dtype.kind == "m":
             postfix = "int64"
         # for object there is no non-native version
-        if dtype.kind != 'O' and dtype.byteorder not in ["<", "=", "|"]:
+        if support_non_native and dtype.kind != 'O' and dtype.byteorder not in ["<", "=", "|"]:
             postfix += "_non_native"
     name = prefix + postfix
     if hasattr(namespace, name):
@@ -883,7 +900,7 @@ def find_type_from_dtype(namespace, prefix, dtype, transient=True):
 
 
 def to_native_dtype(dtype):
-    if dtype.byteorder not in "<=|":
+    if isinstance(dtype, np.dtype) and dtype.byteorder not in "<=|":
         return dtype.newbyteorder()
     else:
         return dtype
@@ -906,18 +923,6 @@ def unmask_selection_mask(selection_mask):
         # exclude the masked values
         selection_mask = selection_mask & ~mask
     return selection_mask
-
-
-def upcast(dtype):
-    if dtype.kind == "b":
-        return np.dtype('int64')
-    if dtype.kind == "i":
-        return np.dtype('int64')
-    if dtype.kind == "u":
-        return np.dtype('uint64')
-    if dtype.kind == "f":
-        return np.dtype('float64')
-    return dtype
 
 
 def wrap_future_with_promise(future):
@@ -958,3 +963,91 @@ def print_exception_trace(e):
     import traceback
     import sys
     print(''.join(traceback.format_exception(None, e, e.__traceback__)), file=sys.stdout, flush=True)
+
+
+def format_exception_trace(e):
+    import traceback
+    return ''.join(traceback.format_exception(None, e, e.__traceback__))
+
+
+class ProxyModule:
+    def __init__(self, name, version, modules=None):
+        self.name = name
+        self.module = None
+        self.version = version
+        self.modules = modules if modules else [self.name]
+
+    def _ensure_import(self):
+        if self.module is None:
+            import importlib
+            try:
+                for module_name in self.modules:
+                    importlib.import_module(module_name)
+                # the module object itself needs to be the top module
+                top_name = self.name.split(".")[0]
+                self.module = importlib.import_module(top_name)
+            except Exception as e:
+                raise ImportError(f'''Error importing module {self.name}: {e}
+
+Vaex needs an optional dependency '{self.name}' for the feature you are using. To install, use:
+
+$ pip install "{self.name}{self.version}"
+
+Or when using conda:
+$ conda install -c conda-forge "{self.name}{self.version}""
+
+        ''') from e
+
+    def __getattr__(self, name):
+        self._ensure_import()
+        return getattr(self.module, name)
+
+
+def optional_import(name, version='', modules=None):
+    return ProxyModule(name, version=version, modules=modules)
+
+
+def div_ceil(n, d):
+    """Integer divide that sounds up (to an int).
+
+    See https://stackoverflow.com/a/54585138/5397207
+
+    Examples
+    >>> div_ceil(6, 2)
+    3
+    >>> div_ceil(7, 2)
+    4
+    >>> div_ceil(8, 2)
+    4
+    >>> div_ceil(9, 2)
+    5
+    """
+    return (n + d - 1) // d
+
+
+def get_env_type(type, key, default=None):
+    '''Get an env var named key, and cast to type
+
+    >>> import os
+    >>> get_env_type(int, 'VAEX_NUM_THREADS_TEST')
+    >>> get_env_type(int, 'VAEX_NUM_THREADS_TEST', 10)
+    10
+    >>> get_env_type(int, 'VAEX_NUM_THREADS_TEST', '10')
+    10
+    >>> os.environ['VAEX_NUM_THREADS_TEST'] = '20'
+    >>> get_env_type(int, 'VAEX_NUM_THREADS_TEST')
+    20
+    >>> get_env_type(int, 'VAEX_NUM_THREADS_TEST', '10')
+    20
+    >>> os.environ['VAEX_NUM_THREADS_TEST'] = ' '
+    >>> get_env_type(int, 'VAEX_NUM_THREADS_TEST')
+    >>> get_env_type(int, 'VAEX_NUM_THREADS_TEST', '11')
+    11
+    '''
+    value = os.environ.get(key, default)
+    if isinstance(value, str) and value.strip() == '' and type != str:
+        # support empty strings
+        value = default
+    if value is not None:
+        import ast
+        return type(ast.literal_eval(str(value)))

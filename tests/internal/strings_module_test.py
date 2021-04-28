@@ -26,7 +26,7 @@ def test_masked_array():
     sa = vaex.strings.StringArray(ar, mask)
     assert sa.tolist() == ['dog', 'dog', None, 'cat', None]
     assert sa.equals('cat').tolist() == [False, False, False, True, False]
-    assert sa.equals(sa).tolist() == [True, True, False, True, False]
+    assert sa.equals(sa).tolist() == [True, True, True, True, True]
 
 def test_string_array():
     ar = np.array(["aap", "noot", None, "mies"], dtype='object')
@@ -192,12 +192,14 @@ def test_arrow_basics():
     # ref counts start at 2
     assert sys.getrefcount(bytes_strings) == 2
     assert sys.getrefcount(indices) == 2
+    assert sys.getrefcount(null_bitmap) == 2
 
     sl = vaex.strings.StringList32(bytes_strings, indices, len(ar), offset, null_bitmap, 0)
     assert sys.getrefcount(sl) == 2
     # we should keep a reference only
     assert sys.getrefcount(bytes_strings) == 3
     assert sys.getrefcount(indices) == 3
+    assert sys.getrefcount(null_bitmap) == 3
 
     assert sl.get(0) == "aap"
     assert sl.get(1) == "noot"
@@ -226,11 +228,6 @@ def test_arrow_basics():
     assert list(c.to_numpy()) == ["ap", "oot",  None, "ies"]
 
     assert sys.getrefcount(sl) == 2
-    c = sl.lower()
-    assert list(c.to_numpy()) == ["aap", "noot",  None, "mies"]
-
-    c = sl.upper()
-    assert list(c.to_numpy()) == ["AAP", "NOOT",  None, "MIES"]
 
     c = sl.count("a", False)
     assert c.tolist() == [2, 0, 0, 0]
@@ -239,12 +236,12 @@ def test_arrow_basics():
     assert list(sl2.to_numpy()) == ["aap", "noot",  None, "mies"]
 
     # ds2.columns['name_arrow'][:].string_sequence.slice(0,5).indices
-    assert sys.getrefcount(sl) == 2
+    assert sys.getrefcount(sl) == 4
     sl_slice = sl.slice(1, 4)
     assert list(sl_slice.to_numpy()) == ["noot",  None, "mies"]
-    assert sys.getrefcount(sl) == 3
+    assert sys.getrefcount(sl) == 5
     del sl_slice
-    assert sys.getrefcount(sl) == 2
+    assert sys.getrefcount(sl) == 4
 
     sl_slice = sl.slice(0, 3)
     assert list(sl_slice.to_numpy()) == ["aap", "noot",  None]
@@ -293,6 +290,7 @@ def test_arrow_basics():
     assert sys.getrefcount(bytes_strings) == 3
     del sl14
     del sl_slice
+    del sl2
     assert sys.getrefcount(indices) == 2
     assert sys.getrefcount(bytes_strings) == 2
 
@@ -315,3 +313,28 @@ def test_string_format():
     ar = np.arange(1, 4, dtype='f4')
     vaex.strings.to_string(ar).tolist() == ["1.0", "2.0", "3.0"]
     vaex.strings.format(ar, '%g').tolist() == ["%g" % k for k in ar]
+
+
+def test_buffer_no_copy():
+    bytes_strings = np.frombuffer(("aapnootmies".encode('utf8')), dtype='S1')
+    indices = np.array([0, 3, 3+4, 3+4+4], dtype=np.int32)
+    sl = vaex.strings.StringList32(bytes_strings, indices, 3, 0)
+    assert sl.tolist() == ['aap', 'noot', 'mies']
+    sl.bytes[0] = ord('A')
+    assert sl.tolist() == ['Aap', 'noot', 'mies']
+
+
+def test_buffer_ref_count():
+    bytes_strings = np.frombuffer(("aapnootmies".encode('utf8')), dtype='S1')
+    indices = np.array([0, 3, 3+4, 3+4+4], dtype=np.int32)
+    assert sys.getrefcount(bytes_strings) == 2
+    sl = vaex.strings.StringList32(bytes_strings, indices, 3, 0)
+    data = sl.tolist()
+    assert sys.getrefcount(bytes_strings) == 3
+    sl = sl.concat('')  # this will create a new stringlist that will own the memory
+    assert sys.getrefcount(sl) == 2
+    bytes_strings, indices = sl.bytes, sl.indices#.view(np.int64)
+    assert sys.getrefcount(sl) == 4
+    del sl
+    sl2 = vaex.strings.StringList64(bytes_strings, indices, 3, 0)
+    assert sl2.tolist() == data

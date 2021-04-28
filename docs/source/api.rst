@@ -8,8 +8,9 @@ Opening/reading in your data.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. autosummary::
-    
+
     vaex.open
+    vaex.concat
     vaex.from_arrow_table
     vaex.from_arrays
     vaex.from_dict
@@ -22,19 +23,21 @@ Visualization.
 ~~~~~~~~~~~~~~
 
 .. autosummary::
-    
-    vaex.dataframe.DataFrame.plot
-    vaex.dataframe.DataFrame.plot1d
-    vaex.dataframe.DataFrame.scatter
-    vaex.dataframe.DataFrame.plot_widget
-    vaex.dataframe.DataFrame.healpix_plot
+
+    vaex.dataframe.DataFrame.viz.heatmap
+    vaex.dataframe.DataFrame.viz.histogram
+    vaex.dataframe.DataFrame.viz.scatter
+    vaex.dataframe.DataFrame.viz.healpix_heatmap
+    vaex.dataframe.Expression.viz.histogram
+    vaex.dataframe.DataFrame.widget.heatmap
+    vaex.dataframe.DataFrame.widget.histgram
 
 
 Statistics.
 ~~~~~~~~~~~
 
 .. autosummary::
-    
+
     vaex.dataframe.DataFrame.count
     vaex.dataframe.DataFrame.mean
     vaex.dataframe.DataFrame.std
@@ -55,7 +58,7 @@ vaex-core
 ---------
 
 .. automodule:: vaex
-    :members: open, from_arrays, from_dict, from_items, from_arrow_table, from_csv, from_ascii, from_pandas, from_astropy_table, from_samp, open_many, register_function, server, example, app, delayed
+    :members: open, concat, from_arrays, from_dict, from_items, from_arrow_table, from_csv, from_ascii, from_pandas, from_astropy_table, from_samp, open_many, register_function, server, example, app, delayed
     :undoc-members:
     :show-inheritance:
 
@@ -150,6 +153,17 @@ Jupyter widgets accessor
      :members:
      :special-members:
 
+Viz accessors
+~~~~~~~~~~~~~
+
+.. autoclass:: vaex.viz.DataFrameAccessorViz
+     :members:
+     :special-members:
+
+.. autoclass:: vaex.viz.ExpressionAccessorViz
+     :members:
+     :special-members:
+
 
 vaex-jupyter
 ------------
@@ -163,7 +177,7 @@ vaex.jupyter.model
 ~~~~~~~~~~~~~~~~~~
 
 .. automodule:: vaex.jupyter.model
-    :members: 
+    :members:
     :undoc-members:
     :show-inheritance:
 
@@ -171,7 +185,7 @@ vaex.jupyter.view
 ~~~~~~~~~~~~~~~~~~
 
 .. automodule:: vaex.jupyter.view
-    :members: 
+    :members:
     :undoc-members:
     :show-inheritance:
 
@@ -179,7 +193,7 @@ vaex.jupyter.widgets
 ~~~~~~~~~~~~~~~~~~
 
 .. automodule:: vaex.jupyter.widgets
-    :members: 
+    :members:
     :undoc-members:
     :show-inheritance:
 
@@ -325,7 +339,7 @@ Clustering
 ~~~~~~~~~~
 
 .. autosummary::
-    
+
     vaex.ml.cluster.KMeans
 
 .. autoclass:: vaex.ml.cluster.KMeans
@@ -347,6 +361,8 @@ Transformers/encoders
     vaex.ml.transformations.CycleTransformer
     vaex.ml.transformations.BayesianTargetEncoder
     vaex.ml.transformations.WeightOfEvidenceEncoder
+    vaex.ml.transformations.KBinsDiscretizer
+    vaex.ml.transformations.GroupByTransformer
 
 
 .. autoclass:: vaex.ml.transformations.FrequencyEncoder
@@ -382,6 +398,12 @@ Transformers/encoders
 .. autoclass:: vaex.ml.transformations.WeightOfEvidenceEncoder
      :members:
 
+.. autoclass:: vaex.ml.transformations.KBinsDiscretizer
+     :members:
+
+.. autoclass:: vaex.ml.transformations.GroupByTransformer
+     :members:
+
 
 Boosted trees
 ~~~~~~~~~~~~~
@@ -390,12 +412,16 @@ Boosted trees
 
     vaex.ml.lightgbm.LightGBMModel
     vaex.ml.xgboost.XGBoostModel
+    vaex.ml.catboost.CatBoostModel
 
 
 .. autoclass:: vaex.ml.lightgbm.LightGBMModel
      :members:
 
 .. autoclass:: vaex.ml.xgboost.XGBoostModel
+     :members:
+
+.. autoclass:: vaex.ml.catboost.CatBoostModel
      :members:
 
 Incubator/experimental

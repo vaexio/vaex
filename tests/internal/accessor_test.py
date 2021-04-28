@@ -25,6 +25,14 @@ def test_accessor_basic():
     assert df.foo is df.foo
     assert df.foo.df is df
 
+
+def test_accessor_expression():
+    vaex._add_lazy_accessor('foo', lambda: Foo, vaex.expression.Expression)
+    df = vaex.example()
+    assert isinstance(df.x.foo, Foo)
+    assert df.x.foo is df.x.foo
+    assert df.x.foo.df is df.x
+
 def test_accessor_nested():
     df = vaex.example()
     vaex._add_lazy_accessor('spam.egg', lambda: Egg)

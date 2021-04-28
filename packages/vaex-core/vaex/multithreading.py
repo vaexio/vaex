@@ -14,9 +14,31 @@ import concurrent.futures
 import time
 import os
 
-thread_count_default = os.environ.get('VAEX_NUM_THREADS', multiprocessing.cpu_count())  # * 2 + 1
-thread_count_default = int(thread_count_default)
+from .itertools import buffer
+
 logger = logging.getLogger("vaex.multithreading")
+
+thread_count_default = vaex.utils.get_env_type(int, 'VAEX_NUM_THREADS', multiprocessing.cpu_count())
+thread_count_default_io = vaex.utils.get_env_type(int, 'VAEX_NUM_THREADS_IO', thread_count_default + 1)
+main_pool = None
+main_io_pool = None
+
+
+def get_main_pool():
+    global main_pool
+    if main_pool is None:
+        main_pool = ThreadPoolIndex()
+    return main_pool
+
+
+def get_main_io_pool():
+    global main_io_pool
+    if main_io_pool is None:
+        main_io_pool = concurrent.futures.ThreadPoolExecutor(max_workers=thread_count_default_io)
+    return main_io_pool
+
+
+
 
 
 class ThreadPoolIndex(concurrent.futures.ThreadPoolExecutor):
@@ -35,7 +57,7 @@ class ThreadPoolIndex(concurrent.futures.ThreadPoolExecutor):
         self.nthreads = self._max_workers
         self._debug_sleep = 0
 
-    async def map_async(self, callable, iterator, on_error=None, progress=None, cancel=None, unpack=False, **kwargs_extra):
+    async def map_async(self, callable, iterator, count, on_error=None, progress=None, cancel=None, unpack=False, **kwargs_extra):
         progress = progress or (lambda x: True)
         cancelled = False
 
@@ -51,41 +73,32 @@ class ThreadPoolIndex(concurrent.futures.ThreadPoolExecutor):
                 if self._debug_sleep:
                     # print("SLEEP", self._debug_sleep)
                     time.sleep(self._debug_sleep)
-                callable(self.local.index, *args, **kwargs, **kwargs_extra)
+                return callable(self.local.index, *args, **kwargs, **kwargs_extra)
         # convert to list so we can count
-        values = list(iterator)
-        N = len(values)
         time_last = time.time() - 100
         min_delta_t = 1. / 10  # max 10 per second
         if self.nthreads == 1:  # when using 1 thread, it makes debugging easier (better stacktrace)
-            iterator = self._map_async(wrapped, values)
+            iterator = self._map_async(wrapped, iterator)
         else:
             loop = asyncio.get_event_loop()
-            iterator = [loop.run_in_executor(self, lambda value=value: wrapped(value)) for value in values]
+            iterator = (loop.run_in_executor(self, lambda value=value: wrapped(value)) for value in iterator)
 
-        for i, value in enumerate(iterator):
-            progress_value = (i + 1) / N
+        total = 0
+        for i, value in buffer(enumerate(iterator), self._max_workers + 3):
+            value = await value
+            if value != None:
+                total += value
+            progress_value = (total) / count
             time_now = time.time()
             if progress_value == 1 or (time_now - time_last) > min_delta_t:
                 time_last = time_now
                 if progress(progress_value) is False:
                     cancelled = True
                     cancel()
-            yield await value
+            yield value
 
     def _map_async(self, callable, iterator):
         for i in iterator:
             future = asyncio.Future()
             future.set_result(callable(i))
             yield future
-
-
-
-main_pool = None  # ThreadPoolIndex()
-
-
-def get_main_pool():
-    global main_pool
-    if main_pool is None:
-        main_pool = ThreadPoolIndex()
-    return main_pool

@@ -20,9 +20,11 @@ url = 'https://www.github.com/maartenbreddels/vaex'
 # TODO: can we do without requests and progressbar2?
 # TODO: after python2 supports frops, future and futures can also be dropped
 # TODO: would be nice to have astropy only as dep in vaex-astro
-install_requires_core = ["numpy>=1.16", "astropy>=2", "aplus", "tabulate>=0.8.3",
+install_requires_core = ["numpy>=1.16", "aplus", "tabulate>=0.8.3",
                          "future>=0.15.2", "pyyaml", "progressbar2", "psutil>=1.2.1",
-                         "requests", "six", "cloudpickle", "pandas", "dask[array]", "nest-asyncio>=1.3.3"]
+                         "requests", "six", "cloudpickle", "pandas", "dask[array]",
+                         "nest-asyncio>=1.3.3", "pyarrow>=3.0", "frozendict",
+                        ]
 if sys.version_info[0] == 2:
     install_requires_core.append("futures>=2.2.0")
 install_requires_viz = ["matplotlib>=1.3.1", ]
@@ -67,7 +69,7 @@ if platform.system().lower() == 'windows':
     dll_files = ['pcre.dll', 'pcrecpp.dll', 'vcruntime140_1.dll']
 else:
     # TODO: maybe enable these flags for non-wheel/conda builds? ["-mtune=native", "-march=native"]
-    extra_compile_args = ["-std=c++11", "-mfpmath=sse", "-O3", "-funroll-loops"]
+    extra_compile_args = ["-std=c++11", "-O3", "-funroll-loops"]
     extra_compile_args.append("-g")
 if sys.platform == 'darwin':
     extra_compile_args.append("-mmacosx-version-min=10.9")
@@ -90,14 +92,15 @@ extension_strings = Extension("vaex.superstrings", [os.path.relpath(os.path.join
                                library_dirs=[
                                    os.path.join(sys.prefix, 'lib'),
                                    os.path.join(sys.prefix, 'Library', 'lib'), # windows
-                                   os.path.join(dirname, 'vendor', 'pcre', 'Library', 'lib') # windows pcre from conda-forge
+                                   os.path.join(dirname, 'vendor', 'pcre', 'Library', 'lib'), # windows pcre from conda-forge
                                ],
                                extra_compile_args=extra_compile_args,
                                libraries=['pcre', 'pcrecpp']
                                )
 extension_superutils = Extension("vaex.superutils", [
         os.path.relpath(os.path.join(dirname, "src/hash_object.cpp")),
-        os.path.relpath(os.path.join(dirname, "src/hash_primitives.cpp")),
+        os.path.relpath(os.path.join(dirname, "src/hash_primitives_pot.cpp")),
+        os.path.relpath(os.path.join(dirname, "src/hash_primitives_prime.cpp")),
         os.path.relpath(os.path.join(dirname, "src/superutils.cpp")),
         os.path.relpath(os.path.join(dirname, "src/hash_string.cpp")),
     ],
@@ -112,6 +115,7 @@ extension_superutils = Extension("vaex.superutils", [
     extra_compile_args=extra_compile_args)
 
 extension_superagg = Extension("vaex.superagg", [
+        os.path.relpath(os.path.join(dirname, "src/superagg_binners.cpp")),
         os.path.relpath(os.path.join(dirname, "src/superagg.cpp")),
         os.path.relpath(os.path.join(dirname, "src/agg_hash_string.cpp")),
         os.path.relpath(os.path.join(dirname, "src/agg_hash_primitive.cpp")),
@@ -136,12 +140,27 @@ setup(name=name + '-core',
       install_requires=install_requires_core,
       license=license,
       package_data={'vaex': dll_files + ['test/files/*.fits', 'test/files/*.vot', 'test/files/*.hdf5']},
-      packages=['vaex', 'vaex.core', 'vaex.file', 'vaex.test', 'vaex.ext', 'vaex.misc'],
+      packages=['vaex', 'vaex.arrow', 'vaex.core', 'vaex.file', 'vaex.test', 'vaex.ext', 'vaex.misc'],
       ext_modules=[extension_vaexfast] if on_rtd else [extension_vaexfast, extension_strings, extension_superutils, extension_superagg],
       zip_safe=False,
+      extras_require={
+          'all': ["gcsfs>=0.6.2", "s3fs"]
+      },
       entry_points={
           'console_scripts': ['vaex = vaex.__main__:main'],
           'gui_scripts': ['vaexgui = vaex.__main__:main'],  # sometimes in osx, you need to run with this
-          'vaex.dataframe.accessor': ['geo = vaex.geo:DataFrameAccessorGeo']
+          'vaex.dataframe.accessor': ['geo = vaex.geo:DataFrameAccessorGeo'],
+          'vaex.dataset.opener': [
+              'arrow = vaex.arrow.opener:ArrowOpener',
+              'parquet = vaex.arrow.opener:ParquetOpener',
+              'feather = vaex.arrow.opener:FeatherOpener',
+          ],
+          'vaex.file.scheme': [
+              's3 = vaex.file.s3',
+              'fsspec+s3 = vaex.file.s3fs',
+              'arrow+s3 = vaex.file.s3arrow',
+              'gs = vaex.file.gcs',
+              'fsspec+gs = vaex.file.gcs',
+          ]
       }
       )

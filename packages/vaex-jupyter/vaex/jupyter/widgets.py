@@ -475,6 +475,13 @@ tools_items_default = [
     {'value': 'select-x', 'icon': 'mdi-drag-vertical', 'tooltip': "X-Range selection"},
 ]
 
+selection_items_default = [
+    {'value': 'replace', 'icon': 'mdi-circle-medium', 'tooltip': "Replace mode"},
+    {'value': 'and', 'icon': 'mdi-set-center', 'tooltip': "And mode"},
+    {'value': 'or', 'icon': 'mdi-set-all', 'tooltip': "Or mode"},
+    {'value': 'subtract', 'icon': 'mdi-set-left', 'tooltip': "Subtract mode"},
+]
+
 transform_items_default = ['identity', 'log', 'log10', 'log1p', 'log1p']
 
 
@@ -495,11 +502,21 @@ class ToolsToolbar(v.VuetifyTemplate):
     transform_value = traitlets.Unicode(transform_items_default[0]).tag(sync=True)
     transform_items = traitlets.List(traitlets.Unicode(), default_value=transform_items_default).tag(sync=True)
     supports_transforms = traitlets.Bool(True).tag(sync=True)
+
     supports_normalize = traitlets.Bool(True).tag(sync=True)
+    z_normalize = traitlets.Bool(False, allow_none=True).tag(sync=True)
+    normalize = traitlets.Bool(False).tag(sync=True)
+
+    selection_mode_items = traitlets.Any(selection_items_default).tag(sync=True)
+    selection_mode = traitlets.Unicode('replace').tag(sync=True)
 
     @traitlets.default('template')
     def _template(self):
         return load_template('vue/tools-toolbar.vue')
+
+    @observe('z_normalize')
+    def _observe_normalize(self, change):
+        self.normalize = bool(self.z_normalize)
 
 class VuetifyTemplate(v.VuetifyTemplate):
     _metadata = traitlets.Dict(default_value=None, allow_none=True).tag(sync=True)

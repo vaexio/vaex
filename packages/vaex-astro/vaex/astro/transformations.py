@@ -249,9 +249,9 @@ class DataFrameAccessorAstro(object):
             df.add_variable('pi', np.pi)
             alpha = "pi/180.*%s" % alpha
             delta = "pi/180.*%s" % delta
-        df.virtual_columns[zname] = "{distance} * (cos({delta}) * cos({delta_gp}) * cos({alpha} - {alpha_gp}) + sin({delta}) * sin({delta_gp}))".format(**locals())
-        df.virtual_columns[xname] = "{distance} * (cos({delta}) * sin({alpha} - {alpha_gp}))".format(**locals())
-        df.virtual_columns[yname] = "{distance} * (sin({delta}) * cos({delta_gp}) - cos({delta}) * sin({delta_gp}) * cos({alpha} - {alpha_gp}))".format(**locals())
+        df.add_virtual_column(zname, "{distance} * (cos({delta}) * cos({delta_gp}) * cos({alpha} - {alpha_gp}) + sin({delta}) * sin({delta_gp}))".format(**locals()))
+        df.add_virtual_column(xname, "{distance} * (cos({delta}) * sin({alpha} - {alpha_gp}))".format(**locals()))
+        df.add_virtual_column(yname, "{distance} * (sin({delta}) * cos({delta_gp}) - cos({delta}) * sin({delta_gp}) * cos({alpha} - {alpha_gp}))".format(**locals()))
         return df
         # self.write_virtual_meta()
 

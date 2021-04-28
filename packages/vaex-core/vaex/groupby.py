@@ -90,19 +90,20 @@ class Grouper(BinnerBase):
         self.set = self.df._set(self.expression)
 
         # TODO: we modify the dataframe in place, this is not nice
-        basename = 'set_%s' % vaex.utils.find_valid_name(str(expression))
+        basename = 'set_%s' % vaex.utils._python_save_name(str(expression))
         self.setname = self.df.add_variable(basename, self.set, unique=True)
 
         keys = self.set.keys()
         self.bin_values = keys
         self.binby_expression = '_ordinal_values(%s, %s)' % (self.expression, self.setname)
-        self.N = len(self.set.keys())
+        self.N = len(self.bin_values)
         if self.set.has_null:
             self.N += 1
-            self.bin_values = ['null'] + self.bin_values
+            self.bin_values = [None] + self.bin_values
         if self.set.has_nan:
             self.N += 1
             self.bin_values = [np.nan] + self.bin_values
+        self.bin_values = self.expression.dtype.create_array(self.bin_values)
         self.binner = self.df._binner_ordinal(self.binby_expression, self.N)
 
 
@@ -170,7 +171,8 @@ class GroupByBase(object):
             grids[column_name] = values
             if isinstance(aggregate, vaex.agg.AggregatorDescriptorBasic)\
                 and aggregate.name == 'AggCount'\
-                and aggregate.expression == "*":
+                and aggregate.expression == "*"\
+                and (aggregate.selection is None or aggregate.selection is False):
                 self.counts = values
 
         for item in actions:
@@ -207,6 +209,36 @@ class GroupByBase(object):
                     else:
                         add(aggregate, name, override_name=override_name)
         return grids
+
+    @property
+    def groups(self):
+        for group, df in self:
+            yield group
+
+    def get_group(self, group):
+        values = group
+        filter_expressions = [self.df[expression] == value for expression, value in zip(self.groupby_expression, values)]
+        filter_expression = filter_expressions[0]
+        for expression in filter_expressions[1:]:
+            filter_expression = filter_expression & expression
+        return self.df[filter_expression]
+
+    def __iter__(self):
+        count_agg = vaex.agg.count()
+        counts = self.df._agg(count_agg, self.grid)
+        mask = counts > 0
+        values2d = np.array([coord[mask] for coord in np.meshgrid(*self.coords1d, indexing='ij')], dtype='O')
+        for i in range(values2d.shape[1]):
+            values = values2d[:,i]
+            dff = self.get_group(values)
+            yield tuple(values.tolist()), dff
+
+    def __len__(self):
+        count_agg = vaex.agg.count()
+        counts = self.df._agg(count_agg, self.grid)
+        mask = counts > 0
+        return mask.sum()
+
 
 class BinBy(GroupByBase):
     """Implementation of the binning and aggregation of data, see :method:`binby`."""
@@ -263,8 +295,6 @@ class GroupBy(GroupByBase):
         coords = [coord[mask] for coord in np.meshgrid(*self.coords1d, indexing='ij')]
         labels = {str(by.expression): coord for by, coord in zip(self.by, coords)}
         df_grouped = vaex.from_dict(labels)
-        for key, value in arrays.items():
-            df_grouped[key] = value[mask]
         for key, value in arrays.items():
             df_grouped[key] = value[mask]
         return df_grouped

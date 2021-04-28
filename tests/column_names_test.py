@@ -5,13 +5,12 @@ import h5py
 x = np.arange(10)
 
 
-def test_column_names(ds_local):
-    ds = ds_local
+def test_column_names(df_arrow):
+    ds = df_arrow
     columns_names = ds.get_column_names(virtual=True)
-    ds['__x'] = ds.x
+    ds['__x2'] = ds.x
     assert columns_names == ds.get_column_names(virtual=True)
-    assert '__x' in ds.get_column_names(virtual=True, hidden=True)
-    assert len(columns_names) == len(ds.get_column_names(virtual=True, hidden=True))-1
+    assert '__x2' in ds.get_column_names(virtual=True, hidden=True)
 
     ds = vaex.example()
     ds['__x'] = ds['x'] + 1
@@ -24,12 +23,12 @@ def test_column_names(ds_local):
 def test_add_invalid_name(tmpdir):
     # support invalid names and keywords
     df = vaex.from_dict({'X!1': x, 'class': x*2})
+    assert str(df['X!1']) != 'X!1', "invalid identifier cannot be an expression"
+    assert str(df['class']) != 'class', "keyword cannot be an expression"
     assert df.get_column_names() == ['X!1', 'class']
-    assert df.get_column_names(alias=False) != ['X!1', 'class']
     assert df['X!1'].tolist() == x.tolist()
     assert (df['X!1']*2).tolist() == (x*2).tolist()
     assert (df['class']).tolist() == (x*2).tolist()
-    assert 'X!1' in df._column_aliases
     assert (df.copy()['X!1']*2).tolist() == (x*2).tolist()
 
     path = str(tmpdir.join('test.hdf5'))
@@ -75,9 +74,9 @@ def test_invalid_name_read(tmpdir):
     path = str(tmpdir.join('test.hdf5'))
     df.export(path)
 
-    h5 = h5py.File(path, mode='r+')
-    h5['/table/columns']['1'] = h5['/table/columns']['x']
-    del h5['/table/columns']['x']
+    with h5py.File(path, mode='r+') as h5:
+        h5['/table/columns']['1'] = h5['/table/columns']['x']
+        del h5['/table/columns']['x']
 
     df = vaex.open(path)
     assert df['1'].tolist() == x.tolist()

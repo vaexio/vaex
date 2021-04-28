@@ -4,7 +4,7 @@ from vaex.jupyter.utils import _debounced_flush as flush
 import vaex.jupyter.widgets
 
 
-def test_selection_toggle_list():
+def test_selection_toggle_list(flush_guard):
     df = vaex.from_scalars(x=1)
     widget = vaex.jupyter.widgets.SelectionToggleList(df=df)
     assert widget.selection_names == []
@@ -30,7 +30,7 @@ def test_selection_toggle_list():
     assert widget.value == []
 
 
-def test_column_list_traitlets():
+def test_column_list_traitlets(flush_guard):
     df = vaex.from_scalars(x=1, y=2)
     df['z'] = df.x + df.y
     column_list = vt.ColumnsMixin(df=df)
@@ -41,7 +41,7 @@ def test_column_list_traitlets():
     assert len(column_list.columns) == 3
 
 
-def test_expression():
+def test_expression(flush_guard):
     df = vaex.example()
     expression = df.widget.expression()
     assert expression.value is None
@@ -70,9 +70,10 @@ def test_expression():
     assert str(expression.value) == '(x + 2)'
     axis.expression = df.x + 3
     assert str(expression.value) == '(x + 3)'
+    flush(all=True)
 
 
-def test_column():
+def test_column(flush_guard):
     df = vaex.example()
     column = df.widget.column()
     assert column.value is None
@@ -84,3 +85,4 @@ def test_column():
     assert str(column_widget.value) == 'x'
     axis.expression = df.y
     assert str(column_widget.value) == 'y'
+    flush(all=True)

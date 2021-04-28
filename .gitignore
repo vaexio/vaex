@@ -4,7 +4,6 @@
 *.mk4
 #/*.png
 *.eps
-*.hdf5
 *.pgm
 *.pdf
 *.fld
@@ -79,7 +78,6 @@ catboost_info/
 .vscode
 
 # symlinks generated in setup.py
-packages/vaex-core/vaex/arrow
 packages/vaex-core/vaex/astro
 packages/vaex-core/vaex/distributed
 packages/vaex-core/vaex/graphql
@@ -95,3 +93,6 @@ packages/vaex-core/vaex/*.*-win_amd64.pyd
 
 # ASV environment, results database (JSON) and generated HTML static files
 .asv/
+
+# output file from the docs
+docs/source/data/io/output*

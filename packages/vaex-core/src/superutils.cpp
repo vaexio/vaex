@@ -4,13 +4,15 @@
 #define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
 #include <numpy/arrayobject.h>
 #include <Python.h>
+#include "hash.hpp"
 
 namespace py = pybind11;
 
 #define custom_isnan(value) (!(value==value))
 
 namespace vaex {
-    void init_hash_primitives(py::module &);
+    void init_hash_primitives_power_of_two(py::module &);
+    void init_hash_primitives_prime(py::module &);
     void init_hash_string(py::module &);
     void init_hash_object(py::module &);
 }
@@ -146,6 +148,12 @@ public:
     bool _owns_data;
 };
 
+template<typename T>
+std::size_t hash_func(T v) {
+    vaex::hash<T> h;
+    return h(v);
+}
+
 PYBIND11_MODULE(superutils, m) {
     _import_array();
 
@@ -153,6 +161,14 @@ PYBIND11_MODULE(superutils, m) {
 
     py::class_<Mask>(m, "Mask", py::buffer_protocol())
         .def(py::init<size_t>())
+        .def(py::init([](py::buffer mask_array) {
+                py::buffer_info info = mask_array.request();
+                if(info.ndim != 1) {
+                    throw std::runtime_error("Expected a 1d byte buffer");
+                }
+                return new Mask((uint8_t*)info.ptr, info.shape[0]);
+            })
+        )
         .def_buffer([](Mask &mask) -> py::buffer_info {
             std::vector<ssize_t> strides = {1};
             std::vector<ssize_t> shapes = {mask.length};
@@ -180,8 +196,10 @@ PYBIND11_MODULE(superutils, m) {
         // .def("reduce", &Mask::reduce)
     ;
 
+    m.def("hash", hash_func<uint64_t>);
 
-    vaex::init_hash_primitives(m);
+    vaex::init_hash_primitives_power_of_two(m);
+    vaex::init_hash_primitives_prime(m);
     vaex::init_hash_string(m);
     vaex::init_hash_object(m);
 }

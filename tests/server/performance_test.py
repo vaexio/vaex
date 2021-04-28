@@ -5,13 +5,13 @@ import contextlib
 @contextlib.contextmanager
 def small_buffer(ds, size=3):
     if ds.is_local():
-        previous = ds.executor.buffer_size
-        ds.executor.buffer_size = size
+        previous = ds.executor.chunk_size
+        ds.executor.chunk_size = size
         ds._invalidate_selection_cache()
         try:
             yield
         finally:
-            ds.executor.buffer_size = previous
+            ds.executor.chunk_size = previous
     else:
         yield # for remote datasets we don't support this ... or should we?
 

@@ -13,7 +13,7 @@ author_email = "maartenbreddels@gmail.com"
 license = 'MIT'
 version = version.__version__
 url = 'https://www.github.com/maartenbreddels/vaex'
-install_requires_hdf5 = ["vaex-core>=2.0.2,<3", "h5py>=2.9", "s3fs<0.3"]
+install_requires_hdf5 = ["vaex-core>=4.0.0,<5", "h5py>=2.9"]
 
 setup(name=name + '-hdf5',
       version=version,
@@ -24,4 +24,12 @@ setup(name=name + '-hdf5',
       install_requires=install_requires_hdf5,
       license=license,
       packages=['vaex.hdf5'],
-      zip_safe=False,)
+      zip_safe=False,
+      entry_points={
+        'vaex.dataset.opener': [
+            'hdf5 = vaex.hdf5.dataset:Hdf5MemoryMapped',
+            'hdf5-amuse = vaex.hdf5.dataset:AmuseHdf5MemoryMapped',
+            'hdf5-gadget = vaex.hdf5.dataset:Hdf5MemoryMappedGadget',
+        ],
+      }
+)

@@ -54,7 +54,7 @@ class CatBoostModel(state.HasState):
     1             6.1            3               4.6            1.4         1  [0.00350424 0.9882139  0.00828186]
     2             6.6            2.9             4.6            1.3         1  [0.00325705 0.98891631 0.00782664]
     '''
-
+    snake_name = "catboost_model"
     features = traitlets.List(traitlets.Unicode(), help='List of features to use when fitting the CatBoostModel.')
     target = traitlets.Unicode(allow_none=False, help='The name of the target column.')
     num_boost_round = traitlets.CInt(default_value=None, allow_none=True, help='Number of boosting iterations.')
@@ -63,9 +63,14 @@ class CatBoostModel(state.HasState):
     prediction_name = traitlets.Unicode(default_value='catboost_prediction', help='The name of the virtual column housing the predictions.')
     prediction_type = traitlets.Enum(values=['Probability', 'Class', 'RawFormulaVal'], default_value='Probability',
                                      help='The form of the predictions. Can be "RawFormulaVal", "Probability" or "Class".')
+    batch_size = traitlets.CInt(default_value=None, allow_none=True, help='If provided, will train in batches of this size.')
+    batch_weights = traitlets.List(traitlets.Float(), default_value=[], allow_none=True, help='Weights to sum models at the end of training in batches.')
+    evals_result_ = traitlets.List(traitlets.Dict(), default_value=[], help="Evaluation results")
+    ctr_merge_policy = traitlets.Enum(values=['FailIfCtrsIntersects', 'LeaveMostDiversifiedTable', 'IntersectingCountersAverage'],
+                                      default_value='IntersectingCountersAverage', help="Strategy for summing up models. Only used when training in batches. See the CatBoost documentation for more info.")
 
     def __call__(self, *args):
-        data2d = np.vstack([arg.astype(np.float64) for arg in args]).T.copy()
+        data2d = np.stack([np.asarray(arg, np.float64) for arg in args], axis=1)
         dmatrix = catboost.Pool(data2d, **self.pool_params)
         return self.booster.predict(dmatrix, prediction_type=self.prediction_type)
 
@@ -83,7 +88,7 @@ class CatBoostModel(state.HasState):
         copy.add_virtual_column(self.prediction_name, expression, unique=False)
         return copy
 
-    def fit(self, df, evals=None, early_stopping_rounds=None, verbose_eval=None, plot=False, **kwargs):
+    def fit(self, df, evals=None, early_stopping_rounds=None, verbose_eval=None, plot=False, progress=None, **kwargs):
         '''Fit the CatBoostModel model given a DataFrame.
         This method accepts all key word arguments for the catboost.train method.
 
@@ -95,26 +100,68 @@ class CatBoostModel(state.HasState):
             If *verbose_eval* is True then the evaluation metric on the validation set is printed at each boosting stage.
         :param bool plot: if True, display an interactive widget in the Jupyter
             notebook of how the train and validation sets score on each boosting iteration.
+        :param progress: If True display a progressbar when the training is done in batches.
         '''
-
-        data = df[self.features].values
-        target_data = df[self.target].values
-        dtrain = catboost.Pool(data=data, label=target_data, **self.pool_params)
+        self.pool_params['feature_names'] = self.features
         if evals is not None:
             for i, item in enumerate(evals):
                 data = item[self.features].values
-                target_data = item[self.target].values
+                target_data = item[self.target].to_numpy()
                 evals[i] = catboost.Pool(data=data, label=target_data, **self.pool_params)
 
         # This does the actual training/fitting of the catboost model
-        self.booster = catboost.train(params=self.params,
-                                      dtrain=dtrain,
-                                      num_boost_round=self.num_boost_round,
-                                      evals=evals,
-                                      early_stopping_rounds=early_stopping_rounds,
-                                      verbose_eval=verbose_eval,
-                                      plot=plot,
-                                      **kwargs)
+        if self.batch_size is None:
+            data = df[self.features].values
+            target_data = df[self.target].to_numpy()
+            dtrain = catboost.Pool(data=data, label=target_data, **self.pool_params)
+            model = catboost.train(params=self.params,
+                                   dtrain=dtrain,
+                                   num_boost_round=self.num_boost_round,
+                                   evals=evals,
+                                   early_stopping_rounds=early_stopping_rounds,
+                                   verbose_eval=verbose_eval,
+                                   plot=plot,
+                                   **kwargs)
+            self.booster = model
+            self.evals_result_ = [model.evals_result_]
+            self.feature_importances_ = list(model.feature_importances_)
+        else:
+            models = []
+
+            # Set up progressbar
+            n_samples = len(df)
+            progressbar = vaex.utils.progressbars(progress)
+
+            column_names = self.features + [self.target]
+            iterator = df[column_names].to_pandas_df(chunk_size=self.batch_size)
+            for i1, i2, chunk in iterator:
+                progressbar(i1 / n_samples)
+                data = chunk[self.features].values
+                target_data = chunk[self.target].values
+                dtrain = catboost.Pool(data=data, label=target_data, **self.pool_params)
+                model = catboost.train(params=self.params,
+                                       dtrain=dtrain,
+                                       num_boost_round=self.num_boost_round,
+                                       evals=evals,
+                                       early_stopping_rounds=early_stopping_rounds,
+                                       verbose_eval=verbose_eval,
+                                       plot=plot,
+                                       **kwargs)
+                self.evals_result_.append(model.evals_result_)
+                models.append(model)
+            progressbar(1.0)
+
+            # Weights are key when summing models
+            if len(self.batch_weights) == 0:
+                batch_weights = [1/len(models)] * len(models)
+            elif self.batch_weights is not None and len(self.batch_weights) != len(models):
+                raise ValueError("'batch_weights' must be te same length as the number of models.")
+            else:
+                batch_weights = self.batch_weights
+
+            # Sum the models
+            self.booster = catboost.sum_models(models, weights=batch_weights, ctr_merge_policy=self.ctr_merge_policy)
+
 
     def predict(self, df, **kwargs):
         '''Provided a vaex DataFrame, get an in-memory numpy array with the predictions from the CatBoostModel model.

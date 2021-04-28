@@ -1,5 +1,5 @@
 #include "agg.hpp"
-#include "hash_primitives.cpp"
+#include "hash_primitives.hpp"
 
 namespace vaex {
 
@@ -7,23 +7,25 @@ template<class DataType=double, class GridType=uint64_t, class IndexType=default
 class AggNUnique : public Aggregator {
 public:
     using Type = AggNUnique<DataType, GridType, IndexType, FlipEndian>;
+    using Counter = counter<DataType, hashmap_primitive>; // TODO: do we want a prime growth variant?
     using index_type = IndexType;
     using grid_type = GridType;
     using data_type = DataType;
     AggNUnique(Grid<IndexType>* grid, bool dropmissing, bool dropnan) : grid(grid), grid_data(nullptr), data_ptr(nullptr), data_mask_ptr(nullptr), selection_mask_ptr(nullptr), dropmissing(dropmissing), dropnan(dropnan) {
-        counters = new counter<data_type>[grid->length1d];
+        counters = new Counter[grid->length1d];
     }
     virtual ~AggNUnique() {
         if(grid_data)
             free(grid_data);
         delete[] counters;
     }
-    virtual void reduce(std::vector<Type*> others) {
+    virtual void reduce(std::vector<Aggregator*> others) {
         if(grid_data == nullptr) {
             grid_data = (grid_type*)malloc(sizeof(grid_type) * grid->length1d);
         }
         for(size_t i = 0; i < this->grid->length1d; i++) {
-            for(auto other: others) {
+            for (auto j : others) {
+                auto other = static_cast<AggNUnique*>(j);
                 this->counters[i].merge(other->counters[i]);
             }
             grid_data[i] = counters[i].map.size();
@@ -66,6 +68,10 @@ public:
         this->data_ptr = (data_type*)info.ptr;
         this->data_size = info.shape[0];
     }
+    void clear_data_mask() {
+        this->data_mask_ptr = nullptr;
+        this->data_mask_size = 0;
+    }
     void set_data_mask(py::buffer ar) {
         py::buffer_info info = ar.request();
         if(info.ndim != 1) {
@@ -84,7 +90,7 @@ public:
     }
     Grid<IndexType>* grid;
     grid_type* grid_data;
-    counter<data_type>* counters;
+    Counter* counters;
     data_type* data_ptr;
     uint64_t data_size;
     uint8_t* data_mask_ptr;
@@ -119,6 +125,7 @@ void add_agg(Module m, Base& base, const char* class_name) {
             }
         )
         .def("set_data", &Agg::set_data)
+        .def("clear_data_mask", &Agg::clear_data_mask)
         .def("set_data_mask", &Agg::set_data_mask)
         .def("set_selection_mask", &Agg::set_selection_mask)
         .def("reduce", &Agg::reduce)

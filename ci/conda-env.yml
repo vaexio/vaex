@@ -1,0 +1,31 @@
+astropy
+cython
+fsspec <0.9
+geopandas
+graphviz
+h5py
+# libcxx=9.0.0
+lightgbm
+matplotlib-base
+notebook
+numba
+numpy
+pandas
+pcre
+pip
+psutil
+python-annoy
+# py-xgboost
+# pyarrow
+pyqt
+pytest
+pytest-asyncio <0.14
+pytest-mpl
+pytest-timeout
+python-graphviz
+scikit-learn
+scipy
+s3fs
+gcsfs
+tornado
+xarray

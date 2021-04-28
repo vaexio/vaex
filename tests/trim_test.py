@@ -26,8 +26,8 @@ def test_trim(ds_local):
     assert ds_trimmed.evaluate('x').tolist() == np.arange(6, 9.).tolist()
 
 
-def test_trim_hidden(df_local):
-    df = df_local
+def test_trim_hidden(df_local_non_arrow):
+    df = df_local_non_arrow
     df['r'] = df.x + df.y
     df_sub = df[['r']].head()
     assert len(df_sub.columns['__x']) == len(df_sub)

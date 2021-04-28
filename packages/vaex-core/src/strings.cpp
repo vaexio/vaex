@@ -101,8 +101,6 @@ class StringSequenceBase : public StringSequence {
     virtual StringSequenceBase* concat2(std::string other);
     virtual StringSequenceBase* concat_reverse(std::string other);
     virtual StringSequenceBase* pad(int width, std::string fillchar, bool left, bool right);
-    virtual StringSequenceBase* lower();
-    virtual StringSequenceBase* upper();
     virtual StringSequenceBase* lstrip(std::string chars);
     virtual StringSequenceBase* rstrip(std::string chars);
     virtual StringSequenceBase* repeat(int64_t repeats);
@@ -347,7 +345,11 @@ class StringSequenceBase : public StringSequence {
             py::gil_scoped_release release;
             if(has_null() || others->has_null()) {
                 for(size_t i = 0; i < length; i++) {
-                    if(is_null(i) || others->is_null(i)) {
+                    bool null_left = is_null(i);
+                    bool null_right = others->is_null(i);
+                    if(null_left && null_right) {
+                        m(i) = true;
+                    } else if(null_left || null_right) {
                         m(i) = false;
                     } else {
                         auto str = view(i);
@@ -375,10 +377,10 @@ class StringSequenceBase : public StringSequence {
             if(has_null() || others->has_null()) {
                 for(size_t i = 0; i < length; i++) {
                     bool found = false;
-                    if(is_null(i)) {
+                    if(!is_null(i)) {
                         auto str = view(i);
                         for(size_t j = 0; j < others->length; j++) {
-                            if(others->is_null(j)) {
+                            if(!others->is_null(j)) {
                                 auto other = others->view(j);
                                 found = str == other;
                                 if(found)
@@ -648,8 +650,6 @@ public:
         bytes = (char*)realloc(bytes, byte_length);
     }
     virtual StringSequenceBase* capitalize();
-    // virtual StringSequenceBase* lower();
-    // virtual StringSequenceBase* upper();
     // a slice for when the indices are not filled yet
     StringList* slice_byte_offset(size_t i1, size_t i2, size_t byte_offset) {
         size_t byte_length = this->byte_length - byte_offset;
@@ -1181,19 +1181,6 @@ StringSequenceBase* _apply2(StringSequenceBase* _this, W word_transform) {
 inline void lower(const string_view& source, char*& target) {
     utf8_transform(source, target, ::tolower, ::char32_lowercase);
     target += source.length();
-}
-
-StringSequenceBase* StringSequenceBase::lower() {
-    return _apply2<>(this, char_transformer_lower());
-}
-
-inline void upper(const string_view& source, char*& target) {
-    utf8_transform(source, target, ::toupper, ::char32_uppercase);
-    target += source.length();
-}
-
-StringSequenceBase* StringSequenceBase::upper() {
-    return _apply2<>(this, char_transformer_upper());
 }
 
 StringSequenceBase* StringSequenceBase::lstrip(std::string chars) {
@@ -1926,6 +1913,46 @@ StringSequenceBase* StringListList::join(std::string sep) {
     return sl;
 }
 
+template<class T>
+T* join(std::string sep, py::array_t<typename T::index_type, py::array::c_style> offsets_list, T* input, int64_t offset=0) {
+    py::gil_scoped_release release;
+    int64_t list_length = offsets_list.size() - 1;
+    auto offsets = offsets_list.template mutable_unchecked<1>();
+    T* sl = new T(1, list_length);
+    char* target = sl->bytes;
+    size_t byte_offset;
+    for(int64_t i = 0; i < list_length; i++) {
+        byte_offset = target - sl->bytes;
+        sl->indices[i] = byte_offset;
+        int64_t i1 = offsets[i] - offset;
+        int64_t i2 = offsets[i+1] - offset;
+        size_t count = i2 - i1;
+        for(size_t j = 0; j < count; j++) {
+            auto str = input->get(i1 + j);
+            // make sure the buffer is large enough
+            while((byte_offset + str.length()) > sl->byte_length) {
+                sl->grow();
+                target = sl->bytes + byte_offset;
+            }
+            copy(str, target);
+            byte_offset = target - sl->bytes;
+            // copy separator
+            if(j < (count - 1)) {
+
+                while((byte_offset + sep.length()) > sl->byte_length) {
+                    sl->grow();
+                    target = sl->bytes + byte_offset;
+                }
+                copy(sep, target);
+                byte_offset = target - sl->bytes;
+            }
+        }
+    }
+    byte_offset = target - sl->bytes;
+    sl->indices[list_length] = byte_offset;
+    return sl;
+}
+
 template<class StringList, class Base, class Module>
 void add_string_list(Module m, Base& base, const char* class_name) {
 
@@ -1966,7 +1993,7 @@ void add_string_list(Module m, Base& base, const char* class_name) {
                 return new StringList((char*)bytes_info.ptr, bytes_info.shape[0],
                                    (typename StringList::index_type*)indices_info.ptr, string_count, offset, null_bitmap_ptr, null_offset
                                   );
-            }), py::keep_alive<1, 2>(), py::keep_alive<1, 3>() // keep a reference to the ndarrays
+            }), py::keep_alive<1, 2>(), py::keep_alive<1, 3>(), py::keep_alive<1, 6>() // keep a reference to the ndarrays
         )
         .def("split", &StringList::split, py::keep_alive<0, 1>())
         .def("slice", &StringList::slice, py::keep_alive<0, 1>())
@@ -1976,14 +2003,11 @@ void add_string_list(Module m, Base& base, const char* class_name) {
         // bug? we have to add this again
         // .def("get", (py::object (StringSequenceBase::*)(size_t, size_t))&StringSequenceBase::get, py::return_value_policy::take_ownership)
         .def_property_readonly("bytes", [](const StringList &sl) {
-                auto capsule = py::capsule(&sl, [](void *v) {  });
-                return py::array_t<char>(sl.byte_length, sl.bytes, capsule);
+                return py::array_t<char>(sl.byte_length, sl.bytes, py::cast(sl));
             }
-
         )
         .def_property_readonly("indices", [](const StringList &sl) {
-                auto capsule = py::capsule(&sl, [](void *v) {  });
-                return py::array_t<typename StringList::index_type>(sl.length+1, sl.indices, capsule);
+                return py::array_t<typename StringList::index_type>(sl.length+1, sl.indices, py::cast(sl));
             }
         )
         .def_property_readonly("null_bitmap", [](const StringList &sl) -> py::object {
@@ -1997,6 +2021,10 @@ void add_string_list(Module m, Base& base, const char* class_name) {
         )
         .def_property_readonly("offset", [](const StringList &sl) {
                 return sl.offset;
+            }
+        )
+        .def_property_readonly("null_offset", [](const StringList &sl) {
+                return sl.null_offset;
             }
         )
         .def_property_readonly("length", [](const StringList &sl) {
@@ -2127,11 +2155,9 @@ PYBIND11_MODULE(superstrings, m) {
         .def("pad", &StringSequenceBase::pad)
         .def("search", &StringSequenceBase::search, "Tests if strings contains pattern", py::arg("pattern"), py::arg("regex"))//, py::call_guard<py::gil_scoped_release>())
         .def("count", &StringSequenceBase::count, "Count occurrences of pattern", py::arg("pattern"), py::arg("regex"))
-        .def("upper", &StringSequenceBase::upper)
         .def("endswith", &StringSequenceBase::endswith)
         .def("find", &StringSequenceBase::find)
         .def("isin", &StringSequenceBase::isin)
-        .def("lower", &StringSequenceBase::lower)
         .def("match", &StringSequenceBase::match, "Tests if strings matches regex", py::arg("pattern"))
         .def("equals", &StringSequenceBase::equals, "Tests if strings are equal")
         .def("equals", &StringSequenceBase::equals2, "Tests if strings are equal")
@@ -2259,4 +2285,6 @@ PYBIND11_MODULE(superstrings, m) {
     m.def("format", &format<uint8_t>);
     m.def("format", &format<bool>);
     m.def("format", &format_string);
+    m.def("join", &join<StringList32>);
+    m.def("join", &join<StringList64>);
 }

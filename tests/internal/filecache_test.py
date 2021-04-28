@@ -12,7 +12,8 @@ def test_hdf5(tmpdir):
     with open(path, 'rb') as fp:
         fp.seek(0, 2)
         cache = vaex.file.cache.CachedFile(vaex.file.dup(fp), fake_path, str(tmpdir), block_size=2)
-        df = vaex.hdf5.dataset.Hdf5MemoryMapped(cache)
+        ds = vaex.hdf5.dataset.Hdf5MemoryMapped(cache)
+        df = vaex.dataframe.DataFrameLocal(ds)
         assert df.x.tolist() == [1, 2]
         assert df.y.tolist() == [3, 4]
         assert df.s.tolist() == s
@@ -124,3 +125,20 @@ def test_cache(tmpdir):
         assert cache.mask_file.data[2] == 1
         assert cache.mask_file.data[3] == 1
         assert cache.mask_file.data[4] == 1
+
+        # reset
+        cache.data_file.data[:] = ord('x')
+        cache.mask_file.data[:] = 0
+        cache.block_reads = 0
+        cache.reads = 0
+        cache.seek(3)
+        assert cache.read(2) == b'45'
+        assert cache.mask_file.data.tolist() == [0, 1, 1, 0, 0]
+        assert cache.block_reads == 2
+        assert cache.reads == 1
+        cache.seek(0)
+        # this should do two reads, once of the first block, and then the last two at once
+        assert cache.read(10) == b'1234567890'
+        assert cache.block_reads == 5
+        assert cache.reads == 3
+        assert cache.mask_file.data.tolist() == [1, 1, 1, 1, 1]

@@ -167,7 +167,7 @@ GB = MB * 1024
 
 
 class WebServer(threading.Thread):
-    def __init__(self, address="localhost", port=9000, webserver_thread_count=2, cache_byte_size=500 * MB,
+    def __init__(self, address="127.0.0.1", port=9000, webserver_thread_count=2, cache_byte_size=500 * MB,
                  token=None, token_trusted=None, base_url=None,
                  cache_selection_byte_size=500 * MB, datasets=[], compress=True, development=False, threads_per_job=4):
         threading.Thread.__init__(self)

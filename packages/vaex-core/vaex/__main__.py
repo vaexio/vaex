@@ -34,54 +34,12 @@ positional arguments:
     alias               manage aliases
     stat                print statistics/info about dataset
     test                run unittests
+    open                tests opening of a file (will return exit error on failure)
     ...                 anything else will start up the gui, see usage below
 
-
-All other cases will start up the gui:
-usage: vaex [input expression [expression ...] [key=value ...]
-            [-|--|+|++] input expression...]
-
-input        input file or url (if an url is provided, a dataset name should follow)
-expression   expressions to plot, for instance "x**2", "y" "x+y"
--|--|+|++    - will open a new window, no input is required
-             -- will open a new window with a new dataset (input is required)
-             + will add a new layer, no input is required
-             ++ will add a new layer with a new dataset (input is required)
-key=value    will set properties of the plot, see a list of values below
-
-there can be 1, 2 or 3 expressions, resulting in a 1d histogram, a 2d density plot or a
- 3d volume rendering window.
-
-key=value options:
-amplitude          (string) expression for how the histogram translates to an amplitude,
-                    available grids:
-                       counts: N dimensional grid containing the counts
-                       weighted: N dimensional grid containing the sum of
-                            the weighted values
-weight             (string) expression for the weight field
-grid_size          (integer, power of 2), defines the size of the histogram grid, example
-                       grid_size=64 grid_size=129
-vector_grid_size   similar, for the vector histogram
-vx, vy, vz         (string) expressions for the x,y and z component of the vector grid
-
-
 Examples:
-# single window, showing log(counts+1) as amplitude
-$ vaex example.hdf5 x y amplitude="log(counts+1)'
-
-# adding a second window, showing x vs z
-vaex example.hdf5 x y amplitude="log(counts+1)" - x z amplitude="log(counts+1)"
-
-# adding a second window with a new dataset
-vaex example.hdf5 x y amplitude="log(counts+1)" -- example2.hdf5 x z amplitude="log(counts+1)"
-
-# single window, with an extra layer
-vaex example.hdf5 x y amplitude="log(counts+1)" + y x amplitude="log(counts+1)"
-
-# single window, with an extra layer from a new dataset
-vaex example.hdf5 x y amplitude="log(counts+1)" ++ example2.hdf5 x y amplitude="log(counts+1)"
-
-see more examples at http://TODO
+$ vaex convert s3://vaex/taxi/nyc_taxi_2015_mini.parquet taxi.hdf5
+$ vaex convert taxi.hdf5 taxi.csv
 
 """
 
@@ -110,8 +68,8 @@ def main(args=None):
             import vaex.benchmark
             vaex.benchmark.main([os.path.basename(args[0]) + " " + args[1]] + args[2:])
         elif len(args) > 1 and args[1] == "convert":
-            import vaex.export
-            vaex.export.main([os.path.basename(args[0]) + " " + args[1]] + args[2:])
+            import vaex.convert
+            vaex.convert.main([os.path.basename(args[0]) + " " + args[1]] + args[2:])
         elif len(args) > 1 and args[1] == "meta":
             import vaex.meta
             vaex.meta.main([os.path.basename(args[0]) + " " + args[1]] + args[2:])
@@ -121,13 +79,51 @@ def main(args=None):
         elif len(args) > 1 and args[1] == "stat":
             import vaex.misc_cmdline
             vaex.misc_cmdline.stat_main([os.path.basename(args[0]) + " " + args[1]] + args[2:])
+        elif len(args) > 1 and args[1] == "open":
+            sys.exit(open_main([os.path.basename(args[0]) + " " + args[1]] + args[2:]))
         elif len(args) > 1 and args[1] == "test":
             import vaex.test.__main__
             vaex.test.__main__.main([os.path.basename(args[0]) + " " + args[1]] + args[2:])
         else:
-            import vaex.ui.main
-            vaex.ui.main.main(args[1:])
+            print(usage)
+            sys.exit(0)
 
+def open_main(argv):
+    import argparse
+    parser = argparse.ArgumentParser(argv[0])
+    parser.add_argument('--verbose', '-v', default=False, action='store_true', help="give extra output")
+    parser.add_argument('--quiet', '-q', default=False, action='store_true', help="do not output anything")
+    parser.add_argument('--dry-run', '-n', default=False, action='store_true', help="do not actually execute commands (like delete)")
+    parser.add_argument('--delete', help="Delete file when reading fails", default=False, action='store_true')
+    parser.add_argument("input", help="list of files to try to open", nargs="*")
+
+    args = parser.parse_args(argv[1:])
+    import vaex
+    import vaex.file
+    failed = False
+    if args.verbose:
+        print(f"Checking files {', '.join(args.input)}")
+    for path in args.input:
+        try:
+            vaex.open(path)
+        except BaseException as e:
+            failed = True
+            if not args.quiet:
+                print(e)
+            if args.delete:
+                if not args.quiet:
+                    print(f'rm {path}')
+                if not args.dry_run:
+                    try:
+                        vaex.file.remove(path)
+                    except FileNotFoundError:
+                        pass
+    if args.verbose:
+        if failed:
+            print("Oops, had issues opening some files")
+        else:
+            print("All files could be opened")
+    return 123 if failed else 0
 
 if __name__ == "__main__":
     main()

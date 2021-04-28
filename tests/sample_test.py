@@ -5,8 +5,8 @@ def test_sample(ds_local):
     ds = ds_local
     x = np.arange(10).tolist()
     dss = ds.sample(frac=1, random_state=42)
-    assert dss.x.evaluate().tolist() != x
-    assert list(sorted(dss.x.evaluate().tolist())) == x
+    assert dss.x.tolist() != x
+    assert list(sorted(dss.x.tolist())) == x
 
     dss = ds.sample(n=1, random_state=42)
     assert len(dss) == 1
@@ -16,5 +16,5 @@ def test_sample(ds_local):
 
 
     dss = ds.sample(n=100, random_state=42, replace=True, weights='x')
-    assert 0 not in dss.x.evaluate().tolist()
-    assert 'bla' not in dss.x.evaluate().tolist()
+    assert 0 not in dss.x.tolist()
+    assert 'bla' not in dss.x.tolist()

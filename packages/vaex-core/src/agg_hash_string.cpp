@@ -17,11 +17,12 @@ public:
             free(grid_data);
         delete[] counters;
     }
-    virtual void reduce(std::vector<Type*> others) {
+    virtual void reduce(std::vector<Aggregator*> others) {
         if(grid_data == nullptr)
             grid_data = (grid_type*)malloc(sizeof(grid_type) * grid->length1d);
         for(size_t i = 0; i < this->grid->length1d; i++) {
-            for(auto other: others) {
+            for (auto j : others) {
+                auto other = static_cast<AggStringNUnique*>(j);
                 this->counters[i].merge(other->counters[i]);
             }
             if(dropmissing)
@@ -54,6 +55,10 @@ public:
     }
     void set_data(StringSequence* string_sequence, size_t index) {
         this->string_sequence = string_sequence;
+    }
+    void clear_data_mask() {
+        this->data_mask_ptr = nullptr;
+        this->data_mask_size = 0;
     }
     void set_data_mask(py::buffer ar) {
         py::buffer_info info = ar.request();
@@ -111,6 +116,7 @@ void add_agg(Module m, Base& base, const char* class_name) {
             }
         )
         .def("set_data", &Agg::set_data)
+        .def("clear_data_mask", &Agg::clear_data_mask)
         .def("set_data_mask", &Agg::set_data_mask)
         .def("set_selection_mask", &Agg::set_selection_mask)
         .def("reduce", &Agg::reduce)

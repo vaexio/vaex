@@ -2,7 +2,7 @@ import pkg_resources
 
 
 packages = ['vaex', 'vaex-core', 'vaex-viz', 'vaex-hdf5', 'vaex-server', 'vaex-astro',
-            'vaex-ui', 'vaex-jupyter', 'vaex-ml', 'vaex-distributed', 'vaex-arrow', 'vaex-graphql']
+            'vaex-ui', 'vaex-jupyter', 'vaex-ml', 'vaex-arrow', 'vaex-graphql', 'vaex-enterprise']
 
 
 def get_versions():

@@ -13,7 +13,8 @@ def test_variable_rename(df):
     df['w'] = df['x'] + df['a']
     assert (df.x + 2).tolist() == df.w.tolist()
     df.rename('a', 'a2')
-    assert set(df.w.variables()) == {'x', 'a2'}
+    # arrow df has an extra variable, since it does the virtual as_numpy
+    assert set(df.w.variables()) in [{'x', 'a2'} , {'__x', 'x', 'a2'}]
     assert (df.x + 2).tolist() == df.w.tolist()
 
 

@@ -11,6 +11,7 @@ def test_rename(ds_filtered):
     assert ds.r.values.tolist() == xvalues
     assert ds.q.values.tolist() == qvalues
 
+
 def test_rename_existing_expression(df_local):
     df = df_local
     x_old = df['x']
@@ -20,10 +21,9 @@ def test_rename_existing_expression(df_local):
     assert x_old.tolist() == xvalues
 
 
-
 def test_reassign_virtual(ds_local):
     df = ds_local
-    x = df.x.values
+    x = df.x.to_numpy()
     df['r'] = df.x+1
     assert df.r.tolist() == (x+1).tolist()
     df['r'] = df.r+1
@@ -32,7 +32,7 @@ def test_reassign_virtual(ds_local):
 
 def test_reassign_column(ds_filtered):
     df = ds_filtered.extract()
-    x = df.x.values
+    x = df.x.to_numpy()
     df['r'] = (df.x+1).evaluate()
     df['r'] = (df.r+1).evaluate()
     assert df.r.tolist() == (x+2).tolist()
@@ -81,7 +81,9 @@ def test_rename_aliased():
     df = vaex.from_dict({'1': [1, 2], '#': [2,3]})
     df['x'] = df['1'] + df['#']
     assert df.x.tolist() == [3, 5]
+    assert df['#'].tolist() == [2, 3]
     df.rename('#', '$')
+    assert df['$'].tolist() == [2, 3]
     df['x'] = df['1'] + df['$']
     assert df.x.tolist() == [3, 5]
 
@@ -89,3 +91,11 @@ def test_rename_aliased():
     assert df.x.tolist() == [3, 5]
     df['x'] = df['1'] + df['$']
     assert df.x.tolist() == [5, 8]
+
+
+def test_rename_expression():
+    df = vaex.from_dict({'1': [1, 2], '#': [2,3]})
+    expr = vaex.expression.Expression(df, "df['1']")
+    assert expr.tolist() == [1, 2]
+    expr2 = expr._rename('1', '#')
+    assert expr2.tolist() == [2, 3]

@@ -2,7 +2,6 @@ import logging
 import numpy as np
 
 import vaex.expression
-import vaex.functions
 from .utils import _split_and_combine_mask, as_flat_float
 
 logger = logging.getLogger('vaex.selections')
@@ -87,11 +86,11 @@ class SelectionDropNa(Selection):
         for name in self.column_names:
             data = df._evaluate(name, i1, i2, filter_mask=filter_mask)
             if self.drop_nan and self.drop_masked:
-                mask &= ~vaex.functions.isna(data)
+                mask &= ~vaex.array_types.to_numpy(vaex.functions.isna(data))
             elif self.drop_nan:
-                mask &= ~vaex.functions.isnan(data)
+                mask &= ~vaex.array_types.to_numpy(vaex.functions.isnan(data))
             elif self.drop_masked:
-                mask &= ~vaex.functions.ismissing(data)
+                mask &= ~vaex.array_types.to_numpy(vaex.functions.ismissing(data))
         if previous_mask is None:
             logger.debug("setting mask")
         else:
@@ -133,7 +132,7 @@ class SelectionExpression(Selection):
             N = i2 - i1
             current_mask = np.full(N, result)
         else:
-            current_mask = result.astype(np.bool)
+            current_mask = result #.astype(np.bool)
         if previous_mask is None:
             logger.debug("setting mask")
             mask = current_mask
@@ -185,6 +184,9 @@ class SelectionLasso(Selection):
         radius = np.sqrt((meanx - x)**2 + (meany - y)**2).max()
         blockx = df._evaluate(self.boolean_expression_x, i1=i1, i2=i2, filter_mask=filter_mask)
         blocky = df._evaluate(self.boolean_expression_y, i1=i1, i2=i2, filter_mask=filter_mask)
+        # TODO: can we do without arrow->numpy conversion?
+        blockx = vaex.array_types.to_numpy(blockx)
+        blocky = vaex.array_types.to_numpy(blocky)
         (blockx, blocky), excluding_mask = _split_and_combine_mask([blockx, blocky])
         blockx = as_flat_float(blockx)
         blocky = as_flat_float(blocky)

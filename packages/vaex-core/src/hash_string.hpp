@@ -153,7 +153,40 @@ public:
         set->null_count = null_count;
         return set;
     }
-
+    py::object isin(StringSequence* strings) {
+        int64_t size = strings->length;
+        py::array_t<bool> result(size);
+        auto output = result.template mutable_unchecked<1>();
+        py::gil_scoped_release gil;
+        if(strings->has_null()) {
+            for(int64_t i = 0; i < size; i++) {
+                if(strings->is_null(i)) {
+                    output(i) = this->null_count > 0;
+                } else {
+                    const storage_type_view& value = strings->get(i);
+                    auto search = this->map.find(value);
+                    auto end = this->map.end();
+                    if(search == end) {
+                        output(i) = false;
+                    } else {
+                        output(i) = true;
+                    }
+                }
+            }
+        } else {
+            for(int64_t i = 0; i < size; i++) {
+                const storage_type_view& value = strings->get(i);
+                auto search = this->map.find(value);
+                auto end = this->map.end();
+                if(search == end) {
+                    output(i) = false;
+                } else {
+                    output(i) = true;
+                }
+            }
+        }
+        return result;
+    }
     py::object map_ordinal(StringSequence* strings) {
         size_t size = this->map.size() + (this->null_count > 0 ? 1 : 0);
         if(size < (1u<<7u)) {

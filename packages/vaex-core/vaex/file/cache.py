@@ -7,13 +7,101 @@ import os
 import mmap
 
 import numpy as np
-
+from pyarrow.fs import FileSystemHandler
 import vaex.utils
 import vaex.file
 
 
 DEFAULT_BLOCK_SIZE = 1024*1024*1  # 1mb by default
-logger = logging.getLogger("vaex.file")
+logger = logging.getLogger("vaex.file.cache")
+
+
+class FileSystemHandlerCached(FileSystemHandler):
+    """Proxies it to use the CachedFile
+    """
+
+    def __init__(self, fs, scheme, for_arrow=False):
+        self.fs = fs
+        self.scheme = scheme
+        self.for_arrow = for_arrow
+        self._file_cache = {}
+
+    def __eq__(self, other):
+        if isinstance(other, FileSystemHandlerCached):
+            return self.fs == other.fs
+        return NotImplemented
+
+    def __ne__(self, other):
+        if isinstance(other, FileSystemHandlerCached):
+            return self.fs != other.fs
+        return NotImplemented
+
+    def __getattr__(self, name):
+        return getattr(self.fs, name)
+
+    def open_input_stream(self, path):
+        from pyarrow import PythonFile
+
+        def real_open():
+            return self.fs.open_input_stream(path)
+        full_path = f'{self.scheme}://{path}'
+        # TODO: we may wait to cache the mmapped file
+        if full_path not in self._file_cache:
+            f = CachedFile(real_open, full_path, read_as_buffer=not self.for_arrow)
+            self._file_cache[full_path] = f
+        else:
+            previous = self._file_cache[full_path]
+            f = CachedFile(real_open, full_path, data_file=previous.data_file, mask_file=previous.mask_file)
+        if not self.for_arrow:
+            return f
+        f = vaex.file.FileProxy(f, full_path, None)
+        return PythonFile(f, mode="r")
+
+    def open_input_file(self, path):
+        from pyarrow import PythonFile
+
+        def real_open():
+            return self.fs.open_input_file(path)
+        full_path = f'{self.scheme}://{path}'
+        # TODO: we may wait to cache the mmapped file
+        if full_path not in self._file_cache:
+            f = CachedFile(real_open, full_path, read_as_buffer=not self.for_arrow)
+            self._file_cache[full_path] = f
+        else:
+            previous = self._file_cache[full_path]
+            f = CachedFile(real_open, full_path, data_file=previous.data_file, mask_file=previous.mask_file, read_as_buffer=not self.for_arrow)
+        if not self.for_arrow:
+            return f
+        f = vaex.file.FileProxy(f, full_path, None)
+        return PythonFile(f, mode="r")
+
+    # these are forwarded
+    def copy_file(self, *args, **kwargs):
+        return self.fs.copy_file(*args, **kwargs)
+    def create_dir(self, *args, **kwargs):
+        return self.fs.create_dir(*args, **kwargs)
+    def delete_dir(self, *args, **kwargs):
+        return self.fs.delete_dir(*args, **kwargs)
+    def delete_dir_contents(self, *args, **kwargs):
+        return self.fs.delete_dir_contents(*args, **kwargs)
+    def delete_file(self, *args, **kwargs):
+        return self.fs.delete_file(*args, **kwargs)
+    def delete_root_dir_contents(self, *args, **kwargs):
+        return self.fs.delete_root_dir_contents(*args, **kwargs)
+    def get_file_info(self, *args, **kwargs):
+        return self.fs.get_file_info(*args, **kwargs)
+    def get_file_info_selector(self, *args, **kwargs):
+        return self.fs.get_file_info_selector(*args, **kwargs)
+    def get_type_name(self, *args, **kwargs):
+        return self.fs.get_type_name(*args, **kwargs)
+    def move(self, *args, **kwargs):
+        return self.fs.move(*args, **kwargs)
+    def normalize_path(self, *args, **kwargs):
+        return self.fs.normalize_path(*args, **kwargs)
+    def open_append_stream(self, *args, **kwargs):
+        return self.fs.open_append_stream(*args, **kwargs)
+    def open_output_stream(self, *args, **kwargs):
+        return self.fs.open_output_stream(*args, **kwargs)
 
 
 class MMappedFile:
@@ -34,7 +122,11 @@ class MMappedFile:
         else:
             kwargs["prot"] = mmap.PROT_WRITE
         self.mmap = mmap.mmap(self.fp.fileno(), self.length)
+        self.memoryview = memoryview(self.mmap)
         self.data = np.frombuffer(self.mmap, dtype=dtype, count=self.length)
+
+    def __getitem__(self, item):
+        return self.memoryview.__getitem__(item)
 
 
 def _to_block_ceil(index, block_size):
@@ -50,7 +142,7 @@ def _to_index(block, block_size):
 
 
 class CachedFile:
-    def __init__(self, file, path=None, cache_dir=None, block_size=DEFAULT_BLOCK_SIZE, data_file=None, mask_file=None):
+    def __init__(self, file, path=None, cache_dir=None, block_size=DEFAULT_BLOCK_SIZE, data_file=None, mask_file=None, read_as_buffer=True):
         """Decorator that wraps a file object (typically a s3) by caching the content locally on disk.
 
         The standard location for the cache is: ~/.vaex/file-cache/<protocol (e.g. s3)>/path/to/file.ext
@@ -65,6 +157,7 @@ class CachedFile:
         self.file = file
         self.cache_dir = cache_dir
         self.block_size = block_size
+        self.read_as_buffer = read_as_buffer
 
         self.block_reads = 0
         self.reads = 0
@@ -101,12 +194,27 @@ class CachedFile:
             self.length = self.data_file.length
             self.mask_length = self.mask_file.length
 
+    def readable(self):
+        return True
+
+    def writable(self):
+        return False
+
+    def seekable(self):
+        return True
+
+    def closed(self):
+        return self.file.closed()
+
+    def flush(self):
+        pass
+
     def dup(self):
         if callable(self.file):
             file = self.file
         else:
-            file = vaex.file.dup(self.file)
-        return CachedFile(file, self.path, self.cache_dir, self.block_size, data_file=self.data_file, mask_file=self.mask_file)
+            file = lambda: vaex.file.dup(self.file)
+        return CachedFile(file, self.path, self.cache_dir, self.block_size, data_file=self.data_file, mask_file=self.mask_file, read_as_buffer=self.read_as_buffer)
 
     def tell(self):
         return self.loc
@@ -129,49 +237,63 @@ class CachedFile:
         end = self.loc + length if length != -1 else self.length
         self._ensure_cached(start, end)
         self.loc = end
-        # we have no other option than to return a copy of the data here
-        return self.data_file.data[start:end].view('S1').tobytes()
+        buffer = self.data_file[start:end]
+        # arrow 1 and 2 don't accept a non-bytes object via the PythonFile.read() path
+        return buffer if self.read_as_buffer else buffer.tobytes()
 
-    def __readinto(self, bytes):
+    def readinto(self, buffer):
         start = self.loc
-        end = start + len(bytes)
+        end = start + len(buffer)
         self._ensure_cached(start, end)
-        bytes[:] = self.data_file.data[start:end]
+        buffer[:] = self.data_file[start:end]
+        self.loc = end
+        return len(buffer)
+
+    def read_buffer(self, byte_count):
+        start = self.loc
+        end = start + byte_count
+        self._ensure_cached(start, end)
+        self.loc = end
+        return self.data_file[start:end]
 
     def _as_numpy(self, offset, byte_length, dtype):
         # quick route that avoids memory copies
         self._ensure_cached(offset, offset+byte_length)
-        return self.data_file.data[offset:offset+byte_length].view(dtype)
+        return np.frombuffer(self.data_file[offset:offset+byte_length], dtype)
+
+    def _fetch_blocks(self, block_start, block_end):
+        start_blocked = _to_index(block_start, self.block_size)
+        end_blocked = min(self.length, _to_index(block_end, self.block_size))
+        self._use_file()
+        self.file.seek(start_blocked)
+        bytes_read = self.file.readinto(self.data_file[start_blocked:end_blocked])
+        expected = (end_blocked - start_blocked)
+        assert bytes_read == expected, f'Read {bytes_read}, expected {expected} ({start_blocked}-{end_blocked} out of {self.length})'
+        self.mask_file.data[block_start:block_end] = 1
+        self.reads += 1
+        self.block_reads += block_end - block_start
 
     def _ensure_cached(self, start, end):
         block_start = _to_block_floor(start, self.block_size)
         block_end = _to_block_ceil(end, self.block_size)
         missing = self.mask_file.data[block_start:block_end] == 0
-        # TODO: we could do the reading using multithreading or multiprocessing (processes)
         if np.all(missing):
-            start_blocked = _to_index(block_start, self.block_size)
-            end_blocked = _to_index(block_end, self.block_size)
-            self._use_file()
-            self.file.seek(start_blocked)
-            data = self.file.read(end_blocked - start_blocked)
-            self.data_file.data[start_blocked:end_blocked] = np.frombuffer(data, dtype=np.uint8)
-            self.mask_file.data[block_start:block_end] = 1
-            self.reads += 1
-            self.block_reads += block_end - block_start
+            self._fetch_blocks(block_start, block_end)
         elif np.any(missing):
-            block_indices = np.arange(block_start, block_end, dtype=np.int64)
-            missing_blocks = block_indices[missing]
-            # TODO: we can group multiple blocks into 1 read
-            for block_index in missing_blocks:
-                start_blocked = _to_index(block_index, self.block_size)
-                end_blocked = _to_index(block_index+1, self.block_size)
-                self._use_file()
-                self.file.seek(start_blocked)
-                data = self.file.read(self.block_size)
-                self.data_file.data[start_blocked:end_blocked] = np.frombuffer(data, dtype=np.uint8)
-                self.mask_file.data[block_index] = 1
-                self.reads += 1
-                self.block_reads += 1
+            i = block_start
+            done = False
+            while not done:
+                # find first block that is not cached
+                while i < block_end and self.mask_file.data[i] == 1:
+                    i += 1
+                if i == block_end:
+                    break
+                # find block that *is* cached
+                j = i + 1
+                while j < block_end and self.mask_file.data[j] == 0:
+                    j += 1
+                self._fetch_blocks(i, j)
+                i = j
 
     def close(self):
         # if it is callable, the file is never opened

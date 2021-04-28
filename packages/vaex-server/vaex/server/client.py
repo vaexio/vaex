@@ -7,7 +7,7 @@ from .dataframe import DataFrameRemote
 
 
 def create_df(name, info, executor):
-    _dtypes = {name: np.dtype(dtype) for name, dtype in info['dtypes'].items()}
+    _dtypes = {name: vaex.encoding.dtype_encoding.decode(None, dtype) for name, dtype in info['dtypes'].items()}
     df = DataFrameRemote(name=name,
                          length_original=info['length_original'],
                          column_names=info['column_names'],
@@ -18,7 +18,8 @@ def create_df(name, info, executor):
 
 
 class Client:
-    def __init__(self):
+    def __init__(self, secure=False):
+        self.secure = secure
         self.df_map = {}
         self.executor = None
         self._msg_id_to_tasks = {}
@@ -99,3 +100,14 @@ class Client:
         finally:
             del self._msg_id_to_tasks[msg_id]
             pass
+
+    @property
+    def url(self):
+        protocol = "wss" if self.secure else "ws"
+        return "%s://%s:%d%s" % (protocol, self.hostname, self.port, self.base_path)
+
+    @property
+    def _url(self):
+        protocol = "wss" if self.secure else "ws"
+        return "%s://%s:%d%swebsocket" % (protocol, self.hostname, self.port, self.base_path)
+

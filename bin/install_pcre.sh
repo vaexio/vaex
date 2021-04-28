@@ -44,7 +44,7 @@ function fetch_unpack {
     fi
     # Unpack archive, refreshing contents, echoing dir and file
     # names.
-    tar xfv $out_archive && ls -1d *
+    tar xfv $out_archive
     # rm_mkdir arch_tmp
     # install_rsync
     # (cd arch_tmp && \
@@ -63,9 +63,9 @@ function build_simple {
     local url=$3
     local ext=${4:-tar.gz}
     local configure_args=${@:5}
-    if [ -e "${name}-stamp" ]; then
-        return
-    fi
+    # if [ -e "${name}-stamp" ]; then
+    #     return
+    # fi
     local name_version="${name}-${version}"
     local archive=${name_version}.${ext}
     fetch_unpack $url/$archive
@@ -73,7 +73,7 @@ function build_simple {
         && ./configure --prefix=$BUILD_PREFIX $configure_args \
         && make -j4 \
         && make install)
-    touch "${name}-stamp"
+    # touch "${name}-stamp"
 }
 function build_pcre {
     echo "Buld"

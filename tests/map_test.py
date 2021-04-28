@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import numpy as np
 import pandas as pd
+import pyarrow as pa
 import pytest
 import vaex
 
@@ -17,7 +18,7 @@ def test_nan_madness():
         df.x.map(mapper).tolist()
 
 
-def test_map():
+def test_map_basics():
     # Generate the test data
     colour = ['red', 'red', 'blue', 'red', 'green', 'green', 'red', 'blue', 'blue', 'green']
     animal = np.array(['dog', 'cat', 'dog', 'dog', 'dog', 'dog', 'cat', 'dog', 'dog', np.nan], dtype='O')
@@ -47,7 +48,7 @@ def test_map():
     # we deviate from pandas, we can map nan to something
     assert ds.colour_.values.tolist()[:-1] == df.colour_.values.tolist()[:-1]
     assert ds.animal_.values.tolist()[:-1] == df.animal_.values.tolist()[:-1]
-    assert ds.animal_.values[-1] is None
+    assert ds.animal_.values.tolist()[-1] is None
     # Make assertions - compare to the expected values for numeric type
     # assert ds.number_.values.tolist() == (np.array(number)/10).tolist()
     assert ds.floats_.values.tolist()[:-1] == (np.array(floats)/-10.).tolist()[:-1]
@@ -65,13 +66,28 @@ def test_map():
     ds.colour.map({'red': 1, 'blue': 2, 'green': 3, 'orange': 4})
 
     # check masked arrays
+    # import pdb; pdb.set_trace()
     assert ds.colour.map({'blue': 2, 'green': 3}, allow_missing=True).tolist() == [None, None, 2, None, 3, 3, None, 2, 2, 3]
+
+
+def test_map_missing(df_factory):
+    df = df_factory(x=[1, 2, None])
+    df['m'] = df.x.map({1: 99}, allow_missing=True)
+    assert df.m.dtype == int
+    assert df.m.tolist() == [99, None, None]
 
 
 def test_map_to_string():
     df = vaex.from_arrays(type=[0, 1, 2, 2, 2, np.nan])
     df['role'] = df['type'].map({0: 'admin', 1: 'maintainer', 2: 'user', np.nan: 'unknown'})
     assert df['role'].tolist() == ['admin', 'maintainer', 'user', 'user', 'user', 'unknown']
+
+
+@pytest.mark.parametrize("type", [pa.string(), pa.large_string()])
+def test_map_from_string(type):
+    df = vaex.from_arrays(type=pa.array(['admin', 'maintainer', 'user', 'user', 'user', None], type=type))
+    df['role'] = df['type'].map({'admin':0, 'maintainer':1, 'user':2, None: -1})
+    assert df['role'].tolist() == [0, 1, 2, 2, 2, -1]
 
 
 def test_map_serialize(tmpdir):
@@ -118,3 +134,13 @@ def test_map_long_mapper():
     df = vaex.from_arrays(english=english)
     df['german'] = df.english.map(mapper=mapper)
     assert df['german'].tolist() == german.tolist()
+
+
+
+def test_unique_list(df_types):
+    df = df_types
+    mapper = {'aap': 1, 'noot': 2, 'mies': 3, None: 999}
+    expected = [[mapper[el] for el in list] if list is not None else None for list in df.string_list.tolist()]
+
+    assert df.string_list.map(mapper).tolist() == expected
+    assert set(df.int_list.unique()) == {1, 2, 3, 4, 5, None}

@@ -1,6 +1,6 @@
 import numpy as np
 import traitlets
-import vaex.ml.state
+import vaex.ml.transformations
 import logging
 import vaex
 import vaex.serialize
@@ -63,7 +63,7 @@ def centroid_stats(centroids, counts, sumpos, inertia, *blocks):
 
 @vaex.serialize.register
 @generate.register
-class KMeans(vaex.ml.state.HasState):
+class KMeans(vaex.ml.transformations.Transformer):
     '''The KMeans clustering algorithm.
 
     Example:
@@ -83,6 +83,7 @@ class KMeans(vaex.ml.state.HasState):
      3            3.3             5.7             6.7            2.1         2                    0
      4            4.2             1.4             5.5            0.2         0                    1
     '''
+    snake_name = 'kmeans'
     features = traitlets.List(traitlets.Unicode(), help='List of features to cluster.')
     n_clusters = traitlets.CInt(default_value=2, help='Number of clusters to form.')
     init = traitlets.Union([Matrix(), traitlets.Unicode()], default_value='random', help='Method for initializing the centroids.')
@@ -91,8 +92,7 @@ class KMeans(vaex.ml.state.HasState):
                                                    and the final results will be the best output of the n_init \
                                                    consecutive runs in terms of inertia.')
     max_iter = traitlets.CInt(default_value=300, help='Maximum number of iterations of the KMeans algorithm for a single run.')
-    random_state = traitlets.CInt(default_value=None, allow_none=True, help='Random number generation for centroid initialization. \
-                                                                             If an int is specified, the randomness becomes deterministic.')
+    random_state = traitlets.CInt(default_value=None, allow_none=True, help='Random number generation for centroid initialization. If an int is specified, the randomness becomes deterministic.')
     verbose = traitlets.CBool(default_value=False, help='If True, enable verbosity mode.')
     cluster_centers = traitlets.List(traitlets.List(traitlets.CFloat()), help='Coordinates of cluster centers.')
     inertia = traitlets.CFloat(default_value=None, allow_none=True, help='Sum of squared distances of samples to their closest cluster center.')
@@ -103,11 +103,12 @@ class KMeans(vaex.ml.state.HasState):
 
     def _calculate_distances_squared(self, *blocks):
         N = len(blocks[0])  # they are all the same length
+        blocks = [np.asarray(k) for k in blocks]
         centroids = np.array(self.cluster_centers)
         k = centroids.shape[0]
         dimensions = centroids.shape[1]
         distances_sq = np.zeros((k, N))
-        if 1:
+        if True:
             distances_square(distances_sq, centroids, *blocks)
         else:
             for d in range(dimensions):
@@ -122,7 +123,7 @@ class KMeans(vaex.ml.state.HasState):
 
     def generate_cluster_centers_random(self, dataframe, rng):
         indices = rng.randint(0, len(dataframe), self.n_clusters)
-        return [[dataframe.evaluate(feature, i1=i, i2=i+1)[0] for feature in self.features] for i in indices]
+        return [[dataframe.evaluate(feature, i1=i, i2=i+1, array_type='python')[0] for feature in self.features] for i in indices]
 
     def transform(self, dataframe):
         '''
@@ -195,13 +196,14 @@ class KMeans(vaex.ml.state.HasState):
         clusters = centroids.shape[1]
         dimensions = centroids.shape[2]
         # print("k =", k)
-        assert dimensions == len(self.features), "nr of dimensions for centroid should equal nr of features"
+        assert dimensions == len(self.features), "The number of dimensions for the centroid should equal the number of features."
 
         def map(*blocks):  # this will be called with a chunk of the data
             sumpos = np.zeros((runs, clusters, dimensions))
             counts = np.zeros((runs, clusters))
             inertia = np.zeros((runs))
-            if 1:
+            blocks = [np.asarray(k) for k in blocks]
+            if True:
                 centroid_stats(centroids, counts, sumpos, inertia,  *blocks)
             else:
                 # this is the pure python code

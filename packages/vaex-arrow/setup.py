@@ -13,7 +13,7 @@ author_email = "maartenbreddels@gmail.com"
 license = 'MIT'
 version = version.__version__
 url = 'https://www.github.com/maartenbreddels/vaex'
-install_requires = ["vaex-core>=2.0.0,<3", "matplotlib>=1.3.1", "pillow", "pyarrow>=0.15"]
+install_requires = ["vaex-core>=2.0.0,<3", "astropy>=2", "matplotlib>=1.3.1", "pillow", "pyarrow>=0.15"]
 
 setup(name=name + '-arrow',
       version=version,

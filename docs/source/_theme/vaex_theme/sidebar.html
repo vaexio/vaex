@@ -1,0 +1,19 @@
+<div class="navbar-brand-box">
+<a class="navbar-brand text-wrap" href="https://vaex.io/">
+  <img src="https://vaex.io/img/logos/logo-grey.svg" class="logo" alt="logo">
+  {% if docstitle %}
+  <h1 class="site-logo" id="site-title">{{ docstitle }}</h1>
+  {% endif %}
+</a>
+</div>
+
+
+{%- for sidebartemplate in sidebars %}
+{%- include sidebartemplate %}
+{%- endfor %}
+<div>
+<a href="https://twitter.com/vaex_io?ref_src=twsrc%5Etfw" class="twitter-follow-button" data-show-count="false">Follow @vaex_io</a><script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
+</div>
+<div>
+<a href="https://twitter.com/intent/tweet?screen_name=vaex_io&ref_src=twsrc%5Etfw" class="twitter-mention-button" data-show-count="false">Tweet to @vaex_io</a><script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
+</div>

@@ -1,50 +1,40 @@
-try:
-    from urllib.parse import urlparse, parse_qs
-except ImportError:
-    from urlparse import urlparse, parse_qs
+import configparser
+import warnings
+import os
 
-try:
-    import s3fs
-except Exception as e:
-    import_exception = e
-    s3fs = None
+import pyarrow as pa
 
-import vaex.file.cache
+class CaseConfigParser(configparser.ConfigParser):
+    def optionxform(self, optionstr):
+        return optionstr
 
 
-normal_open = open
+def patch_profile(fs_options):
+    fs_options = fs_options.copy()
+    if 'profile' in fs_options:
+        profile = fs_options.pop('profile')
+        config = CaseConfigParser()
+        path = os.path.expanduser('~/.aws/credentials')
+        config.read(path)
+        warnings.warn(f'Reading key/secret from ~/.aws/credentials using profile: {path}')
+        fs_options['access_key'] = config[profile]['aws_access_key_id']
+        fs_options['secret_key'] = config[profile]['aws_secret_access_key']
+    return fs_options
 
 
-def is_s3_path(path):
-    return path.startswith('s3://')
+def parse(path, fs_options, for_arrow=False):
+    from .s3arrow import parse
+    fs_options = patch_profile(fs_options)
+    try:
+        # raise pa.lib.ArrowNotImplementedError('FOR TESTING')
+        return parse(path, fs_options, for_arrow=for_arrow)
+    except pa.lib.ArrowNotImplementedError:
+        # fallback
+        from .s3fs import parse
+        return parse(path, fs_options, for_arrow=for_arrow)
 
-def dup(f):
-    return f.s3.open(f.path, f.mode)
 
-def open(path, mode='rb', **kwargs):
-    if not is_s3_path(path):
-        return normal_open(path, mode)
-    if s3fs is None:
-        raise import_exception
-    o = urlparse(path)
-    assert o.scheme == 's3'
-    naked_path = path
-    if '?' in naked_path:
-        naked_path = naked_path[:naked_path.index('?')]
-    # only use the first item
-    options = {key: values[0] for key, values in parse_qs(o.query).items()}
-    options.update(kwargs)
-    use_cache = options.get('cache', 'true') in ['true', 'True', '1']
-    if 'cache' in options:
-        del options['cache']
-    anon = options.get('anon', 'false') in ['true', 'True', '1']
-    if 'anon' in options:
-        del options['anon']
-    s3 = s3fs.S3FileSystem(anon=anon, default_block_size=1,
-                           default_fill_cache=False, **options)
-    if use_cache:
-        fp = lambda: s3.open(naked_path, mode)
-        fp = vaex.file.cache.CachedFile(fp, naked_path)
-    else:
-        fp = s3.open(naked_path, mode)
-    return fp
+def glob(path, fs_options={}):
+    from .s3fs import glob
+    fs_options = patch_profile(fs_options)
+    return glob(path, fs_options)

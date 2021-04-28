@@ -8,8 +8,9 @@ import uuid
 import struct
 
 import numpy as np
-
+import pyarrow as pa
 import vaex
+from .datatype import DataType
 
 registry = {}
 
@@ -64,6 +65,8 @@ class vaex_evaluate_results_encoding:
         else:
             if isinstance(result, np.ndarray):
                 return {'type': 'ndarray', 'data': encoding.encode('ndarray', result)}
+            elif isinstance(result, vaex.array_types.supported_arrow_array_types):
+                return {'type': 'arrow-array', 'data': encoding.encode('arrow-array', result)}
             elif isinstance(result, numbers.Number):
                 try:
                     result = result.item()  # for numpy scalars
@@ -79,6 +82,20 @@ class vaex_evaluate_results_encoding:
             return [cls.decode(encoding, k) for k in result_encoded]
         else:
             return encoding.decode(result_encoded['type'], result_encoded['data'])
+
+
+
+@register("arrow-array")
+class arrow_array_encoding:
+    @classmethod
+    def encode(cls, encoding, array):
+        blob = pa.serialize(array).to_buffer()
+        return {'arrow-serialized-blob': encoding.add_blob(blob)}
+
+    @classmethod
+    def decode(cls, encoding, result_encoded):
+        blob = encoding.get_blob(result_encoded['arrow-serialized-blob'])
+        return pa.deserialize(blob)
 
 
 @register("ndarray")
@@ -100,13 +117,13 @@ class ndarray_encoding:
             data = {
                     'values': values.tolist(),  # rely on json encoding
                     'shape': array.shape,
-                    'dtype': encoding.encode('dtype', dtype)
+                    'dtype': encoding.encode('dtype', DataType(dtype))
             }
         else:
             data = {
                     'values': encoding.add_blob(values),
                     'shape': array.shape,
-                    'dtype': encoding.encode('dtype', dtype)
+                    'dtype': encoding.encode('dtype', DataType(dtype))
             }
         if mask is not None:
             data['mask'] = encoding.add_blob(mask)
@@ -121,10 +138,10 @@ class ndarray_encoding:
             shape = result_encoded['shape']
             if dtype.kind == 'O':
                 data = result_encoded['values']
-                array = np.array(data, dtype=dtype)
+                array = np.array(data, dtype=dtype.numpy)
             else:
                 data = encoding.get_blob(result_encoded['values'])
-                array = np.frombuffer(data, dtype=dtype).reshape(shape)
+                array = np.frombuffer(data, dtype=dtype.numpy).reshape(shape)
             if 'mask' in result_encoded:
                 mask_data = encoding.get_blob(result_encoded['mask'])
                 mask_array = np.frombuffer(mask_data, dtype=np.bool_).reshape(shape)
@@ -136,19 +153,20 @@ class ndarray_encoding:
 class dtype_encoding:
     @staticmethod
     def encode(encoding, dtype):
-        if dtype == str:
-            return "str"
-        else:
-            if type(dtype) == type:
-                dtype = dtype().dtype
+        dtype = dtype.internal
         return str(dtype)
 
     @staticmethod
     def decode(encoding, type_spec):
-        if type_spec == "str":
-            return str
+        if type_spec == 'string':
+            return DataType(pa.string())
+        if type_spec == 'large_string':
+            return DataType(pa.large_string())
+        # TODO: find a proper way to support all arrow types
+        if type_spec == 'timestamp[ms]':
+            return DataType(pa.timestamp('ms'))
         else:
-            return np.dtype(type_spec)
+            return DataType(np.dtype(type_spec))
 
 
 @register("binner")
@@ -160,13 +178,13 @@ class binner_encoding:
             datatype = name[len('BinnerOrdinal_'):]
             if datatype.endswith("_non_native"):
                 datatype = datatype[:-len('64_non_native')]
-                datatype = encoding.encode('dtype', np.dtype(datatype).newbyteorder())
+                datatype = encoding.encode('dtype', DataType(np.dtype(datatype).newbyteorder()))
             return {'type': 'ordinal', 'expression': binner.expression, 'datatype': datatype, 'count': binner.ordinal_count, 'minimum': binner.min_value}
         elif name.startswith('BinnerScalar_'):
             datatype = name[len('BinnerScalar_'):]
             if datatype.endswith("_non_native"):
                 datatype = datatype[:-len('64_non_native')]
-                datatype = encoding.encode('dtype', np.dtype(datatype).newbyteorder())
+                datatype = encoding.encode('dtype', DataType(np.dtype(datatype).newbyteorder()))
             return {'type': 'scalar', 'expression': binner.expression, 'datatype': datatype, 'count': binner.bins, 'minimum': binner.vmin, 'maximum': binner.vmax}
         else:
             raise ValueError('Cannot serialize: %r' % binner)
@@ -209,6 +227,10 @@ class Encoding:
         encoded = [self.registry[typename].encode(self, k) for k in values]
         return encoded
 
+    def encode_list2(self, typename, values):
+        encoded = [self.encode_list(typename, k) for k in values]
+        return encoded
+
     def encode_dict(self, typename, values):
         encoded = {key: self.registry[typename].encode(self, value) for key, value in values.items()}
         return encoded
@@ -219,6 +241,10 @@ class Encoding:
 
     def decode_list(self, typename, values, **kwargs):
         decoded = [self.registry[typename].decode(self, k, **kwargs) for k in values]
+        return decoded
+
+    def decode_list2(self, typename, values, **kwargs):
+        decoded = [self.decode_list(typename, k, **kwargs) for k in values]
         return decoded
 
     def decode_dict(self, typename, values, **kwargs):

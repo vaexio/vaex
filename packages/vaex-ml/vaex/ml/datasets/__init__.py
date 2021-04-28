@@ -34,7 +34,7 @@ def _iris(name, iris_previous, N):
     else:
         iris = iris_previous()
         repeat = int(np.ceil(N / len(iris)))
-        ds = vaex.dataset.DatasetConcatenated([iris] * repeat)
+        ds = vaex.concat([iris] * repeat)
         ds.export_hdf5(filename)
         return vaex.open(filename)
 

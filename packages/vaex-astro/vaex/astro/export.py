@@ -103,7 +103,7 @@ def export_hdf5_v1(dataset, path, column_names=None, byteorder="=", shuffle=Fals
     dataset_output.description = description
     logger.debug("writing meta information")
     dataset_output.write_meta()
-    dataset_output.close_files()
+    dataset_output.close()
     return
 
 
@@ -200,5 +200,5 @@ def export_hdf5(dataset, path, column_names=None, byteorder="=", shuffle=False, 
     dataset_output.description = description
     logger.debug("writing meta information")
     dataset_output.write_meta()
-    dataset_output.close_files()
+    dataset_output.close()
     return

@@ -1,6 +1,7 @@
 from common import *
 import numpy as np
 import vaex
+import datetime
 
 
 def test_groupby_options():
@@ -72,6 +73,14 @@ def test_groupby_long_name(df_local):
     dfg = df.groupby(by=df.g, agg=[vaex.agg.mean(df.long_name)]).sort('g')
     # bugfix check for mixing up the name
     assert 'long_name_mean' in dfg
+
+
+def test_groupby_space_in_name(df_local):
+    df = df_local.extract()
+    g = np.array([0, 0, 0, 0, 1, 1, 1, 1, 2, 2])
+    df.add_column('g with space', g)
+    df['long_name'] = df.x
+    dfg = df.groupby(by=df['g with space'], agg=[vaex.agg.mean(df.long_name)]).sort(df['g with space'])
 
 
 def test_groupby_1d(ds_local):
@@ -271,3 +280,42 @@ def test_groupby_same_result():
 
         assert vc.values.tolist() == group_sort['count'].values.tolist(), 'counts are not correct.'
         assert vc.index.tolist() == group_sort['h'].values.tolist(), 'the indices of the counts are not correct.'
+
+
+def test_groupby_iter():
+    # ds = ds_local.extract()
+    g = np.array([0, 0, 0, 0, 1, 1, 1, 1, 0, 1], dtype='int32')
+    s = np.array(list(map(str, [0, 0, 0, 0, 1, 1, 1, 1, 2, 2])))
+    df = vaex.from_arrays(g=g, s=s)
+    groupby = df.groupby('g')
+    assert set(groupby.groups) == {(0, ), (1, )}
+    dfs = list(groupby)
+    assert dfs[0][0] == (0, )
+    assert dfs[0][1].g.tolist() == [0] * 5
+    assert dfs[1][0] == (1, )
+    assert dfs[1][1].g.tolist() == [1] * 5
+
+    groupby = df.groupby(['g', 's'])
+    assert set(groupby.groups) == {(0, '0'), (1, '1'), (0, '2'), (1, '2')}
+    dfs = list(groupby)
+    assert dfs[0][0] == (0, '0')
+    assert dfs[0][1].g.tolist() == [0] * 4
+    assert dfs[1][0] == (0, '2')
+    assert dfs[1][1].g.tolist() == [0] * 1
+
+
+def test_groupby_datetime():
+    data = {'z': [2, 4, 8, 10],
+            't': [np.datetime64('2020-01-01'),
+                  np.datetime64('2020-01-01'),
+                  np.datetime64('2020-02-01'),
+                  np.datetime64('2020-02-01')]
+            }
+
+    df = vaex.from_dict(data)
+    dfg = df.groupby(by='t').agg({'z': 'mean'})
+
+    assert dfg.column_count() == 2
+    assert dfg.z.tolist() == [3, 9]
+    assert dfg.t.dtype.is_datetime
+    assert set(dfg.t.tolist()) == {datetime.date(2020, 1, 1), datetime.date(2020, 2, 1)}

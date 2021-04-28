@@ -18,7 +18,7 @@ def test_sum(df, ds_trimmed):
 
     df.select("x < 5")
     # convert to float
-    x = ds_trimmed.columns["x"]
+    x = ds_trimmed.x.to_numpy()
     y = ds_trimmed.data.y
     x_with_nan = x * 1
     x_with_nan[0] = np.nan
@@ -243,6 +243,14 @@ def test_minmax_all_dfs(df):
     assert df.max(df.x) == vmax
 
 
+def test_minmax_mixed_types():
+    x = np.array([1, 0], dtype=np.int)
+    y = np.array([0.5, 1.5], dtype=np.float)
+    df = vaex.from_arrays(x=x, y=y)
+    with pytest.raises(TypeError):
+        df.minmax(['x', 'y'])
+
+
 def test_big_endian_binning():
     x = np.arange(10, dtype='>f8')
     y = np.zeros(10, dtype='>f8')
@@ -349,8 +357,39 @@ def test_agg_selections():
     assert df_grouped['z_mean_selected'].tolist() == [1, 4, 6.5]
     assert df_grouped['w_nuniqe_selected'].tolist() == [2, 1, 2]
 
-def test_upcast():
-    df = vaex.from_arrays(b=[False, True, True], i8=np.array([120, 121, 122], dtype=np.int8),
+def test_agg_selections_equal():
+    x = np.array([0, 0, 0, 1, 1, 2, 2])
+    y = np.array([1, 3, 5, 1, 7, 1, -1])
+    z = np.array([0, 2, 3, 4, 5, 6, 7])
+    w = np.array(['dog', 'cat', 'mouse', 'dog', 'dog', 'mouse', 'cat'])
+
+    df = vaex.from_arrays(x=x, y=y, z=z, w=w)
+
+
+    df_grouped = df.groupby(df.x).agg({'counts': vaex.agg.count(),
+                                      'sel_counts': vaex.agg.count(selection=df.y==1.)
+                                      })
+    assert df_grouped['counts'].tolist() == [3, 2, 2]
+    assert df_grouped['sel_counts'].tolist() == [1, 1, 1]
+
+def test_agg_selection_nodata():
+    x = np.array([0, 0, 0, 1, 1, 2, 2])
+    y = np.array([1, 3, 5, 1, 7, 1, -1])
+    z = np.array([0, 2, 3, 4, 5, 6, 7])
+    w = np.array(['dog', 'cat', 'mouse', 'dog', 'dog', 'mouse', 'cat'])
+
+    df = vaex.from_arrays(x=x, y=y, z=z, w=w)
+
+    df_grouped = df.groupby(df.x).agg({'counts': vaex.agg.count(),
+                                      'dog_counts': vaex.agg.count(selection=df.w == 'dog')
+                                      })
+
+    assert len(df_grouped) == 3
+    assert df_grouped['counts'].tolist() == [3, 2, 2]
+    assert df_grouped['dog_counts'].tolist() == [1, 2, 0]
+
+def test_upcast(df_factory):
+    df = df_factory(b=[False, True, True], i8=np.array([120, 121, 122], dtype=np.int8),
         f4=np.array([1, 1e-13, 1], dtype=np.float32))
     assert df.b.sum() == 2
     assert df.i8.sum() == 120*3 + 3
@@ -400,18 +439,18 @@ def test_var_and_std(df):
 def test_mutual_information(df_local):
     df = df_local
     limits = df.limits(["x", "y"], "minmax")
-    mi2 = df.mutual_information("x", "y", mi_limits=limits, mi_shape=256)
+    mi2 = df.mutual_information("x", "y", mi_limits=limits, mi_shape=32)
 
-    np.testing.assert_array_almost_equal(2.19722458, mi2)
+    np.testing.assert_array_almost_equal(2.043192, mi2)
 
     # no test, just for coverage
-    mi1d = df.mutual_information("x", "y", mi_limits=limits, mi_shape=256, binby="x", limits=[0, 10], shape=2)
+    mi1d = df.mutual_information("x", "y", mi_limits=limits, mi_shape=32, binby="x", limits=[0, 10], shape=2)
     assert mi1d.shape == (2,)
 
-    mi2d = df.mutual_information("x", "y", mi_limits=limits, mi_shape=256, binby=["x", "y"], limits=[[0, 10], [0, 100]], shape=(2, 3))
+    mi2d = df.mutual_information("x", "y", mi_limits=limits, mi_shape=32, binby=["x", "y"], limits=[[0, 10], [0, 100]], shape=(2, 3))
     assert mi2d.shape == (2,3)
 
-    mi3d = df.mutual_information("x", "y", mi_limits=limits, mi_shape=256, binby=["x", "y", "z"], limits=[[0, 10], [0, 100], [-100, 100]], shape=(2, 3, 4))
+    mi3d = df.mutual_information("x", "y", mi_limits=limits, mi_shape=32, binby=["x", "y", "z"], limits=[[0, 10], [0, 100], [-100, 100]], shape=(2, 3, 4))
     assert mi3d.shape == (2,3,4)
 
     mi_list, subspaces = df.mutual_information([["x", "y"], ["x", "z"]], sort=True)
@@ -437,3 +476,13 @@ def test_format_xarray_and_list(df_local):
     count = df.sum([df.x, df.g], binby='g', array_type='xarray')
     assert count.coords['expression'].data.tolist() == ['x', 'g']
     assert count.coords['g'].data.tolist() == ['aap', 'noot', 'mies']
+
+
+@pytest.mark.parametrize("offset", [0, 1])
+def test_list_sum(offset):
+    data = [1, 2, None], None, [], [1, 3, 4, 5]
+    df = vaex.from_arrays(i=pa.array(data).slice(offset))
+    assert df.i.sum() == [16, 13][offset]
+    assert df.i.sum(axis=1).tolist() == [3, None, 0, 13][offset:]
+    assert df.i.sum(axis=[0, 1]) == [16, 13][offset]
+    # assert df.i.sum(axis=0)  # not supported, not sure what this should return

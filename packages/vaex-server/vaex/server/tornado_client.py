@@ -16,10 +16,11 @@ logger = logging.getLogger("vaex.server.tornado_client")
 
 class Client(client.Client):
     def __init__(self, hostname, port=5000, base_path="/", background=False, thread_mover=None, websocket=True, token=None,
+                 secure=False,
                  token_trusted=None):
-        super().__init__()
+        super().__init__(secure=secure)
         self.hostname = hostname
-        self.port = port or 80
+        self.port = port or (443 if secure else 80)
         self.base_path = base_path if base_path.endswith("/") else (base_path + "/")
         self.token = token
         self.token_trusted = token_trusted
@@ -37,11 +38,6 @@ class Client(client.Client):
         logger.debug("connected")
         self._check_version()
         self.update()
-
-    @property
-    def _url(self):
-        protocol = "ws"
-        return "%s://%s:%d%swebsocket" % (protocol, self.hostname, self.port, self.base_path)
 
 
 class ClientWebsocket(Client):
@@ -127,16 +123,17 @@ class ClientWebsocket(Client):
 
 def connect(url, **kwargs):
     url = urlparse(url)
-    if url.scheme in ["vaex+ws", "ws"]:
+    if url.scheme in ["vaex+ws", "ws", "vaex+wss", "wss"]:
         websocket = True
     else:
         websocket = False
-    assert url.scheme in ["ws", "http", "vaex+ws", "vaex+http"]
+    assert url.scheme in ["ws", "http", "vaex+ws", "vaex+http", "vaex+wss", "wss"]
     port = url.port
     base_path = url.path
     hostname = url.hostname
     if websocket:
-        return ClientWebsocket(hostname, base_path=base_path, port=port, **kwargs)
+        secure = "wss" in url.scheme
+        return ClientWebsocket(hostname, base_path=base_path, port=port, secure=secure, **kwargs)
     elif url.scheme == "http":
         raise NotImplementedError("http not implemented")
         # return ClientHttp(hostname, base_path=base_path, port=port, **kwargs)
