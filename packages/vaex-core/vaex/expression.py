@@ -106,6 +106,8 @@ class Meta(type):
                             b = repr(b)
                         if op['code'] == '==':
                             expression = 'str_equals({0}, {1})'.format(a.expression, b)
+                        elif op['code'] == '!=':
+                            expression = 'str_notequals({0}, {1})'.format(a.expression, b)
                         elif op['code'] == '+':
                             expression = 'str_cat({0}, {1})'.format(a.expression, b)
                         else:
