@@ -43,6 +43,7 @@ class BinnerTime(BinnerBase):
         self.resolution = resolution
         self.expression = expression
         self.df = df or expression.ds
+        self.sort_indices = None
         # make sure it's an expression
         self.expression = self.df[str(self.expression)]
         self.tmin, self.tmax = self.df[str(self.expression)].minmax()
@@ -82,18 +83,32 @@ class BinnerTime(BinnerBase):
 
 class Grouper(BinnerBase):
     """Bins an expression to a set of unique bins."""
-    def __init__(self, expression, df=None):
+    def __init__(self, expression, df=None, sort=False, pre_sort=True):
         self.df = df or expression.ds
+        self.sort = sort
         self.expression = expression
         # make sure it's an expression
         self.expression = self.df[str(self.expression)]
-        self.set = self.df._set(self.expression)
+        set = self.df._set(self.expression)
+        keys = set.keys()
+        if self.sort:
+            if pre_sort:
+                sort_indices = np.argsort(keys)
+                keys = np.array(keys)[sort_indices].tolist()
+                set_dict = dict(zip(keys, range(len(keys))))
+                set = type(set)(set_dict, set.count, set.nan_count, set.null_count)
+                self.sort_indices = None
+            else:
+                self.sort_indices = np.argsort(keys)
+                keys = np.array(keys)[self.sort_indices].tolist()
+        else:
+            self.sort_indices = None
+        self.set = set
 
         # TODO: we modify the dataframe in place, this is not nice
         basename = 'set_%s' % vaex.utils._python_save_name(str(expression))
         self.setname = self.df.add_variable(basename, self.set, unique=True)
 
-        keys = self.set.keys()
         self.bin_values = keys
         self.binby_expression = '_ordinal_values(%s, %s)' % (self.expression, self.setname)
         self.N = len(self.bin_values)
@@ -103,18 +118,35 @@ class Grouper(BinnerBase):
         if self.set.has_nan:
             self.N += 1
             self.bin_values = [np.nan] + self.bin_values
+        if self.sort_indices is not None:
+            if self.set.has_null and self.set.has_nan:
+                self.sort_indices = np.concatenate([[0, 1], self.sort_indices + 2])
+            elif self.set.has_null or self.set.has_nan:
+                self.sort_indices = np.concatenate([[0], self.sort_indices + 1])
         self.bin_values = self.expression.dtype.create_array(self.bin_values)
         self.binner = self.df._binner_ordinal(self.binby_expression, self.N)
 
 
 class GrouperCategory(BinnerBase):
-    def __init__(self, expression, df=None):
+    def __init__(self, expression, df=None, sort=False):
         self.df = df or expression.ds
+        self.sort = sort
         self.expression = expression
         # make sure it's an expression
         self.expression = self.df[str(self.expression)]
 
         self.bin_values = self.df.category_labels(self.expression)
+        if self.sort:
+            # None will always be the first value
+            if self.bin_values[0] is None:
+                self.sort_indices = np.concatenate([[0], 1 + np.argsort(self.bin_values[1:])])
+                self.bin_values = np.array(self.bin_values)[self.sort_indices].tolist()
+            else:
+                self.sort_indices = np.argsort(self.bin_values)
+                self.bin_values = np.array(self.bin_values)[self.sort_indices].tolist()
+        else:
+            self.sort_indices = None
+
         self.N = self.df.category_count(self.expression)
         self.min_value = self.df.category_offset(self.expression)
         # TODO: what do we do with null values for categories?
@@ -124,8 +156,9 @@ class GrouperCategory(BinnerBase):
         self.binner = self.df._binner_ordinal(self.expression, self.N, self.min_value)
 
 class GroupByBase(object):
-    def __init__(self, df, by):
+    def __init__(self, df, by, sort=False):
         self.df = df
+        self.sort = sort
 
         if not isinstance(by, collections_abc.Iterable)\
             or isinstance(by, six.string_types):
@@ -135,9 +168,9 @@ class GroupByBase(object):
         for by_value in by:
             if not isinstance(by_value, BinnerBase):
                 if df.is_category(by_value):
-                    by_value = GrouperCategory(df[str(by_value)])
+                    by_value = GrouperCategory(df[str(by_value)], sort=sort)
                 else:
-                    by_value = Grouper(df[str(by_value)])
+                    by_value = Grouper(df[str(by_value)], sort=sort)
             self.by.append(by_value)
         # self._waslist, [self.by, ] = vaex.utils.listify(by)
         self.coords1d = [k.bin_values for k in self.by]
@@ -254,6 +287,10 @@ class BinBy(GroupByBase):
         # take out the edges
         arrays = {key: vaex.utils.extract_central_part(value) for key, value in arrays.items()}
 
+        # make sure we respect the sorting
+        sorting = tuple(by.sort_indices if by.sort_indices is not None else slice(None) for by in self.by)
+        arrays = {key: value[sorting] for key, value in arrays.items()}
+
         keys = list(arrays.keys())
         key0 = keys[0]
         if not isinstance(actions, collections_abc.Iterable)\
@@ -272,8 +309,8 @@ class BinBy(GroupByBase):
 
 class GroupBy(GroupByBase):
     """Implementation of the binning and aggregation of data, see :method:`groupby`."""
-    def __init__(self, df, by):
-        super(GroupBy, self).__init__(df, by)
+    def __init__(self, df, by, sort=False):
+        super(GroupBy, self).__init__(df, by, sort=sort)
 
     def agg(self, actions):
         # TODO: this basically forms a cartesian product, we can do better, use a
@@ -291,6 +328,12 @@ class GroupBy(GroupByBase):
         # take out the edges
         arrays = {key: vaex.utils.extract_central_part(value) for key, value in arrays.items()}
         counts = vaex.utils.extract_central_part(counts)
+
+        # make sure we respect the sorting
+        sorting = tuple(by.sort_indices if by.sort_indices is not None else slice(None) for by in self.by)
+        arrays = {key: value[sorting] for key, value in arrays.items()}
+        counts = counts[sorting]
+
         mask = counts > 0
         coords = [coord[mask] for coord in np.meshgrid(*self.coords1d, indexing='ij')]
         labels = {str(by.expression): coord for by, coord in zip(self.by, coords)}

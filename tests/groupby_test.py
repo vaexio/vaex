@@ -91,6 +91,28 @@ def test_groupby_1d(ds_local):
     assert dfg.g.tolist() == [0, 1, 2]
     assert dfg['count'].tolist() == [4, 4, 2]
 
+
+@pytest.mark.parametrize("as_category", [False, True])
+@pytest.mark.parametrize("pre_sort", [False, True])
+def test_groupby_sort_primitive(df_factory, as_category, pre_sort):
+    df = df_factory(g=[1, 1, 1, 1, 0, 0, 0, 0, 2, 2])
+    if as_category:
+        df = df.ordinal_encode('g')
+    dfg = df.groupby(by=vaex.groupby.Grouper(df.g, sort=True, pre_sort=pre_sort), agg={'count': vaex.agg.count()})
+    assert dfg.g.tolist() == [0, 1, 2]
+    assert dfg['count'].tolist() == [4, 4, 2]
+
+
+@pytest.mark.parametrize("as_category", [False, True])
+def test_groupby_sort_string(df_factory, as_category):
+    df = df_factory(g=['a', None, 'c', 'c', 'a', 'a', 'b', None, None, None])
+    if as_category:
+        df = df.ordinal_encode('g')
+    dfg = df.groupby(by='g', sort=True, agg={'count': vaex.agg.count()})
+    assert dfg.g.tolist() == [None, 'a', 'b', 'c']
+    assert dfg['count'].tolist() == [4, 3, 1, 2]
+
+
 def test_groupby_1d_cat(ds_local):
     ds = ds_local.extract()
     g = np.array([0, 0, 0, 0, 1, 1, 1, 1, 2, 2])
