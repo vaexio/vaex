@@ -6295,7 +6295,7 @@ class DataFrameLocal(DataFrame):
     #     self._has_selection = mask is not None
     #     # self.signal_selection_changed.emit(self)
 
-    def groupby(self, by=None, agg=None):
+    def groupby(self, by=None, agg=None, sort=False):
         """Return a :class:`GroupBy` or :class:`DataFrame` object when agg is not None
 
         Examples:
@@ -6347,7 +6347,7 @@ class DataFrameLocal(DataFrame):
         :return: :class:`DataFrame` or :class:`GroupBy` object.
         """
         from .groupby import GroupBy
-        groupby = GroupBy(self, by=by)
+        groupby = GroupBy(self, by=by, sort=sort)
         if agg is None:
             return groupby
         else:
