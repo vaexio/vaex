@@ -2823,6 +2823,7 @@ class DataFrame(object):
                 index = data.pop(index_name)
             else:
                 index = None
+            data = {key: vaex.arrow.convert.ensure_pandas(ar) for key, ar in data.items()}
             df = pd.DataFrame(data=data, index=index)
             if index is not None:
                 df.index.name = index_name
