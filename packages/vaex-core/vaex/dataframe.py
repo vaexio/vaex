@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 from __future__ import division, print_function
+import difflib
 import os
 import math
 import time
@@ -4734,7 +4735,11 @@ class DataFrame(object):
             del self._virtual_expressions[name]
             self.column_names.remove(name)
         else:
-            raise KeyError('no such column or virtual_columns named %r' % name)
+            matches = difflib.get_close_matches(name, self.get_column_names(hidden=True))
+            msg = "Column or variable %r does not exist." % name
+            if matches:
+                msg += ' Did you mean: ' + " or ".join(map(repr, matches))
+            raise KeyError(msg)
         self.signal_column_changed.emit(self, name, "delete")
         if hasattr(self, name):
             try:
