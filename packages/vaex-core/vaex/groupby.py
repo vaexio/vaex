@@ -227,7 +227,7 @@ class GroupByBase(object):
                     override_name = name
             for aggregate in aggregates:
                 if isinstance(aggregate, six.string_types) and aggregate == "count":
-                    add(vaex.agg.count(), 'count')
+                    add(vaex.agg.count(), 'count' if name is None else name)
                 else:
                     if isinstance(aggregate, six.string_types):
                         aggregate = vaex.agg.aggregates[aggregate]

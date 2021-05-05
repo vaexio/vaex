@@ -486,3 +486,11 @@ def test_list_sum(offset):
     assert df.i.sum(axis=1).tolist() == [3, None, 0, 13][offset:]
     assert df.i.sum(axis=[0, 1]) == [16, 13][offset]
     # assert df.i.sum(axis=0)  # not supported, not sure what this should return
+
+
+def test_agg_count_with_custom_name():
+    x = np.array([0, 0, 0, 1, 1, 2])
+    df = vaex.from_arrays(x=x)
+    df_grouped = df.groupby(df.x, sort=True).agg({'mycounts': vaex.agg.count(), 'mycounts2': 'count'})
+    assert df_grouped['mycounts'].tolist() == [3, 2, 1]
+    assert df_grouped['mycounts2'].tolist() == [3, 2, 1]
