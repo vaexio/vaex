@@ -294,13 +294,13 @@ def test_groupby_same_result():
     vc = df.h.value_counts()
 
     with small_buffer(df):
-        group = df.groupby(by=df.h).agg({'h': 'count'})
+        group = df.groupby(by=df.h).agg({'h_count': 'count'})
         # second time it uses a new set, this caused a bug
         # see https://github.com/vaexio/vaex/pull/233
-        group = df.groupby(by=df.h).agg({'h': 'count'})
-        group_sort = group.sort(by='count', ascending=False)
+        group = df.groupby(by=df.h).agg({'h_count': 'count'})
+        group_sort = group.sort(by='h_count', ascending=False)
 
-        assert vc.values.tolist() == group_sort['count'].values.tolist(), 'counts are not correct.'
+        assert vc.values.tolist() == group_sort['h_count'].values.tolist(), 'counts are not correct.'
         assert vc.index.tolist() == group_sort['h'].values.tolist(), 'the indices of the counts are not correct.'
 
 
