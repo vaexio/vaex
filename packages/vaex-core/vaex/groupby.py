@@ -493,7 +493,7 @@ class DatasetGroupby(vaex.dataset.DatasetDecorator):
     def _fingerprint(self):
         by = self.by
         by = str(by) if not isinstance(by, (list, tuple)) else list(map(str, by))
-        id = vaex.cache.fingerprint(self.original.fingerprint, self.df, by, self.agg, self.combine, self.expand)
+        id = vaex.cache.fingerprint(self.original.fingerprint, self.df.fingerprint(), by, self.agg, self.combine, self.expand)
         return f'dataset-{self.snake_name}-{id}'
 
     def chunk_iterator(self, *args, **kwargs):

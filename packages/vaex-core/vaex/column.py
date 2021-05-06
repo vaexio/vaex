@@ -20,13 +20,13 @@ logger = logging.getLogger("vaex.column")
 
 register = vaex.encoding.make_class_registery('column')
 
-class Column(object):
+class Column:
     def tolist(self):
         return self.to_numpy().tolist()
 
     @abstractmethod
     def fingerprint(self):
-        pass
+        raise NotImplementedError
 
     def to_arrow(self, type=None):
         return pa.array(self, type=type)
@@ -319,6 +319,11 @@ class ColumnConcatenatedLazy(Column):
                 shape_i = (len(self), ) + expressions[i].evaluate(0, 1, array_type='numpy', parallel=False).shape[1:]
                 if self.shape != shape_i:
                     raise ValueError("shape of of expression %s, array index 0, is %r and is incompatible with the shape of the same column of array index %d, %r" % (self.expressions[0], self.shape, i, shape_i))
+
+        self._fingerprint = vaex.cache.fingerprint([k.fingerprint() for k in self.expressions])
+
+    def fingerprint(self):
+        return self._fingerprint
 
     def to_arrow(self, type=None):
         values = [e.values for e in self.expressions]

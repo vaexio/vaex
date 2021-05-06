@@ -222,6 +222,10 @@ class Expression(with_metaclass(Meta)):
                 return value
         return self.expression
 
+    def fingerprint(self):
+        fp = vaex.cache.fingerprint(self.expression, self.df.fingerprint())
+        return f'expression-{fp}'
+
     def copy(self, df=None):
         """Efficiently copies an expression.
 
