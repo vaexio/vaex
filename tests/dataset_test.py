@@ -303,13 +303,13 @@ def test_hashable(rebuild_dataset):
     assert some_dict[rebuild_dataset(df.dataset)] == '2'
 
 
-def test_cache_hash(rebuild_dataset):
+def test_cache_hash(rebuild_dataset, tmpdir):
     # TODO: what if the directory is not writable?
     # ds1 = dataset.DatasetArrays(x=x, y=y)
-    path_data = HERE / 'data' / 'test.hdf5'
+    path_data = tmpdir / 'test.hdf5'
     if path_data.exists():
         path_data.unlink()
-    path_hashes = HERE / 'data' / 'test.hdf5.d' / 'hashes.yaml'
+    path_hashes = tmpdir / 'test.hdf5.d' / 'hashes.yaml'
     if path_hashes.exists():
         path_hashes.unlink()
 
@@ -332,6 +332,7 @@ def test_cache_hash(rebuild_dataset):
     ds3 = df3.dataset
     assert ds3._hash_calculations == 0
     assert ds3 == ds2
+    df3.close()
 
 
 def test_chunk_iterator():
