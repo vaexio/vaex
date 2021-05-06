@@ -1393,9 +1393,13 @@ class DatasetFile(Dataset):
 
     @property
     def _fingerprint(self):
-        # TODO: if the dataset is hashed, return a fingerprint based on that
-        fingerprint = vaex.file.fingerprint(self.path, fs_options=self.fs_options, fs=self.fs)
-        return f'dataset-{self.snake_name}-{fingerprint}'
+        if set(self._ids) == set(self):
+            fingerprint = vaex.cache.fingerprint(dict(self._ids))
+            return f'dataset-{self.snake_name}-hashed-{fingerprint}'
+        else:
+            # TODO: if the dataset is hashed, return a fingerprint based on that
+            fingerprint = vaex.file.fingerprint(self.path, fs_options=self.fs_options, fs=self.fs)
+            return f'dataset-{self.snake_name}-{fingerprint}'
 
     def leafs(self) -> List[Dataset]:
         return [self]
