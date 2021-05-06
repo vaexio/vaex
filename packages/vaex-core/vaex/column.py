@@ -1,4 +1,4 @@
-from abc import abstractmethod
+from abc import ABC, abstractmethod
 import logging
 import os
 import warnings
@@ -20,7 +20,7 @@ logger = logging.getLogger("vaex.column")
 
 register = vaex.encoding.make_class_registery('column')
 
-class Column:
+class Column(ABC):
     _cached_fingerprint = None
 
     def tolist(self):
@@ -75,6 +75,12 @@ class ColumnMaskedNumpy(Column):
         self.dtype = data.dtype
         assert len(data) == len(mask)
 
+    def _fingerprint(self):
+        hash1 = vaex.dataset.hash_array_data(self.data[:])
+        hash2 = vaex.dataset.hash_array_data(self.indimaskces[:])
+        fp = vaex.cache.fingerprint(hash1, hash2)
+        return f'column-masked-numpy-{fp}'
+
     def __len__(self):
         return len(self.data)
 
@@ -127,6 +133,11 @@ class ColumnNumpyLike(Column):
     def __setitem__(self, slice, value):
         self.ar[slice] = value
 
+    def _fingerprint(self):
+        ar = self[:]
+        hash = vaex.dataset.hash_array(ar)
+        fp = vaex.cache.fingerprint(hash)
+        return f'column-numpy-like-{fp}'
 
 
 @register
@@ -154,7 +165,7 @@ class ColumnArrowLazyCast(Column):
     def _fingerprint(self):
         hash = vaex.dataset.hash_array_data(self.ar)
         fp = vaex.cache.fingerprint(hash, self.type)
-        return f'arrow-lazy-cast-{fp}'
+        return f'column-arrow-lazy-cast-{fp}'
 
     @property
     def nbytes(self):
@@ -188,6 +199,12 @@ class ColumnIndexed(Column):
         # max_index = self.indices.max()
         # if not np.ma.is_masked(max_index):
         #     assert max_index < self.df._length_original
+
+    def _fingerprint(self):
+        hash1 = vaex.dataset.hash_array_data(self.column[:])
+        hash2 = vaex.dataset.hash_array_data(self.indices[:])
+        fp = vaex.cache.fingerprint(hash1, hash2, self.masked)
+        return f'column-indexed-{fp}'
 
     @staticmethod
     def index(column, indices, direct_indices_map=None, masked=False):

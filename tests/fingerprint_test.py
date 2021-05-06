@@ -1,3 +1,7 @@
+import vaex
+import numpy as np
+import pyarrow as pa
+
 
 def test_dataframe(df_factory):
     df1 = df_factory(x=[1, 2], y=[4, 5])
@@ -34,3 +38,40 @@ def test_expression(df_factory):
     assert df1.z.fingerprint() == df1b.z.fingerprint()
 
     assert df1.z.fingerprint() != df2.z.fingerprint()
+
+
+def test_column_file():
+    path = vaex.example().dataset.path
+    df = vaex.open(path, nommap=True)
+    x = df.dataset._columns['x']
+    assert isinstance(x, vaex.file.column.ColumnFile)
+    df = vaex.from_arrays(x=x)  # will trigger fingerprint
+    x.fingerprint()  # just to be sure
+
+
+def test_column_numpy_like():
+    x = np.arange(5)
+    x1 = vaex.column.ColumnNumpyLike(x)
+    x2 = vaex.column.ColumnNumpyLike(x)
+    x3 = vaex.column.ColumnNumpyLike(x**2)
+    assert x1.fingerprint() == x2.fingerprint()
+    assert x1.fingerprint() != x3.fingerprint()
+
+
+def test_column_arrow_cast():
+    x = np.arange(5)
+    x1 = vaex.column.ColumnArrowLazyCast(x, pa.float32())
+    x2 = vaex.column.ColumnArrowLazyCast(x, pa.float32())
+    x3 = vaex.column.ColumnArrowLazyCast(x**2, pa.float32())
+    assert x1.fingerprint() == x2.fingerprint()
+    assert x1.fingerprint() != x3.fingerprint()
+
+
+def test_column_indexed():
+    x = np.arange(5)
+    i = np.array([0, 2, 3])
+    x1 = vaex.column.ColumnIndexed(x, i)
+    x2 = vaex.column.ColumnIndexed(x, i)
+    x3 = vaex.column.ColumnIndexed(x**2, i)
+    assert x1.fingerprint() == x2.fingerprint()
+    assert x1.fingerprint() != x3.fingerprint()
