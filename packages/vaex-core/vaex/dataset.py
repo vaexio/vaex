@@ -1254,7 +1254,7 @@ class DatasetMerged(Dataset):
 @register
 class DatasetArrays(Dataset):
     snake_name = "arrays"
-    def __init__(self, mapping=None, **kwargs):
+    def __init__(self, mapping=None, hashed=True, **kwargs):
         super().__init__()
         if mapping is None:
             mapping = {}
@@ -1262,7 +1262,10 @@ class DatasetArrays(Dataset):
         columns = {key: to_supported_array(ar) for key, ar in columns.items()}
         # TODO: we finally want to get rid of datasets with no columns
         self._columns = frozendict(columns)
-        self._ids = frozendict()
+        if hashed:
+            self._ids = frozendict({key: hash_array(array) for key, array in self._columns.items()})
+        else:
+            self._ids = frozendict()
         self._set_row_count()
 
     @property
