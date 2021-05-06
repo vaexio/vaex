@@ -4,7 +4,7 @@ from pathlib import Path
 
 import numpy as np
 import pytest
-import pyarrow.parquet
+import pyarrow as pa
 
 import vaex
 import vaex.dataset as dataset
@@ -450,3 +450,8 @@ def test_concat_chunk_iterator(l1, l2):
     ds_dropped = ds.dropped('x')
     assert 'x' not in ds_dropped
 
+
+def test_columns():
+    df = vaex.from_arrays(x=vaex.vrange(0, 10))
+    ar = pa.array(['foo', 'bar'])
+    df = vaex.from_arrays(x=vaex.column.ColumnStringArrow.from_arrow(ar))
