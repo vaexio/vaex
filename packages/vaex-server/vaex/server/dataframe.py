@@ -76,7 +76,7 @@ class DatasetRemote(vaex.dataset.Dataset):
 
     @property
     def _fingerprint(self):
-        raise NotImplementedError
+        return self.id  # TODO: this should be an id from the server
 
     def _create_columns(self):
         pass
