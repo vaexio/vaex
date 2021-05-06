@@ -1,3 +1,5 @@
+import platform
+
 import pytest
 import vaex
 pytest.importorskip("sklearn")
@@ -137,6 +139,7 @@ def test_sklearn_estimator_pipeline(df_iris):
     np.testing.assert_array_almost_equal(pred, df_trans.pred.values)
 
 
+@pytest.mark.skipif(platform.system().lower() == 'windows', reason="unstable results on windows")
 @pytest.mark.parametrize("prediction_type", ['predict', 'predict_proba'])
 def test_sklearn_estimator_classification_validation(prediction_type, df_titanic):
     df = df_titanic
