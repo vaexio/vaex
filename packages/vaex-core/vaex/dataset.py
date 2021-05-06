@@ -26,6 +26,7 @@ logger = logging.getLogger('vaex.dataset')
 
 opener_classes = []
 HASH_VERSION = "1"
+HASH_VERSION_KEY = "version"
 
 
 _dataset_types = {}
@@ -157,6 +158,8 @@ def hash_array(ar, hash_info=None, return_info=False):
     # (hash_array_data), so we can cheaply calculate new hashes if we pass on hash_info
     if hash_info is None:
         hash_info = hash_array_data(ar)
+    if hash_info.get(HASH_VERSION_KEY) == HASH_VERSION:  # TODO: semver check?
+        return hash_info['hash'], hash_info
     if isinstance(ar, np.ndarray):
         if ar.dtype == np.object_:
             return hash_info['data']  # uuid, so always unique
@@ -184,6 +187,8 @@ def hash_array(ar, hash_info=None, return_info=False):
         blake.update(key.encode('ascii'))
     hash = blake.hexdigest()
     if return_info:
+        hash_info['hash'] = hash
+        hash_info[HASH_VERSION_KEY] = HASH_VERSION
         return hash, hash_info
     else:
         return hash
@@ -355,6 +360,7 @@ class Dataset(collections.abc.Mapping):
 
     def __setstate__(self, state):
         self.__dict__.update(state)
+        self._cached_fingerprint = None
         self._create_columns()
 
     def schema(self, array_type=None):
@@ -1307,8 +1313,7 @@ class DatasetArrays(Dataset):
         return state
 
     def __setstate__(self, state):
-        self.__dict__.update(state)
-        # self._create_columns()
+        super().__setstate__(state)
 
     def _create_columns(self):
         pass
@@ -1377,6 +1382,7 @@ class DatasetFile(Dataset):
         self._frozen = False
         self._hash_calculations = 0  # track it for testing purposes
         self._hash_info = {}
+        self._hash_cache_needs_write = False
         self._read_hashes()
 
     @property
@@ -1387,6 +1393,7 @@ class DatasetFile(Dataset):
 
     @property
     def _fingerprint(self):
+        # TODO: if the dataset is hashed, return a fingerprint based on that
         fingerprint = vaex.file.fingerprint(self.path, fs_options=self.fs_options, fs=self.fs)
         return f'dataset-{self.snake_name}-{fingerprint}'
 
@@ -1448,6 +1455,8 @@ class DatasetFile(Dataset):
         self._columns = frozendict(self._columns)
         self._set_row_count()
         self._frozen = True
+        if self._hash_cache_needs_write:
+            self._write_hash_info()
 
     def encode(self, encoding, skip=set()):
         spec = {'dataset_type': self.snake_name,
@@ -1469,12 +1478,13 @@ class DatasetFile(Dataset):
         }
 
     def __setstate__(self, state):
-        self.__dict__.update(state)
+        super().__setstate__(state)
         # 'ctor' like initialization
         self._frozen = False
         self._hash_calculations = 0
         self._columns = {}
         self._hash_info = {}
+        self._hash_cache_needs_write = False
         self._read_hashes()
 
     def add_column(self, name, data):
@@ -1484,7 +1494,10 @@ class DatasetFile(Dataset):
             # the hashes will be done in .freeze()
         hash_info = self._hash_info.get(name)
         if hash_info:
+            hash_info_previous = hash_info.copy()
             hash, hash_info = hash_array(data, hash_info, return_info=True)
+            if hash_info_previous != hash_info:
+                self._hash_cache_needs_write = True
             self._ids[name] = hash
             self._hash_info[name] = hash_info  # always update the information
 
@@ -1524,7 +1537,11 @@ class DatasetFile(Dataset):
         # TODO: without this check, if multiple processes are writing (e.g. tests/execution_test.py::test_task_sum with ray)
         # this leads to a race condition, where we write the file, and while truncated, _read_hases() fails (because the file exists)
         # if new._hash_info != new._ids:
-        if 1:  # TODO: file lock
-            with path_hashes.open('w') as f:
-                vaex.utils.yaml_dump(f, {'columns': dict(new._hash_info)})
+        new._write_hash_info()
         return new
+
+    def _write_hash_info(self):
+        if self._hash_info:  # TODO: file lock
+            path_hashes = self._local_hash_path
+            with path_hashes.open('w') as f:
+                vaex.utils.yaml_dump(f, {'columns': dict(self._hash_info)})

@@ -5326,6 +5326,12 @@ class DataFrameLocal(DataFrame):
         self.mask = None
         self.columns = ColumnProxy(self)
 
+    def fingerprint(self):
+        '''id that uniquely identifies a dataframe (cross runtime)'''
+        state = self.state_get(skip=[self.dataset])
+        fp = vaex.cache.fingerprint(state, self.dataset.fingerprint)
+        return f'dataframe-{fp}'
+
     def __getstate__(self):
         state = self.state_get(skip=[self.dataset])
         return {
