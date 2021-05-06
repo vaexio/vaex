@@ -55,6 +55,11 @@ class ColumnFile(vaex.column.Column):
         self.shape = (length,)
         self.write = write
 
+    def _fingerprint(self):
+        hash = vaex.dataset.hash_array(self.to_numpy())
+        fp = vaex.cache.fingerprint(hash)
+        return f'column-file-{fp}'
+
     def __len__(self):
         return self.length
 
@@ -136,7 +141,10 @@ class ColumnFile(vaex.column.Column):
                             self.file_handles.append(file)
                 # this is the fast path, that avoids a memory copy but gets a view on the underlying data
                 file.seek(offset)
-                buf = file.read_buffer(byte_length)
+                if hasattr(file, 'read_buffer'):  # arrow file
+                    buf = file.read_buffer(byte_length)
+                else:
+                    buf = file.read(byte_length)
                 ar = np.frombuffer(buf, self.dtype, count=N)
             if USE_CACHE:
                 with cache_lock:

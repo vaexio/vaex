@@ -59,8 +59,9 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
     snake_name = "hdf5"
     """Implements the vaex hdf5 file format"""
 
-    def __init__(self, path, write=False, fs_options={}, fs=None):
-        nommap = not vaex.file.memory_mappable(path)
+    def __init__(self, path, write=False, fs_options={}, fs=None, nommap=None):
+        if nommap is None:
+            nommap = not vaex.file.memory_mappable(path)
         super(Hdf5MemoryMapped, self).__init__(vaex.file.stringyfy(path), write=write, nommap=nommap, fs_options=fs_options, fs=fs)
         self._all_mmapped = True
         self._open(path)

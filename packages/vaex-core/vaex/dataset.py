@@ -528,6 +528,10 @@ class ColumnProxy(vaex.column.Column):
         self.name = name
         self.dtype = type
 
+    def _fingerprint(self):
+        fp = vaex.cache.fingerprint(self.ds.fingerprint, self.name)
+        return f'column-proxy-{fp}'
+
     def __len__(self):
         return self.ds.row_count
 
