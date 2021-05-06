@@ -181,7 +181,7 @@ def hash_array(ar, hash_info=None, return_info=False):
         if not (hash_info['type'] == 'column'):
             hash_info = hash_array_data(ar)
         keys = [HASH_VERSION]
-        keys.extend(hash_info['fingerprint'])
+        keys.append(hash_info['fingerprint'])
     blake = blake3.blake3(multithreading=False)  # small amounts of data
     for key in keys:
         blake.update(key.encode('ascii'))

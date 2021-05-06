@@ -34,7 +34,7 @@ class Column:
 
     @abstractmethod
     def _fingerprint(self):
-        pass
+        raise NotImplementedError
 
     def to_arrow(self, type=None):
         return pa.array(self, type=type)
@@ -56,8 +56,9 @@ class ColumnVirtualRange(Column):
     def __len__(self):
         return (self.stop - self.start) // self.step
 
-    def fingerprint(self):
-        return vaex.cache.fingerprint('vrange', self.start, self.stop, self.step, self.dtype, self.shape)
+    def _fingerprint(self):
+        fp = vaex.cache.fingerprint(self.start, self.stop, self.step, self.dtype, self.shape)
+        return f'column-vrange-{fp}'
 
     def __getitem__(self,  slice):
         start, stop, step = slice.start, slice.stop, slice.step
@@ -152,7 +153,8 @@ class ColumnArrowLazyCast(Column):
 
     def _fingerprint(self):
         hash = vaex.dataset.hash_array_data(self.ar)
-        return vaex.cache.fingerprint('arrow-lazy-cast', hash, self.type)
+        fp = vaex.cache.fingerprint(hash, self.type)
+        return f'arrow-lazy-cast-{fp}'
 
     @property
     def nbytes(self):
@@ -569,6 +571,12 @@ class ColumnStringArrow(ColumnString):
 
         if not (self.indices.dtype.kind == 'i' and self.indices.dtype.itemsize in [4,8]):
             raise ValueError('unsupported index type' + str(self.indices.dtype))
+
+    def _fingerprint(self):
+        hash1 = vaex.dataset.hash_array_data(self.indices)
+        hash2 = vaex.dataset.hash_array_data(self.bytes)
+        fp = vaex.cache.fingerprint(hash1, hash2, self.length, self.offset, self.null_bitmap)
+        return 'column-string-arrow-{fp}'
 
     def __arrow_array__(self, type=None):
         offsets = self.indices
