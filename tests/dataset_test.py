@@ -39,11 +39,11 @@ def test_array_rebuild_dataset(rebuild_dataset):
 def test_no_hash():
     x1 = np.arange(10)
     y1 = x1**2
-    ds1 = dataset.DatasetArrays(x=x1, y=y1)
+    ds1 = dataset.DatasetArrays(x=x1, y=y1, hashed=False)
 
     x2 = np.arange(10)
     y2 = x2**2
-    ds2 = dataset.DatasetArrays(x=x2, y=y2)
+    ds2 = dataset.DatasetArrays(x=x2, y=y2, hashed=False)
 
     with pytest.raises(ValueError, match='.*hash.*'):
         ds1 == ds2
@@ -113,7 +113,8 @@ def test_array_rename(rebuild_dataset):
     assert ds3.original is ds1
     assert ds3.renaming == {'b': 'z', 'c': 'q'}
 
-    assert rebuild_with_skip(ds2, ds1) == ds2
+    dsr = rebuild_with_skip(ds2, ds1)
+    assert dsr == ds2
 
 
 def test_merge(rebuild_dataset, array_factory):
