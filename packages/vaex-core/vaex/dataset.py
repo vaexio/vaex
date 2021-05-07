@@ -448,6 +448,10 @@ class Dataset(collections.abc.Mapping):
     def __eq__(self, rhs):
         if not isinstance(rhs, Dataset):
             return NotImplemented
+        # simple case, if fingerprints are equal, the data is equal
+        if self.fingerprint == rhs.fingerprint:
+            return True
+        # but no the other way around
         keys = set(self)
         keys_hashed = set(self._ids)
         missing = keys ^ keys_hashed
