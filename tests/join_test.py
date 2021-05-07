@@ -80,6 +80,12 @@ def test_left_a_b(rebuild_dataframe):
     assert df['y'].tolist() == [0, None, 2]
     assert df['y_r'].tolist() == [None, 1, None]
     assert rebuild_dataframe(df.hashed()).dataset.hashed() == df.dataset.hashed()
+    # test slicing
+    assert rebuild_dataframe(df).dataset == df.dataset
+    dfs = rebuild_dataframe(df[1:-1])
+    assert dfs.dataset == df[1:-1].dataset
+    assert df[1:-1]['a'].tolist() == ['B']
+    assert dfs['a'].tolist() == ['B']
 
 
 def test_left_a_b_as_alias(rebuild_dataframe):

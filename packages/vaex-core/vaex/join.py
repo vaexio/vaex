@@ -7,7 +7,7 @@ from vaex.utils import _ensure_string_from_expression
 class DatasetJoin(vaex.dataset.DatasetDecorator):
     snake_name = "join"
     _no_serialize = '_columns _ids original _row_count _id _cached_fingerprint'.split()
-    def __init__(self, original, left, right, on=None, left_on=None, right_on=None, lprefix='', rprefix='', lsuffix='', rsuffix='', how='left', allow_duplication=False, prime_growth=False, cardinality_other=None):
+    def __init__(self, original, left, right, on=None, left_on=None, right_on=None, lprefix='', rprefix='', lsuffix='', rsuffix='', how='left', allow_duplication=False, prime_growth=False, cardinality_other=None, slice_start=None, slice_end=None):
         super().__init__(original)
         self.left = left
         self.right = right
@@ -28,6 +28,8 @@ class DatasetJoin(vaex.dataset.DatasetDecorator):
         self.allow_duplication = allow_duplication
         self.prime_growth = prime_growth
         self.cardinality_other = cardinality_other
+        self.slice_start = slice_start
+        self.slice_end = slice_end
         self._row_count = self.original.row_count
         self._create_columns()
 
@@ -41,8 +43,22 @@ class DatasetJoin(vaex.dataset.DatasetDecorator):
         # kwargs = self.__dict__.copy()
         # for skip in self._no_serialize:
         #     kwargs.pop(skip)
-        id = vaex.cache.fingerprint(self.original.fingerprint)
-        return f'dataset-{self.snake_name}-{id}'
+        fp = vaex.cache.fingerprint({
+            'left': self.left.fingerprint(),
+            'right': self.right.fingerprint(),
+            'on': str(self.on) if self.on is not None else None,
+            'left_on': str(self.left_on) if self.left_on is not None else None,
+            'right_on': str(self.right_on) if self.right_on is not None else None,
+            'lprefix': self.lprefix,
+            'rprefix': self.rprefix,
+            'lsuffix': self.lsuffix,
+            'rsuffix': self.rsuffix,
+            'how': self.how,
+            'allow_duplication': self.allow_duplication,
+            'prime_growth': self.prime_growth,
+            'cardinality_other': self.cardinality_other,
+        })
+        return f'dataset-{self.snake_name}-{fp}'
 
     def chunk_iterator(self, *args, **kwargs):
         yield from self.original.chunk_iterator(*args, **kwargs)
@@ -54,16 +70,15 @@ class DatasetJoin(vaex.dataset.DatasetDecorator):
         return type(self)(self.original.hashed(), **kwargs)
 
     def slice(self, start, end):
-        # if start == 0 and end == self.row_count:
-        #     return self
-        # return vaex.dataset.DatasetSlicedArrays(self, start=start, end=end)
+        if start == 0 and end == self.row_count:
+            return self
         kwargs = self.__dict__.copy()
+        kwargs['slice_start'] = start
+        kwargs['slice_end'] = end
         for skip in self._no_serialize:
             kwargs.pop(skip, None)
         left = kwargs.pop('left')
         right = kwargs.pop('right')
-        left = left[start:end]
-        right = right[start:end]
         dataset = self.original.slice(start, end)
         return type(self)(dataset, left=left, right=right, **kwargs)
 
@@ -84,6 +99,8 @@ class DatasetJoin(vaex.dataset.DatasetDecorator):
             'allow_duplication': self.allow_duplication,
             'prime_growth': self.prime_growth,
             'cardinality_other': self.cardinality_other,
+            'slice_start': self.slice_start,
+            'slice_end': self.slice_end,
         }
         return spec
 
@@ -92,8 +109,16 @@ class DatasetJoin(vaex.dataset.DatasetDecorator):
         spec = spec.copy()
         left = encoding.decode('dataframe', spec.pop('left'))
         right = encoding.decode('dataframe', spec.pop('right'))
-        dfj = left.join(right, **spec)
-        return DatasetJoin(dfj.dataset.original, left, right, **spec)
+        spec_no_slice = spec.copy()
+        del spec_no_slice['slice_start']
+        del spec_no_slice['slice_end']
+        dfj = left.join(right, **spec_no_slice)
+        start = spec['slice_start']
+        end = spec['slice_end']
+        dataset = dfj.dataset.original
+        if start is not None and end is not None:
+            dataset = dataset.slice(start, end)
+        return DatasetJoin(dataset, left, right, **spec)
         
 
 def join(df, other, on=None, left_on=None, right_on=None, lprefix='', rprefix='', lsuffix='', rsuffix='', how='left', allow_duplication=False, prime_growth=False, cardinality_other=None, inplace=False):
