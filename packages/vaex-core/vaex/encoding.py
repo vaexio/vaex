@@ -461,8 +461,9 @@ class Encoding:
         return decoded
 
     def add_blob(self, buffer):
-        blob_id = str(uuid.uuid4())
-        self.blobs[blob_id] = memoryview(buffer).tobytes()
+        bytes = memoryview(buffer).tobytes()
+        blob_id = vaex.cache.fingerprint(bytes)
+        self.blobs[blob_id] = bytes
         return f'blob:{blob_id}'
 
     def get_blob(self, blob_ref):
