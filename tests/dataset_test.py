@@ -15,6 +15,7 @@ pytest.importorskip("blake3")
 HERE = Path(__file__).parent
 
 def rebuild_with_skip(ds, skip):
+    repr(ds)  # for coverage
     # encoding and decode
     encoding = vaex.encoding.Encoding()
     encoding.set_object_spec(skip.id, None)  # this will cause it to skip serialization

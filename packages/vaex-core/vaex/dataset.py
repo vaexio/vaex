@@ -311,6 +311,25 @@ class Dataset(collections.abc.Mapping):
         self._id = str(uuid.uuid4())
         self._cached_fingerprint = None
 
+    def __repr__(self):
+        import yaml
+        data = self.__repr_data__()
+        return yaml.dump(data, sort_keys=False, indent=4)
+
+    def __repr_data__(self):
+        state = self.__getstate__()
+        def normalize(v):
+            if isinstance(v, Dataset):
+                return v.__repr_data__()
+            if isinstance(v, frozendict):
+                return dict(v)
+            if isinstance(v, vaex.dataframe.DataFrame):
+                return {'type': 'dataframe', 'repr': repr(v)}
+            if isinstance(v, np.ndarray):
+                return v.tolist()
+            return v
+        return {'type': self.snake_name, **{k: normalize(v) for k, v in state.items() if not k.startswith('_')}}
+
     @property
     def id(self):
         '''id that uniquely identifies a dataset at runtime'''
@@ -328,7 +347,6 @@ class Dataset(collections.abc.Mapping):
         pass
 
     def encode(self, encoding):
-        print(self.id, encoding.has_object_spec(self.id))
         if not encoding.has_object_spec(self.id):
             spec = self._encode(encoding)
             encoding.set_object_spec(self.id, spec)
