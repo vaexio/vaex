@@ -1143,6 +1143,9 @@ class FunctionSerializablePickle(FunctionSerializable):
         self.f = f
         self.multiprocessing = multiprocessing
 
+    def __eq__(self, rhs):
+        return self.f == rhs.f
+
     def pickle(self, function):
         return pickle.dumps(function)
 
@@ -1339,7 +1342,6 @@ class Function(object):
         arg_string = ", ".join([str(k) for k in args] + ['{}={:r}'.format(name, value) for name, value in kwargs.items()])
         expression = "{}({})".format(self.name, arg_string)
         return Expression(self.dataset, expression)
-
 
 class FunctionBuiltin(object):
 
