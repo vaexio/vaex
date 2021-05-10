@@ -5864,6 +5864,17 @@ class DataFrameLocal(DataFrame):
             for name, value in list(df.variables.items()):
                 if name not in df_concat.variables:
                     df_concat.set_variable(name, value, write=False)
+        for df in dfs:
+            for name, value in list(df.functions.items()):
+                if name not in df_concat.functions:
+                    if isinstance(value, vaex.expression.Function):
+                        value = value.f
+                    if isinstance(value, vaex.expression.FunctionSerializablePickle):
+                        value = value.f
+                    df_concat.add_function(name, value)
+                else:
+                    if df_concat.functions[name].f != df.functions[name].f:
+                        raise ValueError(f'Unequal function {name} in concatenated dataframes are not supported yet')
         return df_concat
 
     def _invalidate_caches(self):

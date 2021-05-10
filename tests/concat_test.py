@@ -49,17 +49,44 @@ def test_concat():
 
 
 def test_concat_unequals_virtual_columns():
-    ds1 = vaex.from_scalars(x=1, y=2)
-    ds2 = vaex.from_scalars(x=2, y=3)
+    df1 = vaex.from_scalars(x=1, y=2)
+    df2 = vaex.from_scalars(x=2, y=3)
     # w has same expression
-    ds1['w'] = ds1.x + ds1.y
-    ds2['w'] = ds2.x + ds2.y
+    df1['w'] = df1.x + df1.y
+    df2['w'] = df2.x + df2.y
     # z does not
-    ds1['z'] = ds1.x + ds1.y
-    ds2['z'] = ds2.x * ds2.y
-    ds = vaex.concat([ds1, ds2])
-    assert ds.w.tolist() == [1+2, 2+3]
-    assert ds.z.tolist() == [1+2, 2*3]
+    df1['z'] = df1.x + df1.y
+    df2['z'] = df2.x * df2.y
+    df = vaex.concat([df1, df2])
+    assert df.w.tolist() == [1+2, 2+3]
+    assert df.z.tolist() == [1+2, 2*3]
+
+
+def test_concat_functions():
+    def foo(a, b):
+        return a + b
+    df1 = vaex.from_scalars(x=1, y=2)
+    df2 = vaex.from_scalars(x=2, y=3)
+    df1.add_function('foo', foo)
+    df2.add_function('foo', foo)
+    # w has same expression and function
+    df1['w'] = df1.func.foo(df1.x, df1.y)
+    df2['w'] = df2.func.foo(df2.x, df2.y)
+    assert df1.w.tolist() == [3]
+    df = vaex.concat([df1, df2])
+    assert df.w.tolist() == [1+2, 2+3]
+
+    # now bar is a new function
+    def bar1(a, b):
+        return a + b
+    def bar2(a, b):
+        return a + b
+    df1 = vaex.from_scalars(x=1, y=2)
+    df2 = vaex.from_scalars(x=2, y=3)
+    df1.add_function('bar', bar1)
+    df2.add_function('bar', bar2)
+    with pytest.raises(ValueError):
+        df = vaex.concat([df1, df2])
 
 
 def test_concat_keep_virtual():
