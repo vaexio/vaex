@@ -38,7 +38,7 @@ class VOTable(DatasetFile):
 					data = data.astype("S")
 					self.add_column(name, data)
 				except Exception as e:
-					print("Giving up column %s, error: %r" (name, e))
+					print("Giving up column %s, error: %r" %(name, e))
 			#if type.kind in ["S"]:
 			#	self.add_column(clean_name, self.first_table.array[name].data)
 		self._freeze()
