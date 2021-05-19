@@ -195,7 +195,7 @@ def df_executor(request, df_trimmed, df_remote):
 
 if os.environ.get('VAEX_TEST_SKIP_REMOTE'):
     @pytest.fixture(params=['ds_filtered', 'ds_half', 'ds_trimmed', 'df_concat', 'df_arrow', 'df_parquet'])
-    def ds(request, ds_filtered, ds_half, ds_trimmed, ds_remote, df_concat, df_arrow, df_parquet):
+    def ds(request, ds_filtered, ds_half, ds_trimmed, df_concat, df_arrow, df_parquet):
         named = dict(ds_filtered=ds_filtered, ds_half=ds_half, ds_trimmed=ds_trimmed, df_concat=df_concat, df_arrow=df_arrow, df_parquet=df_parquet)
         return named[request.param]
 else:

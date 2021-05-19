@@ -38,6 +38,10 @@ class ScopeBase(object):
         return default
 
 
+def auto_encode(df, expression, values):
+    return df._auto_encode_data(expression, values)
+
+
 class UnitScope(ScopeBase):
     def __init__(self, df, value=None):
         self.df = df
@@ -106,6 +110,7 @@ class _BlockScope(ScopeBase):
             # logger.debug("in eval")
             # eval("def f(")
             result = eval(expression, expression_namespace, self)
+            result = auto_encode(self.df, expression, result)
             self.values[expression] = wrap(result)
             # if out is not None:
             #   out[:] = result
@@ -138,18 +143,20 @@ class _BlockScope(ScopeBase):
                         values = values.filter(vaex.array_types.to_arrow(self.mask))
                     else:
                         values = values[self.mask]
+                values = auto_encode(self.df, variable, values)
                 self.values[variable] = wrap(values)
             elif variable in list(self.df.virtual_columns.keys()):
                 expression = self.df.virtual_columns[variable]
                 if isinstance(expression, dict):
                     function = expression['function']
                     arguments = [self.evaluate(k) for k in expression['arguments']]
-                    self.values[variable] = wrap(function(*arguments))
+                    values = function(*arguments)
                 else:
                     # self._ensure_buffer(variable)
                     values = self.evaluate(expression)
-                    self.values[variable] = wrap(values)
-                    # self.values[variable] = self.buffers[variable]
+                values = auto_encode(self.df, variable, values)
+                self.values[variable] = wrap(values)
+                # self.values[variable] = self.buffers[variable]
             elif variable in self.df.functions:
                 f = self.df.functions[variable].f
                 return vaex.arrow.numpy_dispatch.autowrapper(f)
@@ -248,6 +255,7 @@ class _BlockScopeSelection(ScopeBase):
                             values = values.filter(vaex.array_types.to_arrow(self.filter_mask))
                         else:
                             values = values[self.filter_mask]
+                    values = auto_encode(self.df, variable, values)
                     return wrap(values)
                 elif variable in self.df.variables:
                     return self.df.variables[variable]
@@ -257,6 +265,7 @@ class _BlockScopeSelection(ScopeBase):
                     if expression == variable:
                         raise ValueError(f'Recursion protection: virtual column {variable} refers to itself')
                     values = self.evaluate(expression)  # , out=self.buffers[variable])
+                    values = auto_encode(self.df, variable, values)
                     return wrap(values)
                 elif variable in self.df.functions:
                     f = self.df.functions[variable].f

@@ -273,10 +273,8 @@ class DataFrame(object):
                     return True
         return column in self._categories
 
-    def category_labels(self, column, aslist=True):
-        column = _ensure_string_from_expression(column)
-        if column in self._categories:
-            return self._categories[column]['labels']
+    def _category_dictionary(self, column):
+        '''Return the dictionary for a column if it is an arrow dict type'''
         if column in self.columns:
             x = self.columns[column]
             arrow_type = x.type
@@ -287,9 +285,19 @@ class DataFrame(object):
                     # take the first dictionaryu
                     x = x.chunks[0]
                 dictionary = x.dictionary
-                if aslist:
-                    dictionary = dictionary.to_pylist()
                 return dictionary
+
+    def category_labels(self, column, aslist=True):
+        column = _ensure_string_from_expression(column)
+        if column in self._categories:
+            return self._categories[column]['labels']
+        dictionary = self._category_dictionary(column)
+        if dictionary is not None:
+            if aslist:
+                dictionary = dictionary.to_pylist()
+            return dictionary
+        else:
+            raise ValueError(f'Column {column} is not a categorical')
 
     def category_values(self, column):
         column = _ensure_string_from_expression(column)
@@ -297,11 +305,23 @@ class DataFrame(object):
 
     def category_count(self, column):
         column = _ensure_string_from_expression(column)
-        return self._categories[column]['N']
+        if column in self._categories:
+            return self._categories[column]['N']
+        dictionary = self._category_dictionary(column)
+        if dictionary is not None:
+            return len(dictionary)
+        else:
+            raise ValueError(f'Column {column} is not a categorical')
 
     def category_offset(self, column):
         column = _ensure_string_from_expression(column)
-        return self._categories[column]['min_value']
+        if column in self._categories:
+            return self._categories[column]['min_value']
+        dictionary = self._category_dictionary(column)
+        if dictionary is not None:
+            return 0
+        else:
+            raise ValueError(f'Column {column} is not a categorical')
 
     def execute(self):
         '''Execute all delayed jobs.'''
@@ -491,30 +511,33 @@ class DataFrame(object):
         if axis is not None:
             raise ValueError('only axis=None is supported')
         expression = _ensure_string_from_expression(expression)
-        ordered_set = self._set(expression, progress=progress, selection=selection, flatten=axis is None)
-        transient = True
-        data_type_item = self.data_type(expression, axis=-1)
-        if return_inverse:
-            # inverse type can be smaller, depending on length of set
-            inverse = np.zeros(self._length_unfiltered, dtype=np.int64)
-            dtype = self.data_type(expression)
-            from vaex.column import _to_string_sequence
-            def map(thread_index, i1, i2, ar):
-                if vaex.array_types.is_string_type(dtype):
-                    previous_ar = ar
-                    ar = _to_string_sequence(ar)
-                    if not transient:
-                        assert ar is previous_ar.string_sequence
-                # TODO: what about masked values?
-                inverse[i1:i2] = ordered_set.map_ordinal(ar)
-            def reduce(a, b):
-                pass
-            self.map_reduce(map, reduce, [expression], delay=delay, name='unique_return_inverse', info=True, to_numpy=False, selection=selection)
-        keys = ordered_set.keys()
-        if not dropnan and ordered_set.has_nan:
-            keys = [math.nan] + keys
-        if not dropmissing and ordered_set.has_null:
-            keys = [None] + keys
+        if self._encode_categoricals and self.is_category(expression):
+            keys = self.category_labels(expression)
+        else:
+            ordered_set = self._set(expression, progress=progress, selection=selection, flatten=axis is None)
+            transient = True
+            data_type_item = self.data_type(expression, axis=-1)
+            if return_inverse:
+                # inverse type can be smaller, depending on length of set
+                inverse = np.zeros(self._length_unfiltered, dtype=np.int64)
+                dtype = self.data_type(expression)
+                from vaex.column import _to_string_sequence
+                def map(thread_index, i1, i2, ar):
+                    if vaex.array_types.is_string_type(dtype):
+                        previous_ar = ar
+                        ar = _to_string_sequence(ar)
+                        if not transient:
+                            assert ar is previous_ar.string_sequence
+                    # TODO: what about masked values?
+                    inverse[i1:i2] = ordered_set.map_ordinal(ar)
+                def reduce(a, b):
+                    pass
+                self.map_reduce(map, reduce, [expression], delay=delay, name='unique_return_inverse', info=True, to_numpy=False, selection=selection)
+            keys = ordered_set.keys()
+            if not dropnan and ordered_set.has_nan:
+                keys = [math.nan] + keys
+            if not dropmissing and ordered_set.has_null:
+                keys = [None] + keys
         keys = vaex.array_types.convert(keys, array_type)
         if return_inverse:
             return keys, inverse
@@ -1962,8 +1985,10 @@ class DataFrame(object):
                 # TODO: this probably would use data_type
                 # to support Columns that wrap arrow arrays
                 data_type = column.dtype
+                data_type = self._auto_encode_type(expression, data_type)
             else:
                 data = column[0:1]
+                data = self._auto_encode_data(expression, data)
         else:
             expression = vaex.utils.valid_expression(self.get_column_names(hidden=True), expression)
             try:
@@ -4934,7 +4959,7 @@ class DataFrame(object):
 
     def _binner_ordinal(self, expression, ordinal_count, min_value=0):
         expression = _ensure_string_from_expression(expression)
-        type = vaex.utils.find_type_from_dtype(vaex.superagg, "BinnerOrdinal_", self.data_type(expression))
+        type = vaex.utils.find_type_from_dtype(vaex.superagg, "BinnerOrdinal_", self.data_type(expression).index_type)
         return type(expression, ordinal_count, min_value)
 
     def _create_grid(self, binby, limits, shape, selection=None, delay=False):
@@ -5013,6 +5038,8 @@ class DataFrameLocal(DataFrame):
         else:
             name = name or dataset.name
         super(DataFrameLocal, self).__init__(name)
+        # this is to be backward compatible with v4, in v5 the default should be True
+        self._encode_categoricals = False
         self._dataset = dataset
         if hasattr(dataset, 'units'):
             self.units.update(dataset.units)
@@ -5037,7 +5064,8 @@ class DataFrameLocal(DataFrame):
         del state['renamed_columns']
         return {
             'state': state,
-            'dataset': self.dataset
+            'dataset': self.dataset,
+            '_encode_categoricals': self. _encode_categoricals,
         }
 
     def __setstate__(self, state):
@@ -5052,6 +5080,7 @@ class DataFrameLocal(DataFrame):
         self._cached_filtered_length = None
         self._index_start = 0
         self._index_end = self._length_original
+        self._encode_categoricals = state['_encode_categoricals']
         self.state_set(state['state'], use_active_range=True, trusted=True)
 
     @property
@@ -5088,6 +5117,48 @@ class DataFrameLocal(DataFrame):
         df._dataset = vaex.dataset.DatasetArrays(columns)
         return df
 
+    def _auto_encode(self, inplace=False):
+        '''Return a dataframe with automatically encoded categorical data (will be default in v5.)'''
+        df = self if inplace else self.copy()
+        df._encode_categoricals = True
+        return df
+
+    _dict_mapping = {
+        pa.uint8(): pa.int16(),
+        pa.uint16(): pa.int32(),
+        pa.uint32(): pa.int64(),
+        pa.uint64(): pa.int64(),
+    }
+
+    def _auto_encode_type(self, expression, type):
+        if not self._encode_categoricals:
+            return type
+        if self.is_category(expression):
+            value_type = vaex.array_types.to_arrow(self.category_labels(expression)).type
+            type = vaex.array_types.to_arrow_type(type)
+            type = self._dict_mapping.get(type, type)
+            type = pa.dictionary(type, value_type)
+        return type
+
+    def _auto_encode_data(self, expression, values):
+        if not self._encode_categoricals:
+            return values
+        if vaex.array_types.is_arrow_array(values) and pa.types.is_dictionary(values.type):
+            return values
+        if self.is_category(expression):
+            dictionary = vaex.array_types.to_arrow(self.category_labels(expression))
+            values = vaex.array_types.to_arrow(values)
+            to_type = None
+            if values.type in self._dict_mapping:
+                values = values.cast(self._dict_mapping[values.type])
+            if isinstance(values, pa.ChunkedArray):
+                chunks = [pa.DictionaryArray.from_arrays(k, dictionary) for k in values.chunks]
+                values = pa.chunked_array(chunks)
+            else:
+                values = pa.DictionaryArray.from_arrays(values, dictionary)
+        return values
+
+
     @docsubst
     def categorize(self, column, min_value=0, max_value=None, labels=None, inplace=False):
         """Mark column as categorical.
@@ -5119,6 +5190,8 @@ class DataFrameLocal(DataFrame):
         """
         df = self if inplace else self.copy()
         column = _ensure_string_from_expression(column)
+        if df[column].dtype != int:
+            raise TypeError(f'Only integer columns can be marked as categorical, {column} is {df[column].dtype}')
         if max_value is not None:
             labels = list(range(min_value, max_value+1))
             N = len(labels)
@@ -5153,6 +5226,9 @@ class DataFrameLocal(DataFrame):
         # codes point to the index of found_values
         # meaning: found_values[codes[0]] == ds[column].values[0]
         found_values, codes = df_unfiltered.unique(column, return_inverse=True)
+        max_code = codes.max()
+        minimal_type = vaex.utils.required_dtype_for_max(max_code, signed=True)
+        codes = codes.astype(minimal_type)
         if isinstance(found_values, array_types.supported_arrow_array_types):
             # elements of arrow arrays are not in arrow arrays, e.g. ar[0] in ar is False
             # see tests/arrow/assumptions_test.py::test_in_pylist
@@ -5303,6 +5379,7 @@ class DataFrameLocal(DataFrame):
         df.units.update(self.units)
         df.variables.update(self.variables)  # we add all, could maybe only copy used
         df._categories.update(self._categories)
+        df._encode_categoricals = self._encode_categoricals
 
         # put in the selections (thus filters) in place
         # so drop moves instead of really dropping it
@@ -5687,9 +5764,10 @@ class DataFrameLocal(DataFrame):
                         values = array_types.convert(chunks[0], array_type)
                     else:
                         values = array_types.convert(chunks, array_type)
-                    return values
                 else:
-                    return array_types.convert(arrays[expression], array_type)
+                    values = array_types.convert(arrays[expression], array_type)
+                values = self._auto_encode_data(expression, values)
+                return values
             result = [finalize_result(k) for k in expressions]
             if not was_list:
                 result = result[0]

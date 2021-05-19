@@ -95,6 +95,12 @@ class Meta(type):
                 def f(a, b):
                     self = a
                     # print(op, a, b)
+                    if self.df.is_category(self.expression) and self.df._encode_categoricals and not isinstance(b, Expression):
+                        labels = self.df.category_labels(self.expression)
+                        if b not in labels:
+                            raise ValueError(f'Value {b} not present in {labels}')
+                        b = labels.index(b)
+                        a = self.index_values()
                     try:
                         stringy = isinstance(b, str) or b.is_string()
                     except:

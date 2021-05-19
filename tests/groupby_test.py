@@ -123,11 +123,13 @@ def test_groupby_sort_string(df_factory, as_category):
     assert dfg['count'].tolist() == [4, 3, 1, 2]
 
 
-def test_groupby_1d_cat(ds_local):
+@pytest.mark.parametrize("auto_encode", [False, True])
+def test_groupby_1d_cat(ds_local, auto_encode):
     ds = ds_local.extract()
     g = np.array([0, 0, 0, 0, 1, 1, 1, 1, 2, 2])
     ds.add_column('g', g)
     ds.categorize('g', labels=['cat', 'dog', 'snake'], inplace=True)
+    ds = ds._auto_encode() if auto_encode else ds
     dfg = ds.groupby(by=ds.g, agg='count')
 
     assert dfg.g.tolist() == ['cat', 'dog', 'snake']

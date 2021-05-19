@@ -2676,3 +2676,14 @@ def where(condition, x, y, dtype=None):
     ar = np.where(condition, x, y)
 
     return ar
+
+
+@register_function()
+def index_values(ar):
+    dtype = vaex.dtype_of(ar)
+    if not dtype.is_encoded:
+        raise TypeError(f'Can only get index values from a (dictionary) encoded array, not for {ar}')
+    if isinstance(ar, pa.ChunkedArray):
+        return pa.chunked_array([k.indices for k in ar.chunks], type=ar.type.index_type)
+    else:
+        return ar.indices
