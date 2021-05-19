@@ -472,7 +472,7 @@ def test_format_xarray_and_list(df_local):
     assert isinstance(count, list)
 
     df = df[:3]
-    df['g'] = df.x
+    df['g'] = df.x.astype('int32')
     df.categorize(df.g, labels=['aap', 'noot', 'mies'], inplace=True)
     count = df.count(binby='g', array_type='xarray')
     assert count.coords['g'].data.tolist() == ['aap', 'noot', 'mies']

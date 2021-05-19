@@ -345,7 +345,7 @@ class TaskAggregations(Task):
         # it is up the the executor to remove duplicate expressions
         self.expressions_all.extend(aggregator_descriptor.expressions)
         # TODO: optimize/remove?
-        self.dtypes = {expr: self.df.data_type(expr) for expr in self.expressions_all}
+        self.dtypes = {expr: self.df.data_type(expr).index_type for expr in self.expressions_all}
         return task
 
     def check(self):

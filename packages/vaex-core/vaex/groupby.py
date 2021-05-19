@@ -178,12 +178,13 @@ class GrouperCategory(BinnerBase):
     def __init__(self, expression, df=None, sort=False):
         self.df = df or expression.ds
         self.sort = sort
-        self.expression = expression
         # make sure it's an expression
-        self.expression = self.df[str(self.expression)]
-        self.label = self.expression._label
+        expression = self.df[str(expression)]
+        self.expression_original = expression
+        self.label = expression._label
+        self.expression = expression.index_values() if expression.dtype.is_encoded else expression
 
-        self.bin_values = self.df.category_labels(self.expression)
+        self.bin_values = self.df.category_labels(self.expression_original)
         if self.sort:
             # None will always be the first value
             if self.bin_values[0] is None:
@@ -195,8 +196,8 @@ class GrouperCategory(BinnerBase):
         else:
             self.sort_indices = None
 
-        self.N = self.df.category_count(self.expression)
-        self.min_value = self.df.category_offset(self.expression)
+        self.N = self.df.category_count(self.expression_original)
+        self.min_value = self.df.category_offset(self.expression_original)
         # TODO: what do we do with null values for categories?
         # if self.set.has_null:
         #     self.N += 1

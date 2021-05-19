@@ -238,6 +238,7 @@ class ExecutorLocal(Executor):
                     raise TypeError(f'Evaluated a chunk ({name}) that is not an array of column like object: {chunk!r} (type={type(chunk)}')
             for name, chunk in chunks.items():
                 sanity_check(name, chunk)
+            chunks = {name: df._auto_encode_data(name, ar) for name, ar in chunks.items()}
             chunks = {name: vaex.arrow.numpy_dispatch.wrap(ar) for name, ar in chunks.items()}
             block_scope.values.update(chunks)
             block_scope.mask = filter_mask
