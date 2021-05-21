@@ -2897,6 +2897,37 @@ class DataFrame(object):
                 yield previous_l1, previous_l2, previous_chunk
 
     @docsubst
+    def to_records(self, index=None, selection=None, column_names=None, strings=True, virtual=True, parallel=True,
+                   chunk_size=None, array_type='python'):
+        """Return a list of [{column_name: value}, ...)] "records" where each dict is an evaluated row.
+
+                :param index: an index to use to get the record of a specific row when provided
+                :param column_names: list of column names, to export, when None DataFrame.get_column_names(strings=strings, virtual=virtual) is used
+                :param selection: {selection}
+                :param strings: argument passed to DataFrame.get_column_names when column_names is None
+                :param virtual: argument passed to DataFrame.get_column_names when column_names is None
+                :param parallel: {evaluate_parallel}
+                :param chunk_size: {chunk_size}
+                :param array_type: {array_type}
+                :return: list of [{column_name:value},...] records
+                """
+        if isinstance(index, int):
+            return {key: value[0] for key, value in
+                    self[index:index + 1].to_dict(selection=selection, column_names=column_names, strings=strings,
+                                                  virtual=virtual, parallel=parallel, array_type=array_type).items()}
+        if index is not None:
+            raise RuntimeError(f"index can be None or an int - {type(index)} provided")
+
+        def iterator():
+            for i1, i2, chunk in self.to_dict(selection=selection, column_names=column_names, strings=strings,
+                                            virtual=virtual, parallel=parallel, chunk_size=chunk_size,
+                                            array_type=array_type):
+                keys = list(chunk.keys())
+                yield i1, i2, [{key: value for key, value in zip(keys, values)} for values in zip(*chunk.values())]
+
+        return iterator()
+
+    @docsubst
     def to_items(self, column_names=None, selection=None, strings=True, virtual=True, parallel=True, chunk_size=None, array_type=None):
         """Return a list of [(column_name, ndarray), ...)] pairs where the ndarray corresponds to the evaluated data
 
