@@ -1,8 +1,3 @@
-// #include "flat_hash_map.hpp"
-// #include "unordered_map.hpp"
-// #define VAEX_USE_TSL 1
-// #define VAEX_USE_ABSL 1
-
 #ifdef VAEX_USE_TSL
 #include "tsl/hopscotch_map.h"
 #include "tsl/hopscotch_set.h"

@@ -2,7 +2,7 @@ from setuptools import setup
 import sys
 import os
 import imp
-from setuptools import Extension
+from pybind11.setup_helpers import Pybind11Extension
 import platform
 
 on_rtd = os.environ.get('READTHEDOCS', None) == 'True'
@@ -51,21 +51,6 @@ class get_numpy_include(object):
         import numpy as np
         return np.get_include()
 
-class get_pybind_include(object):
-    """Helper class to determine the pybind11 include path
-    The purpose of this class is to postpone importing pybind11
-    until it is actually installed, so that the ``get_include()``
-    method can be invoked. """
-
-    def __init__(self, user=False):
-        self.user = user
-
-    def __str__(self):
-        # this trick does not work anymore it seems, we now just vendor it
-        # import pybind11
-        # return pybind11.get_include(self.user)
-        return 'vendor/pybind11/include'
-
 
 USE_ABSL = False
 USE_TSL = True
@@ -90,17 +75,16 @@ if sys.platform == 'darwin':
 
 
 # on windows (Conda-forge builds), the dirname is an absolute path
-extension_vaexfast = Extension("vaex.vaexfast", [os.path.relpath(os.path.join(dirname, "src/vaexfast.cpp"))],
+extension_vaexfast = Pybind11Extension("vaex.vaexfast", [os.path.relpath(os.path.join(dirname, "src/vaexfast.cpp"))],
                                include_dirs=[get_numpy_include()],
                                extra_compile_args=extra_compile_args)
-extension_strings = Extension("vaex.superstrings", [
+
+extension_strings = Pybind11Extension("vaex.superstrings", [
     os.path.relpath(os.path.join(dirname, "src/strings.cpp")),
     os.path.relpath(os.path.join(dirname, "src/string_utils.cpp")),
     ],
     include_dirs=[
         get_numpy_include(),
-        get_pybind_include(),
-        get_pybind_include(user=True),
         'vendor/string-view-lite/include',
         'vendor/boost',
         os.path.join(sys.prefix, 'include'),
@@ -115,7 +99,7 @@ extension_strings = Extension("vaex.superstrings", [
     extra_compile_args=extra_compile_args,
     libraries=['pcre', 'pcrecpp']
 )
-extension_superutils = Extension("vaex.superutils", [
+extension_superutils = Pybind11Extension("vaex.superutils", [
         os.path.relpath(os.path.join(dirname, "src/hash_string.cpp")),
         os.path.relpath(os.path.join(dirname, "src/hash_primitives_pot.cpp")),
         os.path.relpath(os.path.join(dirname, "src/hash_object.cpp")),
@@ -124,11 +108,8 @@ extension_superutils = Extension("vaex.superutils", [
         os.path.relpath(os.path.join(dirname, "src/string_utils.cpp")),
     ] + ([os.path.relpath(os.path.join(dirname, "vendor/abseil-cpp/absl/container/internal/raw_hash_set.cc"))] if USE_ABSL else []),
     include_dirs=[
-        get_numpy_include(), get_pybind_include(),
-        get_pybind_include(user=True),
+        get_numpy_include(),
         'vendor/abseil-cpp',
-        'vendor/flat_hash_map',
-        'vendor/sparse-map/include',
         'vendor/hopscotch-map/include',
         'vendor/string-view-lite/include',
     ],
@@ -136,7 +117,7 @@ extension_superutils = Extension("vaex.superutils", [
     define_macros=define_macros,
     )
 
-extension_superagg = Extension("vaex.superagg", [
+extension_superagg = Pybind11Extension("vaex.superagg", [
         os.path.relpath(os.path.join(dirname, "src/superagg_binners.cpp")),
         os.path.relpath(os.path.join(dirname, "src/superagg.cpp")),
         os.path.relpath(os.path.join(dirname, "src/agg_hash_string.cpp")),
@@ -144,10 +125,7 @@ extension_superagg = Extension("vaex.superagg", [
         os.path.relpath(os.path.join(dirname, "src/agg_hash_primitive.cpp")),
     ],
     include_dirs=[
-        get_numpy_include(), get_pybind_include(),
-        get_pybind_include(user=True),
-        'vendor/flat_hash_map',
-        'vendor/sparse-map/include',
+        get_numpy_include(),
         'vendor/hopscotch-map/include',
         'vendor/string-view-lite/include'
     ],

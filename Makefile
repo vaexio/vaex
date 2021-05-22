@@ -13,8 +13,32 @@ coverage:
 	coverage html -d cover
 	open cover/index.html
 
+deps:
+	git -C packages/vaex-core/vendor/string-view-lite pull || \
+   		git clone https://github.com/martinmoene/string-view-lite.git packages/vaex-core/vendor/string-view-lite
+
+	git -C packages/vaex-core/vendor/hopscotch-map pull || \
+   		git clone https://github.com/Tessil/hopscotch-map.git packages/vaex-core/vendor/hopscotch-map
+
 test:
-	python test/dataset.py
+	VAEX_DEV=1 python -m pytest tests/
+
+clean-test:
+	rm -rf smæll2.parquet smæll2.yaml tests/data/parquet/ tests/data/smæll2.csv.hdf5 tests/data/unittest.parquet
+	find . -wholename "./tests/data/parquet_dataset_partitioned_*" -delete
+
+init:
+	make deps
+	python -m pip install -e .[dev]
+
+uninstall:
+	 @pip uninstall -y `pip list | grep -o -E "^vaex([-a-zA-Z0-9]+)?"` 2> /dev/null ||\
+	 	echo "Can't uninstall: Vaex is not installed"
+
+clean:
+	make uninstall clean-test
+	rm -rf packages/vaex-core/build/
+	find . -wholename "*egg-info*" -delete
 
 release:
 	echo ""
