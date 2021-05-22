@@ -45,7 +45,7 @@ If you want to work on vaex for a Pull Request from the source, use the followin
 * install using (note: if you're on Windows, make sure that your command line/terminal has administrator privileges):
 
  * Create and activate a virtualenv/venv
- * ``make init-develop``
+ * ``make init``
 
 * If you want to do a PR
 
