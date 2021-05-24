@@ -1018,7 +1018,7 @@ class KBinsDiscretizer(Transformer):
     '''
     snake_name = 'kbins_discretizer'
     n_bins = traitlets.Int(allow_none=False, default_value=5, help='Number of bins. Must be greater than 1.')
-    strategy = traitlets.Enum(values=['uniform', 'quantile', 'kmeans'], default_value='uniform', help='Strategy used to define the widths of the bins.')
+    strategy = traitlets.Enum(values=['uniform', 'quantile', 'kmeans'], default_value='uniform', help='Strategy used to define the widths of the bins. Can be either "uniform", "quantile" or "kmeans".')
     prefix = traitlets.Unicode(default_value='binned_', help=help_prefix)
     epsilon = traitlets.Float(default_value=1e-8, allow_none=False, help='Tiny value added to the bin edges ensuring samples close to the bin edges are binned correcly.')
     n_bins_ = traitlets.Dict(help='Number of bins per feature.').tag(output=True)

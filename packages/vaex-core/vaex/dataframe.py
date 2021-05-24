@@ -3932,9 +3932,33 @@ class DataFrame(object):
         self.set_selection(None, name=FILTER_SELECTION_NAME)
         self.dataset = DatasetFiltered(self.dataset, mask)
 
-    def shuffle(self):
-        '''Shuffle order of rows (equivalent to df.sample(frac=1))'''
-        return self.sample(frac=1)
+    @docsubst
+    def shuffle(self, random_state=None):
+        '''Shuffle order of rows (equivalent to df.sample(frac=1))
+
+        {note_copy}
+
+        Example:
+
+        >>> import vaex, numpy as np
+        >>> df = vaex.from_arrays(s=np.array(['a', 'b', 'c']), x=np.arange(1,4))
+        >>> df
+          #  s      x
+          0  a      1
+          1  b      2
+          2  c      3
+        >>> df.shuffle(random_state=42)
+          #  s      x
+          0  a      1
+          1  b      2
+          2  c      3
+
+        :param int or RandomState: {random_state}
+        :return: {return_shallow_copy}
+        :rtype: DataFrame
+        '''
+
+        return self.sample(frac=1, random_state=random_state)
 
     @docsubst
     def sample(self, n=None, frac=None, replace=False, weights=None, random_state=None):
@@ -3975,7 +3999,7 @@ class DataFrame(object):
         :param float frac: fractional number of takes to take
         :param bool replace: If true, a row may be drawn multiple times
         :param str or expression weights: (unnormalized) probability that a row can be drawn
-        :param int or RandomState: seed or RandomState for reproducability, when None a random seed it chosen
+        :param int or RandomState: {random_state}
         :return: {return_shallow_copy}
         :rtype: DataFrame
         '''
@@ -4019,7 +4043,7 @@ class DataFrame(object):
         :param int/float/list into: If float will split the DataFrame in two, the first of which will have a relative length as specified by this parameter.
             When a list, will split into as many portions as elements in the list, where each element defines the relative length of that portion. Note that such a list of fractions will always be re-normalized to 1.
             When an int, split DataFrame into n dataframes of equal length (last one may deviate), if len(df) < n, it will return len(df) DataFrames.
-        :param int random_state: (default, None) Random number seed for reproducibility.
+        :param int or RandomState: {random_state}
         :return: A list of DataFrames.
         :rtype: list
         '''
