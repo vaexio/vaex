@@ -8,8 +8,10 @@ import astropy.io.fits as fits
 import numpy as np
 
 import vaex.dataset
+from vaex.dataset_misc import _try_unit
 from vaex.dataset_mmap import DatasetMemoryMapped
 import vaex.export
+from vaex.utils import _python_save_name
 
 
 logger = logging.getLogger("vaex.astro.fits")
@@ -69,7 +71,7 @@ class FitsBinTable(DatasetMemoryMapped):
                                     else:
                                         for i in range(arraylength):
                                             name = column_name+"_" +str(i)
-                                            self.addColumn(name, offset=offset+bytessize*i//arraylength, dtype=">" +dtypecode, length=length, stride=arraylength)
+                                            self.add_column(name, offset=offset+bytessize*i//arraylength, dtype=">" +dtypecode, length=length, stride=arraylength)
                                 if flatlength > 0: # flatlength can be
                                     offset += bytessize * length
                                 self._check_null(table, column_name, column, i)
@@ -82,8 +84,8 @@ class FitsBinTable(DatasetMemoryMapped):
                             #import pdb
                             #pdb.set_trace()
                             if array.dtype.kind in "fiubSU":
-                                column_name = _python_save_name(column.name, used=self.columns.keys())
-                                self.addColumn(column_name, array=array)
+                                column_name = _python_save_name(column.name, used=self._columns.keys())
+                                self.add_column(column_name, data=array)
                                 self._get_column_meta_data(table, column_name, column, i)
                                 self._check_null(table, column_name, column, i)
             self._try_votable(fitsfile[0])
