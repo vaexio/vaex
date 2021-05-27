@@ -348,15 +348,6 @@ class WebSocketHandler:
         logger.debug("WebSocket closed")
 
 
-import vaex.server.service
-dfs = {name: vaex.from_dataset(dataset) for name, dataset in datasets.items()}
-
-service_bare = vaex.server.service.Service(dfs)
-server_thread_count = 1
-threads_per_job = 32
-service_threaded = vaex.server.service.AsyncThreadedService(service_bare, server_thread_count, threads_per_job)
-
-
 @router.websocket("/websocket")
 async def websocket_endpoint(websocket: WebSocket):
     _test_latency = 0
@@ -405,7 +396,7 @@ class Settings(BaseSettings):
         env_file = '.env'
         env_file_encoding = 'utf-8'
 
-for name, path in vaex.settings.webserver.get("datasets").items():
+for name, path in vaex.settings.webserver.get("datasets", {}).items():
     datasets[name] = vaex.open(path).dataset
 
 
@@ -413,9 +404,21 @@ def ensure_example():
     if 'example' not in datasets:
         datasets['example'] = vaex.example().dataset
 
-ensure_example(
+ensure_example()
 
-)
+
+def update_service():
+    global service_threaded
+    import vaex.server.service
+    dfs = {name: vaex.from_dataset(dataset) for name, dataset in datasets.items()}
+
+    service_bare = vaex.server.service.Service(dfs)
+    server_thread_count = 1
+    threads_per_job = 32
+    service_threaded = vaex.server.service.AsyncThreadedService(service_bare, server_thread_count, threads_per_job)
+
+
+
 def main(argv=sys.argv):
     import uvicorn
     import argparse
@@ -443,6 +446,7 @@ def main(argv=sys.argv):
                 datasets[name] = df.dataset
     if not datasets:
         datasets['example'] = vaex.example().dataset
+    update_service()
     host = config.host
     port = config.port
     base_url = config.base_url
@@ -459,3 +463,5 @@ def main(argv=sys.argv):
 
 if __name__ == "__main__":
     main()
+else:
+    update_service()
