@@ -233,6 +233,11 @@ class ExecutorLocal(Executor):
                 chunks = {k:vaex.array_types.filter(v, filter_mask) for k, v, in chunks.items()}
             else:
                 filter_mask = None
+            def sanity_check(name, chunk):
+                if not vaex.column.is_column_like(chunk):
+                    raise TypeError(f'Evaluated a chunk ({name}) that is not an array of column like object: {chunk!r} (type={type(chunk)}')
+            for name, chunk in chunks.items():
+                sanity_check(name, chunk)
             chunks = {name: vaex.arrow.numpy_dispatch.wrap(ar) for name, ar in chunks.items()}
             block_scope.values.update(chunks)
             block_scope.mask = filter_mask
