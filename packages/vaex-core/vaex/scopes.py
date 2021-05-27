@@ -120,8 +120,6 @@ class _BlockScope(ScopeBase):
         # return self.df.columns[variable][self.i1:self.i2]
         if variable == 'df':
             return self  # to support df['no!identifier']
-        if variable in expression_namespace:
-            return expression_namespace[variable]
         try:
             if variable in self.values:
                 return self.values[variable]
@@ -155,6 +153,8 @@ class _BlockScope(ScopeBase):
             elif variable in self.df.functions:
                 f = self.df.functions[variable].f
                 return vaex.arrow.numpy_dispatch.autowrapper(f)
+            elif variable in expression_namespace:
+                return expression_namespace[variable]
             if variable not in self.values:
                 raise KeyError("Unknown variables or column: %r" % (variable,))
 
