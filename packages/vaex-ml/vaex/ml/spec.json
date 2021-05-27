@@ -734,7 +734,7 @@
             {
                 "default": "uniform",
                 "has_default": false,
-                "help": "Strategy used to define the widths of the bins.",
+                "help": "Strategy used to define the widths of the bins. Can be either \"uniform\", \"quantile\" or \"kmeans\".",
                 "name": "strategy",
                 "type": "Enum"
             }
