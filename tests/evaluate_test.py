@@ -10,13 +10,15 @@ def test_evaluate_iterator(df_local, chunk_size, prefetch, parallel):
         x = df.x.to_numpy()
         z = df.z.to_numpy()
         total = 0
-        for i1, i2, chunk in df_local.evaluate_iterator('x', chunk_size=chunk_size, prefetch=prefetch, parallel=parallel, array_type='numpy-arrow'):
+        for i1, i2, chunk in df_local.evaluate_iterator('x', chunk_size=chunk_size, prefetch=prefetch,
+                                                        parallel=parallel, array_type='numpy-arrow'):
             assert x[i1:i2].tolist() == chunk.tolist()
             total += chunk.sum()
         assert total == x.sum()
 
         total = 0
-        for i1, i2, chunk in df_local.evaluate_iterator('z', chunk_size=chunk_size, prefetch=prefetch, parallel=parallel, array_type='numpy-arrow'):
+        for i1, i2, chunk in df_local.evaluate_iterator('z', chunk_size=chunk_size, prefetch=prefetch,
+                                                        parallel=parallel, array_type='numpy-arrow'):
             assert z[i1:i2].tolist() == chunk.tolist()
             total += chunk.sum()
         assert total == z.sum()
@@ -59,6 +61,7 @@ def test_to_records(df_local, chunk_size, parallel, array_type):
         assert isinstance(chunk[0], dict)
     record = df.to_records(0)
     assert isinstance(record, dict)
+    assert isinstance(df.to_records(chunk_size=None, parallel=parallel, array_type=array_type), list)
 
 
 @pytest.mark.parametrize("chunk_size", [2, 5])

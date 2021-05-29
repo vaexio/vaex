@@ -2918,14 +2918,21 @@ class DataFrame(object):
         if index is not None:
             raise RuntimeError(f"index can be None or an int - {type(index)} provided")
 
-        def iterator():
-            for i1, i2, chunk in self.to_dict(selection=selection, column_names=column_names, strings=strings,
-                                            virtual=virtual, parallel=parallel, chunk_size=chunk_size,
-                                            array_type=array_type):
-                keys = list(chunk.keys())
-                yield i1, i2, [{key: value for key, value in zip(keys, values)} for values in zip(*chunk.values())]
+        if chunk_size is not None:
+            def iterator():
+                for i1, i2, chunk in self.to_dict(selection=selection, column_names=column_names, strings=strings,
+                                                virtual=virtual, parallel=parallel, chunk_size=chunk_size,
+                                                array_type=array_type):
+                    keys = list(chunk.keys())
+                    yield i1, i2, [{key: value for key, value in zip(keys, values)} for values in zip(*chunk.values())]
 
-        return iterator()
+            return iterator()
+        chunk = self.to_dict(selection=selection, column_names=column_names, strings=strings,
+                                                virtual=virtual, parallel=parallel, chunk_size=chunk_size,
+                                                array_type=array_type)
+        keys = list(chunk.keys())
+        return [{key: value for key, value in zip(keys, values)} for values in zip(*chunk.values())]
+
 
     @docsubst
     def to_items(self, column_names=None, selection=None, strings=True, virtual=True, parallel=True, chunk_size=None, array_type=None):
