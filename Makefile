@@ -1,6 +1,3 @@
-
-
-
 nose:
 	nosetests --with-coverage --cover-package=vaex --cover-html test/dataset.py
 # test/ui.py
@@ -13,13 +10,6 @@ coverage:
 	coverage html -d cover
 	open cover/index.html
 
-deps:
-	git -C packages/vaex-core/vendor/string-view-lite pull || \
-   		git clone https://github.com/martinmoene/string-view-lite.git packages/vaex-core/vendor/string-view-lite
-
-	git -C packages/vaex-core/vendor/hopscotch-map pull || \
-   		git clone https://github.com/Tessil/hopscotch-map.git packages/vaex-core/vendor/hopscotch-map
-
 test:
 	VAEX_DEV=1 python -m pytest tests/
 
@@ -27,8 +17,10 @@ clean-test:
 	rm -rf smæll2.parquet smæll2.yaml tests/data/parquet/ tests/data/smæll2.csv.hdf5 tests/data/unittest.parquet
 	find . -wholename "./tests/data/parquet_dataset_partitioned_*" -delete
 
+generate-docs:
+	make -C ./docs/ html
+
 init:
-	make deps
 	python -m pip install -e .[dev]
 
 uninstall:

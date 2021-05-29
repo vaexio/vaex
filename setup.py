@@ -76,6 +76,12 @@ setup(
             'gcsfs',
             's3fs',
             'graphviz',
+            # For generating the documentation
+            'sphinx',
+            'nbsphinx',
+            'sphinx_gallery',
+            'sphinx_sitemap',
+            'sphinx_book_theme',
         ]
     },
     cmdclass={
