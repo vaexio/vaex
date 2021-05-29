@@ -760,6 +760,12 @@ class DataFrame(object):
         """
         return self._compute_agg('count', expression, binby, limits, shape, selection, delay, edges, progress, array_type=array_type)
 
+    def countna(self, columns=None):
+        from pandas import Series
+        if columns is None:
+            columns = self.get_column_names()
+        return Series({feature:self[feature].countna() for feature in columns})
+
     @delayed
     def _first_calculation(self, expression, order_expression, binby, limits, shape, selection, edges, progressbar):
         if shape:
