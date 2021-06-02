@@ -948,7 +948,7 @@ def required_dtype_for_max(N, signed=True):
         dtypes = [np.uint8, np.uint16, np.uint32, np.uint64]
     for dtype in dtypes:
         if N <= np.iinfo(dtype).max:
-            return dtype
+            return np.dtype(dtype)
     else:
         raise ValueError(f'Cannot store a max value on {N} inside an uint64/int64')
 
