@@ -1,7 +1,11 @@
+from functools import reduce
+import operator
 import numpy as np
 import vaex
 import collections
 import six
+
+import pyarrow as pa
 
 try:
     collections_abc = collections.abc
@@ -13,6 +17,7 @@ __all__ = ['GroupBy', 'Grouper', 'BinnerTime']
 _USE_DELAY = True
 
 class BinnerBase:
+    delay = None
     pass
 
 class BinnerTime(BinnerBase):
@@ -129,6 +134,45 @@ class Grouper(BinnerBase):
         self.binner = self.df._binner_ordinal(self.binby_expression, self.N)
 
 
+class GrouperCombined(Grouper):
+    def __init__(self, expression, df, expressions, labels, sort):
+        '''Will group by 1 expression, which is build up from multiple expressions.
+
+        Used in the sparse/combined group by.
+        '''
+        super().__init__(expression, df, sort=sort)
+        self.df = df
+        self.label = 'SHOULD_NOT_BE_USED'
+        self.expressions = expressions
+        self.expression = expression
+        self.labels = labels
+        self.bin_values = None
+        self.delay = self._find_labels_lazy()
+
+    def _find_labels_lazy(self):
+        # will fill in the bin_values on the next execution
+        def empty(expression):
+            if expression.is_string():
+                return np.empty(self.N, dtype=object)
+            else:
+                return np.empty(self.N, dtype=expression.dtype.numpy)
+
+        bin_values = {label: empty(expression) for label, expression in zip(self.labels, self.expressions)}
+        def map(thread_index, i1, i2, index, *arrays):
+            for i, array in enumerate(arrays):
+                target = bin_values[self.labels[i]]
+                target[index] = array
+        def reduce(a, b):
+            pass
+        def finish(_):
+            nonlocal bin_values
+            bin_values = {key: vaex.array_types.to_arrow(value) for key, value in bin_values.items()}
+            self.bin_values = pa.StructArray.from_arrays(bin_values.values(), bin_values.keys())
+        promise = self.df.map_reduce(map, reduce, [self.binby_expression] + [str(k) for k in self.expressions], delay=_USE_DELAY, name='find_labels', info=True, to_numpy=False)
+        return vaex.delayed(finish)(promise)
+
+
+
 class GrouperCategory(BinnerBase):
     def __init__(self, expression, df=None, sort=False):
         self.df = df or expression.ds
@@ -157,31 +201,74 @@ class GrouperCategory(BinnerBase):
         #     self.N += 1
         #     keys += ['null']
         self.binner = self.df._binner_ordinal(self.expression, self.N, self.min_value)
+        self.binby_expression = str(self.expression)
+
+
+def _combine(df, groupers, sort):
+    max_count_64bit = 2**63-1
+    first = groupers.pop(0)
+    combine_now = [first]
+    combine_later = []
+    counts = [first.N]
+
+    # when does the cartesian product overflow 64 bits?
+    next = groupers.pop(0)
+    product = lambda l: reduce(operator.mul, l)
+    while (product(counts) * next.N < max_count_64bit):
+        counts.append(next.N)
+        combine_now.append(next)
+        if groupers:
+            next = groupers.pop(0)
+        else:
+            break
+        # cumulative_counts.append(max_count)
+    # cumulative_counts.append(cumulative_counts[-1] * next.N)
+    # cumulative_counts.append(max_count)
+    counts.append(1)
+    cumulative_counts = np.cumproduct(counts[::-1]).tolist()[::-1]
+    assert len(combine_now) >= 2
+    combine_later = groupers
+
+    expressions = [k.expression for k in combine_now]
+    binby_expressions = [df[k.binby_expression] for k in combine_now]
+    labels = [k.label for k in combine_now]
+    # expression = binby_expressions[0]
+    for i in range(0, len(binby_expressions)):
+        binby_expression = binby_expressions[i]
+        dtype = vaex.utils.required_dtype_for_max(cumulative_counts[i])
+        binby_expression = binby_expression.astype(str(dtype))
+        if cumulative_counts[i+1] != 1:
+            binby_expression = binby_expression * cumulative_counts[i+1]
+        binby_expressions[i] = binby_expression
+    expression = reduce(operator.add, binby_expressions)
+    # import pdb; pdb.set_trace()
+    grouper = GrouperCombined(expression, df, expressions=expressions, labels=labels, sort=sort)
+
+    assert not combine_later, "not supported yet"
+    return grouper
+
 
 class GroupByBase(object):
-    def __init__(self, df, by, sort=False):
+    def __init__(self, df, by, sort=False, combine=False, expand=True):
         self.df = df
         self.sort = sort
+        self.expand = expand  # keep as pyarrow struct?
 
         if not isinstance(by, collections_abc.Iterable)\
             or isinstance(by, six.string_types):
             by = [by]
 
         self.by = []
-        self.by_names = []
         for by_value in by:
             if not isinstance(by_value, BinnerBase):
-                self.by_names.append(str(by_value))
                 if df.is_category(by_value):
                     by_value = GrouperCategory(df[str(by_value)], sort=sort)
                 else:
                     by_value = Grouper(df[str(by_value)], sort=sort)
             self.by.append(by_value)
-        else:
-            self.by_names.append(by_value.label)
-
-        # self._waslist, [self.by, ] = vaex.utils.listify(by)
-        self.coords1d = [k.bin_values for k in self.by]
+        self.combine = combine and len(self.by) >= 2
+        if self.combine:
+            self.by = [_combine(self.df, self.by, sort=sort)]
 
         # binby may be an expression based on self.by.expression
         # if we want to have all columns, minus the columns grouped by
@@ -191,6 +278,10 @@ class GroupByBase(object):
         self.grid = vaex.superagg.Grid(self.binners)
         self.shape = [by.N for by in self.by]
         self.dims = self.groupby_expression[:]
+
+    @property
+    def _coords1d(self):
+        return [k.bin_values for k in self.by]
 
     def _agg(self, actions):
         df = self.df
@@ -257,22 +348,33 @@ class GroupByBase(object):
             yield group
 
     def get_group(self, group):
-        values = group
-        filter_expressions = [self.df[expression] == value for expression, value in zip(self.groupby_expression, values)]
-        filter_expression = filter_expressions[0]
-        for expression in filter_expressions[1:]:
-            filter_expression = filter_expression & expression
+        if self.combine:
+            assert isinstance(group, int)
+            filter_expression = self.df[str(self.by[0].binby_expression)] == group
+        else:
+            values = group
+            filter_expressions = [self.df[expression] == value for expression, value in zip(self.groupby_expression, values)]
+            filter_expression = filter_expressions[0]
+            for expression in filter_expressions[1:]:
+                filter_expression = filter_expression & expression
         return self.df[filter_expression]
 
     def __iter__(self):
-        count_agg = vaex.agg.count()
-        counts = self.df._agg(count_agg, self.grid)
-        mask = counts > 0
-        values2d = np.array([coord[mask] for coord in np.meshgrid(*self.coords1d, indexing='ij')], dtype='O')
-        for i in range(values2d.shape[1]):
-            values = values2d[:,i]
-            dff = self.get_group(values)
-            yield tuple(values.tolist()), dff
+        if self.combine:
+            self.df.execute()
+            values = self.by[0].bin_values
+            for i, values in enumerate(zip(*values.flatten())):
+                values = tuple(k.as_py() for k in values)
+                yield values, self.get_group(i)
+        else:
+            count_agg = vaex.agg.count()
+            counts = self.df._agg(count_agg, self.grid)
+            mask = counts > 0
+            values2d = np.array([coord[mask] for coord in np.meshgrid(*self._coords1d, indexing='ij')], dtype='O')
+            for i in range(values2d.shape[1]):
+                values = values2d[:,i]
+                dff = self.get_group(values)
+                yield tuple(values.tolist()), dff
 
     def __len__(self):
         count_agg = vaex.agg.count()
@@ -305,20 +407,20 @@ class BinBy(GroupByBase):
             or isinstance(actions, six.string_types):
             assert len(keys) == 1
             final_array = arrays[key0]
-            coords = self.coords1d
+            coords = self._coords1d
             return xr.DataArray(final_array, coords=coords, dims=self.dims)
         else:
             final_array = np.zeros((len(arrays), ) + arrays[key0].shape)
             for i, value in enumerate(arrays.values()):
                 final_array[i] = value
-            coords = [list(arrays.keys())] + self.coords1d
+            coords = [list(arrays.keys())] + self._coords1d
             dims = ['statistic'] + self.dims
             return xr.DataArray(final_array, coords=coords, dims=dims)
 
 class GroupBy(GroupByBase):
     """Implementation of the binning and aggregation of data, see :method:`groupby`."""
-    def __init__(self, df, by, sort=False):
-        super(GroupBy, self).__init__(df, by, sort=sort)
+    def __init__(self, df, by, sort=False, combine=False, expand=True):
+        super(GroupBy, self).__init__(df, by, sort=sort, combine=combine, expand=expand)
 
     def agg(self, actions):
         # TODO: this basically forms a cartesian product, we can do better, use a
@@ -343,8 +445,13 @@ class GroupBy(GroupByBase):
         counts = counts[sorting]
 
         mask = counts > 0
-        coords = [coord[mask] for coord in np.meshgrid(*self.coords1d, indexing='ij')]
-        labels = {by: coord for by, coord in zip(self.by_names, coords)}
+        if self.combine and self.expand and isinstance(self.by[0], GrouperCombined):
+            assert len(self.by) == 1
+            values = self.by[0].bin_values
+            labels = {field.name: ar for field, ar in zip(values.type, values.flatten())}
+        else:
+            coords = [coord[mask] for coord in np.meshgrid(*self._coords1d, indexing='ij')]
+            labels = {by.label: coord for by, coord in zip(self.by, coords)}
         df_grouped = vaex.from_dict(labels)
         for key, value in arrays.items():
             df_grouped[key] = value[mask]

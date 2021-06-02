@@ -6326,7 +6326,7 @@ class DataFrameLocal(DataFrame):
     #     self._has_selection = mask is not None
     #     # self.signal_selection_changed.emit(self)
 
-    def groupby(self, by=None, agg=None, sort=False):
+    def groupby(self, by=None, agg=None, sort=False, assume_sparse=True):
         """Return a :class:`GroupBy` or :class:`DataFrame` object when agg is not None
 
         Examples:
@@ -6375,10 +6375,11 @@ class DataFrameLocal(DataFrame):
         :param dict, list or agg agg: Aggregate operation in the form of a string, vaex.agg object, a dictionary
             where the keys indicate the target column names, and the values the operations, or the a list of aggregates.
             When not given, it will return the groupby object.
+        :param bool assume_sparse: Assume that when grouping by multiple keys, that the existing pairs are sparse compared to the cartesian product.
         :return: :class:`DataFrame` or :class:`GroupBy` object.
         """
         from .groupby import GroupBy
-        groupby = GroupBy(self, by=by, sort=sort)
+        groupby = GroupBy(self, by=by, sort=sort, combine=assume_sparse)
         if agg is None:
             return groupby
         else:

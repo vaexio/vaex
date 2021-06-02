@@ -196,6 +196,20 @@ def test_groupby_2d(ds_local):
     assert dfg['count'].tolist() == [3, 1, 4, 2]
 
 
+
+@pytest.mark.parametrize("assume_sparse", [True, False])
+def test_groupby_2d_cat(df_factory, assume_sparse):
+    g = [0, 0, 0, 0, 1, 1, 1, 1, 2, 2]
+    h = [5, 5, 5, 6, 5, 5, 5, 5, 6, 6]
+    df = df_factory(g=g, h=h)
+    df.categorize('g', inplace=True)
+    df.categorize('h', inplace=True)
+    dfg = df.groupby(by=[df.g, df.h], agg={'count': vaex.agg.count()}).sort('g')
+    assert dfg.g.tolist() == [0, 0, 1, 2]
+    assert dfg['count'].tolist() == [3, 1, 4, 2]
+
+
+
 def test_groupby_datetime():
     t = np.arange('2015-01-01', '2015-02-01', dtype=np.datetime64)
     y = np.arange(len(t))
@@ -314,7 +328,8 @@ def test_groupby_same_result():
         assert vc.index.tolist() == group_sort['h'].values.tolist(), 'the indices of the counts are not correct.'
 
 
-def test_groupby_iter():
+@pytest.mark.parametrize("assume_sparse", [True, False])
+def test_groupby_iter(assume_sparse):
     # ds = ds_local.extract()
     g = np.array([0, 0, 0, 0, 1, 1, 1, 1, 0, 1], dtype='int32')
     s = np.array(list(map(str, [0, 0, 0, 0, 1, 1, 1, 1, 2, 2])))
@@ -327,7 +342,7 @@ def test_groupby_iter():
     assert dfs[1][0] == (1, )
     assert dfs[1][1].g.tolist() == [1] * 5
 
-    groupby = df.groupby(['g', 's'])
+    groupby = df.groupby(['g', 's'], sort=True, assume_sparse=assume_sparse)
     assert set(groupby.groups) == {(0, '0'), (1, '1'), (0, '2'), (1, '2')}
     dfs = list(groupby)
     assert dfs[0][0] == (0, '0')
