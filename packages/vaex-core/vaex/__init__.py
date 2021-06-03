@@ -592,44 +592,54 @@ def zeldovich(dim=2, N=256, n=-2.5, t=None, scale=1, seed=None):
     return vaex.file.other.Zeldovich(dim=dim, N=N, n=n, t=t, scale=scale)
 
 
+# create named logger, for all loglevels
+logger = logging.getLogger('vaex')
+logger.setLevel(logging.DEBUG)
+
+# create console handler and accept all loglevels
+ch = logging.StreamHandler()
+ch.setLevel(logging.DEBUG)
+
+# create formatter
+formatter = logging.Formatter('%(levelname)s:%(threadName)s:%(name)s:%(message)s')
+
+# add formatter to console handler
+ch.setFormatter(formatter)
+
+# add console handler to logger
+logger.addHandler(ch)
+
+
 def set_log_level_debug():
     """set log level to debug"""
-    import logging
     logging.getLogger("vaex").setLevel(logging.DEBUG)
 
 
 def set_log_level_info():
     """set log level to info"""
-    import logging
     logging.getLogger("vaex").setLevel(logging.INFO)
 
 
 def set_log_level_warning():
     """set log level to warning"""
-    import logging
     logging.getLogger("vaex").setLevel(logging.WARNING)
 
 
 def set_log_level_exception():
     """set log level to exception"""
-    import logging
-    logging.getLogger("vaex").setLevel(logging.FATAL)
+    logging.getLogger("vaex").setLevel(logging.ERROR)
 
 
 def set_log_level_off():
     """Disabled logging"""
-    import logging
-    logging.disable(logging.CRITICAL)
+    logging.getLogger('vaex').removeHandler(ch)
+    logging.getLogger('vaex').addHandler(logging.NullHandler())
 
 
-format = "%(levelname)s:%(threadName)s:%(name)s:%(message)s"
-logging.basicConfig(level=logging.INFO, format=format)
 DEBUG_MODE = bool(os.environ.get('VAEX_DEBUG', ''))
 if DEBUG_MODE:
-    logging.basicConfig(level=logging.DEBUG)
     set_log_level_debug()
 else:
-    # logging.basicConfig(level=logging.DEBUG)
     set_log_level_warning()
 
 import_script = os.path.expanduser("~/.vaex/vaex_import.py")
@@ -641,9 +651,6 @@ if os.path.exists(import_script):
     except:
         import traceback
         traceback.print_stack()
-
-
-logger = logging.getLogger('vaex')
 
 
 def register_dataframe_accessor(name, cls=None, override=False):
