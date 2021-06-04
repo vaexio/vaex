@@ -319,6 +319,7 @@ class DataFrame(object):
 
     def map_reduce(self, map, reduce, arguments, progress=False, delay=False, info=False, to_numpy=True, ignore_filter=False, pre_filter=False, name='map reduce (custom)', selection=None):
         # def map_wrapper(*blocks):
+        pre_filter = pre_filter and self.filtered
         task = tasks.TaskMapReduce(self, arguments, map, reduce, info=info, to_numpy=to_numpy, ignore_filter=ignore_filter, selection=selection, pre_filter=pre_filter)
         progressbar = vaex.utils.progressbars(progress)
         progressbar.add_task(task, name)
@@ -408,7 +409,7 @@ class DataFrame(object):
                 sets[thread_index].update(ar)
         def reduce(a, b):
             pass
-        self.map_reduce(map, reduce, columns, delay=delay, name='set', info=True, to_numpy=False, selection=selection)
+        self.map_reduce(map, reduce, columns, delay=delay, name='set', info=True, to_numpy=False, selection=selection, pre_filter=True)
         sets = [k for k in sets if k is not None]
         set0 = sets[0]
         for other in sets[1:]:

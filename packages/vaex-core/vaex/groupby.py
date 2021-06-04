@@ -135,7 +135,7 @@ class Grouper(BinnerBase):
 
 
 class GrouperCombined(Grouper):
-    def __init__(self, expression, df, expressions, labels, sort):
+    def __init__(self, expression, df, expressions, labels, sort, skip_labels=False):
         '''Will group by 1 expression, which is build up from multiple expressions.
 
         Used in the sparse/combined group by.
@@ -147,7 +147,8 @@ class GrouperCombined(Grouper):
         self.expression = expression
         self.labels = labels
         self.bin_values = None
-        self.delay = self._find_labels_lazy()
+        if not skip_labels:
+            self.delay = self._find_labels_lazy()
 
     def _find_labels_lazy(self):
         # will fill in the bin_values on the next execution
@@ -168,7 +169,7 @@ class GrouperCombined(Grouper):
             nonlocal bin_values
             bin_values = {key: vaex.array_types.to_arrow(value) for key, value in bin_values.items()}
             self.bin_values = pa.StructArray.from_arrays(bin_values.values(), bin_values.keys())
-        promise = self.df.map_reduce(map, reduce, [self.binby_expression] + [str(k) for k in self.expressions], delay=_USE_DELAY, name='find_labels', info=True, to_numpy=False)
+        promise = self.df.map_reduce(map, reduce, [self.binby_expression] + [str(k) for k in self.expressions], delay=_USE_DELAY, name='find_labels', info=True, to_numpy=False, pre_filter=True)
         return vaex.delayed(finish)(promise)
 
 
@@ -220,19 +221,25 @@ def _combine(df, groupers, sort):
         if groupers:
             next = groupers.pop(0)
         else:
+            next = None
             break
-        # cumulative_counts.append(max_count)
-    # cumulative_counts.append(cumulative_counts[-1] * next.N)
-    # cumulative_counts.append(max_count)
+
     counts.append(1)
     cumulative_counts = np.cumproduct(counts[::-1]).tolist()[::-1]
     assert len(combine_now) >= 2
-    combine_later = groupers
+    combine_later = ([next] if next else []) + groupers
 
-    expressions = [k.expression for k in combine_now]
+    expressions = []
+    labels = []
+    for grouper in combine_now:
+        if isinstance(grouper, GrouperCombined):
+            expressions.extend(grouper.expressions)
+            labels.extend(grouper.labels)
+        else:
+            expressions.append(grouper.expression)
+            labels.append(grouper.label)
+
     binby_expressions = [df[k.binby_expression] for k in combine_now]
-    labels = [k.label for k in combine_now]
-    # expression = binby_expressions[0]
     for i in range(0, len(binby_expressions)):
         binby_expression = binby_expressions[i]
         dtype = vaex.utils.required_dtype_for_max(cumulative_counts[i])
@@ -241,10 +248,10 @@ def _combine(df, groupers, sort):
             binby_expression = binby_expression * cumulative_counts[i+1]
         binby_expressions[i] = binby_expression
     expression = reduce(operator.add, binby_expressions)
-    # import pdb; pdb.set_trace()
-    grouper = GrouperCombined(expression, df, expressions=expressions, labels=labels, sort=sort)
-
-    assert not combine_later, "not supported yet"
+    grouper = GrouperCombined(expression, df, expressions=expressions, labels=labels, sort=sort, skip_labels=bool(combine_later))
+    if combine_later:
+        # recursively add more of the groupers (because of 64 bit overflow)
+        grouper = _combine(df, [grouper] + combine_later, sort=sort)
     return grouper
 
 

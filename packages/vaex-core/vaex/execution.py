@@ -33,7 +33,7 @@ class Run:
         self.df = self.tasks[0].df
         self.pre_filter = tasks[0].pre_filter
         if any(self.pre_filter != task.pre_filter for task in tasks[1:]):
-            raise ValueError("All tasks need to be pre_filter'ed or not pre_filter'ed, it cannot be mixed")
+            raise ValueError(f"All tasks need to be pre_filter'ed or not pre_filter'ed, it cannot be mixed: {tasks}")
         if self.pre_filter and not self.df.filtered:
             raise ValueError("Requested pre_filter for task while DataFrame is not filtered")
         self.expressions = list(set(expression for task in tasks for expression in task.expressions_all))
