@@ -2699,7 +2699,7 @@ class DataFrame(object):
                 :param parallel: {evaluate_parallel}
                 :param chunk_size: {chunk_size}
                 :param array_type: {array_type}
-                :return: list of [{column_name:value},...] records
+                :return: list of [{{column_name:value}}, ...] records
                 """
         if isinstance(index, int):
             return {key: value[0] for key, value in
