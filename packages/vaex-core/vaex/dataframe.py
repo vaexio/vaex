@@ -2899,7 +2899,7 @@ class DataFrame(object):
     @docsubst
     def to_records(self, index=None, selection=None, column_names=None, strings=True, virtual=True, parallel=True,
                    chunk_size=None, array_type='python'):
-        """Return a list of [{column_name: value}, ...)] "records" where each dict is an evaluated row.
+        """Return a list of [{{column_name: value}}, ...)] "records" where each dict is an evaluated row.
 
                 :param index: an index to use to get the record of a specific row when provided
                 :param column_names: list of column names, to export, when None DataFrame.get_column_names(strings=strings, virtual=virtual) is used
