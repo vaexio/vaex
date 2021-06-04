@@ -1,4 +1,33 @@
-# vaex 4.0.0 (unreleased)
+# vaex 4.2.0
+## vaex-core 4.2.0
+   * Performance
+      * Perform groupby in a sparse way for less memory usage/performance (up to 250x faster) [#1381](https://github.com/vaexio/vaex/pull/1381) 849
+   * Features
+      * Sorted groupby [#1339](https://github.com/vaexio/vaex/pull/1339)
+   * Fixes
+      * Proper use of logging framework [#1384](https://github.com/vaexio/vaex/pull/1384)
+      * Aggregating with 'count' would ignore custom names [#1345](https://github.com/vaexio/vaex/pull/1345)
+      * Join supports datetime column
+## vaex-ml 0.12.0
+   * Features
+      * River integration [#1256](https://github.com/vaexio/vaex/pull/1256)
+      * Random projections [#1305](https://github.com/vaexio/vaex/pull/1256)
+      * Incremental PCA [#1289](https://github.com/vaexio/vaex/pull/1289)
+## vaex-server 0.4.1
+   * Features
+      * SSL support 5dc29edd5b15eb4e1fe9c6981c67edd477481484
+
+# vaex 4.1.0 (2021-Mar-18)
+## vaex-core 4.1.0
+   * Features
+      *  groupby datetime support [#1265](https://github.com/vaexio/vaex/pull/1265)
+   * Fixes
+      * Improved fsspec support [#1268](https://github.com/vaexio/vaex/pull/1268)
+   * Performance
+      * df.extract() uses mask instead of indices 398b682fe9042b3336120e9013e15bbd638620ed
+
+
+# vaex 4.0.0 (2021-Mar-9)
    * Breaking changes:
       * Arrow is now a core dependency, vaex-arrow is deprecated. All methods that return string, will return Arrow arrays [#517](https://github.com/vaexio/vaex/pull/517)
       * Opening an .arrow file will expose the arrays as Apache Arrow arrays, not numpy arrays. [#984](https://github.com/vaexio/vaex/pull/984)
@@ -8,10 +37,10 @@
 ## vaex-arrow (DEPRECATED)
    This is now part of vaex-core.
 
-## vaex-astro 0.8.0 (unreleased)
+## vaex-astro 0.8.0
   * Requirement changed to vaex-core >=4,<5
 
-## vaex-core 4.0.0 (unreleased)
+## vaex-core 4.0.0
    * Fixes
       * Repeated dropna/dropnan/dropmissing could report cached length. [#874](https://github.com/vaexio/vaex/pull/874)
       * Trimming concatenated columns. [#860](https://github.com/vaexio/vaex/pull/860)
@@ -33,33 +62,33 @@
 ## vaex-distributed (DEPRECATED)
    This is now part of vaex-enterprise (was a proof of content, never functional).
 
-## vaex-graphql 0.2.0 (unreleased)
+## vaex-graphql 0.2.0
   * Requirement changed to vaex-core >=4,<5
 
-## vaex-hdf5 0.7.0 (unreleased)
+## vaex-hdf5 0.7.0
    * Requirement changed vaex-core >=4,<5
 
-## vaex-jupyter 0.6.0 (unreleased)
+## vaex-jupyter 0.6.0
   * Requirement changed to vaex-core >=4,<5
 
-## vaex-ml 0.11.0 (unreleased)
+## vaex-ml 0.11.0
    * Features
       * Batch training for CatBoost. [#819](https://github.com/vaexio/vaex/pull/819)
       * Support for `predict_proba` and `predict_log_proba` for sklearn classifiers. [#927](https://github.com/vaexio/vaex/pull/927)
 
-## vaex-server 0.4.0 (unreleased)
+## vaex-server 0.4.0
   * Requirement changed to vaex-core >=4,<5
 
-## vaex-viz 0.5.0 (unreleased)
+## vaex-viz 0.5.0
   * Requirement changed to vaex-core >=4,<5
 
-# vaex 3.1.0 (unreleased)
+# vaex 3.1.0
 
 ## vaex-jupyter 0.5.2 (2020-6-12)
    * Features
       * Normalize histogram and change selection mode. [#826](https://github.com/vaexio/vaex/pull/826)
 
-## vaex-ml 0.11.0-dev0 (unreleased)
+## vaex-ml 0.11.0-dev0
     * Features
       * Autogenerate the fast (or functional) API [#512](https://github.com/vaexio/vaex/pull/512)
 
