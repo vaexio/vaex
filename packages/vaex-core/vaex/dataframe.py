@@ -2292,7 +2292,6 @@ class DataFrame(object):
             for name, value in state['virtual_columns'].items():
                 self[name] = self._expr(value)
         self.variables = state['variables']
-        import astropy.units  # TODO: make this dep optional?
         units = {key: astropy.units.Unit(value) for key, value in state["units"].items()}
         self.units.update(units)
         for name, selection_dict in state['selections'].items():
@@ -2430,7 +2429,6 @@ class DataFrame(object):
     @_hidden
     def update_virtual_meta(self):
         """Will read back the virtual column etc, written by :func:`DataFrame.write_virtual_meta`. This will be done when opening a DataFrame."""
-        import astropy.units
         try:
             path = os.path.join(self.get_private_dir(create=False), "virtual_meta.yaml")
             if os.path.exists(path):
@@ -2471,7 +2469,6 @@ class DataFrame(object):
     @_hidden
     def update_meta(self):
         """Will read back the ucd, descriptions, units etc, written by :func:`DataFrame.write_meta`. This will be done when opening a DataFrame."""
-        import astropy.units
         try:
             path = os.path.join(self.get_private_dir(create=False), "meta.yaml")
             if os.path.exists(path):
