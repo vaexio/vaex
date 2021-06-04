@@ -204,10 +204,35 @@ def test_groupby_2d_cat(df_factory, assume_sparse):
     df = df_factory(g=g, h=h)
     df.categorize('g', inplace=True)
     df.categorize('h', inplace=True)
-    dfg = df.groupby(by=[df.g, df.h], agg={'count': vaex.agg.count()}).sort('g')
+    dfg = df.groupby(by=[df.g, df.h], agg={'count': vaex.agg.count()}, sort=True)
     assert dfg.g.tolist() == [0, 0, 1, 2]
     assert dfg['count'].tolist() == [3, 1, 4, 2]
 
+    dff = df[df.g != 2]
+    dfg = dff.groupby(by=[dff.g, dff.h], agg={'count': vaex.agg.count()}, sort=True)
+    assert dfg.g.tolist() == [0, 0, 1]
+    assert dfg['count'].tolist() == [3, 1, 4]
+
+
+def test_combined_grouper_over64bit():
+    bits = [15, 16, 17] * 2
+    assert sum(bits) > 64
+    N = 2**max(bits)
+    def unique_ints(offset, bit):
+        # create 2**bits unique ints
+        ar = np.full(N, offset, dtype='int32')
+        n = 2**bit
+        ar[:n] = np.arange(offset, offset + n)
+        return ar
+    arrays = {f'x_{i}': unique_ints(i, bit) for i, bit in enumerate(bits)}
+    names = list(arrays)
+    df = vaex.from_dict(arrays)
+    grouper = df.groupby(names)
+    dfg = grouper.agg('count')
+    for i, bit in enumerate(bits):
+        xi = dfg[f'x_{i}'].to_numpy()
+        assert len(xi) == N
+    assert dfg['count'].sum() == N
 
 
 def test_groupby_datetime():
