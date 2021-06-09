@@ -5371,10 +5371,14 @@ class DataFrameLocal(DataFrame):
         self.mask = None
         self.columns = ColumnProxy(self)
 
-    def fingerprint(self):
-        '''id that uniquely identifies a dataframe (cross runtime)'''
-        state = self._future().state_get(skip=[self.dataset])
-        fp = vaex.cache.fingerprint(state, self.dataset.fingerprint)
+    def fingerprint(self, treeshake=False):
+        '''Id that uniquely identifies a dataframe (cross runtime).
+
+        :param bool treeshake: Get rid of unused variables before calculating the fingerprint.
+        '''
+        df = self.copy(treeshake=True) if treeshake else self
+        state = df._future().state_get(skip=[df.dataset])
+        fp = vaex.cache.fingerprint(state, df.dataset.fingerprint)
         return f'dataframe-{fp}'
 
     def __getstate__(self):
@@ -5598,9 +5602,15 @@ class DataFrameLocal(DataFrame):
             setattr(datas, name, array[:])
         return datas
 
-    def copy(self, column_names=None):
+    def copy(self, column_names=None, treeshake=False):
+        '''Make a shallow copy of a dataframe, or a subset of columns.
+
+        Note that this is a fairly cheap operation, since no memory copies of the underlying data are made.
+
+        :param bool treeshake: Get rid of variables not used.
+        '''
         copy_all = column_names is None
-        if copy_all:  # fast path
+        if copy_all and not treeshake:  # fast path
             df = vaex.from_dataset(self.dataset)
             df.column_names = list(self.column_names)
             df.virtual_columns = self.virtual_columns.copy()
@@ -5629,7 +5639,9 @@ class DataFrameLocal(DataFrame):
                     required.add(name)
                 else:
                     if name in self.variables:
-                        return  # we don't track variables, we copy all
+                        if treeshake:
+                            required.add(name)
+                        return
                     elif name in self.virtual_columns:
                         required.add(name)
                         expr = self._virtual_expressions[name]
@@ -5668,8 +5680,9 @@ class DataFrameLocal(DataFrame):
                     valid_name = vaex.utils.find_valid_name(name)
                     df.add_virtual_column(valid_name, self.virtual_columns[name])
                 elif name in self.variables:
-                    # no need to do this, since we copy all variables
-                    # df.variables[name] = self.variables[name]
+                    # if we treeshake, we copy only what we require
+                    if treeshake:
+                        df.variables[name] = self.variables[name]
                     pass
                 else:
                     raise RuntimeError(f'Oops {name} is not a virtual column or variable??')
@@ -5688,7 +5701,8 @@ class DataFrameLocal(DataFrame):
         df._active_fraction = self._active_fraction
         df._renamed_columns = list(self._renamed_columns)
         df.units.update(self.units)
-        df.variables.update(self.variables)  # we add all, could maybe only copy used
+        if not treeshake:
+            df.variables.update(self.variables)
         df._categories.update(self._categories)
         df._future_behaviour = self._future_behaviour
 
