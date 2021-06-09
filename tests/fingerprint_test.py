@@ -14,6 +14,8 @@ def test_dataframe(df_factory):
     assert df1.fingerprint() == df1b.fingerprint()
     df1.add_variable('q', 1)  # this changes the state
     assert df1.fingerprint() != df1b.fingerprint()
+    # but if we treeshake, it does not
+    assert df1.fingerprint(treeshake=True) != df1b.fingerprint()
 
 
 def test_groupby(df_factory):
