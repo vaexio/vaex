@@ -432,7 +432,7 @@ class DataFrame(object):
             pass
         return self.map_reduce(map, reduce, expressions, delay=delay, progress=progress, name='nop', to_numpy=False)
 
-    def _set(self, expression, progress=False, selection=None, flatten=True, delay=False):
+    def _set(self, expression, progress=False, selection=None, flatten=True, delay=False, unique_limit=None):
         column = _ensure_string_from_expression(expression)
         columns = [column]
         from .hash import ordered_set_type_from_dtype
@@ -463,6 +463,11 @@ class DataFrame(object):
                 sets[thread_index].update(ar, mask)
             else:
                 sets[thread_index].update(ar)
+            if unique_limit is not None:
+                count = sets[thread_index].count
+                # we skip null and nan here, since this is just an early bail out
+                if count > unique_limit:
+                    raise vaex.RowLimitException(f'Resulting set would have >= {unique_limit} unique combinations')
         def reduce(a, b):
             pass
         self.map_reduce(map, reduce, columns, delay=delay, name='set', info=True, to_numpy=False, selection=selection, pre_filter=True)
@@ -470,6 +475,14 @@ class DataFrame(object):
         set0 = sets[0]
         for other in sets[1:]:
             set0.merge(other)
+        if unique_limit is not None:
+            count = set0.count
+            if set0.has_nan:
+                count += 1
+            if set0.has_null:
+                count += 1
+            if count > unique_limit:
+                raise vaex.RowLimitException(f'Resulting set has {count:,} unique combinations, which is larger than the allowed value of {unique_limit:,}')
         return set0
 
     def _index(self, expression, progress=False, delay=False, prime_growth=False, cardinality=None):
@@ -6558,7 +6571,7 @@ class DataFrameLocal(DataFrame):
     #     self._has_selection = mask is not None
     #     # self.signal_selection_changed.emit(self)
 
-    def groupby(self, by=None, agg=None, sort=False, assume_sparse=True):
+    def groupby(self, by=None, agg=None, sort=False, assume_sparse=True, row_limit=None):
         """Return a :class:`GroupBy` or :class:`DataFrame` object when agg is not None
 
         Examples:
@@ -6608,10 +6621,12 @@ class DataFrameLocal(DataFrame):
             where the keys indicate the target column names, and the values the operations, or the a list of aggregates.
             When not given, it will return the groupby object.
         :param bool assume_sparse: Assume that when grouping by multiple keys, that the existing pairs are sparse compared to the cartesian product.
+        :param int row_limit: Limits the resulting dataframe to the number of rows (default is not to check, only works when assume_sparse is True).
+            Throws a :py:`vaex.RowLimitException` when the condition is not met.
         :return: :class:`DataFrame` or :class:`GroupBy` object.
         """
         from .groupby import GroupBy
-        groupby = GroupBy(self, by=by, sort=sort, combine=assume_sparse)
+        groupby = GroupBy(self, by=by, sort=sort, combine=assume_sparse, row_limit=row_limit)
         if agg is None:
             return groupby
         else:

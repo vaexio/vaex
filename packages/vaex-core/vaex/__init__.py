@@ -787,3 +787,7 @@ def dtype_of(ar):
         return dtype(ar.dtype)
     else:
         raise TypeError(f'{ar} is not a an Arrow or NumPy array')
+
+
+class RowLimitException(ValueError):
+    pass
