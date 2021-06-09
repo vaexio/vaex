@@ -89,14 +89,14 @@ class BinnerTime(BinnerBase):
 
 class Grouper(BinnerBase):
     """Bins an expression to a set of unique bins."""
-    def __init__(self, expression, df=None, sort=False, pre_sort=True):
+    def __init__(self, expression, df=None, sort=False, pre_sort=True, row_limit=None):
         self.df = df or expression.ds
         self.sort = sort
         self.expression = expression
         # make sure it's an expression
         self.expression = self.df[str(self.expression)]
         self.label = self.expression._label
-        set = self.df._set(self.expression)
+        set = self.df._set(self.expression, unique_limit=row_limit)
         keys = set.keys()
         if self.sort:
             if pre_sort:
@@ -132,15 +132,20 @@ class Grouper(BinnerBase):
                 self.sort_indices = np.concatenate([[0], self.sort_indices + 1])
         self.bin_values = self.expression.dtype.create_array(self.bin_values)
         self.binner = self.df._binner_ordinal(self.binby_expression, self.N)
+        # if row_limit is not None and grouper.N > row_limit:
+        #     if combine_later:
+        #         raise vaex.RowLimitException(f'Resulting dataframe would have >= {row_limit} rows')
+        #     else:
+        #         raise vaex.RowLimitException(f'Resulting dataframe would have {grouper.N} rows, which is larger than the allowed value of {row_limit:,}')
 
 
 class GrouperCombined(Grouper):
-    def __init__(self, expression, df, expressions, labels, sort, skip_labels=False):
+    def __init__(self, expression, df, expressions, labels, sort, skip_labels=False, row_limit=None):
         '''Will group by 1 expression, which is build up from multiple expressions.
 
         Used in the sparse/combined group by.
         '''
-        super().__init__(expression, df, sort=sort)
+        super().__init__(expression, df, sort=sort, row_limit=row_limit)
         self.df = df
         self.label = 'SHOULD_NOT_BE_USED'
         self.expressions = expressions
@@ -175,7 +180,7 @@ class GrouperCombined(Grouper):
 
 
 class GrouperCategory(BinnerBase):
-    def __init__(self, expression, df=None, sort=False):
+    def __init__(self, expression, df=None, sort=False, row_limit=None):
         self.df = df or expression.ds
         self.sort = sort
         # make sure it's an expression
@@ -197,6 +202,9 @@ class GrouperCategory(BinnerBase):
             self.sort_indices = None
 
         self.N = self.df.category_count(self.expression_original)
+        if row_limit is not None:
+            if self.N > row_limit:
+                raise vaex.RowLimitException(f'Resulting grouper has {self.N:,} unique combinations, which is larger than the allowed row limit of {row_limit:,}')
         self.min_value = self.df.category_offset(self.expression_original)
         # TODO: what do we do with null values for categories?
         # if self.set.has_null:
@@ -206,7 +214,7 @@ class GrouperCategory(BinnerBase):
         self.binby_expression = str(self.expression)
 
 
-def _combine(df, groupers, sort):
+def _combine(df, groupers, sort, row_limit=None):
     max_count_64bit = 2**63-1
     first = groupers.pop(0)
     combine_now = [first]
@@ -249,7 +257,7 @@ def _combine(df, groupers, sort):
             binby_expression = binby_expression * cumulative_counts[i+1]
         binby_expressions[i] = binby_expression
     expression = reduce(operator.add, binby_expressions)
-    grouper = GrouperCombined(expression, df, expressions=expressions, labels=labels, sort=sort, skip_labels=bool(combine_later))
+    grouper = GrouperCombined(expression, df, expressions=expressions, labels=labels, sort=sort, skip_labels=bool(combine_later), row_limit=row_limit)
     if combine_later:
         # recursively add more of the groupers (because of 64 bit overflow)
         grouper = _combine(df, [grouper] + combine_later, sort=sort)
@@ -257,7 +265,8 @@ def _combine(df, groupers, sort):
 
 
 class GroupByBase(object):
-    def __init__(self, df, by, sort=False, combine=False, expand=True):
+    def __init__(self, df, by, sort=False, combine=False, expand=True, row_limit=None):
+        '''Note that row_limit only works in combination with combine=True'''
         self.df = df
         self.sort = sort
         self.expand = expand  # keep as pyarrow struct?
@@ -271,13 +280,13 @@ class GroupByBase(object):
         for by_value in by:
             if not isinstance(by_value, BinnerBase):
                 if df.is_category(by_value):
-                    by_value = GrouperCategory(df[str(by_value)], sort=sort)
+                    by_value = GrouperCategory(df[str(by_value)], sort=sort, row_limit=row_limit)
                 else:
-                    by_value = Grouper(df[str(by_value)], sort=sort)
+                    by_value = Grouper(df[str(by_value)], sort=sort, row_limit=row_limit)
             self.by.append(by_value)
         self.combine = combine and len(self.by) >= 2
         if self.combine:
-            self.by = [_combine(self.df, self.by, sort=sort)]
+            self.by = [_combine(self.df, self.by, sort=sort, row_limit=row_limit)]
 
         # binby may be an expression based on self.by.expression
         # if we want to have all columns, minus the columns grouped by
@@ -428,8 +437,8 @@ class BinBy(GroupByBase):
 
 class GroupBy(GroupByBase):
     """Implementation of the binning and aggregation of data, see :method:`groupby`."""
-    def __init__(self, df, by, sort=False, combine=False, expand=True):
-        super(GroupBy, self).__init__(df, by, sort=sort, combine=combine, expand=expand)
+    def __init__(self, df, by, sort=False, combine=False, expand=True, row_limit=None):
+        super(GroupBy, self).__init__(df, by, sort=sort, combine=combine, expand=expand, row_limit=row_limit)
 
     def agg(self, actions):
         # TODO: this basically forms a cartesian product, we can do better, use a

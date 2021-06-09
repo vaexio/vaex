@@ -55,6 +55,10 @@ def small_buffer(ds, size=3):
     else:
         yield # for remote datasets we don't support this ... or should we?
 
+@pytest.fixture(scope='session')
+def buffer_size():
+    return small_buffer
+
 
 @pytest.fixture(scope='session')
 def webserver():

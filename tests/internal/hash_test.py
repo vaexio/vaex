@@ -278,3 +278,12 @@ def test_index_write():
     mask = np.zeros(3, dtype=bool)
     index.map_index_masked(ints, mask, indices)
     assert indices.tolist() == [0, 1, 2]
+
+
+def test_set_max_unique(buffer_size):
+    df = vaex.from_arrays(x=np.arange(1000))
+    with buffer_size(df):
+        with pytest.raises(vaex.RowLimitException, match='.* >= 2 .*'):
+            df._set('x', unique_limit=2)
+        with pytest.raises(vaex.RowLimitException, match='.*larger than.*'):
+            df._set('x', unique_limit=len(df)-1)

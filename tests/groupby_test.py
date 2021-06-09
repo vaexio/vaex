@@ -1,3 +1,4 @@
+import pytest
 from common import *
 import numpy as np
 import vaex
@@ -125,16 +126,18 @@ def test_groupby_sort_string(df_factory, as_category):
 
 @pytest.mark.parametrize("auto_encode", [False, True])
 def test_groupby_1d_cat(ds_local, auto_encode):
-    ds = ds_local.extract()
+    df = ds_local.extract()
     g = np.array([0, 0, 0, 0, 1, 1, 1, 1, 2, 2])
-    ds.add_column('g', g)
-    ds.categorize('g', labels=['cat', 'dog', 'snake'], inplace=True)
-    ds = ds._future() if auto_encode else ds
-    dfg = ds.groupby(by=ds.g, agg='count')
+    df.add_column('g', g)
+    df.categorize('g', labels=['cat', 'dog', 'snake'], inplace=True)
+    df = df._future() if auto_encode else df
+    dfg = df.groupby(by=df.g, agg='count')
 
     assert dfg.g.tolist() == ['cat', 'dog', 'snake']
     assert dfg['count'].tolist() == [4, 4, 2]
 
+    with pytest.raises(vaex.RowLimitException, match='.*Resulting grouper.*'):
+        df.groupby(df.g, row_limit=1)
 
 
 def test_groupby_1d_nan(ds_local):
@@ -235,6 +238,11 @@ def test_combined_grouper_over64bit():
         xi = dfg[f'x_{i}'].to_numpy()
         assert len(xi) == N
     assert dfg['count'].sum() == N
+    with pytest.raises(vaex.RowLimitException, match='.* >= 2 .*'):
+        df.groupby(names, row_limit=2)
+    with pytest.raises(vaex.RowLimitException):
+        df.groupby([names[0]], row_limit=2**bits[0]-1)
+
 
 
 def test_groupby_datetime():
