@@ -419,7 +419,7 @@ def yaml_load(f):
     return yaml.safe_load(f)
 
 
-def write_json_or_yaml(file, data, fs_options={}, fs=None):
+def write_json_or_yaml(file, data, fs_options={}, fs=None, old_style=True):
     file, path = vaex.file.file_and_path(file, mode='w', fs_options=fs_options, fs=fs)
     try:
         if path:
@@ -427,7 +427,7 @@ def write_json_or_yaml(file, data, fs_options={}, fs=None):
         else:
             ext = '.json'  # default
         if ext == ".json":
-            json.dump(data, file, indent=2)
+            json.dump(data, file, indent=2, cls=VaexJsonEncoder if old_style else None)
         elif ext == ".yaml":
             yaml_dump(file, data)
         else:
@@ -436,7 +436,7 @@ def write_json_or_yaml(file, data, fs_options={}, fs=None):
         file.close()
 
 
-def read_json_or_yaml(file, fs_options={}, fs=None):
+def read_json_or_yaml(file, fs_options={}, fs=None, old_style=True):
     file, path = vaex.file.file_and_path(file, fs_options=fs_options, fs=fs)
     try:
         if path:
@@ -444,7 +444,7 @@ def read_json_or_yaml(file, fs_options={}, fs=None):
         else:
             ext = '.json'  # default
         if ext == ".json":
-            return json.load(file) or {}
+            return json.load(file, cls=VaexJsonDecoder if old_style else None) or {}
         elif ext == ".yaml":
             return yaml_load(file) or {}
         else:

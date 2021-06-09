@@ -174,7 +174,7 @@ def test_left_a_b_filtered_right(rebuild_dataframe):
 
 
 def test_right_x_x(rebuild_dataframe):
-    df = df_a.join(other=df_b, on='x', rsuffix='_r', how='right')
+    df = df_a.join(other=df_b, on='x', rsuffix='_r', how='right')._future()
     assert df['a'].tolist() == ['C', 'B', 'A']
     assert df['b'].tolist() == ['A', 'B', 'D']
     assert df['x'].tolist() == [2, 1, 0]
@@ -252,7 +252,7 @@ def test_left_virtual_filter(rebuild_dataframe):
 def test_left_on_virtual_col(rebuild_dataframe):
     mapper = {0: 'A', 1: 'B', 2: 'C'}
     df_a['aa'] = df_a.x.map(mapper=mapper)
-    df = df_a.join(df_d, left_on='aa', right_on='a', rsuffix='_right')
+    df = df_a._future().join(df_d._future(), left_on='aa', right_on='a', rsuffix='_right')
     assert df.a.tolist() == ['A', 'B', 'C']
     assert df.aa.tolist() == ['A', 'B', 'C']
     assert df.x.tolist() == [0, 1, 2]

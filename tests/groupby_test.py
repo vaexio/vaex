@@ -129,7 +129,7 @@ def test_groupby_1d_cat(ds_local, auto_encode):
     g = np.array([0, 0, 0, 0, 1, 1, 1, 1, 2, 2])
     ds.add_column('g', g)
     ds.categorize('g', labels=['cat', 'dog', 'snake'], inplace=True)
-    ds = ds._auto_encode() if auto_encode else ds
+    ds = ds._future() if auto_encode else ds
     dfg = ds.groupby(by=ds.g, agg='count')
 
     assert dfg.g.tolist() == ['cat', 'dog', 'snake']
@@ -396,17 +396,19 @@ def test_groupby_datetime():
 
 
 def test_groupby_state(df_factory, rebuild_dataframe):
-    df = df_factory(g=[0, 0, 0, 1, 1, 2], x=[1, 2, 3, 4, 5, 6])
+    df = df_factory(g=[0, 0, 0, 1, 1, 2], x=[1, 2, 3, 4, 5, 6])._future()
     dfg = df.groupby(by=df.g, agg={'count': vaex.agg.count(), 'sum': vaex.agg.sum('x')})
     dfg.sort('g')  # TODO: sort it not yet implemented in the dataset state
     assert dfg.g.tolist() == [0, 1, 2]
     assert dfg['count'].tolist() == [3, 2, 1]
     assert dfg['sum'].tolist() == [1+2+3, 4+5, 6]
 
+    dfg = dfg._future()  # to support rebuilding
+
     assert rebuild_dataframe(dfg.hashed()).dataset.hashed() == dfg.dataset.hashed()
     dfg = dfg.hashed()
 
-    df = df_factory(g=[0, 0, 0, 1, 1, 2], x=[2, 3, 4, 5, 6, 7])
+    df = df_factory(g=[0, 0, 0, 1, 1, 2], x=[2, 3, 4, 5, 6, 7])._future()
     df.state_set(dfg.state_get())
     # import pdb; pdb.set_trace()
     assert df.g.tolist() == [0, 1, 2]

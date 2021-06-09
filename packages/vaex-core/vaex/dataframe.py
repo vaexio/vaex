@@ -132,7 +132,7 @@ class _DataFrameEncoder:
     def decode(encoding, spec):
         dataset = encoding.decode('dataset', spec['dataset'])
         state = encoding.decode('dataframe-state', spec['state'])
-        df = vaex.from_dataset(dataset)
+        df = vaex.from_dataset(dataset)._future()
         df.state_set(state)
         return df
 
@@ -189,6 +189,9 @@ class DataFrame(object):
 
         self.favorite_selections = {}
 
+        # this is to be backward compatible with v4 for now
+        self._future_behaviour = False
+
         self.mask = None  # a bitmask for the selection does not work for server side
 
         # maps from name to list of Selection objets
@@ -216,6 +219,19 @@ class DataFrame(object):
         self._task_aggs = {}
         self._binners = {}
         self._grids = {}
+
+    def _future(self, version=5, inplace=False):
+        '''Act like a Vaex dataframe version 5.
+
+        meaning:
+         * A dataframe with automatically encoded categorical data
+         * state version 5 (which stored the dataset)
+        '''
+        df = self if inplace else self.copy()
+        df._future_behaviour = 5
+        return df
+
+    _auto_encode = _hidden(vaex.utils.deprecated('use _future')(_future))
 
     def __getattr__(self, name):
         # will support the hidden methods
@@ -531,7 +547,7 @@ class DataFrame(object):
         if axis is not None:
             raise ValueError('only axis=None is supported')
         expression = _ensure_string_from_expression(expression)
-        if self._encode_categoricals and self.is_category(expression):
+        if self._future_behaviour and self.is_category(expression):
             keys = self.category_labels(expression)
         else:
             ordered_set = self._set(expression, progress=progress, selection=selection, flatten=axis is None)
@@ -2214,6 +2230,20 @@ class DataFrame(object):
         return dir
 
     def state_get(self, skip=None):
+        if self._future_behaviour == 5:
+            return self._state_get_vaex_5(skip=skip)
+        else:
+            if not ((skip is None) or (len(skip) == 1 and skip[0] is self.dataset)):
+                raise ValueError(f'skip should be None or its own dataset')
+            return self._state_get_pre_vaex_5()
+
+    def state_set(self, state, use_active_range=False, keep_columns=None, set_filter=True, trusted=True, warn=True):
+        if self._future_behaviour == 5:
+            return self._state_set_vaex_5(state, use_active_range=use_active_range, keep_columns=keep_columns, set_filter=set_filter, trusted=trusted, warn=warn)
+        else:
+            return self._state_set_pre_vaex_5(state, use_active_range=use_active_range, keep_columns=keep_columns, set_filter=set_filter, trusted=trusted, warn=warn)
+
+    def _state_get_vaex_5(self, skip=None):
         """Return the internal state of the DataFrame in a dictionary
 
         Example:
@@ -2275,7 +2305,7 @@ class DataFrame(object):
             state['objects'] = encoding._object_specs
         return state
 
-    def state_set(self, state, use_active_range=False, keep_columns=None, set_filter=True, trusted=True, warn=True):
+    def _state_set_vaex_5(self, state, use_active_range=False, keep_columns=None, set_filter=True, trusted=True, warn=True):
         """Sets the internal state of the df
 
         Example:
@@ -2359,7 +2389,7 @@ class DataFrame(object):
                 if name not in self.column_names:
                     del self.columns[name]
 
-    def _state_get_v0(self):
+    def _state_get_pre_vaex_5(self):
         """Return the internal state of the DataFrame in a dictionary
 
         Example:
@@ -2413,7 +2443,7 @@ class DataFrame(object):
                      active_range=[self._index_start, self._index_end])
         return state
 
-    def _state_set_v0(self, state, use_active_range=False, keep_columns=None, set_filter=True, trusted=True, warn=True):
+    def _state_set_pre_vaex_5(self, state, use_active_range=False, keep_columns=None, set_filter=True, trusted=True, warn=True):
         """Sets the internal state of the df
 
         Example:
@@ -2572,7 +2602,7 @@ class DataFrame(object):
         :param fs: 'Pass a file system object directly, see :func:`vaex.open`'
         """
         fs_options = fs_options or {}
-        vaex.utils.write_json_or_yaml(file, self.state_get(), fs_options=fs_options, fs=fs)
+        vaex.utils.write_json_or_yaml(file, self.state_get(), fs_options=fs_options, fs=fs, old_style=not self._future_behaviour)
 
     def state_load(self, file, use_active_range=False, keep_columns=None, set_filter=True, trusted=True, fs_options=None, fs=None):
         """Load a state previously stored by :meth:`DataFrame.state_write`, see also :meth:`DataFrame.state_set`.
@@ -2584,7 +2614,7 @@ class DataFrame(object):
         :param dict fs_options: arguments to pass the the file system handler (s3fs or gcsfs)
         :param fs: 'Pass a file system object directly, see :func:`vaex.open`'
         """
-        state = vaex.utils.read_json_or_yaml(file, fs_options=fs_options, fs=fs)
+        state = vaex.utils.read_json_or_yaml(file, fs_options=fs_options, fs=fs, old_style=not self._future_behaviour)
         self.state_set(state, use_active_range=use_active_range, keep_columns=keep_columns, set_filter=set_filter, trusted=trusted)
 
     def remove_virtual_meta(self):
@@ -5306,8 +5336,6 @@ class DataFrameLocal(DataFrame):
         else:
             name = name or dataset.name
         super(DataFrameLocal, self).__init__(name)
-        # this is to be backward compatible with v4, in v5 the default should be True
-        self._encode_categoricals = False
         self._dataset = dataset
         if hasattr(dataset, 'units'):
             self.units.update(dataset.units)
@@ -5328,7 +5356,7 @@ class DataFrameLocal(DataFrame):
 
     def fingerprint(self):
         '''id that uniquely identifies a dataframe (cross runtime)'''
-        state = self.state_get(skip=[self.dataset])
+        state = self._future().state_get(skip=[self.dataset])
         fp = vaex.cache.fingerprint(state, self.dataset.fingerprint)
         return f'dataframe-{fp}'
 
@@ -5337,7 +5365,7 @@ class DataFrameLocal(DataFrame):
         return {
             'state': state,
             'dataset': self.dataset,
-            '_encode_categoricals': self. _encode_categoricals,
+            '_future_behaviour': self. _future_behaviour,
         }
 
     def __setstate__(self, state):
@@ -5352,7 +5380,7 @@ class DataFrameLocal(DataFrame):
         self._cached_filtered_length = None
         self._index_start = 0
         self._index_end = self._length_original
-        self._encode_categoricals = state['_encode_categoricals']
+        self._future_behaviour = state['_future_behaviour']
         self.state_set(state['state'], use_active_range=True, trusted=True)
 
     @property
@@ -5389,12 +5417,6 @@ class DataFrameLocal(DataFrame):
         df._dataset = vaex.dataset.DatasetArrays(columns)
         return df
 
-    def _auto_encode(self, inplace=False):
-        '''Return a dataframe with automatically encoded categorical data (will be default in v5.)'''
-        df = self if inplace else self.copy()
-        df._encode_categoricals = True
-        return df
-
     _dict_mapping = {
         pa.uint8(): pa.int16(),
         pa.uint16(): pa.int32(),
@@ -5403,7 +5425,7 @@ class DataFrameLocal(DataFrame):
     }
 
     def _auto_encode_type(self, expression, type):
-        if not self._encode_categoricals:
+        if not self._future_behaviour:
             return type
         if self.is_category(expression):
             value_type = vaex.array_types.to_arrow(self.category_labels(expression)).type
@@ -5413,7 +5435,7 @@ class DataFrameLocal(DataFrame):
         return type
 
     def _auto_encode_data(self, expression, values):
-        if not self._encode_categoricals:
+        if not self._future_behaviour:
             return values
         if vaex.array_types.is_arrow_array(values) and pa.types.is_dictionary(values.type):
             return values
@@ -5651,7 +5673,7 @@ class DataFrameLocal(DataFrame):
         df.units.update(self.units)
         df.variables.update(self.variables)  # we add all, could maybe only copy used
         df._categories.update(self._categories)
-        df._encode_categoricals = self._encode_categoricals
+        df._future_behaviour = self._future_behaviour
 
         # put in the selections (thus filters) in place
         # so drop moves instead of really dropping it
