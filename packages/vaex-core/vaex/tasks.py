@@ -32,6 +32,7 @@ class Task(vaex.promise.Promise):
     """
     :type: signal_progress: Signal
     """
+    _fingerprint = None
 
     def __init__(self, df=None, expressions=[], pre_filter=False, name="task"):
         vaex.promise.Promise.__init__(self)
@@ -45,6 +46,11 @@ class Task(vaex.promise.Promise):
         self.name = name
         self.pre_filter = pre_filter
         self.result = None
+
+    def fingerprint(self):
+        if self._fingerprint is None:
+            self._fingerprint = vaex.encoding.fingerprint('task', self)
+        return f'task-{self.name}-{self._fingerprint}'
 
     def _set_progress(self, fraction):
         self.progress_fraction = fraction

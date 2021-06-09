@@ -532,5 +532,12 @@ class binary:
         return data
 
 
+def fingerprint(typename, object):
+    '''Use the encoding framework to calculate a fingerprint'''
+    encoding = vaex.encoding.Encoding()
+    jsonable = encoding.encode(typename, object)
+    blob_keys = list(encoding.blobs)  # blob keys are hashes, so they are unique and enough for a fingerprint
+    return vaex.cache.fingerprint(jsonable, blob_keys)
+
 serialize = binary.serialize
 deserialize = binary.deserialize

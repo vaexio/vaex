@@ -9,6 +9,7 @@ import multiprocessing
 import vaex.multithreading
 import logging
 import vaex.cpu  # force registration of task-part-cpu
+import vaex.encoding
 
 
 chunk_size_min_default = int(os.environ.get('VAEX_CHUNK_SIZE_MIN', 1024))
@@ -54,6 +55,17 @@ class Executor:
         with self.lock:
             # _compute_agg can add a task that another thread already added
             # if we refactor task 'merging' we can avoid this
+            if vaex.cache.is_on():
+                key_task = task.fingerprint()
+                key_df = task.df.fingerprint(treeshake=True)
+                # tasks' fingerprints don't include the dataframe
+                key = f'task-{key_task}-df-{key_df}'
+                logger.debug("task fingerprint: %r", key)
+                result = vaex.cache.get(key)
+                if result is not None:
+                    logger.info("task not added, used cache key: %r", key)
+                    task.fulfill(result)
+                    return task
             if task not in self.tasks:
                 self.tasks.append(task)
                 logger.info("task added, queue: %r", self.tasks)
@@ -158,13 +170,13 @@ class ExecutorLocal(Executor):
                 row_count = run.df._index_end - run.df._index_start
                 chunk_size = self.chunk_size_for(row_count)
                 run.block_scopes = [run.df._block_scope(0, chunk_size) for i in range(self.thread_pool.nthreads)]
-                from .encoding import Encoding
-                encoding = Encoding()
+                encoding = vaex.encoding.Encoding()
                 for task in tasks:
                     spec = encoding.encode('task', task)
                     task._parts = [encoding.decode('task-part-cpu', spec, df=run.df) for i in range(self.thread_pool.nthreads)]
 
                 length = run.df.active_length()
+                key_df = run.df.fingerprint(treeshake=True)
                 # TODO: in the future we might want to enable the zigzagging again, but this requires all datasets to implement it
                 # if self.zigzag:
                 #     self.zig = not self.zig
@@ -204,6 +216,19 @@ class ExecutorLocal(Executor):
                             logger.debug("wait for task: %r", task)
                             task._result = parts[0].get_result()
                             logger.debug("got result for: %r", task)
+                            if task._result is not None:  # we don't want to store None
+                                if vaex.cache.is_on():
+                                    key_task = task.fingerprint()
+                                    # tasks' fingerprints don't include the dataframe
+                                    key = f'task-{key_task}-df-{key_df}'
+                                    previous_result = vaex.cache.cache.get(key)
+                                    if (previous_result is not None) and (previous_result != task._result):
+                                        # this can happen with multithreading, where two threads enter the same tasks in parallel (IF using different executors)
+                                        logger.warning("calculated new result: %r, while cache had value: %r", previous_result, task._result)
+                                    else:
+                                        vaex.cache.cache[key] = task._result
+                                        logger.warning("added result: %r in cache under key: %r", task._result, key)
+
                             task.end()
                             task.fulfill(task._result)
                         else:

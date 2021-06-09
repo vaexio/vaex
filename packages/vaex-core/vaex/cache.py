@@ -1,3 +1,4 @@
+import contextlib
 import functools
 import numpy
 import dask.base
@@ -6,12 +7,66 @@ import uuid
 import pyarrow as pa
 
 import vaex.utils
+import functools
 
 
 log = logging.getLogger('vaex.cache')
 
 dask.base.normalize_token.register(pa.DataType, repr)
 
+cache = None
+
+class _cleanup:
+    def __init__(self, gen, result):
+        self._gen = gen
+        self._result = result
+
+    def __enter__(self):
+        log.debug('entered')
+        return self._result
+
+    def __exit__(self, type, value, traceback):
+        try:
+            next(self._gen)
+        except StopIteration:
+            return False
+        else:
+            raise RuntimeError("generator didn't stop")
+
+def _with_cleanup(f):
+    '''Runs f directly, and the code after yield at exit'''
+    @functools.wraps(f)
+    def wrapper(*args, **kwargs):
+        gen = f(*args, **kwargs)
+        result = next(gen) # run up to the yield
+        return _cleanup(gen, result)
+    return wrapper
+
+
+@_with_cleanup
+def infinite():
+    '''Sets the cache as a dictionary, creating an infinite cache'''
+    global cache
+    log.debug("set cache to infinite")
+    old_cache = cache
+    cache = {}
+    yield
+    log.debug("restore old cache")
+    cache = old_cache
+
+
+def is_on():
+    return cache is not None
+
+
+def off():
+    global cache
+    cache = None
+
+
+def get(key):
+    if is_on():
+        return cache.get(key)
 
 def fingerprint(*args, **kwargs):
     try:

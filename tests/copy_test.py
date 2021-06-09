@@ -14,6 +14,7 @@ def test_copy(df):
     assert 'myvar' in dfc.variables
     dfc.x.values
 
+
 def test_non_existing_column(df_local):
     df = df_local
     with pytest.raises(NameError, match='.*Did you.*'):
