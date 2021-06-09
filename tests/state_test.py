@@ -3,7 +3,7 @@ import vaex.ml
 
 
 def test_state_skip_main(df_factory):
-    df = df_factory(x=[1, 2]).hashed()
+    df = df_factory(x=[1, 2]).hashed()._future()
     dff = df[df.x > 1]
     dff._push_down_filter()
     state = dff.state_get()
@@ -12,7 +12,7 @@ def test_state_skip_main(df_factory):
 
 
 def test_state_skip_slice(df_factory):
-    df = df_factory(x=[1, 2, 2]).hashed()
+    df = df_factory(x=[1, 2, 2]).hashed()._future()
     dfs = df[:2]
     state = dfs.state_get()
     assert dfs.dataset.id in state['objects']
@@ -30,7 +30,7 @@ def test_apply_state():
 
 def test_isin(tmpdir):
     df = vaex.from_arrays(x=np.array(['a', 'b', 'c'], dtype='O'),
-                          y=np.array([1, 2, 3], dtype='O'))
+                          y=np.array([1, 2, 3], dtype='O'))._future()
 
     df2 = df.copy()
     df2['test'] = df2.x.isin(['a'])
@@ -75,7 +75,7 @@ def test_state_mem_waste(df_trimmed):
 
 def test_state_variables(df_local_non_arrow, tmpdir):
     filename = str(tmpdir.join('state.json'))
-    df = df_local_non_arrow
+    df = df_local_non_arrow._future()
     df_copy = df.copy()
     t_test = np.datetime64('2005-01-01')
     df.add_variable('dt_var', t_test)

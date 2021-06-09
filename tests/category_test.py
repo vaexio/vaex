@@ -11,7 +11,7 @@ def test_cat_string(auto_encode):
     ds0 = vaex.from_arrays(colors=['red', 'green', 'blue', 'green'])
     ds = ds0.ordinal_encode('colors')#, ['red', 'green'], inplace=True)
     assert ds.colors.dtype.internal.name == 'int8'
-    ds = ds._auto_encode() if auto_encode else ds
+    ds = ds._future() if auto_encode else ds
     assert ds.is_category('colors')
     if auto_encode:
         assert ds.data_type('colors') == str
@@ -79,7 +79,7 @@ def test_categorize_integers():
 def test_cat_compare(df_factory, auto_encode):
     df = df_factory(x=np.array([0, 1, 2, 0], dtype='uint8'))
     df = df.categorize('x', labels=['a', 'b', 'c'])
-    df = df._auto_encode() if auto_encode else df
+    df = df._future() if auto_encode else df
     if auto_encode:
         assert df['x'].tolist() == ['a', 'b', 'c', 'a']
         assert str(df.x == 'a') == '(index_values(x) == 0)'
@@ -110,7 +110,7 @@ def test_index_values(df_factory_arrow):
     c = pa.DictionaryArray.from_arrays(indices, dictionary)
     c = pa.chunked_array([c[i:i+1] for i in range(len(c))])
     df = df_factory_arrow(c=c)
-    df = df._auto_encode()
+    df = df._future()
     # assert df.c.index_values().tolist() == [0, 0, 1, 2]
     with small_buffer(df, 2):
         assert df[df.c == 'aap'].c.index_values().tolist() == [0, 0]

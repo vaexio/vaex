@@ -80,12 +80,12 @@ def test_unique_list(df_types):
     assert set(df.int_list.unique()) == {1, 2, 3, 4, 5, None}
 
 
-@pytest.mark.parametrize("auto_encode", [False, True])
-def test_unique_categorical(df_factory, auto_encode):
+@pytest.mark.parametrize("future", [False, True])
+def test_unique_categorical(df_factory, future):
     df = df_factory(x=vaex.string_column(['a', 'c', 'b', 'a', 'a']))
     df = df.ordinal_encode('x')
-    df = df._auto_encode() if auto_encode else df
-    if auto_encode:
+    df = df._future() if future else df
+    if future:
         assert df.x.dtype == str
         assert set(df.x.unique()) == {'a', 'b', 'c'}
         assert df.x.nunique() == 3
