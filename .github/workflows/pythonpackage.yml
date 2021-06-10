@@ -116,6 +116,11 @@ jobs:
       shell: bash
       run: |
         ./ci/04-run-test-suite.sh
+    - name: Test with pytest (with cache on)
+      if: matrix.python-version == '3.9' && matrix.os == 'ubuntu-latest'
+      shell: bash
+      run: |
+        VAEX_CACHE_RESULTS=1 ./ci/04-run-test-suite.sh
     - name: Check ml spec
       # no catboost for py39
       if: matrix.python-version != '3.9' && matrix.os != 'windows-latest'
