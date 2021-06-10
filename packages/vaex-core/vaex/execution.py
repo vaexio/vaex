@@ -57,7 +57,7 @@ class Executor:
             # if we refactor task 'merging' we can avoid this
             if vaex.cache.is_on():
                 key_task = task.fingerprint()
-                key_df = task.df.fingerprint(treeshake=True)
+                key_df = task.df.fingerprint()
                 # tasks' fingerprints don't include the dataframe
                 key = f'task-{key_task}-df-{key_df}'
                 logger.debug("task fingerprint: %r", key)
@@ -176,7 +176,8 @@ class ExecutorLocal(Executor):
                     task._parts = [encoding.decode('task-part-cpu', spec, df=run.df) for i in range(self.thread_pool.nthreads)]
 
                 length = run.df.active_length()
-                key_df = run.df.fingerprint(treeshake=True)
+                if vaex.cache.is_on():
+                    key_df = run.df.fingerprint()
                 # TODO: in the future we might want to enable the zigzagging again, but this requires all datasets to implement it
                 # if self.zigzag:
                 #     self.zig = not self.zig
@@ -227,7 +228,7 @@ class ExecutorLocal(Executor):
                                         logger.warning("calculated new result: %r, while cache had value: %r", previous_result, task._result)
                                     else:
                                         vaex.cache.cache[key] = task._result
-                                        logger.warning("added result: %r in cache under key: %r", task._result, key)
+                                        logger.info("added result: %r in cache under key: %r", task._result, key)
 
                             task.end()
                             task.fulfill(task._result)
