@@ -114,16 +114,18 @@ class TaskFilterFill(Task):
 @register
 class TaskSetCreate(Task):
     name = "set_create"
-    def __init__(self, df, expression, flatten, unique_limit=None):
+    def __init__(self, df, expression, flatten, unique_limit=None, selection=None):
         super().__init__(df=df, expressions=[expression], pre_filter=df.filtered, name=self.name)
         self.flatten = flatten
         self.dtype = self.df.data_type(expression)
         self.dtype_item = self.df.data_type(expression, axis=-1 if flatten else 0)
         self.unique_limit = unique_limit
+        self.selection = selection
 
     def encode(self, encoding):
         return {'task': type(self).name, 'expression': self.expressions[0], 'dtype': encoding.encode('dtype', self.dtype),
-                'dtype_item': encoding.encode('dtype', self.dtype_item), 'flatten': self.flatten, 'unique_limit': self.unique_limit}
+                'dtype_item': encoding.encode('dtype', self.dtype_item), 'flatten': self.flatten, 'unique_limit': self.unique_limit,
+                'selection': self.selection}
 
     @classmethod
     def decode(cls, encoding, spec, df):
