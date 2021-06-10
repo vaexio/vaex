@@ -103,7 +103,7 @@ class TaskPartFilterFill:
 class TaskPartSetCreate:
     name = "set_create"
 
-    def __init__(self, df, expression, dtype, dtype_item, flatten, unique_limit):
+    def __init__(self, df, expression, dtype, dtype_item, flatten, unique_limit, selection):
         expression = str(expression)
         self.df = df
         self.dtype = dtype
@@ -111,6 +111,7 @@ class TaskPartSetCreate:
         self.flatten = flatten
         self.expression = expression
         self.unique_limit = unique_limit
+        self.selection = selection
 
         transient = False
         # TODO: revive non-transient optimization
@@ -136,6 +137,9 @@ class TaskPartSetCreate:
         from vaex.column import _to_string_sequence
         if self.set is None:
             self.set = self.ordered_set_type()
+        if self.selection:
+            selection_mask = self.df.evaluate_selection_mask(self.selection, i1=i1, i2=i2, cache=True)
+            ar = filter(ar, selection_mask)
         if self.dtype.is_list and self.flatten:
             ar = ar.values
         if self.dtype_item.is_string:
@@ -173,7 +177,7 @@ class TaskPartSetCreate:
     @classmethod
     def decode(cls, encoding, spec, df):
         return cls(df, spec['expression'], encoding.decode('dtype', spec['dtype']), encoding.decode('dtype', spec['dtype_item']),
-                   flatten=spec['flatten'], unique_limit=spec['unique_limit'])
+                   flatten=spec['flatten'], unique_limit=spec['unique_limit'], selection=spec['selection'])
 
 
 
