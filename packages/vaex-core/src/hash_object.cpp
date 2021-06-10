@@ -297,8 +297,11 @@ void init_hash_object(py::module &m) {
             .def("update", &Type::update_with_mask)
             .def("merge", &Type::merge)
             .def("extract", &Type::extract)
+            .def_property_readonly("count", [](const Type &c) { return c.count; })
             .def_property_readonly("nan_count", [](const Type &c) { return c.nan_count; })
             .def_property_readonly("null_count", [](const Type &c) { return c.null_count; })
+            .def_property_readonly("has_nan", [](const Type &c) { return c.nan_count > 0; })
+            .def_property_readonly("has_null", [](const Type &c) { return c.null_count > 0; })
         ;
     }
     {
@@ -314,6 +317,7 @@ void init_hash_object(py::module &m) {
             .def("keys", &Type::keys)
             .def("map_ordinal", &Type::map_ordinal)
             .def("map_ordinal", &Type::map_ordinal_with_mask)
+            .def_property_readonly("count", [](const Type &c) { return c.count; })
             .def_property_readonly("nan_count", [](const Type &c) { return c.nan_count; })
             .def_property_readonly("null_count", [](const Type &c) { return c.null_count; })
             .def_property_readonly("has_nan", [](const Type &c) { return c.nan_count > 0; })
