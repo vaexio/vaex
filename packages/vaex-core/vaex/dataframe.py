@@ -443,8 +443,7 @@ class DataFrame(object):
         return self.map_reduce(map, reduce, expressions, delay=delay, progress=progress, name='nop', to_numpy=False)
 
     def _set(self, expression, progress=False, selection=None, flatten=True, delay=False, unique_limit=None):
-        assert selection is None
-        task = vaex.tasks.TaskSetCreate(self, str(expression), flatten, unique_limit=unique_limit)
+        task = vaex.tasks.TaskSetCreate(self, str(expression), flatten, unique_limit=unique_limit, selection=selection)
         self.executor.schedule(task)
         return self._delay(delay, task)
 
