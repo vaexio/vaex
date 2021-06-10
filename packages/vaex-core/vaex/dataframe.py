@@ -5373,7 +5373,7 @@ class DataFrameLocal(DataFrame):
         :param bool treeshake: Get rid of unused variables before calculating the fingerprint.
         '''
         df = self.copy(treeshake=True) if treeshake else self
-        state = df._future().state_get(skip=[df.dataset])
+        state = df._state_get_vaex_5(skip=[df.dataset])
         fp = vaex.cache.fingerprint(state, df.dataset.fingerprint)
         return f'dataframe-{fp}'
 
