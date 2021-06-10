@@ -4106,7 +4106,7 @@ class DataFrame(object):
         df.dataset = self.dataset[self._index_start:self._index_end]
         if df.filtered:
             # we're gonna copy the mask from our parent
-            parent_mask = self._selection_masks[FILTER_SELECTION_NAME].view(self._index_start, self._index_end)
+            parent_mask = self._selection_masks[FILTER_SELECTION_NAME].view(0, self._index_end - self._index_start)
             mask = df._selection_masks[FILTER_SELECTION_NAME]
             np.copyto(np.asarray(mask), np.asarray(parent_mask))
             selection = df.get_selection(FILTER_SELECTION_NAME)
