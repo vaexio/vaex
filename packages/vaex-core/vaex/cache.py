@@ -46,12 +46,13 @@ def _with_cleanup(f):
 
 
 @_with_cleanup
-def infinite():
+def infinite(reset=False):
     '''Sets the cache as a dictionary, creating an infinite cache'''
     global cache
     log.debug("set cache to infinite")
     old_cache = cache
-    cache = {}
+    if reset or (not isinstance(old_cache, dict)):
+        cache = {}
     yield
     log.debug("restore old cache")
     cache = old_cache
