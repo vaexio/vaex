@@ -220,6 +220,16 @@ class DataFrame(object):
         self._binners = {}
         self._grids = {}
 
+    def fingerprint(self, treeshake=False):
+        '''Id that uniquely identifies a dataframe (cross runtime).
+
+        :param bool treeshake: Get rid of unused variables before calculating the fingerprint.
+        '''
+        df = self.copy(treeshake=True) if treeshake else self
+        state = df._state_get_vaex_5(skip=[df.dataset])
+        fp = vaex.cache.fingerprint(state, df.dataset.fingerprint)
+        return f'dataframe-{fp}'
+
     def _future(self, version=5, inplace=False):
         '''Act like a Vaex dataframe version 5.
 
@@ -5376,16 +5386,6 @@ class DataFrameLocal(DataFrame):
             task = vaex.tasks.TaskFilterFill(self)
             self.executor.schedule(task)
             self.execute()
-
-    def fingerprint(self, treeshake=False):
-        '''Id that uniquely identifies a dataframe (cross runtime).
-
-        :param bool treeshake: Get rid of unused variables before calculating the fingerprint.
-        '''
-        df = self.copy(treeshake=True) if treeshake else self
-        state = df._state_get_vaex_5(skip=[df.dataset])
-        fp = vaex.cache.fingerprint(state, df.dataset.fingerprint)
-        return f'dataframe-{fp}'
 
     def __getstate__(self):
         state = self.state_get(skip=[self.dataset])
