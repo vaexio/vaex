@@ -73,22 +73,23 @@ def test_delayed(df):
 
 
 def test_nested_task(df):
-    @vaex.delayed
-    def add(a, b):
-        return a + b
-    total_promise = add(df.sum(df.x, delay=True))
+    with vaex.cache.off():
+        @vaex.delayed
+        def add(a, b):
+            return a + b
+        total_promise = add(df.sum(df.x, delay=True))
 
-    @vaex.delayed
-    def next(value):
-        # during the handling of the sum task, we add a new task
-        sumy_promise = df.sum(df.y, delay=True)
-        if df.is_local():
-            assert df.executor.local.executing
-        # without callling the exector, since it should still be running its main loop
-        return add(sumy_promise, value)
-    total_promise = next(df.sum(df.x, delay=True))
-    df.execute()
-    assert total_promise.get() == df.sum(df.x) + df.sum(df.y)
+        @vaex.delayed
+        def next(value):
+            # during the handling of the sum task, we add a new task
+            sumy_promise = df.sum(df.y, delay=True)
+            if df.is_local():
+                assert df.executor.local.executing
+            # without callling the exector, since it should still be running its main loop
+            return add(sumy_promise, value)
+        total_promise = next(df.sum(df.x, delay=True))
+        df.execute()
+        assert total_promise.get() == df.sum(df.x) + df.sum(df.y)
 
 
 def test_executor_from_other_thread():
