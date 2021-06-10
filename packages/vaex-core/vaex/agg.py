@@ -2,6 +2,7 @@ import os
 import numpy as np
 
 import dask.base
+from vaex.expression import Expression
 
 from .stat import _Statistic
 from vaex import encoding
@@ -79,7 +80,7 @@ class AggregatorDescriptorBasic(AggregatorDescriptor):
         else:
             spec['expression'] = [str(k) for k in self.expressions]
         if self.selection is not None:
-            spec['selection'] = self.selection
+            spec['selection'] = str(self.selection) if isinstance(self.selection, Expression) else self.selection
         if self.edges:
             spec['edges'] = True
         if self.agg_args:
