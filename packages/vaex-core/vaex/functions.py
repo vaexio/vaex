@@ -2526,6 +2526,7 @@ def _astype(x, dtype):
 def _isin(x, values):
     if vaex.column._is_stringy(x):
         x = vaex.column._to_string_column(x)
+        values = vaex.column._to_string_sequence(values)
         return x.string_sequence.isin(values)
     else:
         # TODO: this happens when a column is of dtype=object
