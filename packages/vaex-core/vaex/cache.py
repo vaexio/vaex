@@ -11,6 +11,8 @@ import functools
 
 
 log = logging.getLogger('vaex.cache')
+_enable_cache_results = vaex.utils.get_env_type(bool, 'VAEX_CACHE_RESULTS', False)
+
 
 dask.base.normalize_token.register(pa.DataType, repr)
 
@@ -130,3 +132,6 @@ def output_file(callable=None, path_input=None, fs_options_input={}, fs_input=No
             return call
         return wrapper2
     return wrapper1()
+
+if _enable_cache_results:
+    infinite()
