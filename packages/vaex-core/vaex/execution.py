@@ -59,7 +59,7 @@ class Executor:
                 key_task = task.fingerprint()
                 key_df = task.df.fingerprint()
                 # tasks' fingerprints don't include the dataframe
-                key = f'task-{key_task}-df-{key_df}'
+                key = f'{key_task}-{key_df}'
                 logger.debug("task fingerprint: %r", key)
                 result = vaex.cache.get(key)
                 if result is not None:
@@ -221,7 +221,7 @@ class ExecutorLocal(Executor):
                                 if vaex.cache.is_on():
                                     key_task = task.fingerprint()
                                     # tasks' fingerprints don't include the dataframe
-                                    key = f'task-{key_task}-df-{key_df}'
+                                    key = f'{key_task}-{key_df}'
                                     previous_result = vaex.cache.cache.get(key)
                                     if (previous_result is not None) and (previous_result != task._result):
                                         # this can happen with multithreading, where two threads enter the same tasks in parallel (IF using different executors)

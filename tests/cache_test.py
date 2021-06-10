@@ -56,3 +56,12 @@ def test_cache_length_without_messing_up_filter_mask(df_local):
         dffs = dff[1:2]
         assert passes(df) == passes0 + 2
 
+def test_cache_set():
+    df = vaex.from_arrays(x=[0, 1, 2, 2])
+    with vaex.cache.infinite():
+        passes0 = passes(df)
+        df._set('x')
+        assert passes(df) == passes0 + 1
+        # now should use the cache
+        df._set('x')
+        assert passes(df) == passes0 + 1

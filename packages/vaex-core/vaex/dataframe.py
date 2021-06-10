@@ -443,57 +443,10 @@ class DataFrame(object):
         return self.map_reduce(map, reduce, expressions, delay=delay, progress=progress, name='nop', to_numpy=False)
 
     def _set(self, expression, progress=False, selection=None, flatten=True, delay=False, unique_limit=None):
-        column = _ensure_string_from_expression(expression)
-        columns = [column]
-        from .hash import ordered_set_type_from_dtype
-        from vaex.column import _to_string_sequence
-
-        transient = self[str(expression)].transient or self.filtered or self.is_masked(expression)
-        if self.is_string(expression) and not transient:
-            # string is a special case, only ColumnString are not transient
-            ar = self.columns[str(expression)]
-            if not isinstance(ar, ColumnString):
-                transient = True
-
-        dtype = self.data_type(column)
-        dtype_item = self.data_type(column, axis=-1 if flatten else 0)
-        ordered_set_type = ordered_set_type_from_dtype(dtype_item, transient)
-        sets = [None] * self.executor.thread_pool.nthreads
-        def map(thread_index, i1, i2, ar):
-            if sets[thread_index] is None:
-                sets[thread_index] = ordered_set_type()
-            if dtype.is_list and flatten:
-                ar = ar.values
-            if dtype_item.is_string:
-                ar = _to_string_sequence(ar)
-            else:
-                ar = vaex.array_types.to_numpy(ar)
-            if np.ma.isMaskedArray(ar):
-                mask = np.ma.getmaskarray(ar)
-                sets[thread_index].update(ar, mask)
-            else:
-                sets[thread_index].update(ar)
-            if unique_limit is not None:
-                count = sets[thread_index].count
-                # we skip null and nan here, since this is just an early bail out
-                if count > unique_limit:
-                    raise vaex.RowLimitException(f'Resulting set would have >= {unique_limit} unique combinations')
-        def reduce(a, b):
-            pass
-        self.map_reduce(map, reduce, columns, delay=delay, name='set', info=True, to_numpy=False, selection=selection, pre_filter=True)
-        sets = [k for k in sets if k is not None]
-        set0 = sets[0]
-        for other in sets[1:]:
-            set0.merge(other)
-        if unique_limit is not None:
-            count = set0.count
-            if set0.has_nan:
-                count += 1
-            if set0.has_null:
-                count += 1
-            if count > unique_limit:
-                raise vaex.RowLimitException(f'Resulting set has {count:,} unique combinations, which is larger than the allowed value of {unique_limit:,}')
-        return set0
+        assert selection is None
+        task = vaex.tasks.TaskSetCreate(self, str(expression), flatten, unique_limit=unique_limit)
+        self.executor.schedule(task)
+        return self._delay(delay, task)
 
     def _index(self, expression, progress=False, delay=False, prime_growth=False, cardinality=None):
         column = _ensure_string_from_expression(expression)
