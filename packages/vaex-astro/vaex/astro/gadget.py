@@ -50,6 +50,7 @@ def getinfo(filename, seek=None):
 
 
 class MemoryMappedGadget(DatasetMemoryMapped):
+	snake_name = 'gadget'
 	def __init__(self, filename, fs_options={}, fs=None):
 		super(MemoryMappedGadget, self).__init__(filename)
 		#h5file = h5py.File(self.filename)
