@@ -33,6 +33,7 @@ class Task(vaex.promise.Promise):
     :type: signal_progress: Signal
     """
     _fingerprint = None
+    cacheable = True
 
     def __init__(self, df=None, expressions=[], pre_filter=False, name="task"):
         vaex.promise.Promise.__init__(self)
@@ -97,8 +98,24 @@ class TaskSum(Task):
 
 
 @register
+class TaskFilterFill(Task):
+    cacheable = False
+    name = "filter_fill"
+    def __init__(self, df):
+        super().__init__(df=df, pre_filter=True)
+
+    def encode(self, encoding):
+        return {'task': type(self).name}
+
+    @classmethod
+    def decode(cls, encoding, spec, df):
+        return cls(df)
+
+
+@register
 class TaskMapReduce(Task):
     name = "map_reduce"
+    cacheable = False  # in general this is used with side effects
 
     def __init__(self, df, expressions, map, reduce, info=False, to_float=False,
                  to_numpy=True, skip_masked=False, ignore_filter=False, selection=None, pre_filter=False, name="task"):

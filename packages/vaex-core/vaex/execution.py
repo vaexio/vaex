@@ -55,7 +55,7 @@ class Executor:
         with self.lock:
             # _compute_agg can add a task that another thread already added
             # if we refactor task 'merging' we can avoid this
-            if vaex.cache.is_on():
+            if vaex.cache.is_on() and task.cacheable:
                 key_task = task.fingerprint()
                 key_df = task.df.fingerprint()
                 # tasks' fingerprints don't include the dataframe
@@ -217,7 +217,7 @@ class ExecutorLocal(Executor):
                             logger.debug("wait for task: %r", task)
                             task._result = parts[0].get_result()
                             logger.debug("got result for: %r", task)
-                            if task._result is not None:  # we don't want to store None
+                            if task._result is not None and task.cacheable:  # we don't want to store None
                                 if vaex.cache.is_on():
                                     key_task = task.fingerprint()
                                     # tasks' fingerprints don't include the dataframe
