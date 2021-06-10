@@ -100,6 +100,84 @@ class TaskPartFilterFill:
 
 
 @register
+class TaskPartSetCreate:
+    name = "set_create"
+
+    def __init__(self, df, expression, dtype, dtype_item, flatten, unique_limit):
+        expression = str(expression)
+        self.df = df
+        self.dtype = dtype
+        self.dtype_item = dtype_item
+        self.flatten = flatten
+        self.expression = expression
+        self.unique_limit = unique_limit
+
+        transient = False
+        # TODO: revive non-transient optimization
+        # transient = self.df.[str(expression)].transient or self.filtered or self.is_masked(expression)
+        # if self.is_string(expression) and not transient:
+        #     # string is a special case, only ColumnString are not transient
+        #     ar = self.columns[str(expression)]
+        #     if not isinstance(ar, ColumnString):
+        #         transient = True
+        # self.dtype = self.df.data_type(str(expression))
+        # self.dtype_item = self.data_type(expression, axis=-1 if flatten else 0)
+        self.ordered_set_type = vaex.hash.ordered_set_type_from_dtype(dtype_item, transient)
+        self.set = None
+
+    @property
+    def expressions(self):
+        return [self.expression]
+
+    def get_result(self):
+        return self.set
+
+    def process(self, thread_index, i1, i2, filter_mask, ar):
+        from vaex.column import _to_string_sequence
+        if self.set is None:
+            self.set = self.ordered_set_type()
+        if self.dtype.is_list and self.flatten:
+            ar = ar.values
+        if self.dtype_item.is_string:
+            ar = _to_string_sequence(ar)
+        else:
+            ar = vaex.array_types.to_numpy(ar)
+        if np.ma.isMaskedArray(ar):
+            mask = np.ma.getmaskarray(ar)
+            self.set.update(ar, mask)
+        else:
+            self.set.update(ar)
+        if self.unique_limit is not None:
+            count = self.set.count
+            # we skip null and nan here, since this is just an early bail out
+            if count > self.unique_limit:
+                raise vaex.RowLimitException(f'Resulting set would have >= {self.unique_limit} unique combinations')
+
+    def reduce(self, others):
+        set_merged = self.set
+        for other in others:
+            if set_merged is None and other.set is not None:
+                set_merged = other.set
+            elif other.set is not None:
+                set_merged.merge(other.set)
+        if self.unique_limit is not None:
+            count = set_merged.count
+            if set_merged.has_nan:
+                count += 1
+            if set_merged.has_null:
+                count += 1
+            if count > self.unique_limit:
+                raise vaex.RowLimitException(f'Resulting set has {count:,} unique combinations, which is larger than the allowed value of {self.unique_limit:,}')
+        self.set = set_merged
+
+    @classmethod
+    def decode(cls, encoding, spec, df):
+        return cls(df, spec['expression'], encoding.decode('dtype', spec['dtype']), encoding.decode('dtype', spec['dtype_item']),
+                   flatten=spec['flatten'], unique_limit=spec['unique_limit'])
+
+
+
+@register
 class TaskPartMapReduce(TaskPart):
     name = "map_reduce"
 

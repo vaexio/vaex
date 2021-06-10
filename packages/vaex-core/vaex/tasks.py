@@ -102,7 +102,7 @@ class TaskFilterFill(Task):
     cacheable = False
     name = "filter_fill"
     def __init__(self, df):
-        super().__init__(df=df, pre_filter=True)
+        super().__init__(df=df, pre_filter=True, name=self.name)
 
     def encode(self, encoding):
         return {'task': type(self).name}
@@ -111,6 +111,23 @@ class TaskFilterFill(Task):
     def decode(cls, encoding, spec, df):
         return cls(df)
 
+@register
+class TaskSetCreate(Task):
+    name = "set_create"
+    def __init__(self, df, expression, flatten, unique_limit=None):
+        super().__init__(df=df, expressions=[expression], pre_filter=df.filtered, name=self.name)
+        self.flatten = flatten
+        self.dtype = self.df.data_type(expression)
+        self.dtype_item = self.df.data_type(expression, axis=-1 if flatten else 0)
+        self.unique_limit = unique_limit
+
+    def encode(self, encoding):
+        return {'task': type(self).name, 'expression': self.expressions[0], 'dtype': encoding.encode('dtype', self.dtype),
+                'dtype_item': encoding.encode('dtype', self.dtype_item), 'flatten': self.flatten, 'unique_limit': self.unique_limit}
+
+    @classmethod
+    def decode(cls, encoding, spec, df):
+        return cls(df, expression=spec['expression'])
 
 @register
 class TaskMapReduce(Task):
