@@ -2917,6 +2917,7 @@ class DataFrame(object):
         """
         offset = 0
         import concurrent.futures
+        self._fill_filter_mask()
         if not prefetch:
             # this is the simple implementation
             for l1, l2, i1, i2 in self._unfiltered_chunk_slices(chunk_size):
@@ -4168,7 +4169,7 @@ class DataFrame(object):
         if df.filtered and filtered:
             # we translate the indices that refer to filters row indices to
             # indices of the unfiltered row indices
-            df.count() # make sure the mask is filled
+            df._fill_filter_mask()
             max_index = indices.max()
             mask = df._selection_masks[FILTER_SELECTION_NAME]
             filtered_indices = mask.first(max_index+1)
@@ -5986,7 +5987,6 @@ class DataFrameLocal(DataFrame):
 
     def _unfiltered_chunk_slices(self, chunk_size):
         logical_length = len(self)
-        self._fill_filter_mask()
         if self.filtered:
             full_mask = self._selection_masks[FILTER_SELECTION_NAME]
             # TODO: python 3, use yield from
