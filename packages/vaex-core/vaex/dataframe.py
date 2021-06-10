@@ -4192,7 +4192,7 @@ class DataFrame(object):
 
     def _push_down_filter(self):
         '''Push the filter down the dataset layer'''
-        self.count()  # make sure the mask is filled
+        self._fill_filter_mask()  # make sure the mask is filled
         mask = self._selection_masks[FILTER_SELECTION_NAME]
         mask = np.asarray(mask)
         # indices = mask.first(len(self))
@@ -5047,7 +5047,7 @@ class DataFrame(object):
             stop = min(stop, len(self))
             assert step in [None, 1]
             if self.filtered:
-                len(self)  # fill caches and masks
+                self._fill_filter_mask()
                 mask = self._selection_masks[FILTER_SELECTION_NAME]
                 startf, stopf = mask.indices(start, stop-1) # -1 since it is inclusive
                 assert startf != -1
@@ -5370,6 +5370,12 @@ class DataFrameLocal(DataFrame):
         # self.path = dataset.path
         self.mask = None
         self.columns = ColumnProxy(self)
+
+    def _fill_filter_mask(self):
+        if self.filtered:
+            task = vaex.tasks.TaskFilterFill(self)
+            self.executor.schedule(task)
+            self.execute()
 
     def fingerprint(self, treeshake=False):
         '''Id that uniquely identifies a dataframe (cross runtime).
@@ -6012,7 +6018,7 @@ class DataFrameLocal(DataFrame):
                 df = df.drop_filter()
             if i1 != 0 or i2 != max_stop:
                 if not raw and self.filtered and filtered:
-                    count_check = len(self)  # fill caches and masks
+                    self._fill_filter_mask()
                     mask = self._selection_masks[FILTER_SELECTION_NAME]
                     i1, i2 = mask.indices(i1, i2-1)
                     assert i1 != -1

@@ -72,6 +72,33 @@ class TaskPartSum:
         return cls(spec['expression'])
 
 
+
+@register
+class TaskPartFilterFill:
+    name = "filter_fill"
+
+    def __init__(self):
+        pass
+
+    @property
+    def expressions(self):
+        return []
+
+    def get_result(self):
+        return None
+
+    def process(self, thread_index, i1, i2, filter_mask):
+        assert filter_mask is not None, f'{filter_mask}'
+
+    def reduce(self, others):
+        pass
+
+    @classmethod
+    def decode(cls, encoding, spec, df):
+        assert spec == {'task': 'filter_fill'}, f'{spec}'
+        return cls()
+
+
 @register
 class TaskPartMapReduce(TaskPart):
     name = "map_reduce"
