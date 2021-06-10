@@ -222,11 +222,20 @@ class numpy_scalar_encoding:
 class dtype_encoding:
     @staticmethod
     def encode(encoding, dtype):
+        dtype = DataType(dtype)
+        if dtype.is_list:
+            return {'type': 'list', 'value_type': encoding.encode('dtype', dtype.value_type)}
         dtype = DataType(dtype).internal
         return str(dtype)
 
     @staticmethod
     def decode(encoding, type_spec):
+        if isinstance(type_spec, dict):
+            if type_spec['type'] == 'list':
+                sub = encoding.decode('dtype', type_spec['value_type']).arrow
+                return DataType(pa.list_(sub))
+            else:
+                raise ValueError(f'Do not understand type {type_spec}')
         if type_spec == 'string':
             return DataType(pa.string())
         if type_spec == 'large_string':
