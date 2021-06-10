@@ -1,4 +1,5 @@
 import vaex.file.cache
+import vaex.hdf5.dataset
 import os
 
 
@@ -7,7 +8,7 @@ def test_hdf5(tmpdir):
     s = ['aap', 'noot']
     df = vaex.from_arrays(x=[1,2], y=[3,4], s=s)
     df.export(path)
-    fake_path = 's3://vaex/test.hdf5?profile_name=foo'
+    fake_path = 's3://vaex/test.hdf5?profile=foo'
     length = os.stat(path).st_size
     with open(path, 'rb') as fp:
         fp.seek(0, 2)
