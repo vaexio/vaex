@@ -61,9 +61,13 @@ def is_on():
     return cache is not None
 
 
+@_with_cleanup
 def off():
     global cache
+    old_cache = cache
     cache = None
+    yield
+    cache = old_cache
 
 
 def get(key):

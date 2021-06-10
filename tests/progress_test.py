@@ -41,15 +41,16 @@ def test_progress_calls(df, event_loop):
 
 @pytest.mark.asyncio
 async def test_progress_calls_async(df):
-    x, y = df.sum([df.x, df.y], progress=True)
-    counter = CallbackCounter(True)
-    task = df.sum([df.x, df.y], delay=True, progress=counter)
-    await df.executor.execute_async()
-    x2, y2 = await task
-    assert x == x2
-    assert y == y2
-    assert counter.counter > 0
-    assert counter.last_args[0], 1.0
+    with vaex.cache.off():
+        x, y = df.sum([df.x, df.y], progress=True)
+        counter = CallbackCounter(True)
+        task = df.sum([df.x, df.y], delay=True, progress=counter)
+        await df.executor.execute_async()
+        x2, y2 = await task
+        assert x == x2
+        assert y == y2
+        assert counter.counter > 0
+        assert counter.last_args[0], 1.0
 
 
 def test_cancel(df):
