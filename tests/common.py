@@ -198,12 +198,12 @@ def df_executor(request, df_trimmed, df_remote):
 
 
 if os.environ.get('VAEX_TEST_SKIP_REMOTE'):
-    @pytest.fixture(params=['ds_filtered', 'ds_half', 'ds_trimmed', 'df_concat', 'df_arrow', 'df_parquet'])
+    @pytest.fixture(params=['ds_filtered', 'ds_trimmed', 'df_concat', 'df_arrow', 'df_parquet'])
     def ds(request, ds_filtered, ds_half, ds_trimmed, df_concat, df_arrow, df_parquet):
         named = dict(ds_filtered=ds_filtered, ds_half=ds_half, ds_trimmed=ds_trimmed, df_concat=df_concat, df_arrow=df_arrow, df_parquet=df_parquet)
         return named[request.param]
 else:
-    @pytest.fixture(params=['ds_filtered', 'ds_half', 'ds_trimmed', 'ds_remote', 'df_concat', 'df_arrow', 'df_parquet'])
+    @pytest.fixture(params=['ds_filtered', 'ds_trimmed', 'ds_remote', 'df_concat', 'df_arrow', 'df_parquet'])
     def ds(request, ds_filtered, ds_half, ds_trimmed, ds_remote, df_concat, df_arrow, df_parquet):
         named = dict(ds_filtered=ds_filtered, ds_half=ds_half, ds_trimmed=ds_trimmed, ds_remote=ds_remote, df_concat=df_concat, df_arrow=df_arrow, df_parquet=df_parquet)
         return named[request.param]
@@ -214,14 +214,14 @@ def df(ds):
     return ds
 
 
-@pytest.fixture(params=['ds_filtered', 'ds_half', 'ds_trimmed', 'df_concat', 'df_arrow'])
+@pytest.fixture(params=['ds_filtered', 'ds_trimmed', 'df_concat', 'df_arrow'])
 def ds_local(request, ds_filtered, ds_half, ds_trimmed, df_concat, df_arrow):
     named = dict(ds_filtered=ds_filtered, ds_half=ds_half, ds_trimmed=ds_trimmed, df_concat=df_concat, df_arrow=df_arrow)
     return named[request.param]
 
 
 # in some cases it is not worth testing with the arrow version
-@pytest.fixture(params=['ds_filtered', 'ds_half', 'ds_trimmed', 'df_concat'])
+@pytest.fixture(params=['ds_filtered', 'ds_trimmed', 'df_concat'])
 def df_local_non_arrow(request, ds_filtered, ds_half, ds_trimmed, df_concat):
     named = dict(ds_filtered=ds_filtered, ds_half=ds_half, ds_trimmed=ds_trimmed, df_concat=df_concat)
     return named[request.param]
