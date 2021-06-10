@@ -77,28 +77,30 @@ async def test_cancel_async(df):
 
 # @pytest.mark.timeout(1)
 def test_cancel_huge(client):
-    df = client['huge']
-    import threading
-    main_thread = threading.current_thread()
-    def progress(f):
-        assert threading.current_thread() == main_thread
-        return f > 0.01
-    with pytest.raises(vaex.execution.UserAbort):
-        assert df.x.min(progress=progress) is None
-    assert df.x.min() is not None
+    with vaex.cache.off():
+        df = client['huge']
+        import threading
+        main_thread = threading.current_thread()
+        def progress(f):
+            assert threading.current_thread() == main_thread
+            return f > 0.01
+        with pytest.raises(vaex.execution.UserAbort):
+            assert df.x.min(progress=progress) is None
+        assert df.x.min() is not None
 
 
 @pytest.mark.asyncio
 async def test_cancel_huge_async(client):
-    df = client['huge']
-    import threading
-    main_thread = threading.current_thread()
+    with vaex.cache.off():
+        df = client['huge']
+        import threading
+        main_thread = threading.current_thread()
 
-    def progress(f):
-        print("progress", f)
-        assert threading.current_thread() == main_thread
-        return f > 0.01
-    with pytest.raises(vaex.execution.UserAbort):
-        df.x.min(progress=progress, delay=True)
-        await df.execute_async()
-    assert df.x.min() is not None
+        def progress(f):
+            print("progress", f)
+            assert threading.current_thread() == main_thread
+            return f > 0.01
+        with pytest.raises(vaex.execution.UserAbort):
+            df.x.min(progress=progress, delay=True)
+            await df.execute_async()
+        assert df.x.min() is not None
