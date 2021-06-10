@@ -5986,6 +5986,7 @@ class DataFrameLocal(DataFrame):
 
     def _unfiltered_chunk_slices(self, chunk_size):
         logical_length = len(self)
+        self._fill_filter_mask()
         if self.filtered:
             full_mask = self._selection_masks[FILTER_SELECTION_NAME]
             # TODO: python 3, use yield from
