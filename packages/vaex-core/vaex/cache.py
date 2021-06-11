@@ -1,15 +1,18 @@
 import contextlib
 import functools
+from typing import MutableMapping
 import numpy
 import dask.base
 import logging
 import shutil
 import uuid
+import pickle
 import pyarrow as pa
 
 import vaex.utils
 import functools
 diskcache = vaex.utils.optional_import('diskcache')
+_redis = vaex.utils.optional_import('redis')
 
 
 log = logging.getLogger('vaex.cache')
@@ -85,6 +88,48 @@ def disk_infinite(clear=False):
         cache = diskcache.Cache(path)
     yield
     log.debug("Restored old cache")
+    cache = old_cache
+
+
+class _RedisPickle(MutableMapping):
+    '''Wraps a client such that the values are pickled/unpickled'''
+    def __init__(self, client):
+        self.client = client
+
+    def __getitem__(self, key):
+        return pickle.loads(self.client[key])
+
+    def __setitem__(self, key, value):
+        self.client[key] = pickle.dumps(value)
+
+    def __delitem__(self, key):
+        del self.client[key]
+
+    def __iter__(self):
+        return iter(self.keys())
+
+    def __len__(self):
+        return len(self.client.keys())
+
+    def keys(self):
+        return self.client.keys()
+
+
+@_with_cleanup
+def redis(client=None):
+    '''Uses Redis for caching.
+
+    :param client: Redis client, if None, will call redis.Redis()
+    '''
+    global cache
+    log.debug("Set cache to Redis")
+    old_cache = cache
+    if (not isinstance(old_cache, _redis.Redis)):
+        if client is None:
+            client = _redis.Redis()
+        cache = _RedisPickle(client)
+    yield
+    log.debug("restore old cache")
     cache = old_cache
 
 
