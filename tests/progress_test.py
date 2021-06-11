@@ -28,15 +28,16 @@ def test_progress(progress):
 
 # progress only supported for local df's
 def test_progress_calls(df, event_loop):
-    x, y = df.sum([df.x, df.y], progress=True)
-    counter = CallbackCounter(True)
-    task = df.sum([df.x, df.y], delay=True, progress=counter)
-    df.execute()
-    x2, y2 = task.get()
-    assert x == x2
-    assert y == y2
-    assert counter.counter > 0
-    assert counter.last_args[0], 1.0
+    with vaex.cache.off():
+        x, y = df.sum([df.x, df.y], progress=True)
+        counter = CallbackCounter(True)
+        task = df.sum([df.x, df.y], delay=True, progress=counter)
+        df.execute()
+        x2, y2 = task.get()
+        assert x == x2
+        assert y == y2
+        assert counter.counter > 0
+        assert counter.last_args[0], 1.0
 
 
 @pytest.mark.asyncio
@@ -54,26 +55,28 @@ async def test_progress_calls_async(df):
 
 
 def test_cancel(df):
-    magic = MagicMock()
-    df.executor.signal_cancel.connect(magic)
-    def progress(f):
-        return False
-    with pytest.raises(vaex.execution.UserAbort):
-        assert df.x.min(progress=progress) is None
-    magic.assert_called_once()
+    with vaex.cache.off():
+        magic = MagicMock()
+        df.executor.signal_cancel.connect(magic)
+        def progress(f):
+            return False
+        with pytest.raises(vaex.execution.UserAbort):
+            assert df.x.min(progress=progress) is None
+        magic.assert_called_once()
 
 
 @pytest.mark.asyncio
 async def test_cancel_async(df):
-    magic = MagicMock()
-    df.executor.signal_cancel.connect(magic)
-    def progress(f):
-        return False
-    with pytest.raises(vaex.execution.UserAbort):
-        value = df.x.min(progress=progress, delay=True)
-        await df.execute_async()
-        await value
-    magic.assert_called_once()
+    with vaex.cache.off():
+        magic = MagicMock()
+        df.executor.signal_cancel.connect(magic)
+        def progress(f):
+            return False
+        with pytest.raises(vaex.execution.UserAbort):
+            value = df.x.min(progress=progress, delay=True)
+            await df.execute_async()
+            await value
+        magic.assert_called_once()
 
 # @pytest.mark.timeout(1)
 def test_cancel_huge(client):

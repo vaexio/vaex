@@ -51,3 +51,9 @@ def rebuild_dataframe_vaex(df):
 def rebuild_dataframe(request):
     named = dict(rebuild_dataframe_pickle=rebuild_dataframe_pickle, rebuild_dataframe_vaex=rebuild_dataframe_vaex)
     return named[request.param]
+
+
+@pytest.fixture
+def no_vaex_cache():
+    with vaex.cache.off():
+        yield
