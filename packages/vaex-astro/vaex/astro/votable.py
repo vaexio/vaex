@@ -5,6 +5,7 @@ from vaex.dataset import DatasetFile
 from vaex.dataset_misc import _try_unit
 
 class VOTable(DatasetFile):
+	snake_name = "votable"
 	def __init__(self, filename, fs_options={}, fs=None):
 		super().__init__(filename)
 		self.ucds = {}
