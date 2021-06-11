@@ -5,7 +5,7 @@ def passes(df):
     return df.executor.passes if df.is_local() else df.executor.remote_calls
 
 def test_cached_result(df_local):
-    with vaex.cache.infinite():
+    with vaex.cache.memory_infinite(clear=True):
         assert vaex.cache.is_on()
         df = df_local
         len(df)  # trigger a first pass (filtering) TODO: why is this needed?
@@ -42,7 +42,7 @@ def test_cached_result(df_local):
 
 def test_cache_length_without_messing_up_filter_mask(df_local):
     df = df_local
-    with vaex.cache.infinite():
+    with vaex.cache.memory_infinite(clear=True):
         dff = df[df.x < 4]
         passes0 = passes(df)
         len(dff)
@@ -58,7 +58,7 @@ def test_cache_length_without_messing_up_filter_mask(df_local):
 
 def test_cache_set():
     df = vaex.from_arrays(x=[0, 1, 2, 2])
-    with vaex.cache.infinite():
+    with vaex.cache.memory_infinite(clear=True):
         passes0 = passes(df)
         df._set('x')
         assert passes(df) == passes0 + 1

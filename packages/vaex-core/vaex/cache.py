@@ -46,24 +46,38 @@ def _with_cleanup(f):
 
 
 @_with_cleanup
-def infinite(reset=False):
-    '''Sets the cache as a dictionary, creating an infinite cache'''
+def memory_infinite(clear=False):
+    '''Sets a dict a cache, creating an infinite cache.
+    
+    Calling multiple times with clear=False will keep the current cache (useful in notebook usage)
+    '''
     global cache
     log.debug("set cache to infinite")
     old_cache = cache
-    if reset or (not isinstance(old_cache, dict)):
+    if clear or (not isinstance(old_cache, dict)):
         cache = {}
     yield
     log.debug("restore old cache")
     cache = old_cache
 
 
-def is_on():
-    return cache is not None
-
-
 @_with_cleanup
 def off():
+    '''Turns off caching, or temporary when used as context manager
+
+    >>> import vaex
+    >>> df = vaex.example()
+    >>> vaex.cache.memory_infinite()  # cache on # doctest: +SKIP
+    >>> with vaex.cache.off():
+    ...     df.x.sum()  # calculated without cache
+    array(-20884.64307324)
+    >>> df.x.sum()  # calculated with cache
+    array(-20884.64307324)
+    >>> vaex.cache.off()  # cache off  # doctest: +SKIP
+    >>> df.x.sum()  # calculated without cache
+    array(-20884.64307324)
+    '''
+
     global cache
     old_cache = cache
     cache = None
@@ -71,9 +85,45 @@ def off():
     cache = old_cache
 
 
-def get(key):
+def is_on():
+    '''Returns True when caching is enabled'''
+    return cache is not None
+
+
+def set(key, value, type=None, duration_wallclock=None):
+    '''Set a cache value
+
+    Useful to more advanced strategies, where we want to have different behaviour based on the type
+    and costs. Implementations can set this function override the default behaviour:
+
+    >>> import vaex
+    >>> vaex.cache.memory_infinite()  # doctest: +SKIP
+    >>> def my_smart_cache_setter(key, value, type=None, duration_wallclock=None):
+    ...     if duration_wallclock >= 0.1:  # skip fast calculations
+    ...         vaex.cache.cache[key] = value
+    ...
+    >>> vaex.cache.set = my_smart_cache_setter
+
+    :param str key: key for caching
+    :param type: Currently unused.
+    :param float duration_wallclock: Time spend on calculating the result (in wallclock time).
+    :param value: Any value, typically needs to be pickleable (unless stored in memory)
+    '''
+    cache[key] = value
+
+
+def get(key, default=None, type=None):
+    '''Looks up the cache value for the key, or returns the default
+
+    Will return None if the cache is turned off.
+
+    :param str key: Cache key.
+    :param default: Return when cache is on, but key not in cache
+    :param type: Currently unused.
+    '''
     if is_on():
-        return cache.get(key)
+        return cache.get(key, default)
+
 
 def fingerprint(*args, **kwargs):
     try:
@@ -139,4 +189,4 @@ def output_file(callable=None, path_input=None, fs_options_input={}, fs_input=No
     return wrapper1()
 
 if _enable_cache_results:
-    infinite()
+    memory_infinite()

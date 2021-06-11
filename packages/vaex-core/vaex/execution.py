@@ -61,7 +61,7 @@ class Executor:
                 # tasks' fingerprints don't include the dataframe
                 key = f'{key_task}-{key_df}'
                 logger.debug("task fingerprint: %r", key)
-                result = vaex.cache.get(key)
+                result = vaex.cache.get(key, type="task")
                 if result is not None:
                     logger.info("task not added, used cache key: %r", key)
                     task.fulfill(result)
@@ -198,7 +198,8 @@ class ExecutorLocal(Executor):
                                                     all([not task.cancelled for task in tasks]),
                                                     cancel=lambda: self._cancel(run), unpack=True, run=run):
                     pass  # just eat all element
-                logger.debug("executing took %r seconds" % (time.time() - t0))
+                duration_wallclock = time.time() - t0
+                logger.debug("executing took %r seconds", duration_wallclock)
                 logger.debug("cancelled: %r", cancelled)
                 if self.local.cancelled:
                     logger.debug("execution aborted")
@@ -222,12 +223,12 @@ class ExecutorLocal(Executor):
                                     key_task = task.fingerprint()
                                     # tasks' fingerprints don't include the dataframe
                                     key = f'{key_task}-{key_df}'
-                                    previous_result = vaex.cache.cache.get(key)
+                                    previous_result = vaex.cache.get(key, type='task')
                                     if (previous_result is not None) and (previous_result != task._result):
                                         # this can happen with multithreading, where two threads enter the same tasks in parallel (IF using different executors)
                                         logger.warning("calculated new result: %r, while cache had value: %r", previous_result, task._result)
                                     else:
-                                        vaex.cache.cache[key] = task._result
+                                        vaex.cache.set(key, task._result, type='task', duration_wallclock=duration_wallclock)
                                         logger.info("added result: %r in cache under key: %r", task._result, key)
 
                             task.end()
