@@ -3,11 +3,13 @@ import functools
 import numpy
 import dask.base
 import logging
+import shutil
 import uuid
 import pyarrow as pa
 
 import vaex.utils
 import functools
+diskcache = vaex.utils.optional_import('diskcache')
 
 
 log = logging.getLogger('vaex.cache')
@@ -58,6 +60,31 @@ def memory_infinite(clear=False):
         cache = {}
     yield
     log.debug("restore old cache")
+    cache = old_cache
+
+
+@_with_cleanup
+def disk_infinite(clear=False):
+    '''Stored cached values using the diskcache libary.
+
+    The path to store the cache is: ~/.vaex/cache/diskcache
+
+    :param bool clear: Remove all disk space used for caching before turning on cache.
+    '''
+    global cache
+    old_cache = cache
+    path = vaex.utils.get_private_dir('cache/diskcache')
+    if clear:
+        try:
+            log.debug(f"Clearing disk cache: {path}")
+            shutil.rmtree(path)
+        except OSError:  # Windows wonkiness
+            log.exception(f"Error clearing disk cache: {path}")
+    if not isinstance(old_cache, diskcache.Cache):
+        log.debug(f"Initializing disk cache: {path}")
+        cache = diskcache.Cache(path)
+    yield
+    log.debug("Restored old cache")
     cache = old_cache
 
 
