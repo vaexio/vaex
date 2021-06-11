@@ -143,7 +143,7 @@ def test_axis_minmax(df, flush_guard):
 
 
 @pytest.mark.asyncio
-async def test_model_status(df_executor, flush_guard, server_latency):
+async def test_model_status(df_executor, flush_guard, server_latency, no_vaex_cache):
     df = df_executor
     x = vaex.jupyter.model.Axis(df=df, expression='x', min=0, max=1)
     assert x.status == x.Status.READY
@@ -396,7 +396,7 @@ async def test_model_status(df_executor, flush_guard, server_latency):
     await model._allow_state_change_to(model.Status.READY)
 
 
-def test_histogram_model_passes(df, flush_guard):
+def test_histogram_model_passes(df, flush_guard, no_vaex_cache):
     passes = df.executor.passes
     x = vaex.jupyter.model.Axis(df=df, expression='x')
     model = vaex.jupyter.model.Histogram(df=df, x=x)
@@ -418,7 +418,7 @@ def test_histogram_model_passes(df, flush_guard):
     assert df.executor.passes == passes + 2 + 2
 
 
-def test_two_model_passes(df, flush_guard):
+def test_two_model_passes(df, flush_guard, no_vaex_cache):
     passes = df.executor.passes
     x1 = vaex.jupyter.model.Axis(df=df, expression='x')
     x2 = vaex.jupyter.model.Axis(df=df, expression='x')
@@ -440,7 +440,7 @@ def test_two_model_passes(df, flush_guard):
     assert df.executor.passes == passes + 1 + 1
 
 
-def test_heatmap_model_passes(df, flush_guard):
+def test_heatmap_model_passes(df, flush_guard, no_vaex_cache):
     passes = df.executor.passes
     x = vaex.jupyter.model.Axis(df=df, expression='x')
     y = vaex.jupyter.model.Axis(df=df, expression='y')
@@ -588,7 +588,7 @@ def test_heatmap_model_basics(df, flush_guard):
 
 
 @pytest.mark.asyncio
-async def test_grid_exception_handling(df, flush_guard):
+async def test_grid_exception_handling(df, flush_guard, no_vaex_cache):
     # since exception can occur doing debounced/async execution, we will not
     # see stack traces, so we need to carefully track those
     x = vaex.jupyter.model.Axis(df=df, expression='x')
