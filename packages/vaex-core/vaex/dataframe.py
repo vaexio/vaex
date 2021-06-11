@@ -5900,7 +5900,8 @@ class DataFrameLocal(DataFrame):
 
     def _filtered_range_to_unfiltered_indices(self, i1, i2):
         assert self.filtered
-        count = self.count()  # force the cache to be filled
+        self._fill_filter_mask()
+        count = len(self)
         assert i2 <= count
         cache = self._selection_mask_caches[FILTER_SELECTION_NAME]
         mask_blocks = iter(sorted(
@@ -6069,7 +6070,7 @@ class DataFrameLocal(DataFrame):
             return result
         else:
             if not raw and self.filtered and filtered:
-                count_check = len(self)  # fill caches and masks
+                self._fill_filter_mask()  # fill caches and masks
                 mask = self._selection_masks[FILTER_SELECTION_NAME]
                 if _DEBUG:
                     if i1 == 0 and i2 == count_check:
