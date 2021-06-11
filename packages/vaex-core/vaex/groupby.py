@@ -89,14 +89,17 @@ class BinnerTime(BinnerBase):
 
 class Grouper(BinnerBase):
     """Bins an expression to a set of unique bins."""
-    def __init__(self, expression, df=None, sort=False, pre_sort=True, row_limit=None):
+    def __init__(self, expression, df=None, sort=False, pre_sort=True, row_limit=None, df_original=None):
         self.df = df or expression.ds
+        # we prefer to calculate the set the original dataframe to have better cache hits, and modify df
+        if df_original is None:
+            df_original = self.df
         self.sort = sort
         self.expression = expression
         # make sure it's an expression
         self.expression = self.df[str(self.expression)]
         self.label = self.expression._label
-        set = self.df._set(self.expression, unique_limit=row_limit)
+        set = df_original._set(self.expression, unique_limit=row_limit)
         keys = set.keys()
         if self.sort:
             if pre_sort:
@@ -132,11 +135,6 @@ class Grouper(BinnerBase):
                 self.sort_indices = np.concatenate([[0], self.sort_indices + 1])
         self.bin_values = self.expression.dtype.create_array(self.bin_values)
         self.binner = self.df._binner_ordinal(self.binby_expression, self.N)
-        # if row_limit is not None and grouper.N > row_limit:
-        #     if combine_later:
-        #         raise vaex.RowLimitException(f'Resulting dataframe would have >= {row_limit} rows')
-        #     else:
-        #         raise vaex.RowLimitException(f'Resulting dataframe would have {grouper.N} rows, which is larger than the allowed value of {row_limit:,}')
 
 
 class GrouperCombined(Grouper):
@@ -267,8 +265,7 @@ def _combine(df, groupers, sort, row_limit=None):
 class GroupByBase(object):
     def __init__(self, df, by, sort=False, combine=False, expand=True, row_limit=None):
         '''Note that row_limit only works in combination with combine=True'''
-        # TODO: the original dataframe should be used to compute the hashmaps, since we mutate self.df
-        # leading to a different hashmap
+        df_original = df
         df = df.copy()  # we're gonna mutate, so create a shallow copy
         self.df = df
         self.sort = sort
@@ -285,7 +282,7 @@ class GroupByBase(object):
                 if df.is_category(by_value):
                     by_value = GrouperCategory(df[str(by_value)], sort=sort, row_limit=row_limit)
                 else:
-                    by_value = Grouper(df[str(by_value)], sort=sort, row_limit=row_limit)
+                    by_value = Grouper(df[str(by_value)], sort=sort, row_limit=row_limit, df_original=df_original)
             self.by.append(by_value)
         self.combine = combine and len(self.by) >= 2
         if self.combine:
