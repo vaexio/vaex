@@ -48,16 +48,18 @@ def chunk_eat(chunk_iter, count):
     for i1, i2, chunks in chunk_iter:
         _check(i1, i2)
         chunk_length = len(list(chunks.values())[0])
+        # do we still have to trim stuff off?
         if trimmed < count:
-            max_trim = min(chunk_length, count)
-            chunks = {name: vaex.array_types.slice(chunks[name], max_trim) for name in chunks}
-            trimmed += max_trim
-            i1 += max_trim
-        if i1 == i2:
-            continue
-        if trimmed < count:
-            continue
-        assert trimmed == count
+            to_trim = count - trimmed
+            # if so, can we skip this chunk?
+            if to_trim >= chunk_length:
+                trimmed += chunk_length
+                continue
+            else:
+                # otherwise we just trim off the begin of this chunk
+                chunks = {name: vaex.array_types.slice(chunks[name], to_trim) for name in chunks}
+                trimmed += to_trim
+                i1 += to_trim
         _check(i1 - count, i2 - count)
         yield i1 - count, i2 - count, chunks
 
@@ -253,6 +255,8 @@ class DatasetShifted(vaex.dataset.DatasetDecorator):
         yield from self._chunk_iterator(columns, chunk_size, start=start, end=end)
 
     def _chunk_iterator(self, columns, chunk_size, reverse=False, start=0, end=None):
+        if start > self.row_count:
+            raise ValueError(f'start={start} is >= row_count={self.row_count}')
         end = self.row_count if end is None else end
         chunk_size = chunk_size or 1024**2  # TODO: should we have a constant somewhere
         # if self.n > chunk_size:
