@@ -187,7 +187,7 @@ class ExecutorLocal(Executor):
                 for expression in run.expressions:
                     variables |= run.df._expr(expression).expand().variables(ourself=True)
                 columns = list(variables - set(run.df.variables) - set(run.df.virtual_columns))
-                logger.debug('Using columns %r from dataset', columns)
+                logger.debug('Using columns %r from dataset, chunk_size=%r', columns, chunk_size)
                 for column in columns:
                     if column not in dataset:
                         raise RuntimeError(f'Oops, requesting column {column} from dataset, but it does not exist')

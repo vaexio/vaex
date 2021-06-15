@@ -4,6 +4,7 @@ import pytest
 import numpy as np
 import pyarrow as pa
 import vaex.shift
+import vaex.ml
 
 
 def chunk_iter(chunks, chunk_size):
@@ -51,14 +52,15 @@ def test_chunk_eat(chunk_size=2):
     x = pa.array([0, 1, 2, None, 4])
     y = pa.array([0, 1, None, 9, 16])
     i = chunk_iter(dict(x=x, y=y), chunk_size)
-    offsets, chunks = eat_chunks(vaex.shift.chunk_eat(i, 2))
-    assert chunks['x'] == x[2:].tolist()
-    assert chunks['y'] == y[2:].tolist()
-    assert offsets == [(0, 2), (2, 3)]
+    offsets, chunks = eat_chunks(vaex.shift.chunk_eat(i, 3))
+    assert chunks['x'] == x[3:].tolist()
+    assert chunks['y'] == y[3:].tolist()
+    assert offsets == [(0, 1), (1, 2)]
 
 
 @pytest.mark.parametrize("length", list(range(1, 5)))
-def test_chunk_trim(length, chunk_size=2):
+@pytest.mark.parametrize("chunk_size", [2, 5, 10])
+def test_chunk_trim(length, chunk_size):
     x = pa.array([0, 1, 2, None, 4])
     y = pa.array([0, 1, None, 9, 16])
     i = chunk_iter(dict(x=x, y=y), chunk_size)
@@ -66,7 +68,7 @@ def test_chunk_trim(length, chunk_size=2):
     assert chunks['x'] == x[:length].tolist()
     assert chunks['y'] == y[:length].tolist()
     assert len(chunks['x']) == length
-    assert offsets[0] == (0, min(2, length))
+    assert offsets[0] == (0, min(chunk_size, length))
     if len(offsets) > 1:
         assert offsets[1] == (2, min(4, length))
 
