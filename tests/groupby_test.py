@@ -237,6 +237,9 @@ def test_combined_grouper_over64bit():
     for i, bit in enumerate(bits):
         xi = dfg[f'x_{i}'].to_numpy()
         assert len(xi) == N
+        xiu = np.unique(xi)
+        Ni = 2**bits[i]
+        assert len(xiu) == Ni
     assert dfg['count'].sum() == N
     with pytest.raises(vaex.RowLimitException, match='.* >= 2 .*'):
         df.groupby(names, row_limit=2)
