@@ -2054,7 +2054,11 @@ class DataFrame(object):
                 data = data.to_arrow()
                 data_type = data.type
             else:
-                data_type = data.type  # assuming arrow
+                # when we eval constants, let arrow find it out
+                if isinstance(data, numbers.Number):
+                    data_type = pa.array([data]).type
+                else:
+                    data_type = data.type  # assuming arrow
 
         if array_type == "arrow":
             data_type = array_types.to_arrow_type(data_type)
