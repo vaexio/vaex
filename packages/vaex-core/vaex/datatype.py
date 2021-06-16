@@ -42,6 +42,8 @@ class DataType:
             return self.is_integer
         if other == list:
             return self.is_list
+        if other == dict:
+            return self.is_struct
         if isinstance(other, str):
             tester = 'is_' + other
             if hasattr(self, tester):
@@ -323,6 +325,19 @@ class DataType:
         True
         '''
         return self.is_arrow and (pa.types.is_list(self.internal) or pa.types.is_large_list(self.internal))
+
+    @property
+    def is_struct(self):
+        '''Test if an (arrow) struct
+
+        >>> DataType(pa.struct([pa.field('a', pa.utf8())])) == dict
+        True
+        >>> DataType(pa.struct([pa.field('a', pa.utf8())])).is_struct
+        True
+        >>> DataType(pa.struct([pa.field('a', pa.utf8())])) == 'struct'
+        True
+        '''
+        return self.is_arrow and pa.types.is_struct(self.internal)
 
     @property
     def is_encoded(self):
