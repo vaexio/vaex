@@ -1,5 +1,10 @@
-from common import *
+import datetime
+
 import numpy as np
+
+import pytest
+
+import vaex
 
 
 def test_datetime_operations():
@@ -130,13 +135,14 @@ def test_create_datetime64_column_from_str():
     assert expr.to_numpy().astype(np.datetime64).tolist() == expr.astype('datetime64').tolist()
     assert expr.to_numpy().astype('datetime64[ns]').tolist() == expr.astype('datetime64[ns]').to_numpy().tolist()
 
+
 def test_create_str_column_from_datetime64():
     date = np.array([np.datetime64('2009-10-12T03:31:00'),
-                np.datetime64('2016-02-11T10:17:34'),
-                np.datetime64('2015-11-12T11:34:22'),
-                np.datetime64('2003-03-03T00:33:15'),
-                np.datetime64('2014-07-23T15:08:05'),
-                np.datetime64('2011-01-01T07:02:01')], dtype='<M8[ns]')
+                     np.datetime64('2016-02-11T10:17:34'),
+                     np.datetime64('2015-11-12T11:34:22'),
+                     np.datetime64('2003-03-03T00:33:15'),
+                     np.datetime64('2014-07-23T15:08:05'),
+                     np.datetime64('2011-01-01T07:02:01')], dtype='<M8[ns]')
 
     df = vaex.from_arrays(date=date)
     pandas_df = df.to_pandas_df()
@@ -144,3 +150,25 @@ def test_create_str_column_from_datetime64():
     date_format = "%Y/%m/%d"
 
     assert df.date.dt.strftime(date_format).values.tolist() == pandas_df.date.dt.strftime(date_format).values.tolist()
+
+
+def test_datetime_arithmetics_w_constant():
+    x = [1, 2, 3, 1, 1]
+    date = [np.datetime64('2020-01-01'), np.datetime64('2020-01-02'), np.datetime64('2020-01-03'),
+            np.datetime64('2020-01-01'), np.datetime64('2020-01-01')]
+    df = vaex.from_arrays(x=x, date=date)
+    constant = np.datetime64('2020-01-01')
+
+    df['delta_1'] = df.date - constant
+    assert df.delta_1.tolist() == [datetime.timedelta(0),
+                                   datetime.timedelta(days=1),
+                                   datetime.timedelta(days=2),
+                                   datetime.timedelta(0),
+                                   datetime.timedelta(0)]
+
+    df['delta_2'] = np.datetime64('2020-01-01') - df.date
+    assert df.delta_2.tolist() == [datetime.timedelta(0),
+                                   datetime.timedelta(days=-1),
+                                   datetime.timedelta(days=-2),
+                                   datetime.timedelta(0),
+                                   datetime.timedelta(0)]
