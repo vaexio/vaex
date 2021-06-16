@@ -1,3 +1,37 @@
+'''(Currently experimental, use at own risk)
+Vaex can cache task results, such as aggregations, or the internal hashmaps used for groupby to make recurring calculations much faster, at the cost of calculating cache keys and storing/retrieving the cached values.
+
+Internally, Vaex calculates fingerprints (such as hashes of data, or file paths and mtimes) to create cache keys that are similar across processes, such that a restart of a process will most likely result in simlar hash keys.
+
+Caches can turned on globally, or used as a context manager:
+
+>>> import vaex
+>>> df = vaex.example()
+>>> vaex.cache.memory_infinite()  # cache on globally
+<cache restore context manager>
+>>> vaex.cache.is_on()
+True
+>>> vaex.cache.off() # cache off globally
+<cache restore context manager>
+>>> vaex.cache.is_on()
+False
+>>> with vaex.cache.memory_infinite():
+...     df.x.sum()  # calculated without cache
+array(-20884.64307324)
+>>> vaex.cache.is_on()
+False
+
+
+The functions :func:`vaex.cache.set` and  :func:`vaex.cache.get` simply look up the values in a global dict (``vaex.cache.cache``), but can be set for more complex behaviour.
+
+A good library to use for in-memory caching is cachetools (https://pypi.org/project/cachetools/)
+
+>>> import vaex
+>>> import cachetools
+>>> df = vaex.example()
+>>> vaex.cache.cache = cachetools.LRUCache(1_000_000_000)  # 1gb cache
+
+'''
 import contextlib
 import functools
 from typing import MutableMapping
@@ -27,6 +61,9 @@ class _cleanup:
     def __init__(self, gen, result):
         self._gen = gen
         self._result = result
+
+    def __repr__(self):
+        return '<cache restore context manager>'
 
     def __enter__(self):
         log.debug('entered')
@@ -139,13 +176,15 @@ def off():
 
     >>> import vaex
     >>> df = vaex.example()
-    >>> vaex.cache.memory_infinite()  # cache on # doctest: +SKIP
+    >>> vaex.cache.memory_infinite()  # cache on
+    <cache restore context manager>
     >>> with vaex.cache.off():
     ...     df.x.sum()  # calculated without cache
     array(-20884.64307324)
     >>> df.x.sum()  # calculated with cache
     array(-20884.64307324)
-    >>> vaex.cache.off()  # cache off  # doctest: +SKIP
+    >>> vaex.cache.off()  # cache off
+    <cache restore context manager>
     >>> df.x.sum()  # calculated without cache
     array(-20884.64307324)
     '''

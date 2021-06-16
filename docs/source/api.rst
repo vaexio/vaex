@@ -99,6 +99,14 @@ Aggregation and statistics
 .. .. autoclass:: vaex.stat.Statistic
 ..     :members:
 
+Caching
+~~~~~~~
+
+.. automodule:: vaex.cache
+    :members: is_on, off, get, set, memory_infinite, disk_infinite, redis
+    :undoc-members:
+    :show-inheritance:
+
 
 Extensions
 ----------
