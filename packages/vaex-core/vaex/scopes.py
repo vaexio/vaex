@@ -245,9 +245,7 @@ class _BlockScopeSelection(ScopeBase):
                 # return mask_values
             else:
                 offset = self.df._index_start
-                if variable in expression_namespace:
-                    return wrap(expression_namespace[variable])
-                elif variable in self.df.columns:
+                if variable in self.df.columns:
                     values = self.df.columns[variable][offset+self.i1:offset+self.i2]
                     # TODO: we may want to put this in array_types
                     if self.filter_mask is not None:
@@ -270,6 +268,8 @@ class _BlockScopeSelection(ScopeBase):
                 elif variable in self.df.functions:
                     f = self.df.functions[variable].f
                     return vaex.arrow.numpy_dispatch.autowrapper(f)
+                elif variable in expression_namespace:
+                    return wrap(expression_namespace[variable])
                 raise KeyError("Unknown variables or column: %r" % (variable,))
         except:
             import traceback as tb
