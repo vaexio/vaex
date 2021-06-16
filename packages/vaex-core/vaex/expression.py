@@ -95,6 +95,8 @@ class Meta(type):
                 def f(a, b):
                     self = a
                     # print(op, a, b)
+                    if isinstance(b, str) and self.dtype.is_datetime:
+                        b = np.datetime64(b)
                     if self.df.is_category(self.expression) and self.df._future_behaviour and not isinstance(b, Expression):
                         labels = self.df.category_labels(self.expression)
                         if b not in labels:
