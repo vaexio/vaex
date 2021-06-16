@@ -96,19 +96,18 @@ def test_cache_groupby():
         assert passes(df) == passes0 + 4
         assert df.fingerprint() == fp
 
-        # 1 time for combining the two sets, 1 pass for aggregation
+        # 1 time for combining the two sets, 1 for finding the labels (smaller dataframe), 1 pass for aggregation
         df.groupby(['x', 'y'], agg='count')
-        assert passes(df) == passes0 + 6
+        assert passes(df) == passes0 + 7
         assert df.fingerprint() == fp
 
-        # but that should be reused the second time
-        # TODO: but the labels use map_reduce, which we cannot yet avoid
+        # but that should be reused the second time, just 1 pass for the evaluations of the labels
         df.groupby(['x', 'y'], agg='count')
-        assert passes(df) == passes0 + 6 + 1
+        assert passes(df) == passes0 + 7 + 1
         assert df.fingerprint() == fp
 
         # different order triggers a new pass(combining the sets in a different way)
         # and the aggregation phase, which includes the labeling
         df.groupby(['y', 'x'], agg='count')
-        assert passes(df) == passes0 + 6 + 1 + 2
+        assert passes(df) == passes0 + 7 + 1 + 3
         assert df.fingerprint() == fp

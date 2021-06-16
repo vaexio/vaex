@@ -17,7 +17,6 @@ __all__ = ['GroupBy', 'Grouper', 'BinnerTime']
 _USE_DELAY = True
 
 class BinnerBase:
-    delay = None
     pass
 
 class BinnerTime(BinnerBase):
@@ -138,43 +137,38 @@ class Grouper(BinnerBase):
 
 
 class GrouperCombined(Grouper):
-    def __init__(self, expression, df, expressions, labels, sort, skip_labels=False, row_limit=None):
+    def __init__(self, expression, df, multipliers, parents, sort, row_limit=None):
         '''Will group by 1 expression, which is build up from multiple expressions.
 
         Used in the sparse/combined group by.
         '''
         super().__init__(expression, df, sort=sort, row_limit=row_limit)
+        assert len(multipliers) == len(parents)
+
+        assert multipliers[-1] == 1
         self.df = df
         self.label = 'SHOULD_NOT_BE_USED'
-        self.expressions = expressions
         self.expression = expression
-        self.labels = labels
-        self.bin_values = None
-        if not skip_labels:
-            self.delay = self._find_labels_lazy()
-
-    def _find_labels_lazy(self):
-        # will fill in the bin_values on the next execution
-        def empty(expression):
-            if expression.is_string():
-                return np.empty(self.N, dtype=object)
+        # efficient way to find the original bin values (parent.bin_value) from the 'compressed'
+        # self.bin_values
+        df = vaex.from_dict({'row': vaex.vrange(0, self.N, dtype='i8'), 'bin_value': self.bin_values})
+        df[f'index_0'] = df['bin_value'] // multipliers[0]
+        df[f'leftover_0'] = df[f'bin_value'] % multipliers[0]
+        for i in range(1, len(multipliers)):
+            df[f'index_{i}'] = df[f'leftover_{i-1}'] // multipliers[i]
+            df[f'leftover_{i}'] = df[f'leftover_{i-1}'] % multipliers[i]
+        columns = [f'index_{i}' for i in range(len(multipliers))]
+        indices_parents = df.evaluate(columns)
+        bin_values = {}
+        for indices, parent in zip(indices_parents, parents):
+            dtype = vaex.dtype_of(parent.bin_values)
+            if dtype.is_struct:
+                # collapse parent struct into our flat struct
+                for field, ar in zip(parent.bin_values.type, parent.bin_values.flatten()):
+                    bin_values[field.name] = ar.take(indices)
             else:
-                return np.empty(self.N, dtype=expression.dtype.numpy)
-
-        bin_values = {label: empty(expression) for label, expression in zip(self.labels, self.expressions)}
-        def map(thread_index, i1, i2, index, *arrays):
-            for i, array in enumerate(arrays):
-                target = bin_values[self.labels[i]]
-                target[index] = array
-        def reduce(a, b):
-            pass
-        def finish(_):
-            nonlocal bin_values
-            bin_values = {key: vaex.array_types.to_arrow(value) for key, value in bin_values.items()}
-            self.bin_values = pa.StructArray.from_arrays(bin_values.values(), bin_values.keys())
-        promise = self.df.map_reduce(map, reduce, [self.binby_expression] + [str(k) for k in self.expressions], delay=_USE_DELAY, name='find_labels', info=True, to_numpy=False, pre_filter=True)
-        return vaex.delayed(finish)(promise)
-
+                bin_values[parent.label] = parent.bin_values.take(indices)
+        self.bin_values = pa.StructArray.from_arrays(bin_values.values(), bin_values.keys())
 
 
 class GrouperCategory(BinnerBase):
@@ -187,7 +181,7 @@ class GrouperCategory(BinnerBase):
         self.label = expression._label
         self.expression = expression.index_values() if expression.dtype.is_encoded else expression
 
-        self.bin_values = self.df.category_labels(self.expression_original)
+        self.bin_values = self.df.category_labels(self.expression_original, aslist=False)
         if self.sort:
             # None will always be the first value
             if self.bin_values[0] is None:
@@ -198,6 +192,8 @@ class GrouperCategory(BinnerBase):
                 self.bin_values = np.array(self.bin_values)[self.sort_indices].tolist()
         else:
             self.sort_indices = None
+        if isinstance(self.bin_values, list):
+            self.bin_values = pa.array(self.bin_values)
 
         self.N = self.df.category_count(self.expression_original)
         if row_limit is not None:
@@ -213,6 +209,7 @@ class GrouperCategory(BinnerBase):
 
 
 def _combine(df, groupers, sort, row_limit=None):
+    groupers = groupers.copy()
     max_count_64bit = 2**63-1
     first = groupers.pop(0)
     combine_now = [first]
@@ -232,30 +229,23 @@ def _combine(df, groupers, sort, row_limit=None):
             break
 
     counts.append(1)
+    # decreasing [40, 4, 1] for 2 groupers (N=10 and N=4)
     cumulative_counts = np.cumproduct(counts[::-1]).tolist()[::-1]
     assert len(combine_now) >= 2
     combine_later = ([next] if next else []) + groupers
-
-    expressions = []
-    labels = []
-    for grouper in combine_now:
-        if isinstance(grouper, GrouperCombined):
-            expressions.extend(grouper.expressions)
-            labels.extend(grouper.labels)
-        else:
-            expressions.append(grouper.expression)
-            labels.append(grouper.label)
 
     binby_expressions = [df[k.binby_expression] for k in combine_now]
     for i in range(0, len(binby_expressions)):
         binby_expression = binby_expressions[i]
         dtype = vaex.utils.required_dtype_for_max(cumulative_counts[i])
         binby_expression = binby_expression.astype(str(dtype))
+        if isinstance(combine_now[i], GrouperCategory) and combine_now[i].min_value != 0:
+            binby_expression -= combine_now[i].min_value
         if cumulative_counts[i+1] != 1:
             binby_expression = binby_expression * cumulative_counts[i+1]
         binby_expressions[i] = binby_expression
     expression = reduce(operator.add, binby_expressions)
-    grouper = GrouperCombined(expression, df, expressions=expressions, labels=labels, sort=sort, skip_labels=bool(combine_later), row_limit=row_limit)
+    grouper = GrouperCombined(expression, df, multipliers=cumulative_counts[1:], parents=combine_now, sort=sort, row_limit=row_limit)
     if combine_later:
         # recursively add more of the groupers (because of 64 bit overflow)
         grouper = _combine(df, [grouper] + combine_later, sort=sort)
