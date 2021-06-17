@@ -262,6 +262,11 @@ def test_drop(rebuild_dataset):
     assert ds1.hashed() == ds2.merged(ds3).hashed()
     assert rebuild_dataset(ds1).hashed() == rebuild_dataset(ds2.merged(ds3)).hashed()
 
+    ds1b = dataset.DatasetArrays(x=x, y=y)
+    assert ds1.fingerprint == ds1b.fingerprint
+    ds2b = ds1.dropped('x')
+    assert ds2.fingerprint == ds2b.fingerprint
+
 
 def test_concat(rebuild_dataset):
     x = np.arange(10)

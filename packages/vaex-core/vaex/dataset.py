@@ -403,6 +403,9 @@ class Dataset(collections.abc.Mapping):
     def project(self, *names):
         all = set(self)
         drop = all - set(names)
+        # we want a deterministic order for fingerprints
+        drop = list(drop)
+        drop.sort()
         return self.dropped(*list(drop))
 
     def concat(self, *others, resolver='flexible'):
@@ -470,7 +473,7 @@ class Dataset(collections.abc.Mapping):
         missing = keys ^ keys_hashed
         if missing:
             raise ValueError(f'Trying to hash a dataset with unhashed columns: {missing} (tip: use dataset.hashed())')
-        return hash(self._ids)
+        return hash(tuple(self._ids.items()))
 
     def _default_lazy_chunk_iterator(self, array_map, columns, chunk_size, reverse=False):
         chunk_size = chunk_size or 1024**2
@@ -1310,8 +1313,10 @@ class DatasetArrays(Dataset):
 
     @property
     def _fingerprint(self):
-        hash = str(self.__hash__())
-        return f'dataset-{self.snake_name}-hashed-{hash}'
+        self.__hash__()  # invoke just to check we don't have missing hashes
+        # but Python's hash functions are not deterministic (cross processs)
+        fp = vaex.cache.fingerprint(tuple(self._ids.items()))
+        return f'dataset-{self.snake_name}-hashed-{fp}'
 
     def leafs(self) -> List[Dataset]:
         return [self]
