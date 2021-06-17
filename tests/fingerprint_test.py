@@ -77,3 +77,36 @@ def test_column_indexed():
     x3 = vaex.column.ColumnIndexed(x**2, i)
     assert x1.fingerprint() == x2.fingerprint()
     assert x1.fingerprint() != x3.fingerprint()
+
+
+# these fingerprints may change over time, they may change as we change versions
+# but they should at least not change per Python version, OS or after restarts
+
+def test_dataset_arrays():
+    x = np.arange(10, dtype='i4')
+    y = x**2
+    ds = vaex.dataset.DatasetArrays(x=x, y=y, z=x+y)
+    assert dict(ds._ids) == {
+        'x': '031385dd4f0d2ba1aba2aeab0ad7c99814c90c11e96e5bc7cc8bd72112556dff',
+        'y': '4d48c88e587db8f3855eed9f5d5f51eea769451b7371ecf7bdee4e0258238631',
+        'z': 'a4cead13bef1fd1ec5974d1a2f5ceffd243a7aa6c6b08b80e09a7454b7d04293'
+    }
+    assert ds.fingerprint == 'dataset-arrays-hashed-88244cf38fe91c6bf435caa6160b089b'
+
+
+def test_df():
+    x = np.arange(10, dtype='i4')
+    y = x**2
+    df = vaex.from_arrays(x=x, y=y, z=x+y)
+    assert df.fingerprint() == 'dataframe-8bff307fe39e9ebf0192181c5b3c933d'
+
+
+def test_df_project():
+    x = np.arange(10, dtype='i4')
+    y = x**2
+    df = vaex.from_arrays(x=x, y=y, z1=x+y, z2=x-y)
+    # projecting 2 columns will drop 2 columns, which could be done in different order
+    df_a = df[['x', 'y']]
+    df_b = df[['x', 'y']]
+    assert df_a.fingerprint() == df_b.fingerprint()
+    assert df_a.fingerprint() == 'dataframe-bfeb0df610e25228f5693e68da946992'

@@ -5631,6 +5631,9 @@ class DataFrameLocal(DataFrame):
 
             # first create the DataFrame with real data (dataset)
             dataset_columns = {k for k in required if k in self.dataset}
+            # we want a deterministic order for fingerprinting
+            dataset_columns = list(dataset_columns)
+            dataset_columns.sort()
             dataset = self.dataset.project(*dataset_columns)
             df = vaex.from_dataset(dataset)
 
