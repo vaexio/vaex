@@ -18,7 +18,6 @@ import keyword
 import numpy as np
 import pyarrow as pa
 import progressbar
-import psutil
 import six
 import yaml
 
@@ -471,6 +470,7 @@ yaml.add_constructor(_mapping_tag, dict_constructor, yaml.SafeLoader)
 
 
 def check_memory_usage(bytes_needed, confirm):
+    psutil = optional_import('psutil')
     if bytes_needed > psutil.virtual_memory().available:
         if bytes_needed < (psutil.virtual_memory().available + psutil.swap_memory().free):
             text = "Action requires %s, you have enough swap memory available but it will make your computer slower, do you want to continue?" % (
