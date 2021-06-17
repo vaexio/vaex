@@ -104,16 +104,19 @@ def memory_infinite(clear=False):
 
 
 @_with_cleanup
-def disk(clear=False):
+def disk(clear=False, size_limit="1GB", eviction_policy='least-recently-stored'):
     '''Stored cached values using the diskcache library.
-
-    At the time of writing, the diskcache library uses a LRU cache with a max size of 1GB by default.
-    See http://www.grantjenks.com/docs/diskcache/tutorial.html?highlight=eviction#tutorial-settings for more details.
 
     The path to store the cache is: ~/.vaex/cache/diskcache
 
+    :param int or str size_limit: Max size of cache in bytes (or use a string like '128MB')
+        See http://www.grantjenks.com/docs/diskcache/tutorial.html?highlight=eviction#tutorial-settings for more details.
+    :param str eviction_policy: Eviction policy,
+        See http://www.grantjenks.com/docs/diskcache/tutorial.html?highlight=eviction#tutorial-eviction-policies
     :param bool clear: Remove all disk space used for caching before turning on cache.
     '''
+    from dask.utils import parse_bytes
+    size_limit = parse_bytes(size_limit)
     global cache
     old_cache = cache
     path = vaex.utils.get_private_dir('cache/diskcache')
@@ -123,9 +126,8 @@ def disk(clear=False):
             shutil.rmtree(path)
         except OSError:  # Windows wonkiness
             log.exception(f"Error clearing disk cache: {path}")
-    if not isinstance(old_cache, diskcache.Cache):
-        log.debug(f"Initializing disk cache: {path}")
-        cache = diskcache.Cache(path)
+    log.debug(f"Initializing disk cache: {path}")
+    cache = diskcache.Cache(path, size_limit=size_limit, eviction_policy=eviction_policy)
     yield
     log.debug("Restored old cache")
     cache = old_cache
