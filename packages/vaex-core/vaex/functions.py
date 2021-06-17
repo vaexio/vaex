@@ -2388,6 +2388,7 @@ def str_istitle(x, ascii=False):
 
 @register_function()
 def to_string(x):
+    '''Cast/convert to string, same as `expression.astype('str')`'''
     # don't change the dtype, otherwise for each block the dtype may be different (string length)
     sl = vaex.strings.to_string(x)
     return column.ColumnStringArrow.from_string_sequence(sl)
@@ -2516,8 +2517,7 @@ def _astype(x, dtype):
         return y
     else:  # numpy case
         if dtype in ['str', 'string', 'large_string']:
-            y = x.astype('str')
-            return vaex.column._to_string_column(y)
+            return to_string(x)
         else:
             return x.astype(dtype)
 
