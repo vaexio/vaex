@@ -230,7 +230,7 @@ def _combine(df, groupers, sort, row_limit=None):
 
     counts.append(1)
     # decreasing [40, 4, 1] for 2 groupers (N=10 and N=4)
-    cumulative_counts = np.cumproduct(counts[::-1]).tolist()[::-1]
+    cumulative_counts = np.cumproduct(counts[::-1], dtype='i8').tolist()[::-1]
     assert len(combine_now) >= 2
     combine_later = ([next] if next else []) + groupers
 
