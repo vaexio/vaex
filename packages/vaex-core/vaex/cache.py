@@ -104,8 +104,11 @@ def memory_infinite(clear=False):
 
 
 @_with_cleanup
-def disk_infinite(clear=False):
-    '''Stored cached values using the diskcache libary.
+def disk(clear=False):
+    '''Stored cached values using the diskcache library.
+
+    At the time of writing, the diskcache library uses a LRU cache with a max size of 1GB by default.
+    See http://www.grantjenks.com/docs/diskcache/tutorial.html?highlight=eviction#tutorial-settings for more details.
 
     The path to store the cache is: ~/.vaex/cache/diskcache
 
