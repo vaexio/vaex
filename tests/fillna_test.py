@@ -158,4 +158,4 @@ def test_fillna_num_to_string_dtype():
     assert inp['int1'].is_string
     assert inp['float1'].is_string
     assert inp['int1'].fillna('').tolist() == ['1', '']
-    assert inp['float1'].fillna('').tolist() == ['3.14', '']
+    assert inp['float1'].fillna('').tolist() == ['3.140000', '']

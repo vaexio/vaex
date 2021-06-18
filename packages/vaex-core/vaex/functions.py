@@ -2390,7 +2390,11 @@ def str_istitle(x, ascii=False):
 def to_string(x):
     '''Cast/convert to string, same as `expression.astype('str')`'''
     # don't change the dtype, otherwise for each block the dtype may be different (string length)
-    sl = vaex.strings.to_string(x)
+    ar = vaex.array_types.to_numpy(x)
+    if np.ma.isMaskedArray(ar):
+        sl = vaex.strings.to_string(ar.data, ar.mask)
+    else:
+        sl = vaex.strings.to_string(ar)
     return column.ColumnStringArrow.from_string_sequence(sl)
 
 
