@@ -2064,6 +2064,49 @@ StringList64* to_string(py::array_t<T, py::array::c_style> values_) {
     }
 }
 
+
+template<class T>
+StringList64* to_string_mask(py::array_t<T, py::array::c_style> values_, py::array_t<bool, py::array::c_style> mask_) {
+    size_t length = values_.size();
+    auto values = values_. template unchecked<1>();
+    if(values_.ndim() != 1) {
+        throw std::runtime_error("Expected a 1d array");
+    }
+
+    py::buffer_info info_mask = mask_.request();
+    if(info_mask.ndim != 1) {
+        throw std::runtime_error("Expected a 1d byte buffer");
+    }
+    bool* mask = (bool*)info_mask.ptr;
+    if(info_mask.size != length) {
+        throw std::runtime_error("Indices and mask are of unequal length");
+    }
+
+    {
+        py::gil_scoped_release release;
+        StringList64* sl = new StringList64(length*2, length);
+        size_t byte_offset = 0;
+        for(size_t i = 0; i < length; i++) {
+            if(mask[i] == 1) {
+                if(sl->null_bitmap == nullptr)
+                    sl->add_null_bitmap();
+                sl->set_null(i);
+                sl->indices[i] = byte_offset;
+            } else {
+                std::string str = std::to_string(values(i));
+                while(byte_offset + str.length() > sl->byte_length) {
+                    sl->grow();
+                }
+                std::copy(str.begin(), str.end(), sl->bytes + byte_offset);
+                sl->indices[i] = byte_offset;
+                byte_offset += str.length();
+            }
+        }
+        sl->indices[length] = byte_offset;
+        return sl;
+    }
+}
+
 template<class T>
 StringList64* format(py::array_t<T, py::array::c_style> values_, const char* format) {
     size_t length = values_.size();
@@ -2273,6 +2316,20 @@ PYBIND11_MODULE(superstrings, m) {
     m.def("to_string", &to_string<uint16_t>);
     m.def("to_string", &to_string<uint8_t>);
     m.def("to_string", &to_string<bool>);
+
+    // with mask
+    m.def("to_string", &to_string_mask<float>);
+    m.def("to_string", &to_string_mask<double>);
+    m.def("to_string", &to_string_mask<int64_t>);
+    m.def("to_string", &to_string_mask<int32_t>);
+    m.def("to_string", &to_string_mask<int16_t>);
+    m.def("to_string", &to_string_mask<int8_t>);
+    m.def("to_string", &to_string_mask<uint64_t>);
+    m.def("to_string", &to_string_mask<uint32_t>);
+    m.def("to_string", &to_string_mask<uint16_t>);
+    m.def("to_string", &to_string_mask<uint8_t>);
+    m.def("to_string", &to_string_mask<bool>);
+
     m.def("format", &format<float>);
     m.def("format", &format<double>);
     m.def("format", &format<int64_t>);
