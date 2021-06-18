@@ -250,3 +250,20 @@ def test_export_json(tmpdir, df_filtered):
     # for column in df.get_column_names():
     for column in ['x', 'name']:
         assert df[column].tolist() == df2[column].tolist()
+
+
+@pytest.mark.parametrize("filename", ["test.hdf5", "test.arrow", "test.parquet", "test.csv"])
+def test_export_joined_dataframe(tmpdir, filename):
+    df1 = vaex.from_dict({"x": [1, 2, 3]})
+    df2 = vaex.from_dict({"x": [1, 6, 7], "t1": [0, 0, 0]})
+    df = df1.join(df2, how="left", on="x", rsuffix="_y")
+    path = str(tmpdir.join(filename))
+    df.export(path)
+    if "csv" in path:
+        # we don't want nans
+        df = vaex.open(path, dtype={"x_y": "Int64", "t1": "Int64"})
+    else:
+        df = vaex.open(path)
+    assert df.x.tolist() == [1, 2, 3]
+    assert df.x_y.tolist() == [1, None, None]
+    assert df.t1.tolist() == [0, None, None]
