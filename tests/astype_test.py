@@ -45,3 +45,11 @@ def test_astype_empty(df_factory):
     df = df_factory(x=[1, 2, 3])
     df = df[df.x<0]
     assert len(df.x.as_numpy().values) == 0
+
+
+def test_astype_float_filter():
+    df = vaex.from_dict({'x': ['1', '2.3', '', '', '5', '-5']})
+    df = df[~(df.x == '')]
+    df['x'] = df.x.astype('float')
+    df = df[df.x > 0]
+    assert len(df) == 3
