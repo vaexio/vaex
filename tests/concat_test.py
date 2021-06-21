@@ -261,3 +261,10 @@ def test_concat_with_null_type_numpy_and_arrow(typed):
     df = df1.concat(df2)
     assert df.x.data_type() == arrow_type
     assert df.x.tolist() == [1, 2, None, None]
+
+
+def test_concat_strict(df_factory):
+    df1 = df_factory(x=[1, 2])
+    df2 = df_factory(x=[3, None, 4])
+    df = vaex.concat([df1, df2], resolver='strict')
+    assert df.x.tolist() == [1, 2, 3, None, 4]

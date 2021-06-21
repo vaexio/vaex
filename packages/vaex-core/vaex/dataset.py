@@ -668,6 +668,14 @@ class DatasetConcatenated(Dataset):
                     diff = l ^ r
                     raise NameError(f'Concatenating datasets with different names: {l} and {r} (difference: {diff})')
             self._schema = datasets[0].schema()
+            self._shapes = datasets[0].shapes()
+            for dataset in datasets[1:]:
+                if dataset.shapes() != self._shapes:
+                    raise ValueError(f'Cannot concatenate with different shapes: {self._shapes} != {dataset.shapes()}')
+            for dataset in datasets[1:]:
+                schema = dataset.schema()
+                if dataset.schema() != self._schema:
+                    raise ValueError(f'Cannot concatenate with different schemas: {self._shapes} != {dataset.shapes()}')
         elif self.resolver == 'flexible':
             schemas = [ds.schema() for ds in datasets]
             shapes = [ds.shapes() for ds in datasets]
