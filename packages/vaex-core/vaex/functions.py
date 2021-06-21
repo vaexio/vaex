@@ -1936,6 +1936,22 @@ def str_split(x, pattern=None, max_splits=-1):
         return pc.split_pattern(x, pattern=pattern, max_splits=max_splits)
 
 
+@register_function(scope='str')
+@auto_str_unwrap
+def str_extract_regex(x, pattern):
+    """Extract substrings defined by a regular expression using Apache Arrow (Google RE2 library).
+
+    :param str pattern: A regular expression which needs to contain named capture groups, e.g. ‘letter’ and ‘digit’ for
+                        the regular expression '(?P<letter>[ab])(?P<digit>\\d)'.
+    :returns: an expression containing a struct with field names corresponding to capture group identifiers.
+
+    """
+
+    if not isinstance(x, vaex.array_types.supported_arrow_array_types):
+        x = pa.array(x)
+
+    return pc.extract_regex(x, pattern=pattern)
+
 
 @register_function(scope='str')
 @auto_str_unwrap
