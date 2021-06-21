@@ -5501,10 +5501,17 @@ class DataFrameLocal(DataFrame):
         df_unfiltered.set_active_range(0, df._length_original)
         # codes point to the index of found_values
         # meaning: found_values[codes[0]] == ds[column].values[0]
-        found_values, codes = df_unfiltered.unique(column, return_inverse=True)
+        found_values, codes = df_unfiltered.unique(column, return_inverse=True, array_type='numpy-arrow')
         max_code = codes.max()
         minimal_type = vaex.utils.required_dtype_for_max(max_code, signed=True)
         codes = codes.astype(minimal_type)
+        dtype = vaex.dtype_of(found_values)
+        if dtype == int:
+            min_value = found_values.min()
+            max_value = found_values.max()
+            if (max_value - min_value +1) == len(found_values):
+                warnings.warn(f'It seems your column {column} is already ordinal encoded (values between {min_value} and {max_value}), automatically switching to use df.categorize')
+                return df.categorize(column, min_value=min_value, max_value=max_value, inplace=inplace)
         if isinstance(found_values, array_types.supported_arrow_array_types):
             # elements of arrow arrays are not in arrow arrays, e.g. ar[0] in ar is False
             # see tests/arrow/assumptions_test.py::test_in_pylist

@@ -114,3 +114,10 @@ def test_index_values(df_factory_arrow):
     # assert df.c.index_values().tolist() == [0, 0, 1, 2]
     with small_buffer(df, 2):
         assert df[df.c == 'aap'].c.index_values().tolist() == [0, 0]
+
+
+def test_ordinal_encode_optimize():
+    x = np.random.choice(2, 10, replace=True)
+    df = vaex.from_arrays(x=x)
+    with pytest.warns(UserWarning, match='.*categorize.*'):
+        df.ordinal_encode(df.x)

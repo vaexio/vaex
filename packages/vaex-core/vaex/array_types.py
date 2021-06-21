@@ -26,6 +26,10 @@ def is_numpy_array(ar):
     return isinstance(ar, np.ndarray)
 
 
+def is_array(ar):
+    return is_arrow_array(ar) or is_numpy_array(ar)
+
+
 def filter(ar, boolean_mask):
     if isinstance(ar, supported_arrow_array_types):
         return ar.filter(pa.array(boolean_mask))
@@ -152,11 +156,10 @@ def convert(x, type, default_type="numpy"):
         else:
             return to_numpy(x, strict=True)
     if type == "numpy-arrow":  # used internally, numpy if possible, otherwise arrow
-        if isinstance(x, (list, tuple)):
+        if isinstance(x, (list, tuple)) and len(x) > 0 and is_array(x[0]):
             return concat([convert(k, type) for k in x])
         else:
             return to_numpy(x, strict=False)
-
     elif type == "arrow":
         if isinstance(x, (list, tuple)):
             chunks = [convert(k, type) for k in x]
