@@ -95,6 +95,7 @@ class ThreadPoolIndex(concurrent.futures.ThreadPoolExecutor):
                 if progress(progress_value) is False:
                     cancelled = True
                     cancel()
+                    break
             yield value
 
     def _map_async(self, callable, iterator):
