@@ -433,34 +433,48 @@ class GroupBy(GroupByBase):
         # TODO: this basically forms a cartesian product, we can do better, use a
         # 'multistage' hashmap
         arrays = super(GroupBy, self)._agg(actions)
+        has_non_existing_pairs = len(self.by) > 1
         # we don't want non-existing pairs (e.g. Amsterdam in France does not exist)
         counts = self.counts
-        if counts is None:  # nobody wanted to know count*, but we need it
+         # nobody wanted to know count*, but we need it if we included non-existing pairs
+        if has_non_existing_pairs and counts is None:
+            # TODO: it seems this path is never tested
             count_agg = vaex.agg.count(edges=True)
-            counts = self.df._agg(count_agg, self.grid, delay=_USE_DELAY)
+            counts = self.df._agg(count_agg, self.binners, delay=_USE_DELAY)
         self.df.execute()
         if _USE_DELAY:
             arrays = {key: value.get() for key, value in arrays.items()}
-            counts = counts.get()
+            if has_non_existing_pairs:
+                counts = counts.get()
         # take out the edges
         arrays = {key: vaex.utils.extract_central_part(value) for key, value in arrays.items()}
-        counts = vaex.utils.extract_central_part(counts)
+        if has_non_existing_pairs:
+            counts = vaex.utils.extract_central_part(counts)
 
         # make sure we respect the sorting
         sorting = tuple(by.sort_indices if by.sort_indices is not None else slice(None) for by in self.by)
         arrays = {key: value[sorting] for key, value in arrays.items()}
-        counts = counts[sorting]
 
-        mask = counts > 0
         if self.combine and self.expand and isinstance(self.by[0], GrouperCombined):
             assert len(self.by) == 1
             values = self.by[0].bin_values
             columns = {field.name: ar for field, ar in zip(values.type, values.flatten())}
+            for key, value in arrays.items():
+                assert value.ndim == 1
+                columns[key] = value
         else:
-            coords = [coord[mask] for coord in np.meshgrid(*self._coords1d, indexing='ij')]
-            columns = {by.label: coord for by, coord in zip(self.by, coords)}
-        for key, value in arrays.items():
-            columns[key] = value[mask]
+            if has_non_existing_pairs:
+                counts = counts[sorting]
+                mask = counts > 0
+                coords = [coord[mask] for coord in np.meshgrid(*self._coords1d, indexing='ij')]
+                columns = {by.label: coord for by, coord in zip(self.by, coords)}
+                for key, value in arrays.items():
+                    columns[key] = value[mask]
+            else:
+                columns = {by.label: coord for by, coord in zip(self.by, self._coords1d)}
+                for key, value in arrays.items():
+                    assert value.ndim == 1
+                    columns[key] = value
         dataset_arrays = vaex.dataset.DatasetArrays(columns)
         dataset = DatasetGroupby(dataset_arrays, self.df, self.by_original, actions, combine=self.combine, expand=self.expand)
         df_grouped = vaex.from_dataset(dataset)
