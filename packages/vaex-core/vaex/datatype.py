@@ -16,9 +16,15 @@ class DataType:
     float64
     >>> type2 = DataType(np.dtype('>f8'))
     >>> type2
-    float64
+    >f8
     >>> type1 in [float, int]
     True
+    >>> type1 == type2
+    False
+    >>> type1 == pa.float64()
+    True
+    >>> type1 == pa.int64()
+    False
 
     """
     def __init__(self, dtype):
@@ -31,18 +37,21 @@ class DataType:
         '''Removes non-native endianness'''
         return DataType(vaex.utils.to_native_dtype(self.internal))        
 
+    def __hash__(self):
+        return hash((self.__class__.__name__, self.internal))
+
     def __eq__(self, other):
         if self.is_encoded:
             return self.value_type == other
-        if other == str:
+        if other is str:
             return self.is_string
-        if other == float:
+        if other is float:
             return self.is_float
-        if other == int:
+        if other is int:
             return self.is_integer
-        if other == list:
+        if other is list:
             return self.is_list
-        if other == dict:
+        if other is dict:
             return self.is_struct
         if isinstance(other, str):
             tester = 'is_' + other
@@ -50,6 +59,11 @@ class DataType:
                 return getattr(self, tester)
         if not isinstance(other, DataType):
             other = DataType(other)
+        if other.is_primitive:
+            if self.is_arrow:
+                other = DataType(other.arrow)
+            if self.is_numpy:
+                other = DataType(other.numpy)
         return vaex.array_types.same_type(self.internal, other.internal)
 
     def __repr__(self):
@@ -68,9 +82,6 @@ class DataType:
         '''
 
         internal = self.internal
-        if isinstance(internal, np.dtype):
-            if internal.byteorder == ">":
-                internal = internal.newbyteorder()
         if self.is_datetime:
             internal = self.numpy
 
@@ -181,6 +192,10 @@ class DataType:
         try:
             return self.kind in 'fiub'
         except NotImplementedError:
+            return False
+        except TypeError:
+            return False
+        except ValueError:
             return False
 
     @property
