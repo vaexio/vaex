@@ -2320,6 +2320,9 @@ class DataFrame(object):
         # to rename the columns (which is unsupported for remote dfs)
         self.column_names = []
         self.virtual_columns = {}
+        self.column_names = list(set(self.dataset) & set(state['column_names']))  # initial values not to have virtual column trigger missing column values
+        if 'variables' in state:
+            self.variables = {name: encoding.decode("variable", value) for name, value in state['variables'].items()}
         for name, value in state['virtual_columns'].items():
             self[name] = self._expr(value)
             # self._save_assign_expression(name)
@@ -2328,8 +2331,6 @@ class DataFrame(object):
             self.column_names += list(keep_columns)
         for name in self.column_names:
             self._save_assign_expression(name)
-        if 'variables' in state:
-            self.variables = {name: encoding.decode("variable", value) for name, value in state['variables'].items()}
         if "units" in state:
             units = {key: astropy.units.Unit(value) for key, value in state["units"].items()}
             self.units.update(units)
@@ -2451,14 +2452,16 @@ class DataFrame(object):
                     warnings.warn(f'The state wants to rename {old} to {new}, but {new} was not found, ignoring the rename')
         for name, value in state['functions'].items():
             self.add_function(name, vaex.serialize.from_dict(value, trusted=trusted))
+        self.variables = state['variables']
         if 'column_names' in state:
             # we clear all columns, and add them later on, since otherwise self[name] = ... will try
             # to rename the columns (which is unsupported for remote dfs)
             self.column_names = []
             self.virtual_columns = {}
+                # self._save_assign_expression(name)
+            self.column_names = list(set(self.dataset) & set(state['column_names']))  # initial values not to have virtual column trigger missing column values
             for name, value in state['virtual_columns'].items():
                 self[name] = self._expr(value)
-                # self._save_assign_expression(name)
             self.column_names = list(state['column_names'])
             if keep_columns:
                 self.column_names += list(keep_columns)
@@ -2469,7 +2472,6 @@ class DataFrame(object):
             self.virtual_columns = {}
             for name, value in state['virtual_columns'].items():
                 self[name] = self._expr(value)
-        self.variables = state['variables']
         units = {key: astropy.units.Unit(value) for key, value in state["units"].items()}
         self.units.update(units)
         for name, selection_dict in state['selections'].items():
@@ -3422,7 +3424,7 @@ class DataFrame(object):
 
     def _expr(self, *expressions, **kwargs):
         always_list = kwargs.pop('always_list', False)
-        return Expression(self, expressions[0]) if len(expressions) == 1 and not always_list else [Expression(self, k) for k in expressions]
+        return self[str(expressions[0])] if len(expressions) == 1 and not always_list else [self[str(k)] for k in expressions]
 
     @_hidden
     def add_virtual_columns_cartesian_velocities_to_polar(self, x="x", y="y", vx="vx", radius_polar=None, vy="vy", vr_out="vr_polar", vazimuth_out="vphi_polar",
@@ -5111,7 +5113,7 @@ class DataFrame(object):
             columns -= set(columns_exclude)
         depending_columns = set()
         for column in columns:
-            expression = self._expr(column)
+            expression = self[str(column)]
             depending_columns |= expression.variables()
         depending_columns -= set(columns)
         if check_filter:
