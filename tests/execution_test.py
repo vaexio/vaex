@@ -5,9 +5,44 @@ import platform
 import threading
 
 import pytest
+import numpy as np
 
 from common import small_buffer
 import vaex
+
+
+def test_merge_aggregation_tasks():
+    df = vaex.from_arrays(x=[1, 2], y=[2, 3])
+    binners = df._create_binners('x', [0.5, 2.5], 2)
+    binners2 = df._create_binners('x', [0.5, 2.5], 2)
+    assert len(binners) == 1
+    vaex.agg.count().add_tasks(df, binners)
+    assert len(df.executor.tasks) == 1
+    assert binners is not binners2
+    assert binners[0] is not binners2[0]
+    assert binners == binners2
+    assert binners[0] == binners2[0]
+    vaex.agg.sum('y').add_tasks(df, binners)
+    assert len(df.executor.tasks) == 2
+    tasks = df.executor._pop_tasks()
+    assert len(tasks) == 2
+    tasks = vaex.execution._merge(tasks, df)
+    assert len(tasks) == 1
+    assert isinstance(tasks[0], vaex.tasks.TaskAggregations)
+
+
+def test_merge_same_aggregation_tasks():
+    df = vaex.from_arrays(x=[1, 2], y=[2, 3])
+    binners = df._create_binners('x', [0.5, 2.5], 2)
+    binners2 = df._create_binners('x', [0.5, 2.5], 2)
+    assert len(binners) == 1
+    # these two aggregations should be merged into 1 subtask
+    [task1], result1 = vaex.agg.count().add_tasks(df, binners)
+    [task2], result2 = vaex.agg.count().add_tasks(df, binners)
+    assert len(df.executor.tasks) == 1
+    df.execute()
+    assert task1 is task2
+    assert np.all(result1.get() == result2.get())
 
 
 def test_signals(df):

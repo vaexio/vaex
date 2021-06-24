@@ -50,7 +50,7 @@ except ImportError:
     from urlparse import urlparse
 
 _DEBUG = os.environ.get('VAEX_DEBUG', False)  # extra sanity checks that might hit performance
-
+_REPORT_EXECUTION_TRACES = vaex.utils.get_env_type(int, 'VAEX_EXECUTE_TRACE', 0)
 DEFAULT_REPR_FORMAT = 'plain'
 FILTER_SELECTION_NAME = '__filter__'
 
@@ -216,10 +216,6 @@ class DataFrame(object):
         # like the ExecutorLocal.local.executing, this needs to be thread local
         self.local._aggregator_nest_count = 0
 
-        self._task_aggs = {}
-        self._binners = {}
-        self._grids = {}
-
     def fingerprint(self, treeshake=False):
         '''Id that uniquely identifies a dataframe (cross runtime).
 
@@ -371,12 +367,22 @@ class DataFrame(object):
 
     def execute(self):
         '''Execute all delayed jobs.'''
+        # make sure we only add the tasks at the last moment, after all operations are added (for cache keys)
+        if not self.executor.tasks:
+            logger.info('no task to execute')
+            return
+        if _REPORT_EXECUTION_TRACES:
+            import traceback
+            trace = ''.join(traceback.format_stack(limit=_REPORT_EXECUTION_TRACES))
+            print('Execution triggerd from:\n', trace)
+            print("Tasks:")
+            for task in self.executor.tasks:
+                print(repr(task))
         from .asyncio import just_run
         just_run(self.execute_async())
 
     async def execute_async(self):
         '''Async version of execute'''
-        # no need to clear _task_aggs anymore, since they will be removed for the executors' task list
         await self.executor.execute_async()
 
     @property
@@ -389,7 +395,7 @@ class DataFrame(object):
         task = tasks.TaskMapReduce(self, arguments, map, reduce, info=info, to_numpy=to_numpy, ignore_filter=ignore_filter, selection=selection, pre_filter=pre_filter)
         progressbar = vaex.utils.progressbars(progress)
         progressbar.add_task(task, name)
-        self.executor.schedule(task)
+        task = self.executor.schedule(task)
         return self._delay(delay, task)
 
     def apply(self, f, arguments=None, vectorize=False, multiprocessing=True):
@@ -446,7 +452,7 @@ class DataFrame(object):
         if selection is not None:
             selection = str(selection)
         task = vaex.tasks.TaskSetCreate(self, str(expression), flatten, unique_limit=unique_limit, selection=selection)
-        self.executor.schedule(task)
+        task = self.executor.schedule(task)
         return self._delay(delay, task)
 
     def _index(self, expression, progress=False, delay=False, prime_growth=False, cardinality=None):
@@ -700,7 +706,7 @@ class DataFrame(object):
         # but in agg.py we do some casting, which results in calling .dtype(..) with a non-column
         # expression even though all expressions passed here are column references
         # virtual = [k for k in expressions if k and k not in self.columns]
-        if self.filtered and expression is not None:
+        if self._future_behaviour != 5 and (self.filtered and expression not in [None, '*']):
             # When our dataframe is filtered, and we have expressions, we may end up calling
             # df.dtype(..) which in turn may call df.evaluate(..) which in turn needs to have
             # the filter cache filled in order to compute the first non-missing row. This last
@@ -711,9 +717,9 @@ class DataFrame(object):
             # TODO: GET RID OF THIS
             len(self) # fill caches and masks
             # pass
-        grid = self._create_grid(binby, limits, shape, selection=selection, delay=True)
+        binners = self._create_binners(binby, limits, shape, selection=selection, delay=True)
         @delayed
-        def compute(expression, grid, selection, edges, progressbar):
+        def compute(expression, binners, selection, edges, progressbar):
             if not hasattr(self.local, '_aggregator_nest_count'):
                 self.local._aggregator_nest_count = 0
             self.local._aggregator_nest_count += 1
@@ -725,34 +731,27 @@ class DataFrame(object):
                         agg = vaex.agg.aggregates[name](expression, *extra_expressions, selection=selection, edges=edges)
                     else:
                         agg = vaex.agg.aggregates[name](expression, selection=selection, edges=edges)
-                task, new_task = self._get_task_agg(grid)
-                agg_subtask = agg.add_operations(task)
-                if new_task:
-                    # it is important we schedule the task after we add an operation
-                    # otherwise the task will fail to executor (has to have >= 1 operation)
-                    self.executor.schedule(task)
-
-                progressbar.add_task(task, "%s for %s" % (name, expression))
+                tasks, result = agg.add_tasks(self, binners)
+                for task in tasks:
+                    progressbar.add_task(task, "%s for %s" % (name, expression))
                 @delayed
                 def finish(counts):
                     return np.asarray(counts)
-                return finish(agg_subtask)
+                return finish(result)
             finally:
                 self.local._aggregator_nest_count -= 1
         @delayed
-        def finish(grid, *counts):
+        def finish(binners, *counts):
             if array_type == 'xarray':
-                binners = grid.binners
                 dims = [binner.expression for binner in binners]
                 if expression_waslist:
                     dims = ['expression'] + dims
 
                 def to_coord(binner):
-                    name = type(binner).__name__
-                    if name.startswith('BinnerOrdinal_'):
+                    if isinstance(binner, BinnerOrdinal):
                         return self.category_labels(binner.expression)
-                    elif name.startswith('BinnerScalar_'):
-                        return self.bin_centers(binner.expression, [binner.vmin, binner.vmax], binner.bins)
+                    elif isinstance(binner, BinnerScalar):
+                        return self.bin_centers(binner.expression, [binner.minimum, binner.maximum], binner.count)
                 coords = [to_coord(binner) for binner in binners]
                 if expression_waslist:
                     coords = [expressions] + coords
@@ -768,8 +767,8 @@ class DataFrame(object):
             else:
                 raise RuntimeError(f'Unknown array_type {format}')
         progressbar = vaex.utils.progressbars(progress)
-        stats = [compute(expression, grid, selection=selection, edges=edges, progressbar=progressbar) for expression in expressions]
-        var = finish(grid, *stats)
+        stats = [compute(expression, binners, selection=selection, edges=edges, progressbar=progressbar) for expression in expressions]
+        var = finish(binners, *stats)
         return self._delay(delay, var)
 
     @docsubst
@@ -805,7 +804,7 @@ class DataFrame(object):
         else:
             limits, shapes = limits, shape
         task = tasks.TaskStatistic(self, binby, shapes, limits, weights=[expression, order_expression], op=tasks.OP_FIRST, selection=selection, edges=edges)
-        self.executor.schedule(task)
+        task = self.executor.schedule(task)
         progressbar.add_task(task, "count for %s" % expression)
         @delayed
         def finish(counts):
@@ -888,7 +887,7 @@ class DataFrame(object):
         @delayed
         def calculate(expression, limits):
             task = tasks.TaskStatistic(self, binby, shape, limits, weight=expression, op=tasks.OP_ADD_WEIGHT_MOMENTS_01, selection=selection)
-            self.executor.schedule(task)
+            task = self.executor.schedule(task)
             progressbar.add_task(task, "mean for %s" % expression)
             return task
 
@@ -909,7 +908,7 @@ class DataFrame(object):
     @delayed
     def _sum_calculation(self, expression, binby, limits, shape, selection, progressbar):
         task = tasks.TaskStatistic(self, binby, shape, limits, weight=expression, op=tasks.OP_ADD_WEIGHT_MOMENTS_01, selection=selection)
-        self.executor.schedule(task)
+        task = self.executor.schedule(task)
         progressbar.add_task(task, "sum for %s" % expression)
         @delayed
         def finish(sum_grid):
@@ -1008,31 +1007,6 @@ class DataFrame(object):
         """
         edges = False
         return self._compute_agg('var', expression, binby, limits, shape, selection, delay, edges, progress, array_type=array_type)
-        expression = _ensure_strings_from_expressions(expression)
-        @delayed
-        def calculate(expression, limits):
-            task = tasks.TaskStatistic(self, binby, shape, limits, weight=expression, op=tasks.OP_ADD_WEIGHT_MOMENTS_012, selection=selection)
-            progressbar.add_task(task, "var for %s" % expression)
-            self.executor.schedule(task)
-            return task
-
-        @delayed
-        def finish(*stats_args):
-            stats = np.array(stats_args)
-            counts = stats[..., 0]
-            with np.errstate(divide='ignore'):
-                with np.errstate(divide='ignore', invalid='ignore'):  # these are fine, we are ok with nan's in vaex
-                    mean = stats[..., 1] / counts
-                    raw_moments2 = stats[..., 2] / counts
-            variance = (raw_moments2 - mean**2)
-            return vaex.utils.unlistify(waslist, variance)
-        binby = _ensure_strings_from_expressions(binby)
-        waslist, [expressions, ] = vaex.utils.listify(expression)
-        progressbar = vaex.utils.progressbars(progress)
-        limits = self.limits(binby, limits, delay=True)
-        stats = [calculate(expression, limits) for expression in expressions]
-        var = finish(*stats)
-        return self._delay(delay, var)
 
     @docsubst
     def covar(self, x, y, binby=[], limits=None, shape=default_shape, selection=False, delay=False, progress=None):
@@ -1214,7 +1188,7 @@ class DataFrame(object):
         def calculate(expressions, limits):
             # print('limits', limits)
             task = tasks.TaskStatistic(self, binby, shape, limits, weights=expressions, op=tasks.OP_COV, selection=selection)
-            self.executor.schedule(task)
+            task = self.executor.schedule(task)
             progressbar.add_task(task, "covariance values for %r" % expressions)
             return task
 
@@ -1277,7 +1251,7 @@ class DataFrame(object):
         @delayed
         def calculate(expression, limits):
             task = tasks.TaskStatistic(self, binby, shape, limits, weight=expression, op=tasks.OP_MIN_MAX, selection=selection)
-            self.executor.schedule(task)
+            task = self.executor.schedule(task)
             progressbar.add_task(task, "minmax for %s" % expression)
             return task
         @delayed
@@ -2250,7 +2224,7 @@ class DataFrame(object):
         units = {key: str(value) for key, value in self.units.items()}
         ucds = {key: value for key, value in self.ucds.items() if key in virtual_names}
         descriptions = {key: value for key, value in self.descriptions.items()}
-        selections = {name: self.get_selection(name) for name, history in self.selection_histories.items()}
+        selections = {name: self.get_selection(name) for name, history in self.selection_histories.items() if self.has_selection(name)}
         encoding = vaex.encoding.Encoding()
         state = dict(virtual_columns=dict(self.virtual_columns),
                      column_names=list(self.column_names),
@@ -5198,71 +5172,42 @@ class DataFrame(object):
             self[column]._graphviz(dot=dot)
         return dot
 
-
-    def _get_task_agg(self, grid):
-        new_task = False
-        with self.executor.lock:
-            # if we did not create a task yet for this grid, or it was already scheduled for execution
-            if grid not in self._task_aggs or self._task_aggs[grid] not in self.executor.tasks:
-                # we create a new one
-                self._task_aggs[grid] = vaex.tasks.TaskAggregations(self, grid)
-                new_task = True
-        return self._task_aggs[grid], new_task
-
     @docsubst
     @stat_1d
-    def _agg(self, aggregator, grid, selection=False, delay=False, progress=None):
+    def _agg(self, aggregator, binners=tuple(), delay=False):
         """
 
-        :param selection: {selection}
         :param delay: {delay}
-        :param progress: {progress}
         :return: {return_stat_scalar}
         """
-        task_agg, new_task = self._get_task_agg(grid)
-        sub_task = aggregator.add_operations(task_agg)
-        if new_task:
-            self.executor.schedule(task_agg)
-        return self._delay(delay, sub_task)
+        tasks, result = aggregator.add_tasks(self, binners)
+        return self._delay(delay, result)
 
     def _binner(self, expression, limits=None, shape=None, selection=None, delay=False):
         expression = str(expression)
         if limits is not None and not isinstance(limits, (tuple, str)):
             limits = tuple(limits)
-        key = (expression, limits, shape)
-        if key not in self._binners:
-            if expression in self._categories:
-                N = self._categories[expression]['N']
-                min_value = self._categories[expression]['min_value']
-                binner = self._binner_ordinal(expression, N, min_value)
-                self._binners[key] = vaex.promise.Promise.fulfilled(binner)
-            else:
-                self._binners[key] = vaex.promise.Promise()
-                @delayed
-                def create_binner(limits):
-                    return self._binner_scalar(expression, limits, shape)
-                self._binners[key] = create_binner(self.limits(expression, limits, selection=selection, delay=True))
-        return self._delay(delay, self._binners[key])
-
-    def _grid(self, binners):
-        key = tuple(binners)
-        if key in self._grids:
-            return self._grids[key]
+        if expression in self._categories:
+            N = self._categories[expression]['N']
+            min_value = self._categories[expression]['min_value']
+            binner = self._binner_ordinal(expression, N, min_value)
+            binner = vaex.promise.Promise.fulfilled(binner)
         else:
-            self._grids[key] = grid = vaex.superagg.Grid(binners)
-            return grid
+            @delayed
+            def create_binner(limits):
+                return self._binner_scalar(expression, limits, shape)
+            binner = create_binner(self.limits(expression, limits, selection=selection, delay=True))
+        return self._delay(delay, binner)
 
     def _binner_scalar(self, expression, limits, shape):
-        type = vaex.utils.find_type_from_dtype(vaex.superagg, "BinnerScalar_", self.data_type(expression))
-        vmin, vmax = limits
-        return type(expression, vmin, vmax, shape)
+        dtype = self.data_type(expression)
+        return BinnerScalar(expression, limits[0], limits[1], shape, dtype)
 
     def _binner_ordinal(self, expression, ordinal_count, min_value=0):
-        expression = _ensure_string_from_expression(expression)
-        type = vaex.utils.find_type_from_dtype(vaex.superagg, "BinnerOrdinal_", self.data_type(expression).index_type)
-        return type(expression, ordinal_count, min_value)
+        dtype = self.data_type(expression)
+        return BinnerOrdinal(expression, min_value, ordinal_count, dtype)
 
-    def _create_grid(self, binby, limits, shape, selection=None, delay=False):
+    def _create_binners(self, binby, limits, shape, selection=None, delay=False):
         if isinstance(binby, (list, tuple)):
             binbys = binby
         else:
@@ -5281,7 +5226,7 @@ class DataFrame(object):
             binners.append(self._binner(binby, limits1, shape, selection, delay=True))
         @delayed
         def finish(*binners):
-            return self._grid(binners)
+            return binners
         return self._delay(delay, finish(*binners))
 
     @docsubst
@@ -5377,7 +5322,7 @@ class DataFrameLocal(DataFrame):
     def _fill_filter_mask(self):
         if self.filtered:
             task = vaex.tasks.TaskFilterFill(self)
-            self.executor.schedule(task)
+            task = self.executor.schedule(task)
             self.execute()
 
     def __getstate__(self):
@@ -6703,3 +6648,69 @@ def _is_dtype_ok(dtype):
 
 def _is_array_type_ok(array):
     return _is_dtype_ok(array.dtype)
+
+
+# there represent the spec version of the cpu based vaex.superagg.BinnerScalar/Ordinal_<dtype>
+register_binner = vaex.encoding.make_class_registery('binner')
+
+
+class BinnerBase:
+    @classmethod
+    def decode(cls, encoding, spec):
+        spec = spec.copy()
+        spec['dtype'] = encoding.decode('dtype', spec['dtype'])
+        return cls(**spec)
+
+
+@register_binner
+class BinnerScalar(BinnerBase):
+    snake_name = 'scalar'
+    def __init__(self, expression, minimum, maximum, count, dtype):
+        self.expression = str(expression)
+        self.minimum = minimum
+        self.maximum = maximum
+        self.count = count
+        self.dtype = dtype
+
+    def encode(self, encoding):
+        dtype = encoding.encode('dtype', self.dtype)
+        return {'expression': self.expression, 'dtype': dtype, 'count': self.count, 'minimum': self.minimum, 'maximum': self.maximum}
+
+    def __hash__(self) -> int:
+        return hash((self.__class__.__name__, self.expression, self.minimum, self.maximum, self.count, self.dtype))
+
+    def __eq__(self, rhs):
+        if not isinstance(rhs, BinnerScalar):
+            return False
+        return \
+            self.expression == rhs.expression and \
+            self.minimum == rhs.minimum and \
+            self.maximum == rhs.maximum and \
+            self.count == rhs.count and \
+            self.dtype == rhs.dtype
+
+
+@register_binner
+class BinnerOrdinal(BinnerBase):
+    snake_name = 'ordinal'
+    def __init__(self, expression, minimum, count, dtype):
+        self.expression = str(expression)
+        self.minimum = minimum
+        self.count = count
+        self.dtype = dtype
+
+    def encode(self, encoding):
+        datatype = encoding.encode('dtype', self.dtype)
+        return {'type': 'ordinal', 'expression': self.expression, 'dtype': datatype, 'count': self.count, 'minimum': self.minimum}
+
+    def __hash__(self) -> int:
+        return hash((self.__class__.__name__, self.expression, self.minimum, self.count, self.dtype))
+
+    def __eq__(self, rhs):
+        if not isinstance(rhs, BinnerOrdinal):
+            return False
+        return \
+            self.expression == rhs.expression and \
+            self.minimum == rhs.minimum and \
+            self.count == rhs.count and \
+            self.dtype == rhs.dtype

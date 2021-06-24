@@ -98,7 +98,7 @@ def test_df():
     x = np.arange(10, dtype='i4')
     y = x**2
     df = vaex.from_arrays(x=x, y=y, z=x+y)
-    assert df.fingerprint() == 'dataframe-8bff307fe39e9ebf0192181c5b3c933d'
+    assert df.fingerprint() == 'dataframe-4eaba957ff0fac3a5929caa6baed560c'
 
 
 def test_df_project():
@@ -109,4 +109,4 @@ def test_df_project():
     df_a = df[['x', 'y']]
     df_b = df[['x', 'y']]
     assert df_a.fingerprint() == df_b.fingerprint()
-    assert df_a.fingerprint() == 'dataframe-bfeb0df610e25228f5693e68da946992'
+    assert df_a.fingerprint() == 'dataframe-51c38847d8ed999a62ffbf99bd61981a'

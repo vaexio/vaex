@@ -153,9 +153,8 @@ def test_count_1d():
 
     bins = 5
     binner = df._binner_scalar('x', [0, 5], bins)
-    grid = vaex.superagg.Grid([binner])
     agg = vaex.agg.count(edges=True)
-    grid = df._agg(agg, grid)
+    grid = df._agg(agg, (binner,))
     assert grid.tolist() == [0, 2, 1, 1, 0, 0, 1, 1]
 
 
@@ -175,10 +174,10 @@ def test_count_1d_ordinal():
 
     bins = 5
     binner = df._binner_ordinal('x', 5)
-    grid = vaex.superagg.Grid([binner])
     agg = vaex.agg.count(edges=True)
-    grid = df._agg(agg, grid)
-    assert grid.tolist() == [0, 2, 1, 1, 0, 0, 1, 1]
+    tasks, result = agg.add_tasks(df, (binner,))
+    df.execute()
+    assert result.get().tolist() == [0, 2, 1, 1, 0, 0, 1, 1]
 
 
 

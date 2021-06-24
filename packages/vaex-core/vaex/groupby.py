@@ -282,8 +282,7 @@ class GroupByBase(object):
         # if we want to have all columns, minus the columns grouped by
         # we should keep track of the original expressions, but binby
         self.groupby_expression = [str(by.expression) for by in self.by]
-        self.binners = [by.binner for by in self.by]
-        self.grid = vaex.superagg.Grid(self.binners)
+        self.binners = tuple(by.binner for by in self.by)
         self.shape = [by.N for by in self.by]
         self.dims = self.groupby_expression[:]
 
@@ -307,7 +306,7 @@ class GroupByBase(object):
             if column_name is None or override_name is not None:
                 column_name = aggregate.pretty_name(override_name, df)
             aggregate.edges = True  # is this ok to override?
-            values = df._agg(aggregate, self.grid, delay=_USE_DELAY)
+            values = df._agg(aggregate, self.binners, delay=_USE_DELAY)
             grids[column_name] = values
             if isinstance(aggregate, vaex.agg.AggregatorDescriptorBasic)\
                 and aggregate.name == 'AggCount'\
@@ -376,7 +375,7 @@ class GroupByBase(object):
                 yield values, self.get_group(i)
         else:
             count_agg = vaex.agg.count()
-            counts = self.df._agg(count_agg, self.grid)
+            counts = self.df._agg(count_agg, self.binners)
             mask = counts > 0
             values2d = np.array([coord[mask] for coord in np.meshgrid(*self._coords1d, indexing='ij')], dtype='O')
             for i in range(values2d.shape[1]):
@@ -386,7 +385,7 @@ class GroupByBase(object):
 
     def __len__(self):
         count_agg = vaex.agg.count()
-        counts = self.df._agg(count_agg, self.grid)
+        counts = self.df._agg(count_agg, self.binners)
         mask = counts > 0
         return mask.sum()
 
