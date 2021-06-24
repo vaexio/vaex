@@ -19,7 +19,7 @@ registry = {}
 
 def register(name):
     def wrapper(cls):
-        assert name not in registry
+        assert name not in registry, f'{name} already in registry: {registry[name]}'
         registry[name] = cls
         return cls
     return wrapper
