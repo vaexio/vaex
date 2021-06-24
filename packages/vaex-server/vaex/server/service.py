@@ -34,8 +34,7 @@ class Service:
 
     def execute(self, df, tasks):
         assert df.executor.tasks == []
-        for task in tasks:
-            df.executor.schedule(task)
+        tasks = [df.executor.schedule(task) for task in tasks]
         df.execute()
         return [task.get() for task in tasks]
 

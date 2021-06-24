@@ -1,15 +1,19 @@
 from __future__ import division, print_function
 import ast
+from collections import defaultdict
 import os
-import vaex.vaexfast
-import vaex.events
 import time
 import threading
 import multiprocessing
-import vaex.multithreading
 import logging
+
+import numpy as np
+
 import vaex.cpu  # force registration of task-part-cpu
 import vaex.encoding
+import vaex.multithreading
+import vaex.vaexfast
+import vaex.events
 
 
 chunk_size_min_default = int(os.environ.get('VAEX_CHUNK_SIZE_MIN', 1024))
@@ -39,6 +43,33 @@ class Run:
             raise ValueError("Requested pre_filter for task while DataFrame is not filtered")
         self.expressions = list(set(expression for task in tasks for expression in task.expressions_all))
 
+def _merge(tasks, df):
+    # non-mergable:
+    tasks_non_mergable = [task for task in tasks if not isinstance(task, vaex.tasks.TaskAggregation)]
+    # mergable
+    tasks_agg = [task for task in tasks if isinstance(task, vaex.tasks.TaskAggregation)]
+    tasks_merged = []
+
+    # Merge aggregation tasks to single aggregations tasks if possible
+    tasks_agg_per_grid = defaultdict(list)
+    for task in tasks_agg:
+        tasks_agg_per_grid[task.binners].append(task)
+    for binners, tasks in tasks_agg_per_grid.items():
+        task_merged = vaex.tasks.TaskAggregations(df, binners)
+        task_merged.original_tasks = tasks
+        for i, subtask in enumerate(tasks):
+            # chain progress
+            def progress_wrapper(p, subtask=subtask):
+                result = all(subtask.signal_progress.emit(p))
+                return result
+            task_merged.signal_progress.connect(progress_wrapper)
+            task_merged.add_aggregation_operation(subtask.aggregation_description)
+            @vaex.delayed
+            def assign(value, i=i, subtask=subtask):
+                subtask.fulfill(value[i])
+            assign(task_merged)
+        tasks_merged.append(task_merged)
+    return tasks_non_mergable + tasks_merged
 
 class Executor:
     """An executor is responsible to executing tasks, they are not reentrant, but thread safe"""
@@ -52,20 +83,29 @@ class Executor:
         self.lock = threading.Lock()
 
     def schedule(self, task):
+        '''Schedules new task for execution, will return an existing tasks if the same task was already added'''
         with self.lock:
-            # _compute_agg can add a task that another thread already added
-            # if we refactor task 'merging' we can avoid this
+            for task_existing in self.tasks:
+                # WARNING: tasks fingerprint ignores the dataframe
+                if (task_existing.df == task.df) and task_existing.fingerprint() == task.fingerprint():
+                    key = task.fingerprint()
+                    logger.debug("Did not add already existing task with fingerprint: %r", key)
+                    return task_existing
+
             if vaex.cache.is_on() and task.cacheable:
                 key_task = task.fingerprint()
                 key_df = task.df.fingerprint()
-                # tasks' fingerprints don't include the dataframe
+                # WARNING tasks' fingerprints don't include the dataframe
                 key = f'{key_task}-{key_df}'
+
                 logger.debug("task fingerprint: %r", key)
                 result = vaex.cache.get(key, type="task")
                 if result is not None:
                     logger.info("task not added, used cache key: %r", key)
                     task.fulfill(result)
                     return task
+                else:
+                    logger.info("task *will* be scheduled with cache key: %r", key)
             if task not in self.tasks:
                 self.tasks.append(task)
                 logger.info("task added, queue: %r", self.tasks)
@@ -85,10 +125,6 @@ class Executor:
                 logger.info("executing tasks in run: %r", tasks)
                 for task in tasks:
                     self.tasks.remove(task)
-                    # make sure we remove it from task_aggs, otherwise we can memleak
-                    for key, value in list(task.df._task_aggs.items()):
-                        if value is task:
-                            del task.df._task_aggs[key]
                 return tasks
 
 
@@ -149,6 +185,7 @@ class ExecutorLocal(Executor):
                 tasks = self.local.tasks = self._pop_tasks()
                 if not tasks:
                     break
+                tasks = _merge(tasks, tasks[0].df)
                 run = Run(tasks)
                 self.passes += 1
 
@@ -166,6 +203,7 @@ class ExecutorLocal(Executor):
                 for task in run.tasks:
                     task._results = []
                     if not any(task.signal_progress.emit(0)):
+                        logger.debug("task cancelled immediately")
                         task.cancelled = True
                 row_count = run.df._index_end - run.df._index_start
                 chunk_size = self.chunk_size_for(row_count)
@@ -173,6 +211,7 @@ class ExecutorLocal(Executor):
                 encoding = vaex.encoding.Encoding()
                 for task in tasks:
                     spec = encoding.encode('task', task)
+                    spec['task-part-cpu-type'] = spec.pop('task-type')
                     task._parts = [encoding.decode('task-part-cpu', spec, df=run.df) for i in range(self.thread_pool.nthreads)]
 
                 length = run.df.active_length()
@@ -200,8 +239,9 @@ class ExecutorLocal(Executor):
                     pass  # just eat all element
                 duration_wallclock = time.time() - t0
                 logger.debug("executing took %r seconds", duration_wallclock)
+                cancelled = self.local.cancelled or any(task.cancelled for task in tasks) or run.cancelled
                 logger.debug("cancelled: %r", cancelled)
-                if self.local.cancelled:
+                if cancelled:
                     logger.debug("execution aborted")
                     for task in tasks:
                         task.reject(UserAbort("cancelled"))
@@ -209,6 +249,9 @@ class ExecutorLocal(Executor):
                         task._result = None
                         task._results = None
                         cancelled = True
+                        if isinstance(task, vaex.tasks.TaskAggregations):
+                            for subtask in task.original_tasks:
+                                subtask.reject(UserAbort("cancelled"))
                 else:
                     for task in tasks:
                         logger.debug("fulfill task: %r", task)
@@ -217,22 +260,30 @@ class ExecutorLocal(Executor):
                             parts[0].reduce(parts[1:])
                             logger.debug("wait for task: %r", task)
                             task._result = parts[0].get_result()
+                            task.end()
+                            task.fulfill(task._result)
                             logger.debug("got result for: %r", task)
                             if task._result is not None and task.cacheable:  # we don't want to store None
                                 if vaex.cache.is_on():
-                                    key_task = task.fingerprint()
-                                    # tasks' fingerprints don't include the dataframe
-                                    key = f'{key_task}-{key_df}'
-                                    previous_result = vaex.cache.get(key, type='task')
-                                    if (previous_result is not None) and (previous_result != task._result):
-                                        # this can happen with multithreading, where two threads enter the same tasks in parallel (IF using different executors)
-                                        logger.warning("calculated new result: %r, while cache had value: %r", previous_result, task._result)
-                                    else:
-                                        vaex.cache.set(key, task._result, type='task', duration_wallclock=duration_wallclock)
-                                        logger.info("added result: %r in cache under key: %r", task._result, key)
+                                    # we only want to store the original task results into the cache
+                                    tasks_cachable = task.original_tasks if isinstance(task, vaex.tasks.TaskAggregations) else [task]
+                                    for task_cachable in tasks_cachable:
+                                        key_task = task_cachable.fingerprint()
+                                        # tasks' fingerprints don't include the dataframe
+                                        key = f'{key_task}-{key_df}'
+                                        previous_result = vaex.cache.get(key, type='task')
+                                        if (previous_result is not None):# and (previous_result != task_cachable.get()):
+                                            try:
+                                                if previous_result != task_cachable.get():
+                                                    # this can happen with multithreading, where two threads enter the same tasks in parallel (IF using different executors)
+                                                    logger.warning("calculated new result: %r, while cache had value: %r", previous_result, task_cachable.get())
+                                            except ValueError:  # when comparing numpy results
+                                                if np.array_equal(previous_result, task_cachable.get(), equal_nan=True):
+                                                    # this can happen with multithreading, where two threads enter the same tasks in parallel (IF using different executors)
+                                                    logger.warning("calculated new result: %r, while cache had value: %r", previous_result, task_cachable.get())
+                                        vaex.cache.set(key, task_cachable.get(), type='task', duration_wallclock=duration_wallclock)
+                                        logger.info("added result: %r in cache under key: %r", task_cachable.get(), key)
 
-                            task.end()
-                            task.fulfill(task._result)
                         else:
                             task.reject(UserAbort("Task was cancelled"))
                             # remove references

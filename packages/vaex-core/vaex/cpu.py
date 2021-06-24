@@ -10,33 +10,41 @@ from . import array_types
 from .array_types import filter
 
 
-_task_part_register = {}
+register = vaex.encoding.make_class_registery('task-part-cpu')
 
 
-def register(cls):
-    assert cls is not None
-    _task_part_register[cls.name] = cls
-    return cls
 
-
-def create_part_from_spec(df, spec):
-    cls = _task_part_register[spec['task']]
-    part_cls = cls.part_class
-    del spec['task']
-    return part_cls.from_spec(df, spec)
-
-
-@vaex.encoding.register("task-part-cpu")
-class encoder:
+@vaex.encoding.register("binner-cpu")
+class binner_encoding:
     @staticmethod
-    def encode(encoding, task):
-        return task.encode(encoding)
+    def encode(encoding, binner):
+        raise RuntimeError('binner-cpu should not get encoded')
+        # name = type(binner).__name__
+        # if name.startswith('BinnerOrdinal_'):
+        #     dtype = name[len('BinnerOrdinal_'):]
+        #     if dtype.endswith("_non_native"):
+        #         dtype = dtype[:-len('64_non_native')]
+        #         dtype = encoding.encode('dtype', DataType(np.dtype(dtype).newbyteorder()))
+        #     return {'type': 'ordinal', 'expression': binner.expression, 'dtype': dtype, 'count': binner.ordinal_count, 'minimum': binner.min_value}
+        # elif name.startswith('BinnerScalar_'):
+        #     dtype = name[len('BinnerScalar_'):]
+        #     if dtype.endswith("_non_native"):
+        #         dtype = dtype[:-len('64_non_native')]
+        #         dtype = encoding.encode('dtype', DataType(np.dtype(dtype).newbyteorder()))
+        #     return {'type': 'scalar', 'expression': binner.expression, 'dtype': dtype, 'count': binner.bins, 'minimum': binner.vmin, 'maximum': binner.vmax}
 
     @staticmethod
-    def decode(encoding, spec, df):
-        cls = _task_part_register[spec['task']]
-        return cls.decode(encoding, spec, df)
-
+    def decode(encoding, binner_spec):
+        type = binner_spec['binner-type']
+        dtype = encoding.decode('dtype', binner_spec['dtype'])
+        if type == 'ordinal':
+            cls = vaex.utils.find_type_from_dtype(vaex.superagg, "BinnerOrdinal_", dtype)
+            return cls(binner_spec['expression'], binner_spec['count'], binner_spec['minimum'])
+        elif type == 'scalar':
+            cls = vaex.utils.find_type_from_dtype(vaex.superagg, "BinnerScalar_", dtype)
+            return cls(binner_spec['expression'], binner_spec['minimum'], binner_spec['maximum'], binner_spec['count'])
+        else:
+            raise ValueError('Cannot deserialize: %r' % binner_spec)
 
 class TaskPart:
     def __init__(self, df, expressions, name, pre_filter):
@@ -48,7 +56,7 @@ class TaskPart:
 
 @register
 class TaskPartSum:
-    name = "sum-test"
+    snake_name = "sum-test"
 
     def __init__(self, expression):
         self.total = 0
@@ -75,7 +83,7 @@ class TaskPartSum:
 
 @register
 class TaskPartFilterFill:
-    name = "filter_fill"
+    snake_name = "filter_fill"
 
     def __init__(self):
         pass
@@ -95,13 +103,13 @@ class TaskPartFilterFill:
 
     @classmethod
     def decode(cls, encoding, spec, df):
-        assert spec == {'task': 'filter_fill'}, f'{spec}'
+        assert spec == {}
         return cls()
 
 
 @register
 class TaskPartSetCreate:
-    name = "set_create"
+    snake_name = "set_create"
 
     def __init__(self, df, expression, dtype, dtype_item, flatten, unique_limit, selection):
         expression = str(expression)
@@ -183,7 +191,7 @@ class TaskPartSetCreate:
 
 @register
 class TaskPartMapReduce(TaskPart):
-    name = "map_reduce"
+    snake_name = "map_reduce"
 
     def __init__(self, df, expressions, map, reduce, converter=lambda x: x, info=False, to_float=False,
                  to_numpy=True, ordered_reduce=False, skip_masked=False, ignore_filter=False, selection=None, pre_filter=False, name="task"):
@@ -253,13 +261,12 @@ class TaskPartMapReduce(TaskPart):
     @classmethod
     def decode(cls, encoding, spec, df):
         spec = spec.copy()
-        del spec['task']
         return cls(df, **spec)
 
 
 @register
 class TaskPartStatistic:
-    name = "legacy_statistic"
+    snake_name = "legacy_statistic"
 
     def __init__(self, df, shape, expressions, dtype, selections, op, weights, minima, maxima, edges, selection_waslist):
         self.df = df
@@ -385,7 +392,6 @@ class TaskPartStatistic:
     @classmethod
     def decode(cls, encoding, spec, df):
         spec = spec.copy()
-        del spec['task']
         spec['op'] = encoding.decode('_op', spec['op'])
         spec['dtype'] = encoding.decode('dtype', spec['dtype'])
         return cls(df, **spec)
@@ -393,25 +399,25 @@ class TaskPartStatistic:
 
 @register
 class TaskPartAggregations:
-    name = "aggregations"
+    snake_name = "aggregations"
 
-    def __init__(self, df, grid, aggregation_descriptions, dtypes, initial_values=None):
+    def __init__(self, df, binners, aggregation_descriptions, dtypes, initial_values=None):
         self.df = df
         self.has_values = False
         self.dtypes = dtypes
         # self.expressions_all = expressions
-        self.expressions = [binner.expression for binner in grid.binners]
+        self.expressions = [binner.expression for binner in binners]
         # TODO: selection and edges in descriptor?
         self.aggregation_descriptions = aggregation_descriptions
         for aggregator_descriptor in self.aggregation_descriptions:
             self.expressions.extend(aggregator_descriptor.expressions)
         # self.expressions = list(set(expressions))
-        self.grid = vaex.superagg.Grid([binner.copy() for binner in grid.binners])
+        self.grid = vaex.superagg.Grid([binner.copy() for binner in binners])
 
         def create_aggregator(aggregator_descriptor, selections, initial_values):
             # for each selection, we have a separate aggregator, sharing the grid and binners
             for i, selection in enumerate(selections):
-                agg = aggregator_descriptor._create_operation(self.df, self.grid)
+                agg = aggregator_descriptor._create_operation(self.grid)
                 if initial_values is not None:
                     print(np.asarray(agg))
                     print(initial_values[i])
@@ -549,7 +555,7 @@ class TaskPartAggregations:
         # aggs = [vaex.agg._from_spec(agg_spec) for agg_spec in spec['aggregations']]
         aggs = encoding.decode_list('aggregation', spec['aggregations'])
         dtypes = encoding.decode_dict('dtype', spec['dtypes'])
-        grid = encoding.decode('grid', spec['grid'])
+        grid = encoding.decode_list('binner-cpu', spec['binners'])
         values = encoding.decode_list2('ndarray', spec['values']) if 'values' in spec else None
         # dtypes = {expr: _deserialize_type(type_spec) for expr, type_spec in spec['dtypes'].items()}
         for agg in aggs:
@@ -558,7 +564,7 @@ class TaskPartAggregations:
 
     def encode(self, encoding):
         # TODO: get rid of dtypes
-        encoded = {'task': type(self).name,
+        encoded = {
                 'grid': encoding.encode('grid', self.grid),
                 'aggregations': encoding.encode_list("aggregation", self.aggregation_descriptions),
                 'dtypes': encoding.encode_dict("dtype", self.dtypes)

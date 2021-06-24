@@ -99,16 +99,16 @@ class AggregatorDescriptorBasic(AggregatorDescriptor):
             if self.short_name in ['sum', 'summoment']:
                 self.dtype_out = self.dtype_in.upcast()
 
-    def add_operations(self, agg_task, **kwargs):
-        df = agg_task.df
+    def add_tasks(self, df, binners):
         self._prepare_types(df)
-        value = agg_task.add_aggregation_operation(self, **kwargs)
+        task = vaex.tasks.TaskAggregation(df, binners, self)
+        task = df.executor.schedule(task)
         @vaex.delayed
         def finish(value):
             return self.finish(value)
-        return finish(value)
+        return [task], finish(task)
 
-    def _create_operation(self, df, grid):
+    def _create_operation(self, grid):
         agg_op_type = vaex.utils.find_type_from_dtype(vaex.superagg, self.name + "_", self.dtype_in)
         agg_op = agg_op_type(grid, *self.agg_args)
         return agg_op
@@ -134,9 +134,11 @@ class AggregatorDescriptorNUnique(AggregatorDescriptorBasic):
             spec['dropnan'] = self.dropnan
         return spec
 
-    def _create_operation(self, df, grid):
-        self.dtype_in = df[str(self.expressions[0])].dtype
+    def _prepare_types(self, df):
+        super()._prepare_types(df)
         self.dtype_out = DataType(np.dtype('int64'))
+
+    def _create_operation(self, grid):
         agg_op_type = vaex.utils.find_type_from_dtype(vaex.superagg, self.name + "_", self.dtype_in)
         agg_op = agg_op_type(grid, self.dropmissing, self.dropnan)
         return agg_op
@@ -157,8 +159,8 @@ class AggregatorDescriptorMean(AggregatorDescriptorMulti):
     def __init__(self, name, expression, short_name="mean", selection=None, edges=False):
         super(AggregatorDescriptorMean, self).__init__(name, expression, short_name, selection=selection, edges=edges)
 
-    def add_operations(self, agg_task, **kwargs):
-        expression = expression_sum = expression = agg_task.df[str(self.expression)]
+    def add_tasks(self, df, binners):
+        expression = expression_sum = expression = df[str(self.expression)]
         # ints, floats and bools are upcasted
         if expression_sum.dtype.kind in "buif":
             expression = expression_sum = expression_sum.astype('float64')
@@ -166,8 +168,8 @@ class AggregatorDescriptorMean(AggregatorDescriptorMulti):
         sum_agg = sum(expression_sum, selection=self.selection, edges=self.edges)
         count_agg = count(expression, selection=self.selection, edges=self.edges)
 
-        task_sum = sum_agg.add_operations(agg_task, **kwargs)
-        task_count = count_agg.add_operations(agg_task, **kwargs)
+        task_sum = sum_agg.add_tasks(df, binners)[0][0]
+        task_count = count_agg.add_tasks(df, binners)[0][0]
         self.dtype_in = sum_agg.dtype_in
         self.dtype_out = sum_agg.dtype_out
 
@@ -185,7 +187,7 @@ class AggregatorDescriptorMean(AggregatorDescriptorMulti):
                 mean = mean.astype(dtype)
             return mean
 
-        return finish(task_sum, task_count)
+        return [task_sum, task_count], finish(task_sum, task_count)
 
 
 class AggregatorDescriptorVar(AggregatorDescriptorMulti):
@@ -193,16 +195,16 @@ class AggregatorDescriptorVar(AggregatorDescriptorMulti):
         super(AggregatorDescriptorVar, self).__init__(name, expression, short_name, selection=selection, edges=edges)
         self.ddof = ddof
 
-    def add_operations(self, agg_task, **kwargs):
-        expression_sum = expression = agg_task.df[str(self.expression)]
+    def add_tasks(self, df, binners):
+        expression_sum = expression = df[str(self.expression)]
         expression = expression_sum = expression.astype('float64')
         sum_moment = _sum_moment(str(expression_sum), 2, selection=self.selection, edges=self.edges)
         sum_ = sum(str(expression_sum), selection=self.selection, edges=self.edges)
         count_ = count(str(expression), selection=self.selection, edges=self.edges)
 
-        task_sum_moment = sum_moment.add_operations(agg_task, **kwargs)
-        task_sum = sum_.add_operations(agg_task, **kwargs)
-        task_count = count_.add_operations(agg_task, **kwargs)
+        task_sum_moment = sum_moment.add_tasks(df, binners)[0][0]
+        task_sum = sum_.add_tasks(df, binners)[0][0]
+        task_count = count_.add_tasks(df, binners)[0][0]
         self.dtype_in = sum_.dtype_in
         self.dtype_out = sum_.dtype_out
         @vaex.delayed
@@ -221,7 +223,7 @@ class AggregatorDescriptorVar(AggregatorDescriptorMulti):
                 # TODO: not sure why view does not work
                 variance = variance.astype(dtype)
             return self.finish(variance)
-        return finish(task_sum_moment, task_sum, task_count)
+        return [task_sum_moment, task_sum, task_count], finish(task_sum_moment, task_sum, task_count)
 
 
 class AggregatorDescriptorStd(AggregatorDescriptorVar):

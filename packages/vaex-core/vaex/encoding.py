@@ -25,29 +25,29 @@ def register(name):
     return wrapper
 
 
-_dataset_types = {}
 
 
-def make_class_registery(name):
-    def register_helper(cls, name=None):
-        name = name or getattr(cls, 'snake_name') or cls.__name__
-        _dataset_types[name] = cls
+def make_class_registery(groupname):
+    _encoding_types = {}
+    def register_helper(cls):
+        name = cls.snake_name #name or getattr(cls, 'snake_name') or cls.__name__
+        _encoding_types[name] = cls
         return cls
 
-    @register(name)
-    class dataset_encoding:
+    @register(groupname)
+    class encoding:
         @staticmethod
         def encode(encoding, obj):
             spec = obj.encode(encoding)
-            spec[f'{name}_type'] = obj.snake_name
+            spec[f'{groupname}-type'] = obj.snake_name
             return spec
 
         @staticmethod
-        def decode(encoding, spec):
+        def decode(encoding, spec, **kwargs):
             spec = spec.copy()
-            type = spec.pop(f'{name}_type')
-            cls = _dataset_types[type]
-            return cls.decode(encoding, spec)
+            type = spec.pop(f'{groupname}-type')
+            cls = _encoding_types[type]
+            return cls.decode(encoding, spec, **kwargs)
     return register_helper
 
 @register("json")  # this will pass though data as is
@@ -318,53 +318,6 @@ class selection_encoding:
             return encoding.decode(obj_spec['type'], obj_spec['data'])
         else:
             return obj_spec
-
-
-
-
-@register("binner")
-class binner_encoding:
-    @staticmethod
-    def encode(encoding, binner):
-        name = type(binner).__name__
-        if name.startswith('BinnerOrdinal_'):
-            datatype = name[len('BinnerOrdinal_'):]
-            if datatype.endswith("_non_native"):
-                datatype = datatype[:-len('64_non_native')]
-                datatype = encoding.encode('dtype', DataType(np.dtype(datatype).newbyteorder()))
-            return {'type': 'ordinal', 'expression': binner.expression, 'datatype': datatype, 'count': binner.ordinal_count, 'minimum': binner.min_value}
-        elif name.startswith('BinnerScalar_'):
-            datatype = name[len('BinnerScalar_'):]
-            if datatype.endswith("_non_native"):
-                datatype = datatype[:-len('64_non_native')]
-                datatype = encoding.encode('dtype', DataType(np.dtype(datatype).newbyteorder()))
-            return {'type': 'scalar', 'expression': binner.expression, 'datatype': datatype, 'count': binner.bins, 'minimum': binner.vmin, 'maximum': binner.vmax}
-        else:
-            raise ValueError('Cannot serialize: %r' % binner)
-
-    @staticmethod
-    def decode(encoding, binner_spec):
-        type = binner_spec['type']
-        dtype = encoding.decode('dtype', binner_spec['datatype'])
-        if type == 'ordinal':
-            cls = vaex.utils.find_type_from_dtype(vaex.superagg, "BinnerOrdinal_", dtype)
-            return cls(binner_spec['expression'], binner_spec['count'], binner_spec['minimum'])
-        elif type == 'scalar':
-            cls = vaex.utils.find_type_from_dtype(vaex.superagg, "BinnerScalar_", dtype)
-            return cls(binner_spec['expression'], binner_spec['minimum'], binner_spec['maximum'], binner_spec['count'])
-        else:
-            raise ValueError('Cannot deserialize: %r' % binner_spec)
-
-
-@register("grid")
-class grid_encoding:
-    @staticmethod
-    def encode(encoding, grid):
-        return encoding.encode_list('binner', grid.binners)
-
-    @staticmethod
-    def decode(encoding, grid_spec):
-        return vaex.superagg.Grid(encoding.decode_list('binner', grid_spec))
 
 
 @register("ordered-set")
