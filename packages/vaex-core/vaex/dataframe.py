@@ -4054,7 +4054,7 @@ class DataFrame(object):
 
         TODO: we may be able to keep the selection, if we keep the expression, and also the picked row
         """
-        logger.debug("set active range to: %r", (i1, i2))
+        # logger.debug("set active range to: %r", (i1, i2))
         self._active_fraction = (i2 - i1) / float(self.length_original())
         # self._fraction_length = int(self._length * self._active_fraction)
         self._index_start = i1
@@ -4882,7 +4882,7 @@ class DataFrame(object):
         del selection_history[self.selection_history_indices[name]:-1]
         self.signal_selection_changed.emit(self, name)
         result = vaex.promise.Promise.fulfilled(None)
-        logger.debug("select selection history is %r, index is %r", selection_history, self.selection_history_indices[name])
+        # logger.debug("select selection history is %r, index is %r", selection_history, self.selection_history_indices[name])
         return result
 
     def has_selection(self, name="default"):
