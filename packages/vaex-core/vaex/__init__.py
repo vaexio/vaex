@@ -610,9 +610,10 @@ ch.setFormatter(formatter)
 logger.addHandler(ch)
 
 
-def set_log_level_debug():
+def set_log_level_debug(loggers=["vaex"]):
     """set log level to debug"""
-    logging.getLogger("vaex").setLevel(logging.DEBUG)
+    for logger in loggers:
+        logging.getLogger(logger).setLevel(logging.DEBUG)
 
 
 def set_log_level_info():
@@ -636,9 +637,13 @@ def set_log_level_off():
     logging.getLogger('vaex').addHandler(logging.NullHandler())
 
 
-DEBUG_MODE = bool(os.environ.get('VAEX_DEBUG', ''))
+DEBUG_MODE = os.environ.get('VAEX_DEBUG', '')
 if DEBUG_MODE:
-    set_log_level_debug()
+    set_log_level_warning()
+    if DEBUG_MODE.startswith('vaex'):
+        set_log_level_debug(DEBUG_MODE.split(","))
+    else:
+        set_log_level_debug()
 else:
     set_log_level_warning()
 
