@@ -31,7 +31,10 @@ class DataType:
         if isinstance(dtype, DataType):
             self.internal = dtype.internal
         else:
-            self.internal = dtype
+            if isinstance(dtype, pa.DataType):
+                self.internal = dtype
+            else:
+                self.internal = np.dtype(dtype)
 
     def to_native(self):
         '''Removes non-native endianness'''
@@ -189,14 +192,10 @@ class DataType:
         >>> DataType(pa.bool_()).is_primitive
         True
         '''
-        try:
+        if self.is_arrow:
+            return pa.types.is_primitive(self.internal)
+        else:
             return self.kind in 'fiub'
-        except NotImplementedError:
-            return False
-        except TypeError:
-            return False
-        except ValueError:
-            return False
 
     @property
     def is_datetime(self):
