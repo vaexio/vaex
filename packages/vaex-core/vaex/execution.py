@@ -6,6 +6,7 @@ import time
 import threading
 import multiprocessing
 import logging
+import queue
 
 import numpy as np
 
@@ -212,8 +213,25 @@ class ExecutorLocal(Executor):
                 for task in tasks:
                     spec = encoding.encode('task', task)
                     spec['task-part-cpu-type'] = spec.pop('task-type')
-                    task._parts = [encoding.decode('task-part-cpu', spec, df=run.df) for i in range(self.thread_pool.nthreads)]
-
+                    def create_task_part():
+                        return encoding.decode('task-part-cpu', spec, df=run.df)
+                    # We want at least 1 task part (otherwise we cannot do any work)
+                    # then we ask for the task part how often we should split
+                    # This means that we can have 100 threads, but only 2 task parts
+                    # In this case, evaluation of expressions is still multithreaded,
+                    # but aggregation is reduced to effectively 2 threads.
+                    task_part_0 = create_task_part()
+                    ideal_task_splits = task_part_0.ideal_splits(self.thread_pool.nthreads)
+                    assert ideal_task_splits <= self.thread_pool.nthreads, f'Cannot have more splits {ideal_task_splits} then threads {self.thread_pool.nthreads}'
+                    if ideal_task_splits == self.thread_pool.nthreads:
+                        # in the simple case, we just use a list
+                        task._parts = [task_part_0] + [create_task_part() for i in range(1, self.thread_pool.nthreads)]
+                    else:
+                        # otherwise a queue
+                        task._parts = queue.Queue()
+                        task._parts.put(task_part_0)
+                        for i in range(1, ideal_task_splits):
+                            task._parts.put(create_task_part())
                 length = run.df.active_length()
                 if vaex.cache.is_on():
                     key_df = run.df.fingerprint()
@@ -257,6 +275,11 @@ class ExecutorLocal(Executor):
                         logger.debug("fulfill task: %r", task)
                         if not task.cancelled:
                             parts = task._parts
+                            if not isinstance(parts, list):
+                                parts_queue = parts
+                                parts = []
+                                while not parts_queue.empty():
+                                    parts.append(parts_queue.get())
                             parts[0].reduce(parts[1:])
                             logger.debug("wait for task: %r", task)
                             task._result = parts[0].get_result()
@@ -328,10 +351,19 @@ class ExecutorLocal(Executor):
             for task in run.tasks:
                 blocks = [block_dict[expression] for expression in task.expressions_all]
                 if not run.cancelled:
+                    # simple case, ntreads=nparts
+                    if isinstance(task._parts, list):
+                        task_part = task._parts[thread_index]
+                    else:
+                        task_part = task._parts.get()
                     try:
-                        task._parts[thread_index].process(thread_index, i1, i2, filter_mask, *blocks)
+                        task_part.process(thread_index, i1, i2, filter_mask, *blocks)
                     except Exception as e:
                         task.reject(e)
                         run.cancelled = True
                         raise
+                    finally:
+                        if not isinstance(task._parts, list):
+                            task._parts.put(task_part)
+
         return i2 - i1
