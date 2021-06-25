@@ -429,9 +429,11 @@ def test_weight_of_evidence_encoder(tmpdir, as_bool, df_factory):
 
     trans = vaex.ml.WeightOfEvidenceEncoder(target='y', features=['x'])
     df_train = trans.fit_transform(df_train)
+    np.testing.assert_almost_equal(list(trans.mappings_['x'].values()),
+                               [13.815510557964274, 1.0986122886681098, 0.0],
+                               decimal=10)
     np.testing.assert_array_almost_equal(df_train.woe_encoded_x.values,
                                          [13.815510, 13.815510, 1.098612, 1.098612, 1.098612, 1.098612, 0., 0.])
-    assert trans.mappings_ == {'x': {'a': 13.815510557964274, 'b': 1.0986122886681098, 'c': 0.0}}
 
     state_path = str(tmpdir.join('state.json'))
     df_train.state_write(state_path)
