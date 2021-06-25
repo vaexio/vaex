@@ -1,6 +1,9 @@
 """Implementation all tasks parts for the cpu"""
 
 from functools import reduce
+import logging
+import sys
+
 import numpy as np
 
 import vaex
@@ -10,6 +13,7 @@ from . import array_types
 from .array_types import filter
 
 
+logger = logging.getLogger("vaex.cpu")
 register = vaex.encoding.make_class_registery('task-part-cpu')
 
 
@@ -53,9 +57,12 @@ class TaskPart:
         self.name = name
         self.pre_filter = pre_filter
 
+    def ideal_splits(self, nthreads):
+        return nthreads
+
 
 @register
-class TaskPartSum:
+class TaskPartSum(TaskPart):
     snake_name = "sum-test"
 
     def __init__(self, expression):
@@ -82,7 +89,7 @@ class TaskPartSum:
 
 
 @register
-class TaskPartFilterFill:
+class TaskPartFilterFill(TaskPart):
     snake_name = "filter_fill"
 
     def __init__(self):
@@ -108,7 +115,7 @@ class TaskPartFilterFill:
 
 
 @register
-class TaskPartSetCreate:
+class TaskPartSetCreate(TaskPart):
     snake_name = "set_create"
 
     def __init__(self, df, expression, dtype, dtype_item, flatten, unique_limit, selection):
@@ -265,7 +272,7 @@ class TaskPartMapReduce(TaskPart):
 
 
 @register
-class TaskPartStatistic:
+class TaskPartStatistic(TaskPart):
     snake_name = "legacy_statistic"
 
     def __init__(self, df, shape, expressions, dtype, selections, op, weights, minima, maxima, edges, selection_waslist):
@@ -398,7 +405,7 @@ class TaskPartStatistic:
 
 
 @register
-class TaskPartAggregations:
+class TaskPartAggregation(TaskPart):
     snake_name = "aggregations"
 
     def __init__(self, df, binners, aggregation_descriptions, dtypes, initial_values=None):
@@ -413,11 +420,13 @@ class TaskPartAggregations:
             self.expressions.extend(aggregator_descriptor.expressions)
         # self.expressions = list(set(expressions))
         self.grid = vaex.superagg.Grid([binner.copy() for binner in binners])
+        self.nbytes = 0
 
         def create_aggregator(aggregator_descriptor, selections, initial_values):
             # for each selection, we have a separate aggregator, sharing the grid and binners
             for i, selection in enumerate(selections):
                 agg = aggregator_descriptor._create_operation(self.grid)
+                self.nbytes += sys.getsizeof(agg)
                 if initial_values is not None:
                     print(np.asarray(agg))
                     print(initial_values[i])
@@ -432,6 +441,20 @@ class TaskPartAggregations:
             selections = _ensure_list(selection)
             initial_values_i = initial_values[i] if initial_values else None
             self.aggregations.append((aggregator_descriptor, selections, list(create_aggregator(aggregator_descriptor, selections, initial_values_i)), selection_waslist))
+
+    def ideal_splits(self, nthreads):
+        # We need to do some proper work on this, but this should already improve performance
+        # Since if we have a lot of data per task, we should split up the work less
+        logger.info(f'A single task part takes {self.nbytes:,} bytes')
+        splits = nthreads
+        if self.nbytes >= 1e5:
+            splits = splits//2
+        if self.nbytes >= 1e6:
+            splits = splits//2
+        if self.nbytes >= 1e7:
+            splits = splits//2
+        logger.info(f'Estimate for ideal number of splits: {splits:,}')
+        return max(2, splits)
 
     def process(self, thread_index, i1, i2, filter_mask, *blocks):
         # self.check()
