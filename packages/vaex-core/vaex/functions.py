@@ -1945,6 +1945,28 @@ def str_extract_regex(x, pattern):
                         the regular expression '(?P<letter>[ab])(?P<digit>\\d)'.
     :returns: an expression containing a struct with field names corresponding to capture group identifiers.
 
+    Example:
+
+    >>> import vaex
+    >>> email = ["foo@bar.org", "bar@foo.org", "open@source.org", "invalid@address.com"]
+    >>> df = vaex.from_arrays(email=email)
+    >>> df
+    #  email
+    0  foo@bar.org
+    1  bar@foo.org
+    2  open@source.org
+    3  invalid@address.com
+
+    >>> pattern = "(?P<name>.*)@(?P<address>.*)\.org"
+    >>> df.email.str.extract_regex(pattern=pattern)
+    Expression = str_extract_regex(email, pattern='(?P<name>.*)@(?P<addres...
+    Length: 4 dtype: struct<name: string, address: string> (expression)
+    -------------------------------------------------------------------
+    0      {'name': 'foo', 'address': 'bar'}
+    1      {'name': 'bar', 'address': 'foo'}
+    2  {'name': 'open', 'address': 'source'}
+    3                                     --
+
     """
 
     if not isinstance(x, vaex.array_types.supported_arrow_array_types):
