@@ -49,7 +49,7 @@ try:
 except ImportError:
     from urlparse import urlparse
 
-_DEBUG = os.environ.get('VAEX_DEBUG', False)  # extra sanify checks that might hit performance
+_DEBUG = os.environ.get('VAEX_DEBUG', False)  # extra sanity checks that might hit performance
 
 DEFAULT_REPR_FORMAT = 'plain'
 FILTER_SELECTION_NAME = '__filter__'
@@ -2263,7 +2263,7 @@ class DataFrame(object):
                      descriptions=descriptions,
                      active_range=[self._index_start, self._index_end]
         )
-        datasets = self.dataset.leafs() if skip is None else skip 
+        datasets = self.dataset.leafs() if skip is None else skip
         for dataset in datasets:
             # mark leafs to not encode
             encoding._object_specs[dataset.id] = None
