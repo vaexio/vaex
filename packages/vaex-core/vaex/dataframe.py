@@ -6537,7 +6537,7 @@ class DataFrameLocal(DataFrame):
     #     self._has_selection = mask is not None
     #     # self.signal_selection_changed.emit(self)
 
-    def groupby(self, by=None, agg=None, sort=False, assume_sparse=True, row_limit=None):
+    def groupby(self, by=None, agg=None, sort=False, assume_sparse='auto', row_limit=None):
         """Return a :class:`GroupBy` or :class:`DataFrame` object when agg is not None
 
         Examples:
@@ -6586,7 +6586,9 @@ class DataFrameLocal(DataFrame):
         :param dict, list or agg agg: Aggregate operation in the form of a string, vaex.agg object, a dictionary
             where the keys indicate the target column names, and the values the operations, or the a list of aggregates.
             When not given, it will return the groupby object.
-        :param bool assume_sparse: Assume that when grouping by multiple keys, that the existing pairs are sparse compared to the cartesian product.
+        :param bool or str assume_sparse: Assume that when grouping by multiple keys, that the existing pairs are sparse compared to the cartesian product.
+            If 'auto', let vaex decide (e.g. a groupby with 10_000 rows but only 4*3=12 combinations does not matter much to compress into say 8 existing
+            combinations, and will save another pass over the data)
         :param int row_limit: Limits the resulting dataframe to the number of rows (default is not to check, only works when assume_sparse is True).
             Throws a :py:`vaex.RowLimitException` when the condition is not met.
         :return: :class:`DataFrame` or :class:`GroupBy` object.
