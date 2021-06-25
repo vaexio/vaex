@@ -9,7 +9,7 @@ lightgbm
 matplotlib-base
 notebook
 numba
-numpy
+numpy<1.21
 pandas
 pcre
 pip
