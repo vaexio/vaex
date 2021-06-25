@@ -356,7 +356,7 @@ import sys
 import platform
 version = tuple(map(int, numpy.__version__.split('.')))
 
-@pytest.mark.skipif(platform.system().lower() != 'darwin', reason="strange ref count issue with numpy")
+# @pytest.mark.skipif(platform.system().lower() != 'darwin', reason="strange ref count issue with numpy")
 def test_robust_scaler(df_factory):
     x = np.array([-2.65395789, -7.97116295, -4.76729177, -0.76885033, -6.45609635])
     y = np.array([-8.9480332, -4.81582449, -3.73537263, -3.46051912,  1.35137275])
@@ -527,7 +527,7 @@ def test_groupby_transformer_serialization(df_factory):
     assert df_test.x.tolist() == ['dog', 'cat', 'dog', 'mouse']
     assert df_test.y.tolist() == [5, 5, 5, 5]
 
-@pytest.mark.skipif(platform.system().lower() != 'darwin', reason="strange ref count issue with numpy")
+@pytest.mark.skipif(platform.system().lower() == 'darwin', reason="strange ref count issue with numpy")
 @pytest.mark.parametrize('strategy', ['uniform', 'quantile', 'kmeans'])
 def test_kbinsdiscretizer(tmpdir, strategy):
     df_train = vaex.from_arrays(x=[0, 2.5, 5, 7.5, 10, 12.5, 15],
