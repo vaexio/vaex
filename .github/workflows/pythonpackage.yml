@@ -122,8 +122,8 @@ jobs:
       run: |
         VAEX_CACHE_RESULTS=1 ./ci/04-run-test-suite.sh
     - name: Check ml spec
-      # no catboost for py39
-      if: matrix.python-version != '3.9' && matrix.os != 'windows-latest'
+      # no catboost for py39 and py37
+      if: matrix.python-version != '3.9' && matrix.os != 'windows-latest' && matrix.python-version != '3.7'
       shell: bash
       run: |
         source activate vaex-dev
