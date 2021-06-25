@@ -15,7 +15,7 @@ pcre
 pip
 python-annoy
 # py-xgboost
-# pyarrow
+pyarrow
 pyqt
 pytest
 pytest-asyncio <0.14
