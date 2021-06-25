@@ -161,9 +161,6 @@ class AggregatorDescriptorMean(AggregatorDescriptorMulti):
 
     def add_tasks(self, df, binners):
         expression = expression_sum = expression = df[str(self.expression)]
-        # ints, floats and bools are upcasted
-        if expression_sum.dtype.kind in "buif":
-            expression = expression_sum = expression_sum.astype('float64')
 
         sum_agg = sum(expression_sum, selection=self.selection, edges=self.edges)
         count_agg = count(expression, selection=self.selection, edges=self.edges)
@@ -177,12 +174,13 @@ class AggregatorDescriptorMean(AggregatorDescriptorMulti):
         def finish(sum, count):
             sum = np.array(sum)
             dtype = sum.dtype
-            if sum.dtype.kind == 'M':
+            sum_kind = sum.dtype.kind
+            if sum_kind == 'M':
                 sum = sum.view('uint64')
                 count = count.view('uint64')
             with np.errstate(divide='ignore', invalid='ignore'):
                 mean = sum / count
-            if dtype.kind != mean.dtype.kind:
+            if dtype.kind != mean.dtype.kind and sum_kind == "M":
                 # TODO: not sure why view does not work
                 mean = mean.astype(dtype)
             return mean
