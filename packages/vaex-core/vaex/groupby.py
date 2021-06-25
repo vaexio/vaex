@@ -1,4 +1,5 @@
 from functools import reduce
+import logging
 import operator
 import numpy as np
 import vaex
@@ -14,7 +15,13 @@ except AttributeError:
 
 __all__ = ['GroupBy', 'Grouper', 'BinnerTime']
 
+logger = logging.getLogger("vaex.groupby")
 _USE_DELAY = True
+
+
+# pure Python to avoid int overflow
+product = lambda l: reduce(operator.mul, l)
+
 
 class BinnerBase:
     pass
@@ -218,7 +225,6 @@ def _combine(df, groupers, sort, row_limit=None):
 
     # when does the cartesian product overflow 64 bits?
     next = groupers.pop(0)
-    product = lambda l: reduce(operator.mul, l)
     while (product(counts) * next.N < max_count_64bit):
         counts.append(next.N)
         combine_now.append(next)
@@ -274,9 +280,25 @@ class GroupByBase(object):
                 else:
                     by_value = Grouper(df[str(by_value)], sort=sort, row_limit=row_limit, df_original=df_original)
             self.by.append(by_value)
-        self.combine = combine and len(self.by) >= 2
-        if self.combine:
+        if combine is True and  len(self.by) >= 2:
             self.by = [_combine(self.df, self.by, sort=sort, row_limit=row_limit)]
+            self.combine = True
+        elif combine == 'auto' and len(self.by) >= 2:
+            cells = product([grouper.N for grouper in self.by])
+            dim = len(self.by)
+            rows = df.length_unfiltered()  # we don't want to trigger a computation
+            occupancy = rows/cells
+            logger.debug('%s rows and %s grid cells => occupancy=%s', rows, cells, occupancy)
+            # we want each cell to have a least 10x occupacy
+            if occupancy < 10:
+                logger.info(f'Combining {len(self.by)} groupers into 1')
+                self.by = [_combine(self.df, self.by, sort=sort, row_limit=row_limit)]
+                self.combine = True
+            else:
+                self.combine = False
+        else:
+            self.combine = False
+
 
         # binby may be an expression based on self.by.expression
         # if we want to have all columns, minus the columns grouped by
