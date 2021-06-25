@@ -524,6 +524,7 @@ void add_agg_misc(Module m, Base& base, const char* class_name) {
     py::class_<Agg>(m, class_name, base)
         .def(py::init<Grid<>*>(), py::keep_alive<1, 2>())
         .def_buffer(&Agg::buffer_info)
+        .def("__sizeof__", &Agg::bytes_used)
         .def("set_data", &Agg::set_data)
         .def("clear_data_mask", &Agg::clear_data_mask)
         .def("set_data_mask", &Agg::set_data_mask)
@@ -562,6 +563,7 @@ void add_agg_primitives(Module m, Base& base, std::string postfix) {
     typedef AggregatorBaseNumpyData<T> Agg;
     py::class_<Agg> aggregator_base(m, class_name.c_str(), py::buffer_protocol(), base);
     aggregator_base
+    .def("__sizeof__", &Agg::bytes_used)
     .def("set_data", &Agg::set_data)
     .def("clear_data_mask", &Agg::clear_data_mask)
     .def("set_data_mask", &Agg::set_data_mask)

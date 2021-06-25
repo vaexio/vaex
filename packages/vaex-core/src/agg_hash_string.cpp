@@ -17,6 +17,9 @@ public:
             free(grid_data);
         delete[] counters;
     }
+    virtual size_t bytes_used() {
+        return sizeof(grid_type) * grid->length1d;
+    }
     virtual void reduce(std::vector<Aggregator*> others) {
         if(grid_data == nullptr)
             grid_data = (grid_type*)malloc(sizeof(grid_type) * grid->length1d);
@@ -115,6 +118,7 @@ void add_agg(Module m, Base& base, const char* class_name) {
                 return agg.grid;
             }
         )
+        .def("__sizeof__", &Agg::bytes_used)
         .def("set_data", &Agg::set_data)
         .def("clear_data_mask", &Agg::clear_data_mask)
         .def("set_data_mask", &Agg::set_data_mask)
