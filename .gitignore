@@ -99,3 +99,10 @@ packages/vaex-ml/vaex/ml/spec_new.json
 
 # output file from the docs
 docs/source/data/io/output*
+
+# Ignore the IO example source files that by-products of running the script
+docs/source/data/io/sample_*.hdf5
+docs/source/data/io/sample_*.yaml
+
+# Ignore the docs state files
+docs/source/iris_model.json
