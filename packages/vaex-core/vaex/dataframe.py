@@ -6455,7 +6455,7 @@ class DataFrameLocal(DataFrame):
         progressbar(1)
 
     @docsubst
-    def export_hdf5(self, path, byteorder="=", progress=None, chunk_size=default_chunk_size, parallel=True, column_count=1, writer_threads=0):
+    def export_hdf5(self, path, byteorder="=", progress=None, chunk_size=default_chunk_size, parallel=True, column_count=1, writer_threads=0, group='/table', mode='w'):
         """Exports the DataFrame to a vaex hdf5 file
 
         :param str path: path for file
@@ -6464,10 +6464,12 @@ class DataFrameLocal(DataFrame):
         :param bool parallel: {evaluate_parallel}
         :param int column_count: How many columns to evaluate and export in parallel (>1 requires fast random access, like and SSD drive).
         :param int writer_threads: Use threads for writing or not, only useful when column_count > 1.
+        :param str group: Write the data into a custom group in the hdf5 file.
+        :param str mode: If set to "w" (write), an existing file will be overwritten. If set to "a", one can append additional data to the hdf5 file, but it needs to be in a different group.
         :return:
         """
         from vaex.hdf5.writer import Writer
-        with Writer(path) as writer:
+        with Writer(path=path, group=group, mode=mode) as writer:
             writer.write(self, chunk_size=chunk_size, progress=progress, column_count=column_count)
 
     @docsubst

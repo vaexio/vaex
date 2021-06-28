@@ -17,14 +17,14 @@ max_int32 = 2**31-1
 
 
 class Writer:
-    def __init__(self, path, byteorder="="):
+    def __init__(self, path, group="/table", mode="w", byteorder="="):
         self.path = path
         self.byteorder = byteorder
-        self.h5 = h5py.File(path, "w")
+        self.h5 = h5py.File(path, mode)
         self.fs_options = {}
-        self.table = self.h5.require_group("/table")
+        self.table = self.h5.require_group(group)
         self.table.attrs["type"] = "table"
-        self.columns = self.h5.require_group("/table/columns")
+        self.columns = self.h5.require_group(f"{group}/columns")
         self.mmap = None
 
     def close(self):
@@ -38,7 +38,7 @@ class Writer:
 
     def __exit__(self, *args):
         self.close()
-    
+
     def write(self, df, chunk_size=int(1e5), parallel=True, progress=None, column_count=1, export_threads=0):
         N = len(df)
         if N == 0:
@@ -119,7 +119,7 @@ class ColumnWriterPrimitive:
         self.dtype = dtype
         self.to_offset = 0
         self.to_array = None
-        
+
         self.h5group = h5parent.require_group(name)
         if dtype.kind in 'mM':
             self.array = self.h5group.require_dataset('data', shape=shape, dtype=np.int64)

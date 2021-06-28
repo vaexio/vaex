@@ -59,14 +59,14 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
     snake_name = "hdf5"
     """Implements the vaex hdf5 file format"""
 
-    def __init__(self, path, write=False, fs_options={}, fs=None, nommap=None):
+    def __init__(self, path, write=False, fs_options={}, fs=None, nommap=None, group=None):
         if nommap is None:
             nommap = not vaex.file.memory_mappable(path)
         super(Hdf5MemoryMapped, self).__init__(vaex.file.stringyfy(path), write=write, nommap=nommap, fs_options=fs_options, fs=fs)
         self._all_mmapped = True
         self._open(path)
         self.units = {}
-        self.h5table_root_name = None
+        self.group = group
         self._version = 1
         self._load()
         if not write:  # in write mode, call freeze yourself, so the hashes are computed
@@ -90,7 +90,11 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
         ds = cls(**spec)
         return ds
 
+    def __getstate__(self):
+        return {'group': self.group, **super().__getstate__()}
+
     def __setstate__(self, state):
+        self.group = state.pop('group')
         super().__setstate__(state)
         self._open(self.path)
         self._load()
@@ -101,7 +105,7 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
          the default :func:`Dataset.write_meta`.
          """
         with h5py.File(self.path, "r+") as h5file_output:
-            h5table_root = h5file_output[self.h5table_root_name]
+            h5table_root = h5file_output[self.group]
             if self.description is not None:
                 h5table_root.attrs["description"] = self.description
             h5columns = h5table_root if self._version == 1 else h5table_root['columns']
@@ -161,7 +165,7 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
         return path.endswith('.hdf5') or path.endswith('.h5')
 
     @classmethod
-    def can_open(cls, path, fs_options={}, fs=None, **kwargs):
+    def can_open(cls, path, fs_options={}, fs=None, group=None, **kwargs):
         with vaex.file.open(path, fs_options=fs_options, fs=fs) as f:
             signature = f.read(4)
             if signature != b"\x89\x48\x44\x46":
@@ -169,7 +173,8 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
             with h5py.File(f, "r") as h5file:
                 root_datasets = [dataset for name, dataset in h5file.items() if isinstance(dataset, h5py.Dataset)]
                 return ("data" in h5file) or ("columns" in h5file) or ("table" in h5file) or \
-                                len(root_datasets) > 0
+                       (group is not None and group in h5file) or \
+                       (len(root_datasets) > 0)
         return False
 
     @classmethod
@@ -184,26 +189,32 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
         self.ucds = {}
         self.descriptions = {}
         self.units = {}
-        if "data" in self.h5file:
-            self._load_columns(self.h5file["/data"])
-            self.h5table_root_name = "/data"
-        if "table" in self.h5file:
-            self._version = 2
-            self._load_columns(self.h5file["/table"])
-            self.h5table_root_name = "/table"
-        root_datasets = [dataset for name, dataset in self.h5file.items() if isinstance(dataset, h5py.Dataset)]
-        if len(root_datasets):
-            # if we have datasets at the root, we assume 'version 1'
-            self._load_columns(self.h5file)
-            self.h5table_root_name = "/"
 
-        # TODO: shall we rename it vaex... ?
-        # if "vaex" in self.h5file:
-        # self.load_columns(self.h5file["/vaex"])
-        # h5table_root = "/vaex"
-        if "columns" in self.h5file:
-            self._load_columns(self.h5file["/columns"])
-            self.h5table_root_name = "/columns"
+        if self.group is None:
+            if "data" in self.h5file:
+                self._load_columns(self.h5file["/data"])
+                self.group = "/data"
+            if "table" in self.h5file:
+                self._version = 2
+                self._load_columns(self.h5file["/table"])
+                self.group = "/table"
+            root_datasets = [dataset for name, dataset in self.h5file.items() if isinstance(dataset, h5py.Dataset)]
+            if len(root_datasets):
+                # if we have datasets at the root, we assume 'version 1'
+                self._load_columns(self.h5file)
+                self.group = "/"
+
+            # TODO: shall we rename it vaex... ?
+            # if "vaex" in self.h5file:
+            # self.load_columns(self.h5file["/vaex"])
+            # h5table_root = "/vaex"
+            if "columns" in self.h5file:
+                self._load_columns(self.h5file["/columns"])
+                self.group = "/columns"
+        else:
+            self._version = 2
+            self._load_columns(self.h5file[self.group])
+
         if "properties" in self.h5file:
             self._load_variables(self.h5file["/properties"])  # old name, kept for portability
         if "variables" in self.h5file:
