@@ -106,12 +106,12 @@ def test_open_list():
     assert df.x.tolist() == (df2.x.tolist() + df3.x.tolist())
 
 
-def test_open_nonstandard_extension():
-    file_path = os.path.join(path, 'data', 'this_is_hdf5.xyz')
-    df = vaex.open(file_path)
-    assert df.x.tolist() == [1, 2, 3]
-    assert df.y.tolist() == [1.5, 2.5, 3.5]
-    assert df.s.tolist() == ['Groningen', 'Ohrid', 'Santa Cruz']
+def test_open_nonstandard_extension(tmpdir):
+    df = vaex.from_scalars(x=1, s='Hello')
+    df.export_hdf5(tmpdir / 'this_is_hdf5.xyz')
+    df = vaex.open(tmpdir / 'this_is_hdf5.xyz')
+    assert df.x.tolist() == [1]
+    assert df.s.tolist() == ['Hello']
 
 
 def _cleanup_generated_files():
