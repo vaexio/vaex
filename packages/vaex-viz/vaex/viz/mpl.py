@@ -171,7 +171,7 @@ def histogram(self, x=None, what="count(*)", grid=None, shape=64, facet=None, li
             pylab.xlabel(xlabel or x)
             pylab.ylabel(ylabel or what)
             ax.set_title("%3f <= %s < %3f" % (v1, facet_expression, v2))
-            if self.iscategory(xexpression):
+            if self.is_category(xexpression):
                 labels = self.category_labels(xexpression)
                 step = len(labels) // max_labels
                 pylab.xticks(range(len(labels))[::step], labels[::step], size='small')
@@ -183,7 +183,7 @@ def histogram(self, x=None, what="count(*)", grid=None, shape=64, facet=None, li
         # repeat the first element, that's how plot/steps likes it..
         g = np.concatenate([ngrid[0:1], ngrid])
         value = pylab.plot(xar, g, drawstyle="steps-pre", label=label, **kwargs)
-        if self.iscategory(xexpression):
+        if self.is_category(xexpression):
             labels = self.category_labels(xexpression)
             step = len(labels) // max_labels
             pylab.xticks(range(len(labels))[::step], labels[::step], size='small')
@@ -847,12 +847,12 @@ def heatmap(self, x=None, y=None, z=None, what="count(*)", vwhat=None, reduce=["
 
             max_labels = 10
             xexpression = xexpressions[subplot_index]
-            if self.iscategory(xexpression):
+            if self.is_category(xexpression):
                 labels = self.category_labels(xexpression)
                 step = max(len(labels) // max_labels, 1)
                 pylab.xticks(np.arange(len(labels))[::step], labels[::step], size='small')
             yexpression = yexpressions[subplot_index]
-            if self.iscategory(yexpression):
+            if self.is_category(yexpression):
                 labels = self.category_labels(yexpression)
                 step = max(len(labels) // max_labels, 1)
                 pylab.yticks(np.arange(len(labels))[::step], labels[::step], size='small')

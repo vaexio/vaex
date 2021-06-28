@@ -1076,11 +1076,11 @@ class WeightOfEvidenceEncoder(Transformer):
 @register
 @generate.register
 class KBinsDiscretizer(Transformer):
-    '''Bin continous features into discrete bins.
+    '''Bin continuous features into discrete bins.
 
-    A stretegy to encode continuous features into discrete bins. The transformed
+    A strategy to encode continuous features into discrete bins. The transformed
     columns contain the bin label each sample falls into. In a way this
-    transformer Label/Ordinal encodes continous features.
+    transformer Label/Ordinal encodes continuous features.
 
     Example:
 
