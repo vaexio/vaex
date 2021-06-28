@@ -106,12 +106,22 @@ def test_open_list():
     assert df.x.tolist() == (df2.x.tolist() + df3.x.tolist())
 
 
+def test_open_nonstandard_extension(tmpdir):
+    df = vaex.from_scalars(x=1, s='Hello')
+    df.export_hdf5(tmpdir / 'this_is_hdf5.xyz')
+    df = vaex.open(tmpdir / 'this_is_hdf5.xyz')
+    assert df.x.tolist() == [1]
+    assert df.s.tolist() == ['Hello']
+
+
 def _cleanup_generated_files():
     for hdf5_file in glob.glob(os.path.join(path, 'data', '*.yaml')):
         os.remove(hdf5_file)
     for hdf5_file in glob.glob(os.path.join(path, 'data', 'output', '*.yaml')):
         os.remove(hdf5_file)
-    for hdf5_file in glob.glob(os.path.join(path, 'data', 'small*.hdf5')):
+    for hdf5_file in glob.glob(os.path.join(path, 'data', 's*.hdf5')):
         os.remove(hdf5_file)
     for hdf5_file in glob.glob(os.path.join(path, 'data', 'output', '*.hdf5')):
+        os.remove(hdf5_file)
+    for hdf5_file in glob.glob(os.path.join(path, '..', 'smæll2*')):
         os.remove(hdf5_file)
