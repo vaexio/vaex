@@ -193,7 +193,7 @@ class PCAIncremental(PCA):
 
         for i1, i2, chunk in df.evaluate_iterator(self.features, chunk_size=self.batch_size, array_type='numpy'):
             progressbar(i1 / n_samples)
-            chunk = np.array(chunk).T.astype(np.float64)
+            chunk = np.array(chunk).T.astype(float)
             pca.partial_fit(X=chunk, check_input=False)
         progressbar(1.0)
 
@@ -444,7 +444,7 @@ class OneHotEncoder(Transformer):
                 column_name = self.prefix + feature + '_' + str_value
                 if value is None:
                     copy[column_name] = copy.func.where(copy[feature].ismissing(), self.one, self.zero, dtype=dtype)
-                elif isinstance(value, np.float) and np.isnan(value):
+                elif isinstance(value, float) and np.isnan(value):
                     copy[column_name] = copy.func.where(copy[feature].isnan(), self.one, self.zero, dtype=dtype)
                 else:
                     copy[column_name] = copy.func.where(copy[feature] == value, self.one, self.zero, dtype=dtype)
