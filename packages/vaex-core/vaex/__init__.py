@@ -115,6 +115,7 @@ def open(path, convert=False, shuffle=False, fs_options={}, fs=None, *args, **kw
         * Google Cloud Storage
             * :py:class:`gcsfs.core.GCSFileSystem`
         In addition you can pass the boolean "cache" option.
+    :param group: (optional) Specify the group to be read from and HDF5 file. By default this is set to "/table".
     :param fs: Apache Arrow FileSystem object, or FSSpec FileSystem object, if specified, fs_options should be empty.
     :param args: extra arguments for file readers that need it
     :param kwargs: extra keyword arguments

@@ -114,6 +114,24 @@ def test_open_nonstandard_extension(tmpdir):
     assert df.s.tolist() == ['Hello']
 
 
+def test_open_export_hdf5_groups(tmpdir):
+    df1 = vaex.from_arrays(s=['Groningen', 'Ohrid'])
+    df2 = vaex.from_arrays(z=[10, -10])
+    df3 = vaex.from_arrays(first_name=['Reggie', 'Michael'], last_name=['Miller', 'Jordan'])
+
+    df1.export_hdf5(tmpdir / 'hdf5_with_groups.hdf5', mode='a', group='my/table/cities')
+    df2.export_hdf5(tmpdir / 'hdf5_with_groups.hdf5', mode='a', group='my/table/coords')
+    df3.export_hdf5(tmpdir / 'hdf5_with_groups.hdf5', mode='a', group='my/table/players')
+
+    df1_open = vaex.open(tmpdir / 'hdf5_with_groups.hdf5', group='my/table/cities')
+    assert df1_open.s.tolist() == ['Groningen', 'Ohrid']
+    df2_open = vaex.open(tmpdir / 'hdf5_with_groups.hdf5', group='my/table/coords')
+    assert df2_open.z.tolist() == [10, -10]
+    df3_open = vaex.open(tmpdir / 'hdf5_with_groups.hdf5', group='my/table/players')
+    assert df3_open.first_name.tolist() == ['Reggie', 'Michael']
+    assert df3_open.last_name.tolist() == ['Miller', 'Jordan']
+
+
 def _cleanup_generated_files():
     for hdf5_file in glob.glob(os.path.join(path, 'data', '*.yaml')):
         os.remove(hdf5_file)
