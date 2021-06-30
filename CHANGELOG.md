@@ -1,7 +1,32 @@
+# vaex 4.4.0 (unreleased)
+## vaex-core 4.4.0 (unreleased)
+   * Performance
+      * Reuse filter data when slicing a dataframe [#1287](https://github.com/vaexio/vaex/pull/1287)
+   * Features
+      * df.to_records() for output to jJSON [#1364](https://github.com/vaexio/vaex/pull/1364)
+   * Fixes
+      * df.concat did not copy functions  [#1287](https://github.com/vaexio/vaex/pull/1287)
+
+# vaex 4.3.0
+## vaex-core 4.3.0
+   * Performance
+      * Reuse filter data when slicing a dataframe [#1287](https://github.com/vaexio/vaex/pull/1287)
+   * Features
+      * Cache task results, with support for Redis and diskcache [#1393](https://github.com/vaexio/vaex/pull/1393)
+      * df.func.stack for stacking columns into Nd arrays [#1287](https://github.com/vaexio/vaex/pull/1287)
+      * Sliding windows / shift / diff / sum [#1287](https://github.com/vaexio/vaex/pull/1287)
+      * Embed join/groupby/shift in dataset (opt in via df._future(), will be default in vaex v5) [#1287](https://github.com/vaexio/vaex/pull/1287)
+      * df.fingerprint() - a cross runtime unique key for caching [#1287](https://github.com/vaexio/vaex/pull/1287)
+      * limit rows in groupby using early stop [#1391](https://github.com/vaexio/vaex/pull/1391)
+      * Compare date columns to string values formatted in ISO 8601 format 621a341b54f9b4112f24e2ffd86612753df19fef
+   * Fixes
+      * df.concat did not copy functions  [#1287](https://github.com/vaexio/vaex/pull/1287)
+      * Filters with column name equals to function names a159777e2dc13ec762914c51c8b5550efec5f845
+
 # vaex 4.2.0
 ## vaex-core 4.2.0
    * Performance
-      * Perform groupby in a sparse way for less memory usage/performance (up to 250x faster) [#1381](https://github.com/vaexio/vaex/pull/1381) 849
+      * Perform groupby in a sparse way for less memory usage/performance (up to 250x faster) [#1381](https://github.com/vaexio/vaex/pull/1381)
    * Features
       * Sorted groupby [#1339](https://github.com/vaexio/vaex/pull/1339)
    * Fixes
