@@ -71,6 +71,9 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
         self._load()
         if not write:  # in write mode, call freeze yourself, so the hashes are computed
             self._freeze()
+        else:
+            # make sure we set the row count, which otherwise freeze would do
+            self._set_row_count()
         if self._all_mmapped:
             self.h5file.close()
 
@@ -290,6 +293,7 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
         # for column_name in column_order:
             # if column_name in h5columns and column_name not in finished:
         for group_name in list(h5columns):
+            logger.debug('loading column: %s', group_name)
             group = h5columns[group_name]
             if 'type' in group.attrs:
                 if group.attrs['type'] in ['csr_matrix']:

@@ -6470,6 +6470,7 @@ class DataFrameLocal(DataFrame):
         """
         from vaex.hdf5.writer import Writer
         with Writer(path=path, group=group, mode=mode) as writer:
+            writer.layout(self)
             writer.write(self, chunk_size=chunk_size, progress=progress, column_count=column_count)
 
     @docsubst
