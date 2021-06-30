@@ -1,6 +1,13 @@
 #!/bin/bash
 set -e
-source activate vaex-dev
+
+if [ -f ${HOME}/.bashrc ]; then
+    source ${HOME}/.bashrc
+else
+    source ${HOME}/.bash_profile
+fi
+conda activate vaex-dev
+
 python -m pip install healpy
 cd docs/source
 python -m nbconvert --TagRemovePreprocessor.remove_cell_tags="('skip-ci',)" --to html --execute tutorial_jupyter.ipynb --ExecutePreprocessor.timeout=240

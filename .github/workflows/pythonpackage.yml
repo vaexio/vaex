@@ -7,9 +7,14 @@ on:
     - docs
   schedule:
   - cron: "0 2 * * 1-5"
+
+# to make bash use ~/.bashrc, see https://github.com/marketplace/actions/setup-miniconda#example-5-custom-installer
+defaults:
+  run:
+    shell: bash -l {0}
+
 jobs:
   build:
-
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -34,34 +39,33 @@ jobs:
         token: ${{ secrets.PAT_PULL_ENTERPRISE }}
         path: vaex-enterprise
     - name: Install conda with Python ${{ matrix.python-version }}
-      uses: s-weigand/setup-conda@v1
+      uses: conda-incubator/setup-miniconda@v2
       with:
-        update-conda: true
         python-version: ${{ matrix.python-version }}
-        conda-channels: anaconda, conda-forge
-    - name: Create env (with mamba)
-      shell: bash
+        mamba-version: "*"
+        auto-activate-base: true
+        channels: conda-forge
+    - name: Conda init
       run: |
-        conda install -c conda-forge mamba
+        conda init bash
+    - name: Create env (with mamba)
+      run: |
         ./ci/02-create-vaex-dev-env.sh ${{ matrix.python-version }} mamba
     - name: Extra non-windows installs
       if: matrix.os != 'windows-latest'
-      shell: bash
       run: |
-        source activate vaex-dev
+        conda activate vaex-dev
         mamba install -c conda-forge py-xgboost
         # xgboost is not available on windows on conda-forge
     - name: Extra installs
       if: matrix.python-version != '3.9' && matrix.python-version != '3.7'
-      shell: bash
       run: |
-        source activate vaex-dev
+        conda activate vaex-dev
         mamba install -y -q --file ci/conda-env-extra.yml
     - name: Extra windows installs
       if: matrix.os == 'windows-latest'
-      shell: bash
       run: |
-        source activate vaex-dev
+        conda activate vaex-dev
         pip install "ipython>=7" "dask>=1" xgboost
         pip uninstall -y xgboost  # seems to crash, tests will be skipped
         # not sure why, but the conda env is strange (old dask) if we put this constraint in the conda solver
@@ -87,16 +91,13 @@ jobs:
         key: ${{ runner.OS }}-${{ matrix.python-version }}-${{ hashFiles('packages/vaex-core/src/*') }}-v2
     - name: Fix cache timestamp
       if: steps.cache-compiled-binaries.outputs.cache-hit == 'true' && matrix.os != 'windows-latest'
-      shell: bash
       run: |
         find packages/vaex-core/build -type f -exec touch {} +
     - name: Install vaex
-      shell: bash
       run: |
         ./ci/03-install-vaex.sh
     - name: Install vaex-enterprise
       if: ${{ (github.event.pull_request.head.repo.full_name == 'vaexio/vaex') && (matrix.os == 'linux-latest') }}
-      shell: bash
       run: |
         conda config --set always_yes yes --set changeps1 no
         source activate vaex-dev
@@ -113,30 +114,25 @@ jobs:
         # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
         # flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
     - name: Test with pytest
-      shell: bash
       run: |
         ./ci/04-run-test-suite.sh
     - name: Test with pytest (with cache on)
       if: matrix.python-version == '3.9' && matrix.os == 'ubuntu-latest'
-      shell: bash
       run: |
         VAEX_CACHE_RESULTS=1 ./ci/04-run-test-suite.sh
     - name: Check ml spec
       # no catboost for py39 and py37
       if: matrix.python-version != '3.9' && matrix.os != 'windows-latest' && matrix.python-version != '3.7'
-      shell: bash
       run: |
-        source activate vaex-dev
+        conda activate vaex-dev
         python -m vaex.ml.spec packages/vaex-ml/vaex/ml/spec_new.json
         diff packages/vaex-ml/vaex/ml/spec_new.json packages/vaex-ml/vaex/ml/spec.json
     - name: Test with pytest (vaex-enterprise)
       if: ${{ (github.event.pull_request.head.repo.full_name == 'vaexio/vaex') && (matrix.os == 'linux-latest') }}
-      shell: bash
       run: |
-        source activate vaex-dev
+        conda activate vaex-dev
         py.test vaex-enterprise/tests --timeout=1000
     - name: Test notebooks
       if: matrix.os != 'windows-latest'
-      shell: bash
       run: |
         ./ci/05-run-notebooks.sh
