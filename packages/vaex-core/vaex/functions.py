@@ -887,7 +887,7 @@ def dt_halfyear(x):
     1  1
     2  2
     """
-    return ((_to_pandas_series(x).dt.quarter > 2).astype('int') + 1).values
+    return ((_to_pandas_series(x).dt.quarter-1) // 2 + 1)
 
 
 ########## timedelta operations ##########
