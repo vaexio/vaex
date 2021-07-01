@@ -436,6 +436,50 @@ class Expression(with_metaclass(Meta)):
         return pd.Series(self.values)
 
     def __getitem__(self, slicer):
+        """Provides row and optional field access (struct arrays) via bracket notation.
+
+        Examples:
+
+        >>> import vaex
+        >>> import pyarrow as pa
+        >>> array = pa.StructArray.from_arrays(arrays=[[1, 2, 3], ["a", "b", "c"]], names=["col1", "col2"])
+        >>> df = vaex.from_arrays(array=array, integer=[5, 6, 7])
+        >>> df
+        # 	array 	                    integer
+        0	{'col1': 1, 'col2': 'a'}	5
+        1	{'col1': 2, 'col2': 'b'}	6
+        2	{'col1': 3, 'col2': 'c'}	7
+
+        >>> df.integer[1:]
+        Expression = integer
+        Length: 2 dtype: int64 (column)
+        -------------------------------
+        0  6
+        1  7
+
+        >>> df.array[1:]
+        Expression = array
+        Length: 2 dtype: struct<col1: int64, col2: string> (column)
+        -----------------------------------------------------------
+        0  {'col1': 2, 'col2': 'b'}
+        1  {'col1': 3, 'col2': 'c'}
+
+        >>> df.array[1:, ["col1"]]
+        Expression = struct_project(array, ['col1'])
+        Length: 2 dtype: struct<col1: int64> (expression)
+        -------------------------------------------------
+        0  {'col1': 2}
+        1  {'col1': 3}
+
+        >>> df.array[1:, ["col2", "col1"]]
+        Expression = struct_project(array, ['col2', 'col1'])
+        Length: 2 dtype: struct<col2: string, col1: int64> (expression)
+        ---------------------------------------------------------------
+        0  {'col2': 'b', 'col1': 2}
+        1  {'col2': 'c', 'col1': 3}
+
+        """
+
         if isinstance(slicer, slice):
             indices = slicer
             fields = None
@@ -443,6 +487,7 @@ class Expression(with_metaclass(Meta)):
             indices, fields = slicer
         else:
             raise NotImplementedError
+        
         if indices != slice(None):
             expr = self.df[indices][self.expression]
         else:
