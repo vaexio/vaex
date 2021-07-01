@@ -196,6 +196,79 @@ class StringOperationsPandas(object):
         self.expression = expression
 
 
+class StructOperations(object):
+    """Struct Array operations.
+
+    Usually accessed using e.g. `df.name.struct.get_field('field1')`
+
+    """
+    def __init__(self, expression):
+        self.expression = expression
+
+    @property
+    def field_names(self):
+        """Return all field names contained in struct array.
+
+        :returns: a list of field names.
+
+        Example:
+
+        >>> import vaex
+        >>> import pyarrow as pa
+        >>> array = pa.StructArray.from_arrays(arrays=[[1,2], ["a", "b"]], names=["col1", "col2"])
+        >>> df = vaex.from_arrays(array=array)
+        >>> df
+        # 	array
+        0	{'col1': 1, 'col2': 'a'}
+        1	{'col1': 2, 'col2': 'b'}
+
+        >>> df.array.struct.field_names
+        ["col1", "col2"]
+
+        """
+        struct = self.expression.values
+        self.assert_struct_dtype(struct)
+        return [x.name for x in struct.type]
+
+    @property
+    def field_types(self):
+        """Return all field names along with corresponding types.
+
+        :returns: a dictionary with field names as keys and field types as values.
+
+        Example:
+
+        >>> import vaex
+        >>> import pyarrow as pa
+        >>> array = pa.StructArray.from_arrays(arrays=[[1,2], ["a", "b"]], names=["col1", "col2"])
+        >>> df = vaex.from_arrays(array=array)
+        >>> df
+        # 	array
+        0	{'col1': 1, 'col2': 'a'}
+        1	{'col1': 2, 'col2': 'b'}
+
+        >>> df.array.struct.field_types
+        {'col1': DataType(int64), 'col2': DataType(string)}
+
+        """
+
+        struct = self.expression.values
+        self.assert_struct_dtype(struct)
+        return {x.name: x.type for x in struct.type}
+
+    @staticmethod
+    def assert_struct_dtype(struct):
+        """Helper function to ensure that struct operations are only applied to struct arrays."""
+
+        try:
+            dtype = struct.type # arrow type
+        except AttributeError:
+            dtype = struct.dtype # numpy type
+
+        dtype = vaex.datatype.DataType(dtype)
+        if not dtype.is_struct:
+            raise TypeError(f"Struct functions needs to be applied on struct dtype, got '{dtype}' instead.")
+
 class Expression(with_metaclass(Meta)):
     """Expression class"""
     def __init__(self, ds, expression, ast=None):
@@ -388,6 +461,11 @@ class Expression(with_metaclass(Meta)):
     def str_pandas(self):
         """Gives access to string operations via :py:class:`StringOperationsPandas` (using Pandas Series)"""
         return StringOperationsPandas(self)
+
+    @property
+    def struct(self):
+        """Gives access to struct operations via :py:class:`StructOperations`"""
+        return StructOperations(self)
 
     @property
     def values(self):
