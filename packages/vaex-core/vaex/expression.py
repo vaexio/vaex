@@ -254,7 +254,7 @@ class StructOperations(object):
 
         struct = self.expression.values
         self.assert_struct_dtype(struct)
-        return {x.name: x.type for x in struct.type}
+        return {x.name: vaex.datatype.DataType(x.type) for x in struct.type}
 
     @staticmethod
     def assert_struct_dtype(struct):
