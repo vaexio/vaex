@@ -3506,7 +3506,7 @@ class DataFrame(object):
         if vaex.utils.find_valid_name(name) != name:
             # if we have to rewrite the name, we need to make it unique
             unique = True
-        valid_name = vaex.utils.find_valid_name(name, used=[] if not unique else self.get_column_names(hidden=True))
+        valid_name = vaex.utils.find_valid_name(name, used=None if not unique else self.get_column_names(hidden=True))
 
         self.virtual_columns[valid_name] = expression
         self._virtual_expressions[valid_name] = Expression(self, expression)
