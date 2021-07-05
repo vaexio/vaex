@@ -18,7 +18,6 @@ def cwd(path):
 # inspired by https://blog.shazam.com/python-microlibs-5be9461ad979
 
 packages = ['vaex-core', 'vaex-viz', 'vaex-hdf5', 'vaex-server', 'vaex-astro', 'vaex-ui', 'vaex-jupyter', 'vaex-ml', 'vaex-meta', 'vaex-graphql']
-import os
 on_rtd = os.environ.get('READTHEDOCS', None) == 'True'
 
 
@@ -34,7 +33,7 @@ class DevelopCmd(develop):
             # otherwise development install do not work
             if package not in ['vaex-core']:
                 name = package.split('-')[1]
-                relative = os.path.abspath(os.path.join('packages', 'vaex-core', 'vaex'))
+
                 source = os.path.abspath(os.path.join('packages', package, 'vaex', name))
                 rel_source = os.path.relpath(source, relative)
                 with cwd(relative):
@@ -42,7 +41,6 @@ class DevelopCmd(develop):
                     if os.path.exists(name) and os.readlink(name) == rel_source:
                         print('symlink ok')
                     else:
-                        # if os.path.exists(name):
                         if os.path.exists(name):
                             print('old symlink',  os.readlink(name))
                             os.remove(name)
