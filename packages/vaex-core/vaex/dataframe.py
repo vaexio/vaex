@@ -3520,7 +3520,7 @@ class DataFrame(object):
         """Renames a column or variable, and rewrite expressions such that they refer to the new name"""
         if name == new_name:
             return
-        new_name = vaex.utils.find_valid_name(new_name, used=[] if not unique else self.get_column_names(hidden=True))
+        new_name = vaex.utils.find_valid_name(new_name, used=None if not unique else self.get_column_names(hidden=True))
         self._rename(name, new_name, rename_meta_data=True)
         return new_name
 

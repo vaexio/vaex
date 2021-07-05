@@ -557,7 +557,9 @@ def valid_identifier(name):
     return name.isidentifier() and not keyword.iskeyword(name)
 
 
-def find_valid_name(name, used=[]):
+def find_valid_name(name, used=None):
+    if used is None:
+        used = []
     if isinstance(name, int):
         name = str(name)
     first, rest = name[0], name[1:]
