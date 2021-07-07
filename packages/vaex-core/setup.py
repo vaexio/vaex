@@ -34,6 +34,9 @@ install_requires_astro = ["kapteyn"]
 if "MACOSX_DEPLOYMENT_TARGET" not in os.environ:
     os.environ["MACOSX_DEPLOYMENT_TARGET"] = "10.9"
 
+extra_dev_options = []
+# MB: I like these options during development, the second if for ccache
+# extra_dev_options = ['-fmax-errors=2', '-fdiagnostics-color']
 
 class get_numpy_include(object):
     """Helper class to determine the numpy include path
@@ -64,6 +67,9 @@ class get_pybind_include(object):
         return 'vendor/pybind11/include'
 
 
+USE_ABSL = False
+USE_TSL = True
+
 dll_files = []
 if platform.system().lower() == 'windows':
     extra_compile_args = ["/EHsc"]
@@ -72,53 +78,66 @@ else:
     # TODO: maybe enable these flags for non-wheel/conda builds? ["-mtune=native", "-march=native"]
     extra_compile_args = ["-std=c++11", "-O3", "-funroll-loops"]
     extra_compile_args.append("-g")
+    if USE_ABSL:
+        extra_compile_args += ['-DVAEX_USE_ABSL']
+    if USE_TSL:
+        extra_compile_args += ['-DVAEX_USE_TSL']
+    extra_compile_args += extra_dev_options
 if sys.platform == 'darwin':
     extra_compile_args.append("-mmacosx-version-min=10.9")
+
 
 # on windows (Conda-forge builds), the dirname is an absolute path
 extension_vaexfast = Extension("vaex.vaexfast", [os.path.relpath(os.path.join(dirname, "src/vaexfast.cpp"))],
                                include_dirs=[get_numpy_include()],
                                extra_compile_args=extra_compile_args)
-extension_strings = Extension("vaex.superstrings", [os.path.relpath(os.path.join(dirname, "src/strings.cpp"))],
-                               include_dirs=[
-                                   get_numpy_include(),
-                                   get_pybind_include(),
-                                   get_pybind_include(user=True),
-                                   'vendor/string-view-lite/include',
-                                   'vendor/boost',
-                                   os.path.join(sys.prefix, 'include'),
-                                   os.path.join(sys.prefix, 'Library', 'include'), # windows
-                                   os.path.join(dirname, 'vendor', 'pcre', 'Library', 'include') # windows pcre from conda-forge
-                               ],
-                               library_dirs=[
-                                   os.path.join(sys.prefix, 'lib'),
-                                   os.path.join(sys.prefix, 'Library', 'lib'), # windows
-                                   os.path.join(dirname, 'vendor', 'pcre', 'Library', 'lib'), # windows pcre from conda-forge
-                               ],
-                               extra_compile_args=extra_compile_args,
-                               libraries=['pcre', 'pcrecpp']
-                               )
+extension_strings = Extension("vaex.superstrings", [
+    os.path.relpath(os.path.join(dirname, "src/strings.cpp")),
+    os.path.relpath(os.path.join(dirname, "src/string_utils.cpp")),
+    ],
+    include_dirs=[
+        get_numpy_include(),
+        get_pybind_include(),
+        get_pybind_include(user=True),
+        'vendor/string-view-lite/include',
+        'vendor/boost',
+        os.path.join(sys.prefix, 'include'),
+        os.path.join(sys.prefix, 'Library', 'include'), # windows
+        os.path.join(dirname, 'vendor', 'pcre', 'Library', 'include') # windows pcre from conda-forge
+    ],
+    library_dirs=[
+        os.path.join(sys.prefix, 'lib'),
+        os.path.join(sys.prefix, 'Library', 'lib'), # windows
+        os.path.join(dirname, 'vendor', 'pcre', 'Library', 'lib'), # windows pcre from conda-forge
+    ],
+    extra_compile_args=extra_compile_args,
+    libraries=['pcre', 'pcrecpp']
+)
 extension_superutils = Extension("vaex.superutils", [
-        os.path.relpath(os.path.join(dirname, "src/hash_object.cpp")),
+        os.path.relpath(os.path.join(dirname, "src/hash_string.cpp")),
         os.path.relpath(os.path.join(dirname, "src/hash_primitives_pot.cpp")),
+        os.path.relpath(os.path.join(dirname, "src/hash_object.cpp")),
         os.path.relpath(os.path.join(dirname, "src/hash_primitives_prime.cpp")),
         os.path.relpath(os.path.join(dirname, "src/superutils.cpp")),
-        os.path.relpath(os.path.join(dirname, "src/hash_string.cpp")),
-    ],
+        os.path.relpath(os.path.join(dirname, "src/string_utils.cpp")),
+    ] + ([os.path.relpath(os.path.join(dirname, "vendor/abseil-cpp/absl/container/internal/raw_hash_set.cc"))] if USE_ABSL else []),
     include_dirs=[
         get_numpy_include(), get_pybind_include(),
         get_pybind_include(user=True),
+        'vendor/abseil-cpp',
         'vendor/flat_hash_map',
         'vendor/sparse-map/include',
         'vendor/hopscotch-map/include',
-        'vendor/string-view-lite/include'
+        'vendor/string-view-lite/include',
     ],
-    extra_compile_args=extra_compile_args)
+    extra_compile_args=extra_compile_args,
+    )
 
 extension_superagg = Extension("vaex.superagg", [
         os.path.relpath(os.path.join(dirname, "src/superagg_binners.cpp")),
         os.path.relpath(os.path.join(dirname, "src/superagg.cpp")),
         os.path.relpath(os.path.join(dirname, "src/agg_hash_string.cpp")),
+        os.path.relpath(os.path.join(dirname, "src/string_utils.cpp")),
         os.path.relpath(os.path.join(dirname, "src/agg_hash_primitive.cpp")),
     ],
     include_dirs=[

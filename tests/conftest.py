@@ -15,6 +15,16 @@ def rebuild_dataset_pickle(ds):
     f.seek(0)
     return pickle.load(f)
 
+@pytest.fixture
+def repickle():
+    def wrapper(obj):
+        f = BytesIO()
+        picked = pickle.dump(obj, f)
+        f.seek(0)
+        return pickle.load(f)
+    return wrapper
+
+
 
 def rebuild_dataset_vaex(ds):
     # encoding and decode

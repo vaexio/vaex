@@ -419,7 +419,10 @@ class DataType:
 
     def create_array(self, values):
         if self.is_arrow:
-            return pa.array(values, type=self.arrow)
+            if vaex.array_types.is_arrow_array(values):
+                return values
+            else:
+                return pa.array(values, type=self.arrow)
         else:
             return np.asarray(values, dtype=self.numpy)
 

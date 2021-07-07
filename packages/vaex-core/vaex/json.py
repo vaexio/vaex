@@ -119,13 +119,14 @@ class OrdererSetSerializer:
 
     @staticmethod
     def encode(obj):
-        values = list(obj.extract().items())
+        # values = list(obj.extract().items())
+        keys = obj.keys()
         clsname = obj.__class__.__name__
         return {
             'type': clsname,
             'data': {
-                'values': values,
-                'count': obj.count,
+                'keys': keys,
+                'null_value': obj.null_value,
                 'nan_count': obj.nan_count,
                 'missing_count': obj.null_count
             }
@@ -139,7 +140,10 @@ class OrdererSetSerializer:
     def decode(data):
         clsname = data['type']
         cls = getattr(vaex.hash, clsname)
-        value = cls(dict(data['data']['values']), data['data']['count'], data['data']['nan_count'], data['data']['missing_count'])
+        keys = data['data']['keys']
+        if "string" in clsname:
+            keys = vaex.strings.to_string_sequence(keys)
+        value = cls(keys, data['data']['null_value'], data['data']['nan_count'], data['data']['missing_count'])
         return value
 
 

@@ -1054,3 +1054,12 @@ def get_env_type(type, key, default=None):
     if value is not None:
         import ast
         return type(ast.literal_eval(repr(value)))
+
+
+def dropnan(sequence, expect=None):
+    original_type = type(sequence)
+    sequence = list(sequence)
+    non_nan = [k for k in sequence if k == k]
+    if expect is not None:
+        assert len(sequence) - len(non_nan) == 1, "expected 1 nan value"
+    return original_type(non_nan)

@@ -17,6 +17,7 @@ class Task(vaex.promise.Promise):
     """
     _fingerprint = None
     cacheable = True
+    see_all = False
 
     def __init__(self, df=None, expressions=[], pre_filter=False, name="task"):
         vaex.promise.Promise.__init__(self)
@@ -96,19 +97,21 @@ class TaskFilterFill(Task):
 
 @register
 class TaskSetCreate(Task):
+    see_all = True
     snake_name = "set_create"
-    def __init__(self, df, expression, flatten, unique_limit=None, selection=None):
+    def __init__(self, df, expression, flatten, unique_limit=None, selection=None, return_inverse=False):
         super().__init__(df=df, expressions=[expression], pre_filter=df.filtered, name=self.snake_name)
         self.flatten = flatten
         self.dtype = self.df.data_type(expression)
         self.dtype_item = self.df.data_type(expression, axis=-1 if flatten else 0)
         self.unique_limit = unique_limit
         self.selection = selection
+        self.return_inverse = return_inverse
 
     def encode(self, encoding):
         return {'expression': self.expressions[0], 'dtype': encoding.encode('dtype', self.dtype),
                 'dtype_item': encoding.encode('dtype', self.dtype_item), 'flatten': self.flatten, 'unique_limit': self.unique_limit,
-                'selection': self.selection}
+                'selection': self.selection, 'return_inverse': self.return_inverse}
 
     @classmethod
     def decode(cls, encoding, spec, df):

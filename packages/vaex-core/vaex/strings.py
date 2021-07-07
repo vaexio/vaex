@@ -1,6 +1,9 @@
 import os
-import numpy as np
 
+import numpy as np
+import pyarrow as pa
+
+import vaex
 
 on_rtd = os.environ.get('READTHEDOCS', None) == 'True'
 if not on_rtd:
@@ -15,3 +18,7 @@ def array(ar):
         return ar
     else:
         raise ValueError('Cannot convert %r to a string array' % ar)
+
+def to_string_sequence(strings):
+    strings = vaex.column.ColumnStringArrow.from_arrow(pa.array(strings))
+    return strings.string_sequence

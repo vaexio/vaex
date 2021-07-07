@@ -292,7 +292,7 @@ def test_groupby_std():
     g = np.array([9, 2, 3, 4, 0, 1, 2, 3, 2, 5], dtype='int32')
     s = np.array(list(map(str, [0, 0, 0, 0, 1, 1, 1, 1, 2, 2])))
     df = vaex.from_arrays(g=g, s=s)
-    groupby = df.groupby('s')
+    groupby = df.groupby('s', sort=True)
     dfg = groupby.agg({'g': 'std'})
     assert dfg.s.tolist() == ['0', '1', '2']
     pandas_g = df.to_pandas_df(array_type='numpy').groupby('s').std(ddof=0).g.tolist()
@@ -303,7 +303,7 @@ def test_groupby_count_string():
     g = np.array([0, 0, 0, 0, 1, 1, 1, 1, 2, 2])
     s = np.array(list(map(str, [0, 0, 0, 0, 1, 1, 1, 1, 2, 2])))
     df = vaex.from_arrays(g=g, s=s)
-    groupby = df.groupby('s')
+    groupby = df.groupby('s', sort=True)
     dfg = groupby.agg({'m': vaex.agg.count('s')})
     assert dfg.s.tolist() == ['0', '1', '2']
     assert dfg.m.tolist() == [4, 4, 2]

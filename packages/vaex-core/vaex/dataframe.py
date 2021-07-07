@@ -458,11 +458,11 @@ class DataFrame(object):
             pass
         return self.map_reduce(map, reduce, expressions, delay=delay, progress=progress, name='nop', to_numpy=False)
 
-    def _set(self, expression, progress=False, selection=None, flatten=True, delay=False, unique_limit=None):
+    def _set(self, expression, progress=False, selection=None, flatten=True, delay=False, unique_limit=None, return_inverse=False):
         if selection is not None:
             selection = str(selection)
         expression = _ensure_string_from_expression(expression)
-        task = vaex.tasks.TaskSetCreate(self, expression, flatten, unique_limit=unique_limit, selection=selection)
+        task = vaex.tasks.TaskSetCreate(self, expression, flatten, unique_limit=unique_limit, selection=selection, return_inverse=return_inverse)
         task = self.executor.schedule(task)
         return self._delay(delay, task)
 
@@ -497,7 +497,7 @@ class DataFrame(object):
         def map(thread_index, i1, i2, ar):
             index = indices.get()
             if index is None:
-                index = index_type()
+                index = index_type(1)
                 if hasattr(index, 'reserve'):
                     index.reserve(capacity_initial)
             if vaex.array_types.is_string_type(dtype):
@@ -563,11 +563,15 @@ class DataFrame(object):
                 def reduce(a, b):
                     pass
                 self.map_reduce(map, reduce, [expression], delay=delay, name='unique_return_inverse', info=True, to_numpy=False, selection=selection)
+            ordered_set.seal()
             keys = ordered_set.keys()
-            if not dropnan and ordered_set.has_nan:
-                keys = [math.nan] + keys
-            if not dropmissing and ordered_set.has_null:
-                keys = [None] + keys
+            if dropnan:
+                keys = [k for k in keys if k == k]
+            # TODO: dropmissing
+            # if not dropnan and ordered_set.has_nan:
+            #     keys = [math.nan] + keys
+            # if not dropmissing and ordered_set.has_null:
+            #     keys = [None] + keys
         keys = vaex.array_types.convert(keys, array_type)
         if return_inverse:
             return keys, inverse

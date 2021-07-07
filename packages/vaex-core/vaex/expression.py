@@ -973,7 +973,7 @@ class Expression(with_metaclass(Meta)):
         counters = [None] * self.ds.executor.thread_pool.nthreads
         def map(thread_index, i1, i2, ar):
             if counters[thread_index] is None:
-                counters[thread_index] = counter_type()
+                counters[thread_index] = counter_type(1)
             if data_type.is_list and axis is None:
                 ar = ar.values
             if data_type_item.is_string:
@@ -993,7 +993,7 @@ class Expression(with_metaclass(Meta)):
         counter0 = counters[0]
         for other in counters[1:]:
             counter0.merge(other)
-        value_counts = counter0.extract()
+        value_counts = counter0.extract()[0]
         index = np.array(list(value_counts.keys()))
         counts = np.array(list(value_counts.values()))
 
@@ -1294,6 +1294,7 @@ def f({0}):
 
         df = self.ds
         mapper_keys = list(mapper.keys())
+        mapper_values = list(mapper.values())
         try:
             mapper_nan_key_mask = np.isnan(mapper_keys)
         except TypeError:
@@ -1340,7 +1341,8 @@ def f({0}):
                 if only_has_nan:
                     pass  # we're good, the hash mapper deals with nan
                 else:
-                    raise ValueError('Missing %i values in mapper: %s' % (len(missing), missing))
+                    if missing != {None}:
+                        raise ValueError('Missing %i values in mapper: %s' % (len(missing), missing))
 
         # and these are the corresponding choices
         # note that here we map 'planned' unknown values to the default values
@@ -1350,24 +1352,29 @@ def f({0}):
         dtype_item = self.data_type(self.expression, axis=-1)
         if dtype_item.is_float:
             values  = [np.nan, None] + [key for key in mapper if key == key and key is not None]
-            choices = [default_value, nan_value, missing_value] + [mapper[key] for key in mapper if key == key and key is not None]
+            choices = [default_value] + [mapper[key] for key in mapper if key == key and key is not None]
         else:
             values  = [None] + [key for key in mapper if key is not None]
             choices = [default_value, missing_value] + [mapper[key] for key in mapper if key is not None]
-        values = pa.array(values)
-        choices = pa.array(choices)
-        from .hash import ordered_set_type_from_dtype
-        ordered_set_type = ordered_set_type_from_dtype(dtype_item)
-        ordered_set = ordered_set_type()
+        values = mapper_keys
         if vaex.array_types.is_string_type(dtype_item):
             values = _to_string_sequence(values)
         else:
             values = vaex.array_types.to_numpy(values)
+        from .hash import ordered_set_type_from_dtype
+        ordered_set_type = ordered_set_type_from_dtype(dtype_item)
+        ordered_set = ordered_set_type(1)
         if np.ma.isMaskedArray(values):
             mask = np.ma.getmaskarray(values)
             ordered_set.update(values.data, mask)
         else:
             ordered_set.update(values)
+        keys = ordered_set.keys()
+        indices = ordered_set.map_ordinal(values)
+        mapper_values = [mapper_values[i] for i in indices]
+
+        choices = [default_value] + [mapper_values[index] for index in indices]
+        choices = pa.array(choices)
 
         key_set_name = df.add_variable('map_key_set', ordered_set, unique=True)
         choices_name = df.add_variable('map_choices', choices, unique=True)
