@@ -87,3 +87,18 @@ def test_struct_field_types_invalid_dtypes(df):
     """Ensure that struct function is only applied to correct dtype."""
     with pytest.raises(TypeError):
         df.integer.struct.field_types
+
+
+def test_struct_repr(df):
+    """Ensure that `repr` works without failing and contains correct dtype information."""
+
+    string = repr(df.array)
+
+    assert "dtype: struct" in string
+    assert "array" in string
+
+def test_struct_correct_df_dtypes(df):
+    """Ensure that `dtypes` works correctly on vaex dataframe containing a struct."""
+
+    assert "array" in df.dtypes
+    assert df.dtypes["array"].is_struct
