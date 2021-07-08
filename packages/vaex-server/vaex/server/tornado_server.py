@@ -195,6 +195,7 @@ def main(argv, WebServer=WebServer):
     parser.add_argument('--compress', help="compress larger replies (default: %(default)s)", default=True, action='store_true')
     parser.add_argument('--no-compress', dest="compress", action='store_false')
     parser.add_argument('--development', default=False, action='store_true', help="enable development features (auto reloading)")
+    parser.add_argument('--add-example', default=False, action='store_true', help="add the example dataset")
     parser.add_argument('--token', default=None, help="optionally protect server access by a token")
     parser.add_argument('--token-trusted', default=None, help="when using this token, the server allows more deserialization (e.g. pickled function)")
     parser.add_argument('--threads-per-job', default=4, type=int, help="threads per job (default: %(default)s)")
@@ -215,7 +216,13 @@ def main(argv, WebServer=WebServer):
             print("error opening file: %r" % filename)
         else:
             datasets.append(df)
+    if config.add_example:
+        df_example = vaex.example()
+        df_example.name = "example"
+        datasets.append(df_example)
+
     datasets = datasets or [vx.example()]
+
     # datasets = [ds for ds in datasets if ds is not None]
     logger.info("datasets:")
     for dataset in datasets:

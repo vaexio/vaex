@@ -25,4 +25,8 @@ setup(name=name + '-server',
       install_requires=install_requires_server,
       license=license,
       packages=['vaex.server'],
-      zip_safe=False,)
+      zip_safe=False,
+      package_data={
+            'vaex.server': ['index.html']
+      }
+)

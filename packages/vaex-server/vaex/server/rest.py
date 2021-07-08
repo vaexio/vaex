@@ -5,14 +5,18 @@ import io
 import logging
 import sys
 import os
+import pathlib
 import contextlib
+import json
 
 from fastapi import FastAPI, Query, Path, Depends, Request, WebSocket, APIRouter, HTTPException
 from fastapi.security import OAuth2PasswordBearer
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
+from fastapi.openapi.docs import get_swagger_ui_html
 
 from pydantic import BaseModel, BaseSettings
+from starlette.responses import HTMLResponse
 
 
 import vaex
@@ -21,8 +25,9 @@ import vaex.settings
 import vaex.server.websocket
 
 global_lock = asyncio.Lock()
-
 logger = logging.getLogger("vaex.server")
+VAEX_FAVICON = 'https://vaex.io/img/logos/vaex_alt.png'
+HERE = pathlib.Path(__file__).parent
 
 
 class ImageResponse(Response):
@@ -91,9 +96,20 @@ router = APIRouter()
 path_dataset = Path(..., title="The name of the dataset", description="The name of the dataset")
 
 
-@router.get("/")
+@router.get("/", response_class=HTMLResponse)
 async def root():
-    return {"datasets": list(datasets)}
+    with (HERE / 'index.html').open() as f:
+        content = f.read()
+    data = []
+    for name, ds in datasets.items():
+        data.append({
+            'name': name,
+            'rows': ds.row_count,
+            'column': list(ds),
+            'schema': [{'name': k, 'type': str(vaex.dtype(v))} for k, v in ds.schema().items()]
+        })
+    content = content.replace('// MAGIC', 'app.$data.datasets = %s' % json.dumps(data))
+    return content
 
 
 @router.get("/dataset")
@@ -248,8 +264,10 @@ app = FastAPI(
     title="Vaex dataset/dataframe API",
     description="Vaex: Quick data aggregation",
     version=vaex.__version__["vaex-server"],
-    openapi_tags=openapi_tags
+    openapi_tags=openapi_tags,
+    docs_url=None,
 )
+
 app.include_router(router)
 app.add_middleware(
     CORSMiddleware,
@@ -258,6 +276,15 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.get("/docs", include_in_schema=False)
+async def custom_swagger_ui_html():
+    print("GO " * 100)
+    return get_swagger_ui_html(
+        openapi_url=app.openapi_url,
+        title=app.title + " - Swagger UI",
+        swagger_favicon_url=VAEX_FAVICON,
+    )
 
 @app.middleware("http")
 async def add_process_time_header(request: Request, call_next):

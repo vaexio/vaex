@@ -131,6 +131,7 @@ def connect(url, **kwargs):
     port = url.port
     base_path = url.path
     hostname = url.hostname
+    hostname = vaex.server.utils.hostname_override(hostname)
     if websocket:
         secure = "wss" in url.scheme
         return ClientWebsocket(hostname, base_path=base_path, port=port, secure=secure, **kwargs)

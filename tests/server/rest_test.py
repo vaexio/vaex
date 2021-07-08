@@ -109,7 +109,10 @@ def test_docs():
     seen_code = False
     for token in tokens:
         if token.tag == "code" and token.info == "python":
-            c = compile(token.content, "<md>", mode="exec")
+            code = token.content
+            for key, value in vaex.server.utils.get_overrides().items():
+                code = code.replace(key, value)
+            c = compile(code, "<md>", mode="exec")
             seen_code = True
             exec(c)
     assert seen_code
