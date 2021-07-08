@@ -18,28 +18,28 @@ def df():
     return vaex.from_arrays(array=array, integer=[8, 9, 10])
 
 
-def test_struct_get_field(df):
-    expr = df.array.struct.get_field("col1")
+def test_struct_get(df):
+    expr = df.array.struct.get("col1")
     assert expr.tolist() == [1, 2, 3]
 
-    expr = df.array.struct.get_field("col2")
+    expr = df.array.struct.get("col2")
     assert expr.tolist() == ["a", "b", "c"]
 
 
-def test_struct_get_field_getitem_notation(df):
+def test_struct_get_getitem_notation(df):
     assert df.array[:, "col1"].tolist() == [1, 2, 3]
     assert df.array[:, "col2"].tolist() == ["a", "b", "c"]
 
 
-def test_struct_get_field_invalid_field(df):
+def test_struct_get_invalid_field(df):
     with pytest.raises(ValueError):
-        df.array.struct.get_field("doesNotExist").tolist()
+        df.array.struct.get("doesNotExist").tolist()
 
 
-def test_struct_get_field_invalid_dtype(df):
+def test_struct_get_invalid_dtype(df):
     """Ensure that struct function is only applied to correct dtype."""
     with pytest.raises(TypeError):
-        df.integer.struct.get_field("col1").tolist()
+        df.integer.struct.get("col1").tolist()
 
 
 def test_struct_project(df):
