@@ -13,5 +13,5 @@ if [[ "$OSTYPE" == "linux-gnu"* ]]; then
     export CFLAGS='-Wl,-strip-all'
     export CXXFLAGS='-Wl,-strip-all'
 fi
-pip install blake3
+pip install myst_parser
 pip install -e .
