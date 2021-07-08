@@ -10,6 +10,7 @@ import weakref
 
 from future.utils import with_metaclass
 import numpy as np
+import pandas as pd
 import tabulate
 import pyarrow as pa
 from vaex.datatype import DataType
@@ -206,7 +207,7 @@ class StructOperations(object):
         self.expression = expression
 
     @property
-    def field_names(self):
+    def keys(self):
         """Return all field names contained in struct array.
 
         :returns: a list of field names.
@@ -222,7 +223,7 @@ class StructOperations(object):
         0	{'col1': 1, 'col2': 'a'}
         1	{'col1': 2, 'col2': 'b'}
 
-        >>> df.array.struct.field_names
+        >>> df.array.struct.keys
         ["col1", "col2"]
 
         """
@@ -231,10 +232,10 @@ class StructOperations(object):
         return [x.name for x in struct.type]
 
     @property
-    def field_types(self):
+    def dtypes(self):
         """Return all field names along with corresponding types.
 
-        :returns: a dictionary with field names as keys and field types as values.
+        :returns: a pandas series with keys as index and types as values.
 
         Example:
 
@@ -247,14 +248,17 @@ class StructOperations(object):
         0	{'col1': 1, 'col2': 'a'}
         1	{'col1': 2, 'col2': 'b'}
 
-        >>> df.array.struct.field_types
-        {'col1': DataType(int64), 'col2': DataType(string)}
+        >>> df.array.struct.dtypes
+        col1     int64
+        col2    string
+        col3     int64
+        dtype: object
 
         """
 
         struct = self.expression.values
         self.assert_struct_dtype(struct)
-        return {x.name: vaex.datatype.DataType(x.type) for x in struct.type}
+        return pd.Series({x.name: vaex.datatype.DataType(x.type) for x in struct.type})
 
     @staticmethod
     def assert_struct_dtype(struct):
