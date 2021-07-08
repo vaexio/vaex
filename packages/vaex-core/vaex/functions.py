@@ -2470,7 +2470,6 @@ def format(x, format):
 for name in dir(scopes['str']):
     if name.startswith('__'):
         continue
-    force_string = ['get']
     def pandas_wrapper(name=name):
         def wrapper(*args, **kwargs):
             import pandas
@@ -2481,14 +2480,10 @@ for name in dir(scopes['str']):
             args = list(map(fix_arg, args))
             x = args[0]
             args = args[1:]
-            series = pandas.Series(x)
+            series = pandas.Series(x, dtype='string')
             method = getattr(series.str, name)
             value = method(*args, **kwargs)
-            if name in force_string:
-                value = _to_string_column(value.values, force=True)
-                return value
-            else:
-                return value.values
+            return pa.array(value)
         return wrapper
     wrapper = pandas_wrapper()
     wrapper.__doc__ = "Wrapper around pandas.Series.%s" % name
