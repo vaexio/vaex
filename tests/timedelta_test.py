@@ -4,7 +4,7 @@ import numpy as np
 
 
 def test_timedelta_methods():
-    delta = np.array([17658720110, 11047049384039, 40712636304958, -18161254954], dtype='timedelta64[s]')
+    delta = np.array([187201, 1449339, 11264958, -181614], dtype='timedelta64[s]')
     df = vaex.from_arrays(delta=delta)
     pdf = pd.DataFrame({'delta': pd.Series(delta, dtype=delta.dtype)})
 
