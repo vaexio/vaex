@@ -37,7 +37,7 @@ def _check_valid_struct_fields(struct, fields):
 
 @register_function(scope="struct")
 @_assert_struct_dtype
-def struct_get_field(x, field):
+def struct_get(x, field):
     """Return a single field from a struct array. You may also use the shorthand notation `df.name[:, 'field']`.
 
     :param {str, int} field: A string or integer identifying a struct field.
@@ -54,15 +54,15 @@ def struct_get_field(x, field):
     0	{'col1': 1, 'col2': 'a'}
     1	{'col1': 2, 'col2': 'b'}
 
-    >>> df.array.struct.get_field("col1")
-    Expression = struct_get_field(array, 'col1')
+    >>> df.array.struct.get("col1")
+    Expression = struct_get(array, 'col1')
     Length: 2 dtype: int64 (expression)
     -----------------------------------
     0  1
     1  2
 
     >>> df.array[:, 'col1']
-    Expression = struct_get_field(array, 'col1')
+    Expression = struct_get(array, 'col1')
     Length: 2 dtype: int64 (expression)
     -----------------------------------
     0  1

@@ -468,6 +468,14 @@ class Expression(with_metaclass(Meta)):
         0  {'col1': 2, 'col2': 'b'}
         1  {'col1': 3, 'col2': 'c'}
 
+        >>> df.array[:, "col1"]
+        Expression = struct_get(array, 'col1')
+        Length: 3 dtype: int64 (expression)
+        -----------------------------------
+        0  1
+        1  2
+        2  3
+
         >>> df.array[1:, ["col1"]]
         Expression = struct_project(array, ['col1'])
         Length: 2 dtype: struct<col1: int64> (expression)
@@ -497,7 +505,7 @@ class Expression(with_metaclass(Meta)):
         if fields is None:
             return expr
         elif isinstance(fields, str):
-            return expr.struct.get_field(fields)
+            return expr.struct.get(fields)
         elif isinstance(fields, (tuple, list)):
             return expr.struct.project(fields)
         else:
