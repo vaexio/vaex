@@ -197,9 +197,12 @@ def numpy_dtype(x, strict=True):
         return x.dtype
     elif isinstance(x, supported_arrow_array_types):
         arrow_type = x.type
-        from .datatype import DataType
-        # dtype = DataType(arrow_type)
-        dtype = arrow_type.to_pandas_dtype()
+        try:
+            dtype = arrow_type.to_pandas_dtype()
+        except NotImplementedError:
+            # assume dtype object as fallback in case arrow has no pandas dtype equivalence
+            dtype = 'O'
+
         dtype = np.dtype(dtype)  # turn into instance
         if strict:
             return dtype
