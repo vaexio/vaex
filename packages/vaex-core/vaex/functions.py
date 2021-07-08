@@ -3,12 +3,12 @@ import json
 import numpy as np
 import pyarrow as pa
 import pyarrow.compute as pc
-from vaex import column
-from vaex.column import _to_string_sequence, _to_string_column, _to_string_list_sequence, _is_stringy
+from vaex import column, register_function
+from vaex.column import _to_string_sequence, _is_stringy
 from vaex.dataframe import docsubst
+from vaex.registry import scopes
 import vaex.arrow.numpy_dispatch
 import vaex.arrow.utils
-import re
 import vaex.expression
 import functools
 import six
@@ -30,90 +30,6 @@ def _arrow_string_kernel_dispatch(name, ascii, *args):
     variant = 'ascii' if ascii else 'utf8'
     kernel_name = f'{variant}_{name}'  # eg utf8_istitle / ascii_istitle
     return pc.call_function(kernel_name, args)
-
-
-scopes = {
-    'str': vaex.expression.StringOperations,
-    'str_pandas': vaex.expression.StringOperationsPandas,
-    'dt': vaex.expression.DateTime,
-    'td': vaex.expression.TimeDelta,
-    'struct': vaex.expression.StructOperations
-}
-
-def register_function(scope=None, as_property=False, name=None, on_expression=True, df_accessor=None, multiprocessing=False):
-    """Decorator to register a new function with vaex.
-
-    If on_expression is True, the function will be available as a method on an
-    Expression, where the first argument will be the expression itself.
-
-    If `df_accessor` is given, it is added as a method to that dataframe accessor (see e.g. vaex/geo.py)
-
-    Example:
-
-    >>> import vaex
-    >>> df = vaex.example()
-    >>> @vaex.register_function()
-    >>> def invert(x):
-    >>>     return 1/x
-    >>> df.x.invert()
-
-
-    >>> import numpy as np
-    >>> df = vaex.from_arrays(departure=np.arange('2015-01-01', '2015-12-05', dtype='datetime64'))
-    >>> @vaex.register_function(as_property=True, scope='dt')
-    >>> def dt_relative_day(x):
-    >>>     return vaex.functions.dt_dayofyear(x)/365.
-    >>> df.departure.dt.relative_day
-    """
-    import vaex.multiprocessing
-    prefix = ''
-    if scope:
-        prefix = scope + "_"
-        if scope not in scopes:
-            raise KeyError("unknown scope")
-    def wrapper(f, name=name):
-        name = name or f.__name__
-        # remove possible prefix
-        if name.startswith(prefix):
-            name = name[len(prefix):]
-        full_name = prefix + name
-        if df_accessor:
-            def closure(name=name, full_name=full_name, function=f):
-                def wrapper(self, *args, **kwargs):
-                    lazy_func = getattr(self.df.func, full_name)
-                    lazy_func = vaex.arrow.numpy_dispatch.autowrapper(lazy_func)
-                    return vaex.multiprocessing.apply(lazy_func, args, kwargs, multiprocessing)
-                return functools.wraps(function)(wrapper)
-            if as_property:
-                setattr(df_accessor, name, property(closure()))
-            else:
-                setattr(df_accessor, name, closure())
-        else:
-            if on_expression:
-                if scope:
-                    def closure(name=name, full_name=full_name, function=f):
-                        def wrapper(self, *args, **kwargs):
-                            lazy_func = getattr(self.expression.ds.func, full_name)
-                            lazy_func = vaex.arrow.numpy_dispatch.autowrapper(lazy_func)
-                            args = (self.expression, ) + args
-                            return vaex.multiprocessing.apply(lazy_func, args, kwargs, multiprocessing)
-                        return functools.wraps(function)(wrapper)
-                    if as_property:
-                        setattr(scopes[scope], name, property(closure()))
-                    else:
-                        setattr(scopes[scope], name, closure())
-                else:
-                    def closure(name=name, full_name=full_name, function=f):
-                        def wrapper(self, *args, **kwargs):
-                            lazy_func = getattr(self.ds.func, full_name)
-                            lazy_func = vaex.arrow.numpy_dispatch.autowrapper(lazy_func)
-                            args = (self,) + args
-                            return vaex.multiprocessing.apply(lazy_func, args, kwargs, multiprocessing=multiprocessing)
-                        return functools.wraps(function)(wrapper)
-                    setattr(vaex.expression.Expression, name, closure())
-        vaex.expression.expression_namespace[prefix + name] = vaex.arrow.numpy_dispatch.autowrapper(f)
-        return f  # we leave the original function as is
-    return wrapper
 
 
 def auto_str_unwrap(f):
@@ -357,7 +273,6 @@ def notna(x):
 
 def _pandas_dt_fix(x):
     # see https://github.com/pandas-dev/pandas/issues/23276
-    import pandas as pd
     # not sure which version this is fixed in
     if not x.flags['WRITEABLE']:
         x = x.copy()
@@ -394,7 +309,6 @@ def dt_date(x):
     1  2016-02-11
     2  2015-11-12
     """
-    import pandas as pd
     return _to_pandas_series(x).dt.date.values.astype(np.datetime64)
 
 @register_function(scope='dt', as_property=True)
@@ -423,7 +337,6 @@ def dt_dayofweek(x):
     1  3
     2  3
     """
-    import pandas as pd
     return _to_pandas_series(x).dt.dayofweek.values
 
 @register_function(scope='dt', as_property=True)
@@ -452,7 +365,6 @@ def dt_dayofyear(x):
     1   42
     2  316
     """
-    import pandas as pd
     return _to_pandas_series(x).dt.dayofyear.values
 
 @register_function(scope='dt', as_property=True)
@@ -481,7 +393,6 @@ def dt_is_leap_year(x):
     1   True
     2  False
     """
-    import pandas as pd
     return _to_pandas_series(x).dt.is_leap_year.values
 
 @register_function(scope='dt', as_property=True)
@@ -510,7 +421,6 @@ def dt_year(x):
     1  2016
     2  2015
     """
-    import pandas as pd
     return _to_pandas_series(x).dt.year.values
 
 @register_function(scope='dt', as_property=True)
@@ -539,7 +449,6 @@ def dt_month(x):
     1   2
     2  11
     """
-    import pandas as pd
     return _to_pandas_series(x).dt.month.values
 
 @register_function(scope='dt', as_property=True)
@@ -568,7 +477,6 @@ def dt_month_name(x):
     1  February
     2  November
     """
-    import pandas as pd
     return pa.array(_to_pandas_series(x).dt.month_name())
 
 @register_function(scope='dt', as_property=True)
@@ -597,7 +505,6 @@ def dt_quarter(x):
     1  1
     2  4
     """
-    import pandas as pd
     return _to_pandas_series(x).dt.quarter.values
 
 @register_function(scope='dt', as_property=True)
@@ -626,7 +533,6 @@ def dt_day(x):
     1  11
     2  12
     """
-    import pandas as pd
     return _to_pandas_series(x).dt.day.values
 
 @register_function(scope='dt', as_property=True)
@@ -655,7 +561,6 @@ def dt_day_name(x):
     1  Thursday
     2  Thursday
     """
-    import pandas as pd
     return pa.array(_to_pandas_series(x).dt.day_name())
 
 @register_function(scope='dt', as_property=True)
@@ -684,7 +589,6 @@ def dt_weekofyear(x):
     1   6
     2  46
     """
-    import pandas as pd
     return _to_pandas_series(x).dt.weekofyear.values
 
 @register_function(scope='dt', as_property=True)
@@ -713,7 +617,6 @@ def dt_hour(x):
     1  10
     2  11
     """
-    import pandas as pd
     return _to_pandas_series(x).dt.hour.values
 
 @register_function(scope='dt', as_property=True)
@@ -742,7 +645,6 @@ def dt_minute(x):
     1  17
     2  34
     """
-    import pandas as pd
     return _to_pandas_series(x).dt.minute.values
 
 @register_function(scope='dt', as_property=True)
@@ -771,7 +673,6 @@ def dt_second(x):
     1  34
     2  22
     """
-    import pandas as pd
     return _to_pandas_series(x).dt.second.values
 
 @register_function(scope='dt')
@@ -800,7 +701,6 @@ def dt_strftime(x, date_format):
     1  2016-02
     2  2015-11
     """
-    import pandas as pd
     return pa.array(_to_pandas_series(x).dt.strftime(date_format))
 
 @register_function(scope='dt')
@@ -830,7 +730,6 @@ def dt_floor(x, freq, *args):
     1  2016-02-11 10:00:00.000000000
     2  2015-11-12 11:00:00.000000000
     """
-    import pandas as pd
     return _to_pandas_series(x).dt.floor(freq, *args).values
 
 
@@ -859,7 +758,6 @@ def dt_quarter(x):
     1  1
     2  4
     """
-    import pandas as pd
     return _to_pandas_series(x).dt.quarter.values
 
 
@@ -921,7 +819,6 @@ def td_days(x):
     2  471
     3  -22
     """
-    import pandas as pd
     return _to_pandas_series(x).dt.days.values
 
 @register_function(scope='td', as_property=True)
@@ -952,7 +849,6 @@ def td_microseconds(x):
     2   19583
     3  709551
     """
-    import pandas as pd
     return _to_pandas_series(x).dt.microseconds.values
 
 @register_function(scope='td', as_property=True)
@@ -983,7 +879,6 @@ def td_nanoseconds(x):
     2  488
     3  616
     """
-    import pandas as pd
     return _to_pandas_series(x).dt.nanoseconds.values
 
 @register_function(scope='td', as_property=True)
@@ -1014,7 +909,6 @@ def td_seconds(x):
     2  28681
     3  23519
     """
-    import pandas as pd
     return _to_pandas_series(x).dt.seconds.values
 
 @register_function(scope='td', as_property=False)
@@ -1044,7 +938,6 @@ def td_total_seconds(x):
     2   6.72134e+08
     3   2.85489e+08
     """
-    import pandas as pd
     return _to_pandas_series(x).dt.total_seconds().values
 
 
@@ -2445,111 +2338,6 @@ def str_istitle(x, ascii=False):
 # def str_isdecimal(x):
 #     sl = _to_string_sequence(x).isnumeric()
 
-def _assert_struct_dtype(func):
-    """Decorator to ensure that struct functions are only applied to expressions containing
-    struct dtype. Otherwise, provide helpful error message.
-
-    """
-
-    @functools.wraps(func)
-    def wrapper(struct, *args, **kwargs):
-        vaex.expression.StructOperations.assert_struct_dtype(struct)
-        return func(struct, *args, **kwargs)
-
-    return wrapper
-
-
-def _check_valid_struct_fields(struct, fields):
-    """Ensure that fields do exist for given struct and provide helpful error message otherwise.
-
-    """
-
-    valid_fields = {x.name for x in struct.type}
-    non_existant_fields = {field for field in fields if field not in valid_fields}
-    if non_existant_fields:
-        raise ValueError(f"Invalid field names provided: {non_existant_fields}. "
-                         f"Valid field names are '{valid_fields}'")
-
-
-@register_function(scope="struct")
-@_assert_struct_dtype
-def struct_get_field(x, field):
-    """Return a single field from a struct array. You may also use the shorthand notation `df.name[:, 'field']`.
-
-    :param {str, int} field: A string or integer identifying a struct field.
-    :returns: an expression containing a struct field.
-
-    Example:
-
-    >>> import vaex
-    >>> import pyarrow as pa
-    >>> array = pa.StructArray.from_arrays(arrays=[[1,2], ["a", "b"]], names=["col1", "col2"])
-    >>> df = vaex.from_arrays(array=array)
-    >>> df
-    # 	array
-    0	{'col1': 1, 'col2': 'a'}
-    1	{'col1': 2, 'col2': 'b'}
-
-    >>> df.array.struct.get_field("col1")
-    Expression = struct_get_field(array, 'col1')
-    Length: 2 dtype: int64 (expression)
-    -----------------------------------
-    0  1
-    1  2
-
-    >>> df.array[:, 'col1']
-    Expression = struct_get_field(array, 'col1')
-    Length: 2 dtype: int64 (expression)
-    -----------------------------------
-    0  1
-    1  2
-
-    """
-
-    _check_valid_struct_fields(x, [field])
-    return x.field(field)
-
-
-@register_function(scope="struct")
-@_assert_struct_dtype
-def struct_project(x, fields):
-    """Project one or more fields of a struct array to a new struct array. You may also use the shorthand notation
-    `df.name[:, ['field1', 'field2']]`.
-
-    :param list field: A list of strings or integers identifying one or more fields.
-    :returns: an expression containing a struct array.
-
-    Example:
-
-    >>> import vaex
-    >>> import pyarrow as pa
-    >>> array = pa.StructArray.from_arrays(arrays=[[1,2], ["a", "b"], [3, 4]], names=["col1", "col2", "col3"])
-    >>> df = vaex.from_arrays(array=array)
-    >>> df
-    # 	array
-    0	{'col1': 1, 'col2': 'a', 'col3': 3}
-    1	{'col1': 2, 'col2': 'b', 'col3': 4}
-
-    >>> df.array.struct.project(["col3", "col1"])
-    Expression = struct_project(array, ['col3', 'col1'])
-    Length: 2 dtype: struct<col3: int64, col1: int64> (expression)
-    --------------------------------------------------------------
-    0  {'col3': 3, 'col1': 1}
-    1  {'col3': 4, 'col1': 2}
-
-    >>> df.array[:, ["col3", "col1"]]
-    Expression = struct_project(array, ['col3', 'col1'])
-    Length: 2 dtype: struct<col3: int64, col1: int64> (expression)
-    --------------------------------------------------------------
-    0  {'col3': 3, 'col1': 1}
-    1  {'col3': 4, 'col1': 2}
-
-    """
-
-    _check_valid_struct_fields(x, fields)
-    arrays = [x.field(field) for field in fields]
-    return pa.StructArray.from_arrays(arrays=arrays, names=fields)
-
 
 @register_function()
 def to_string(x):
@@ -2611,7 +2399,6 @@ def _ordinal_values(x, ordered_set):
 
 @register_function()
 def _choose(ar, choices, default=None):
-    from vaex.column import _to_string_sequence
     # if not isinstance(choices, np.ndarray) or choices.dtype.kind in 'US':
     #     choices = _to_string_sequence(choices)
     if default is not None:
@@ -2625,7 +2412,6 @@ def _choose(ar, choices, default=None):
 @register_function()
 def _choose_masked(ar, choices):
     """Similar to _choose, but -1 maps to NA"""
-    from vaex.column import _to_string_sequence
     mask = ar == -1
     ar[mask] == 0  # we fill it in with some values, doesn't matter, since it is masked
     ar = choices[ar]
@@ -2865,3 +2651,5 @@ def stack(arrays, strict=False):
     arrays = [vaex.arrow.numpy_dispatch.unwrap(k) for k in arrays]
     arrays = [vaex.array_types.to_numpy(k) for k in arrays]
     return np.ma.stack(arrays, axis=1)
+
+
