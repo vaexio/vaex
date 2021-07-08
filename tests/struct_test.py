@@ -102,3 +102,9 @@ def test_struct_correct_df_dtypes(df):
 
     assert "array" in df.dtypes
     assert df.dtypes["array"].is_struct
+
+
+def test_struct_correct_expression_dtype(df):
+    """Ensure that `dtype` works correctly on vaex expression containing a struct."""
+
+    assert df.array.dtype.is_struct
