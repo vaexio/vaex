@@ -832,6 +832,64 @@ def dt_floor(x, freq, *args):
     import pandas as pd
     return _to_pandas_series(x).dt.floor(freq, *args).values
 
+
+@register_function(scope='dt', as_property=True)
+def dt_quarter(x):
+    """Return the quarter of the date. Values range from 1-4.
+
+    :returns: an expression containing the quarter extracted from a datetime column.
+
+    Example:
+
+    >>> import vaex
+    >>> import numpy as np
+    >>> date = np.array(['2009-10-12T03:31:00', '2016-02-11T10:17:34', '2015-11-12T11:34:22'], dtype=np.datetime64)
+    >>> df = vaex.from_arrays(date=date)
+    >>> df
+      #  date
+      0  2009-10-12 03:31:00
+      1  2016-02-11 10:17:34
+      2  2015-11-12 11:34:22
+    >>> df.date.dt.quarter
+    Expression = dt_quarter(date)
+    Length: 3 dtype: int64 (expression)
+    -----------------------------------
+    0  4
+    1  1
+    2  4
+    """
+    import pandas as pd
+    return _to_pandas_series(x).dt.quarter.values
+
+
+@register_function(scope='dt', as_property=True)
+def dt_halfyear(x):
+    """Return the half-year of the date. Values can be 1 and 2, for the first and second half of the year respectively.
+
+    :returns: an expression containing the half-year extracted from the datetime column.
+
+    Example:
+
+    >>> import vaex
+    >>> import numpy as np
+    >>> date = np.array(['2009-10-12T03:31:00', '2016-02-11T10:17:34', '2015-11-12T11:34:22'], dtype=np.datetime64)
+    >>> df = vaex.from_arrays(date=date)
+    >>> df
+      #  date
+      0  2009-10-12 03:31:00
+      1  2016-02-11 10:17:34
+      2  2015-11-12 11:34:22
+    >>> df.date.dt.halfyear
+    Expression = dt_halfyear(date)
+    Length: 3 dtype: int64 (expression)
+    -----------------------------------
+    0  2
+    1  1
+    2  2
+    """
+    return ((_to_pandas_series(x).dt.quarter-1) // 2 + 1).values
+
+
 ########## timedelta operations ##########
 
 @register_function(scope='td', as_property=True)
