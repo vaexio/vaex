@@ -4,7 +4,7 @@ import numpy as np
 def test_rolling_sum(df_factory):
     x = [0, 1, 2, 3, 4.0]
     df = df_factory(x=x)
-    dfp = df.to_pandas_df()
+    dfp = df.to_pandas_df(array_type='numpy')
     df = df.rolling(2, fill_value=np.nan).sum()
     dfp = dfp.rolling(2).sum()
     result = df['x'].tolist()
