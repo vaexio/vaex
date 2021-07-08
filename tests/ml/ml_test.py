@@ -337,7 +337,7 @@ def test_maxabs_scaler(df_factory):
     w = np.zeros_like(x)
 
     ds = df_factory(x=x, y=y, z=z, w=w)
-    df = ds.to_pandas_df()
+    df = ds.to_pandas_df(array_type='numpy')
 
     features = ['x', 'y', 'w']
 
@@ -364,7 +364,7 @@ def test_robust_scaler(df_factory):
     w = np.zeros_like(x)
 
     ds = df_factory(x=x, y=y, z=z, w=w)
-    df = ds.to_pandas_df()
+    df = ds.to_pandas_df(array_type='numpy')
 
     features = ['x', 'y']
 
