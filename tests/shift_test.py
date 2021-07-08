@@ -358,7 +358,7 @@ def test_shift_dataset(chunk_size=2):
 def test_diff(df_factory, periods):
     x = [0, 1, 2, 3, 4.0]
     df = df_factory(x=x)
-    dfp = df.to_pandas_df()
+    dfp = df.to_pandas_df(array_type='numpy')
     df = df.diff(periods, fill_value=np.nan)
     dfp = dfp.diff(periods)
     result = df['x'].to_numpy()

@@ -3017,7 +3017,7 @@ class DataFrame(object):
         self.description = other.description
 
     @docsubst
-    def to_pandas_df(self, column_names=None, selection=None, strings=True, virtual=True, index_name=None, parallel=True, chunk_size=None):
+    def to_pandas_df(self, column_names=None, selection=None, strings=True, virtual=True, index_name=None, parallel=True, chunk_size=None, array_type=None):
         """Return a pandas DataFrame containing the ndarray corresponding to the evaluated data
 
          If index is given, that column is used for the index of the dataframe.
@@ -3034,6 +3034,7 @@ class DataFrame(object):
         :param index_column: if this column is given it is used for the index of the DataFrame
         :param parallel: {evaluate_parallel}
         :param chunk_size: {chunk_size}
+        :param array_type: {array_type}
         :return: pandas.DataFrame object or iterator of
         """
         import pandas as pd
@@ -3053,11 +3054,11 @@ class DataFrame(object):
             return df
         if chunk_size is not None:
             def iterator():
-                for i1, i2, chunks in self.evaluate_iterator(column_names, selection=selection, parallel=parallel, chunk_size=chunk_size):
+                for i1, i2, chunks in self.evaluate_iterator(column_names, selection=selection, parallel=parallel, chunk_size=chunk_size, array_type=array_type):
                     yield i1, i2, create_pdf(dict(zip(column_names, chunks)))
             return iterator()
         else:
-            return create_pdf(self.to_dict(column_names=column_names, selection=selection, parallel=parallel))
+            return create_pdf(self.to_dict(column_names=column_names, selection=selection, parallel=parallel, array_type=array_type))
 
     @docsubst
     def to_arrow_table(self, column_names=None, selection=None, strings=True, virtual=True, parallel=True, chunk_size=None, reduce_large=False):

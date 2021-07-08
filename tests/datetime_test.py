@@ -30,6 +30,8 @@ def test_datetime_operations():
     assert df.date.dt.dayofweek.tolist() == pandas_df.date.dt.dayofweek.values.tolist()
     assert df.date.dt.floor('H').tolist() == pandas_df.date.dt.floor('H').values.tolist()
     assert df.date.dt.date.tolist() == pandas_df.date.dt.date.values.tolist()
+    assert df.date.dt.quarter.tolist() == pandas_df.date.dt.quarter.tolist()
+    assert df.date.dt.halfyear.tolist() == [2, 1, 2, 1, 2, 1]  # this method does not exist in pandas yet
 
 
 def test_datetime_agg():

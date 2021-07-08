@@ -295,7 +295,7 @@ def test_groupby_std():
     groupby = df.groupby('s')
     dfg = groupby.agg({'g': 'std'})
     assert dfg.s.tolist() == ['0', '1', '2']
-    pandas_g = df.to_pandas_df().groupby('s').std(ddof=0).g.tolist()
+    pandas_g = df.to_pandas_df(array_type='numpy').groupby('s').std(ddof=0).g.tolist()
     np.testing.assert_array_almost_equal(dfg.g.tolist(), pandas_g)
 
 
