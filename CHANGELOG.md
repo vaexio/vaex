@@ -3,7 +3,8 @@
    * Performance
       * Reuse filter data when slicing a dataframe [#1287](https://github.com/vaexio/vaex/pull/1287)
    * Features
-      * df.to_records() for output to jJSON [#1364](https://github.com/vaexio/vaex/pull/1364)
+      * df.to_records() for output to JSON [#1364](https://github.com/vaexio/vaex/pull/1364)
+      * df.dt.quarter and df.dt.halfyear [#1441](https://github.com/vaexio/vaex/pull/1364)https://github.com/vaexio/vaex/pull/1441
    * Fixes
       * df.concat did not copy functions  [#1287](https://github.com/vaexio/vaex/pull/1287)
 
