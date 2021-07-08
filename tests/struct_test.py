@@ -66,27 +66,27 @@ def test_struct_project_invalid_dtype(df):
         df.integer.struct.project(["col1"]).tolist()
 
 
-def test_struct_field_names(df):
-    assert df.array.struct.field_names == ["col1", "col2", "col3"]
+def test_struct_keys(df):
+    assert df.array.struct.keys == ["col1", "col2", "col3"]
 
 
-def test_struct_field_names_invalid_dtypes(df):
+def test_struct_keys_invalid_dtypes(df):
     """Ensure that struct function is only applied to correct dtype."""
     with pytest.raises(TypeError):
-        df.integer.struct.field_names
+        df.integer.struct.keys
 
 
-def test_struct_field_types(df):
-    types = df.array.struct.field_types
+def test_struct_dtypes(df):
+    types = df.array.struct.dtypes
     assert types["col1"] == vaex.datatype.DataType(pa.int64())
     assert types["col2"] == vaex.datatype.DataType(pa.string())
     assert types["col3"] == vaex.datatype.DataType(pa.int64())
 
 
-def test_struct_field_types_invalid_dtypes(df):
+def test_struct_dtypes_invalid_dtypes(df):
     """Ensure that struct function is only applied to correct dtype."""
     with pytest.raises(TypeError):
-        df.integer.struct.field_types
+        df.integer.struct.dtypes
 
 
 def test_struct_repr(df):
