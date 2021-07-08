@@ -40,7 +40,8 @@ import six
 
 import vaex.dataframe
 import vaex.dataset
-from vaex.functions import register_function
+from vaex.registry import register_function
+from vaex import functions, struct
 from . import stat
 # import vaex.file
 # import vaex.export
