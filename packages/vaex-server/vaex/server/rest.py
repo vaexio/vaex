@@ -190,7 +190,12 @@ async def heatmap(input: HeatmapInput = Depends(HeatmapInput)) -> HeatmapOutput:
     df, counts, limits = await _compute_heatmap(input)
     centers_x = df.bin_centers(input.expression_x, limits[0], input.shape_x)
     centers_y = df.bin_centers(input.expression_y, limits[1], input.shape_y)
-    return HeatmapOutput(dataset_id=input.dataset_id, values=counts.tolist(), centers_x=centers_x.tolist(), centers_y=centers_y.tolist())
+    return HeatmapOutput(dataset_id=input.dataset_id,
+                         expression_x=input.expression_x,
+                         expression_y=input.expression_y,
+                         values=counts.tolist(),
+                         centers_x=centers_x.tolist(),
+                         centers_y=centers_y.tolist())
 
 
 @router.post("/heatmap", response_model=HeatmapOutput, tags=["easy"], summary="2d aggragation data")
