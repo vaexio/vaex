@@ -9,7 +9,7 @@ import aiohttp
 import vaex.server.rest
 
 
-client = TestClient(vaex.server.rest.app, raise_server_exceptions=False)
+client = TestClient(vaex.server.rest.app, raise_server_exceptions=True)
 vaex.server.rest.ensure_example()
 
 
