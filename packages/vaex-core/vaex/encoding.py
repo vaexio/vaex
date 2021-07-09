@@ -225,7 +225,7 @@ class dtype_encoding:
         dtype = DataType(dtype)
         if dtype.is_list:
             return {'type': 'list', 'value_type': encoding.encode('dtype', dtype.value_type)}
-        dtype = DataType(dtype).internal
+        dtype = DataType(dtype)
         return str(dtype)
 
     @staticmethod
