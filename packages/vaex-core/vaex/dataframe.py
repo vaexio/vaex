@@ -3491,7 +3491,6 @@ class DataFrame(object):
         :param: expression: expression for the column
         :param str unique: if name is already used, make it unique by adding a postfix, e.g. _1, or _2
         """
-        type = "change" if name in self.virtual_columns else "add"
         if isinstance(expression, Expression):
             if expression.df is not self:
                 expression = expression.copy(self)
@@ -3507,7 +3506,7 @@ class DataFrame(object):
         if vaex.utils.find_valid_name(name) != name:
             # if we have to rewrite the name, we need to make it unique
             unique = True
-        valid_name = vaex.utils.find_valid_name(name, used=[] if not unique else self.get_column_names(hidden=True))
+        valid_name = vaex.utils.find_valid_name(name, used=None if not unique else self.get_column_names(hidden=True))
 
         self.virtual_columns[valid_name] = expression
         self._virtual_expressions[valid_name] = Expression(self, expression)
@@ -3515,13 +3514,12 @@ class DataFrame(object):
             self.column_names.insert(column_position, valid_name)
         self._save_assign_expression(valid_name)
         self.signal_column_changed.emit(self, valid_name, "add")
-        # self.write_virtual_meta()
 
     def rename(self, name, new_name, unique=False):
         """Renames a column or variable, and rewrite expressions such that they refer to the new name"""
         if name == new_name:
             return
-        new_name = vaex.utils.find_valid_name(new_name, used=[] if not unique else self.get_column_names(hidden=True))
+        new_name = vaex.utils.find_valid_name(new_name, used=None if not unique else self.get_column_names(hidden=True))
         self._rename(name, new_name, rename_meta_data=True)
         return new_name
 
@@ -3550,11 +3548,11 @@ class DataFrame(object):
                 self._renamed_columns.append((old, new))
             self.column_names[self.column_names.index(old)] = new
             if hasattr(self, old):
-                try:
-                    if isinstance(getattr(self, old), Expression):
+                if isinstance(getattr(self, old), Expression):
+                    try:
                         delattr(self, old)
-                except:
-                    pass
+                    except:
+                        pass
             self._save_assign_expression(new)
         existing_expressions = [k() for k in self._expressions]
         existing_expressions = [k for k in existing_expressions if k is not None]
@@ -3562,13 +3560,11 @@ class DataFrame(object):
             expression._rename(old, new, inplace=True)
         self.virtual_columns = {k:self._virtual_expressions[k].expression for k, v in self.virtual_columns.items()}
 
-
     def delete_virtual_column(self, name):
         """Deletes a virtual column from a DataFrame."""
         del self.virtual_columns[name]
         del self._virtual_expressions[name]
         self.signal_column_changed.emit(self, name, "delete")
-        # self.write_virtual_meta()
 
     def add_variable(self, name, expression, overwrite=True, unique=True):
         """Add a variable to a DataFrame.
@@ -3596,7 +3592,6 @@ class DataFrame(object):
         """Deletes a variable from a DataFrame."""
         del self.variables[name]
         self.signal_variable_changed.emit(self, name, "delete")
-        # self.write_virtual_meta()
 
     def info(self, description=True):
         from IPython import display
@@ -3650,7 +3645,6 @@ class DataFrame(object):
             for name in variable_names:
                 parts += ["<tr>"]
                 parts += ["<td>%s</td>" % name]
-                dtype = self.data_type(name)
                 parts += ["<td>%r</td>" % type]
                 units = self.unit(name)
                 units = units.to_string("latex_inline") if units else ""

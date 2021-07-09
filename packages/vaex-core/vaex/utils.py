@@ -557,10 +557,11 @@ def valid_identifier(name):
     return name.isidentifier() and not keyword.iskeyword(name)
 
 
-def find_valid_name(name, used=[]):
+def find_valid_name(name, used=None):
+    if used is None:
+        used = []
     if isinstance(name, int):
         name = str(name)
-    first, rest = name[0], name[1:]
     if name in used:
         nr = 1
         while name + ("_%d" % nr) in used:
@@ -569,15 +570,17 @@ def find_valid_name(name, used=[]):
     return name
 
 
-def _python_save_name(name, used=[]):
-	first, rest = name[0], name[1:]
-	name = re.sub("[^a-zA-Z_]", "_", first) +  re.sub("[^a-zA-Z_0-9]", "_", rest)
-	if name in used:
-		nr = 1
-		while name + ("_%d" % nr) in used:
-			nr += 1
-		name = name + ("_%d" % nr)
-	return name
+def _python_save_name(name, used=None):
+    if used is None:
+        used = []
+    first, rest = name[0], name[1:]
+    name = re.sub("[^a-zA-Z_]", "_", first) + re.sub("[^a-zA-Z_0-9]", "_", rest)
+    if name in used:
+        nr = 1
+        while name + ("_%d" % nr) in used:
+            nr += 1
+        name = name + ("_%d" % nr)
+    return name
 
 
 @contextlib.contextmanager
@@ -826,15 +829,15 @@ def as_contiguous(ar):
 
 
 def _split_and_combine_mask(arrays):
-	'''Combines all masks from a list of arrays, and logically ors them into a single mask'''
-	masks = [np.ma.getmaskarray(block) for block in arrays if np.ma.isMaskedArray(block)]
-	arrays = [block.data if np.ma.isMaskedArray(block) else block for block in arrays]
-	mask = None
-	if masks:
-		mask = masks[0].copy()
-		for other in masks[1:]:
-			mask |= other
-	return arrays, mask
+    '''Combines all masks from a list of arrays, and logically ors them into a single mask'''
+    masks = [np.ma.getmaskarray(block) for block in arrays if np.ma.isMaskedArray(block)]
+    arrays = [block.data if np.ma.isMaskedArray(block) else block for block in arrays]
+    mask = None
+    if masks:
+        mask = masks[0].copy()
+        for other in masks[1:]:
+            mask |= other
+    return arrays, mask
 
 def gen_to_list(fn=None, wrapper=list):
     '''A decorator which wraps a function's return value in ``list(...)``.
