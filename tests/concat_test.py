@@ -185,6 +185,18 @@ def test_concat_virtual_column_names():
     assert list(df) == ['x', 'z']
 
 
+def test_concat_virtual_column_name_with_column():
+    df1 = vaex.from_arrays(x=np.arange(3))
+    df2 = vaex.from_arrays(x=np.arange(4))
+    df1['z'] = df1.x ** 2
+    df = df1.concat(df2)
+    # test that virtual column with missing column name 
+    assert df.get_column_names() == ['x', 'z']
+    assert list(df) == ['x', 'z']
+    assert df.x.tolist() == [0, 1, 2, 0, 1, 2, 3]
+    assert df.z.tolist() == [0, 1, 4, None, None, None, None]
+
+
 def test_concat_missing_values():
     df1 = vaex.from_arrays(x=[1, 2, 3], y=[np.nan, 'b', 'c'])
     df2 = vaex.from_arrays(x=[4, 5, np.nan], y=['d', 'e', 'f'])

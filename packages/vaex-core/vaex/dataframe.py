@@ -5853,7 +5853,8 @@ class DataFrameLocal(DataFrame):
                     # we have a mismatching virtual column, materialize it
                     for df in dfs:
                         # upgrade to a column, so Dataset's concat can concat
-                        dfs[dfs.index(df)] = df._lazy_materialize(name)
+                        if name in df.get_column_names(virtual=True, hidden=True):
+                            dfs[dfs.index(df)] = df._lazy_materialize(name)
 
         first, *tail = dfs
         # concatenate all datasets
