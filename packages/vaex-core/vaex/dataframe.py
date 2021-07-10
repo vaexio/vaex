@@ -439,9 +439,16 @@ class DataFrame(object):
         arguments = _ensure_strings_from_expressions(arguments)
         return lazy_function(*arguments)
 
+    @docsubst
     def nop(self, expression=None, progress=False, delay=False):
-        """Evaluates expression, and drop the result, usefull for benchmarking, since vaex is usually lazy"""
-        expressions = _ensure_strings_from_expressions(expression) or self.get_column_names()
+        """Evaluates expression or a list of expressions, and drops the result. Usefull for benchmarking, since vaex is usually lazy.
+
+        :param expression: {expression}
+        :param progress: {progress}
+        :param delay: {delay}
+        :returns: None
+        """
+        expressions = _ensure_list(_ensure_strings_from_expressions(expression)) or self.get_column_names()
         def map(*ar):
             pass
         def reduce(a, b):
