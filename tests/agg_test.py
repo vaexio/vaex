@@ -654,3 +654,14 @@ def test_groupby_kurtosis(df_example):
     vaex_g = df.groupby("id", sort=True).agg({"kurtosis": vaex.agg.kurtosis("Lz")})
     pandas_g = pandas_df.groupby("id", sort=True).agg(kurtosis=("Lz", pd.Series.kurtosis))
     np.testing.assert_almost_equal(vaex_g["kurtosis"].values, pandas_g["kurtosis"].values, decimal=3)
+
+
+def test_minmax_ts():
+    import pandas as pd
+    vals = pd.date_range('2021/01/01 08:00', periods=5, freq='100ms')
+    test_df = vaex.from_arrays(x=np.array(vals))
+    vmin, vmax = test_df.minmax(test_df.x)
+    assert vmin == vals[0]
+    assert vmax == vals[-1]
+    assert test_df.min(test_df.x) == vmin
+    assert test_df.max(test_df.x) == vmax

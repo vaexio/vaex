@@ -1475,7 +1475,7 @@ class DataFrame(object):
 
     @docsubst
     @stat_1d
-    def minmax(self, expression, binby=[], limits=None, shape=default_shape, selection=False, delay=False, progress=None):
+    def minmax(self, expression, binby=[], limits=None, shape=default_shape, selection=False, delay=False, progress=None, edges=False):
         """Calculate the minimum and maximum for expressions, possibly on a grid defined by binby.
 
 
@@ -1500,18 +1500,11 @@ class DataFrame(object):
         :param selection: {selection}
         :param delay: {delay}
         :param progress: {progress}
+        :param edges: {edges}
         :return: {return_stat_scalar}, the last dimension is of shape (2)
         """
-        # vmin  = self._compute_agg('min', expression, binby, limits, shape, selection, delay, edges, progress)
-        # vmax =  self._compute_agg('max', expression, binby, limits, shape, selection, delay, edges, progress)
         selection = _ensure_strings_from_expressions(selection)
         selection = _normalize_selection(selection)
-        @delayed
-        def calculate(expression, limits):
-            task = tasks.TaskStatistic(self, binby, shape, limits, weight=expression, op=tasks.OP_MIN_MAX, selection=selection)
-            task = self.executor.schedule(task)
-            progressbar.add_task(task, "minmax for %s" % expression)
-            return task
         @delayed
         def finish(*minmax_list):
             value = vaex.utils.unlistify(waslist, np.array(minmax_list))
@@ -1530,8 +1523,9 @@ class DataFrame(object):
         if not (all_same_kind or all([k == data_type0 for k in data_types])):
             raise TypeError("cannot mix different dtypes in 1 minmax call")
         progressbar = vaex.utils.progressbars(progress, title="minmaxes")
-        limits = self.limits(binby, limits, selection=selection, delay=True)
-        all_tasks = [calculate(expression, limits) for expression in expressions]
+        all_tasks = [[self._compute_agg('min', expression, binby, limits, shape, selection, delay, edges, progressbar),
+                      self._compute_agg('max', expression, binby, limits, shape, selection, delay, edges, progressbar)
+                      ] for expression in expressions]
         result = finish(*all_tasks)
         return self._delay(delay, result)
 
@@ -1557,14 +1551,11 @@ class DataFrame(object):
         :param selection: {selection}
         :param delay: {delay}
         :param progress: {progress}
+        :param edges: {edges}
         :param array_type: {array_type}
         :return: {return_stat_scalar}, the last dimension is of shape (2)
         """
         return self._compute_agg('min', expression, binby, limits, shape, selection, delay, edges, progress, array_type=array_type)
-        @delayed
-        def finish(result):
-            return result[..., 0]
-        return self._delay(delay, finish(self.minmax(expression, binby=binby, limits=limits, shape=shape, selection=selection, delay=delay, progress=progress)))
 
     @docsubst
     @stat_1d
@@ -1588,14 +1579,11 @@ class DataFrame(object):
         :param selection: {selection}
         :param delay: {delay}
         :param progress: {progress}
+        :param edges: {edges}
         :param array_type: {array_type}
         :return: {return_stat_scalar}, the last dimension is of shape (2)
         """
         return self._compute_agg('max', expression, binby, limits, shape, selection, delay, edges, progress, array_type=array_type)
-        @delayed
-        def finish(result):
-            return result[..., 1]
-        return self._delay(delay, finish(self.minmax(expression, binby=binby, limits=limits, shape=shape, selection=selection, delay=delay, progress=progress)))
 
     @docsubst
     @stat_1d
