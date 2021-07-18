@@ -139,6 +139,38 @@ def test_struct_keys_invalid_dtypes(df):
         df.integer.struct.keys
 
 
+def test_struct_indices(df):
+    assert df.array.struct.indices == [0, 1, 2]
+
+
+def test_struct_indices_duplicated(df_duplicated):
+    assert df_duplicated.array.struct.indices == [0, 1, 2]
+
+
+def test_struct_indices_invalid_dtypes(df):
+    """Ensure that struct function is only applied to correct dtype."""
+    with pytest.raises(TypeError):
+        df.integer.struct.indices
+
+
+def test_struct_keys_indices(df):
+    keys_indices = df.array.struct.keys_indices
+    assert keys_indices.index.tolist() == [0, 1, 2]
+    assert keys_indices.tolist() == ["col1", "col2", "col3"]
+
+
+def test_struct_keys_indices_duplicated(df_duplicated):
+    keys_indices = df_duplicated.array.struct.keys_indices
+    assert keys_indices.index.tolist() == [0, 1, 2]
+    assert keys_indices.tolist() == ["col1", "col1", "col3"]
+
+
+def test_struct_keys_indices_invalid_dtypes(df):
+    """Ensure that struct function is only applied to correct dtype."""
+    with pytest.raises(TypeError):
+        df.integer.struct.keys_indices
+
+
 def test_struct_dtypes(df):
     types = df.array.struct.dtypes
     assert types["col1"] == vaex.datatype.DataType(pa.int64())
