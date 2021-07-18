@@ -232,6 +232,60 @@ class StructOperations(object):
         return [x.name for x in struct.type]
 
     @property
+    def indices(self):
+        """Return all index positions contained in struct array.
+
+        :returns: a list index positions.
+
+        Example:
+
+        >>> import vaex
+        >>> import pyarrow as pa
+        >>> array = pa.StructArray.from_arrays(arrays=[[1,2], ["a", "b"]], names=["col1", "col2"])
+        >>> df = vaex.from_arrays(array=array)
+        >>> df
+        # 	array
+        0	{'col1': 1, 'col2': 'a'}
+        1	{'col1': 2, 'col2': 'b'}
+
+        >>> df.array.struct.indices
+        [0, 1]
+
+        """
+
+        struct = self.expression.values
+        self.assert_struct_dtype(struct)
+        return list(range(struct.type.num_fields))
+
+    @property
+    def keys_indices(self):
+        """Return all field names along with unique index positions.
+
+        :returns: pandas.Series with field indices as index and keys as values.
+
+        Example:
+
+        >>> import vaex
+        >>> import pyarrow as pa
+        >>> array = pa.StructArray.from_arrays(arrays=[[1,2], ["a", "b"]], names=["col1", "col2"])
+        >>> df = vaex.from_arrays(array=array)
+        >>> df
+        # 	array
+        0	{'col1': 1, 'col2': 'a'}
+        1	{'col1': 2, 'col2': 'b'}
+
+        >>> df.array.struct.keys_indices
+        0    a
+        1    b
+        dtype: object
+
+        """
+
+        struct = self.expression.values
+        self.assert_struct_dtype(struct)
+        return pd.Series(self.keys, index=self.indices)
+
+    @property
     def dtypes(self):
         """Return all field names along with corresponding types.
 
@@ -251,14 +305,18 @@ class StructOperations(object):
         >>> df.array.struct.dtypes
         col1     int64
         col2    string
-        col3     int64
         dtype: object
 
         """
 
         struct = self.expression.values
         self.assert_struct_dtype(struct)
-        return pd.Series({x.name: vaex.datatype.DataType(x.type) for x in struct.type})
+
+        keys = self.keys
+        dtypes = [field.type for field in struct.type]
+        vaex_dtypes = [vaex.datatype.DataType(x) for x in dtypes]
+
+        return pd.Series(vaex_dtypes, index=keys)
 
     @staticmethod
     def assert_struct_dtype(struct):
@@ -504,7 +562,7 @@ class Expression(with_metaclass(Meta)):
 
         if fields is None:
             return expr
-        elif isinstance(fields, str):
+        elif isinstance(fields, (int, str)):
             return expr.struct.get(fields)
         elif isinstance(fields, (tuple, list)):
             return expr.struct.project(fields)
