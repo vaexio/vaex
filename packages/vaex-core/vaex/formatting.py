@@ -3,7 +3,7 @@ import numbers
 import six
 import datetime
 import pyarrow as pa
-
+from vaex import datatype, struct
 
 MAX_LENGTH = 50
 
@@ -16,7 +16,11 @@ def _trim_string(value):
 def _format_value(value):
     # print("value = ", value, type(value), isinstance(value, numbers.Number))
     if isinstance(value, pa.lib.Scalar):
-        value = value.as_py()
+        if datatype.DataType(value.type).is_struct:
+            value = struct.format_struct_item_vaex_style(value)
+        else:
+            value = value.as_py()
+
         if value is None:
             return '--'
         else:

@@ -3,10 +3,60 @@
 """
 
 import functools
+import json
 
 import pyarrow as pa
 import vaex.expression
 from vaex import register_function
+
+
+def format_struct_item_vaex_style(struct_item):
+    """Provides consistent vaex formatting output for struct items
+    handling structs with duplicated field labels for which conversion
+    methods (e.g. `as_py()`) are currently (4.0.1) not well supported
+    by pyarrow.
+
+    """
+
+    if is_struct_dtype_with_duplicated_field_labels(struct_item.type):
+        return format_duplicated_struct_item_vaex_style(struct_item)
+    else:
+        return struct_item.as_py()
+
+
+def format_duplicated_struct_item_vaex_style(struct_item):
+    """Provides consistent vaex formatting output for struct item with
+    duplicated labels.
+
+    """
+
+    mapping = {idx: dtype.name for idx, dtype in enumerate(struct_item.type)}
+    values = [f"'{label}({idx})': {json.dumps(struct_item[idx].as_py())}"
+              for idx, label in mapping.items()]
+
+    return f"{{{', '.join(values)}}}"
+
+
+def is_struct_dtype_with_duplicated_field_labels(dtype):
+    """Check if struct item has duplicated field labels.
+
+    """
+
+    labels = {field.name for field in dtype}
+    return len(labels) < dtype.num_fields
+
+
+def _get_struct_field_label(dtype, identifier):
+    """Return the string field label for given field identifier
+    which can either be an integer for position based access or
+    a string label directly.
+
+    """
+
+    if isinstance(identifier, str):
+        return identifier
+
+    return dtype[identifier].name
 
 
 def _assert_struct_dtype(func):
