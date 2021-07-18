@@ -73,16 +73,35 @@ def _assert_struct_dtype(func):
     return wrapper
 
 
+
+
 def _check_valid_struct_fields(struct, fields):
     """Ensure that fields do exist for given struct and provide helpful error message otherwise.
 
     """
 
-    valid_fields = {x.name for x in struct.type}
-    non_existant_fields = {field for field in fields if field not in valid_fields}
+    # check for existing/valid fields
+    valid_field_labels = {x.name for x in struct.type}
+    valid_field_indices = set(range(struct.type.num_fields))
+    valid_field_lookups = valid_field_labels.union(valid_field_indices)
+
+    non_existant_fields = {field for field in fields
+                           if field not in valid_field_lookups}
     if non_existant_fields:
-        raise ValueError(f"Invalid field names provided: {non_existant_fields}. "
-                         f"Valid field names are '{valid_fields}'")
+        raise ValueError(f"Invalid field lookup provided: {non_existant_fields}. "
+                         f"Valid field lookups are '{valid_field_lookups}'")
+
+    # check for duplicated field names and provide helpful error message
+    labels = [field.name for field in struct.type]
+    duplis = {x for x in labels if labels.count(x) > 1}
+    duplicated_label_lookup = duplis.intersection(fields)
+    if duplicated_label_lookup:
+        raise ValueError(f"Invalid field lookup due to duplicated field "
+                         f"labels '{duplicated_label_lookup}'. Please use "
+                         f"index position baesd lookup for fields with "
+                         f"duplicated labels to uniquely identify relevant "
+                         f"field. To get index positions for field labels, "
+                         f"please use `df.array.struct.keys_indices`.")
 
 
 @register_function(scope="struct")
@@ -90,7 +109,11 @@ def _check_valid_struct_fields(struct, fields):
 def struct_get(x, field):
     """Return a single field from a struct array. You may also use the shorthand notation `df.name[:, 'field']`.
 
-    :param {str, int} field: A string or integer identifying a struct field.
+    Please note, in case of duplicated field labels, a field can't be uniquely identified. Please
+    use index position based access instead. To get corresponding field indices, please use
+    `df.array.struct.keys_indices`.
+
+    :param {str, int} field: A string (label) or integer (index position) identifying a struct field.
     :returns: an expression containing a struct field.
 
     Example:
@@ -106,6 +129,13 @@ def struct_get(x, field):
 
     >>> df.array.struct.get("col1")
     Expression = struct_get(array, 'col1')
+    Length: 2 dtype: int64 (expression)
+    -----------------------------------
+    0  1
+    1  2
+
+    >>> df.array.struct.get(0)
+    Expression = struct_get(array, 0)
     Length: 2 dtype: int64 (expression)
     -----------------------------------
     0  1
@@ -130,7 +160,7 @@ def struct_project(x, fields):
     """Project one or more fields of a struct array to a new struct array. You may also use the shorthand notation
     `df.name[:, ['field1', 'field2']]`.
 
-    :param list field: A list of strings or integers identifying one or more fields.
+    :param list field: A list of strings (label) or integers (index position) identifying one or more fields.
     :returns: an expression containing a struct array.
 
     Example:
@@ -151,6 +181,13 @@ def struct_project(x, fields):
     0  {'col3': 3, 'col1': 1}
     1  {'col3': 4, 'col1': 2}
 
+    >>> df.array.struct.project([2, 0])
+    Expression = struct_project(array, [2, 0])
+    Length: 2 dtype: struct<col3: int64, col1: int64> (expression)
+    --------------------------------------------------------------
+    0  {'col3': 3, 'col1': 1}
+    1  {'col3': 4, 'col1': 2}
+
     >>> df.array[:, ["col3", "col1"]]
     Expression = struct_project(array, ['col3', 'col1'])
     Length: 2 dtype: struct<col3: int64, col1: int64> (expression)
@@ -162,4 +199,6 @@ def struct_project(x, fields):
 
     _check_valid_struct_fields(x, fields)
     arrays = [x.field(field) for field in fields]
+    fields = [_get_struct_field_label(x.type, field) for field in fields]
+
     return pa.StructArray.from_arrays(arrays=arrays, names=fields)
