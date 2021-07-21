@@ -1,5 +1,9 @@
 '''
 A module for I/O between Vaex and Google BigQuery.
+
+Requires:
+ - google.cloud.bigquery
+ - google.cloud.bigquery_storage
 '''
 
 import tempfile
@@ -22,6 +26,25 @@ def query_google_big_query(query, client_project=None, credentials=None):
     :param str client_project: The ID of the project that executes the query. Will be passed when creating a job. If `None`, falls back to the default inferred from the environment.
     :param credentials: The authorization credentials to attach to requests. See google.auth.credentials.Credentials for more details.
     :rtype: DataFrame
+
+    Example
+
+    >>> import os
+    os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = '../path/to/project_access_key.json'
+    >>> from vaex.contrib.io.gbq import query_google_big_query
+
+    >>> query = """
+        select * from `bigquery-public-data.ml_datasets.iris`
+        where species = "virginica"
+    """
+
+    >>> df = query_google_big_query(query=query)
+    >>> df.head(3)
+    #    sepal_length    sepal_width    petal_length    petal_width  species
+    0             4.9            2.5             4.5            1.7  virginica
+    1             5.7            2.5             5              2    virginica
+    2             6              2.2             5              1.5  virginica
+
     '''
     client = google.cloud.bigquery.Client(project=client_project, credentials=credentials)
     job = client.query(query=query)
@@ -40,6 +63,32 @@ def download_google_bigquery_table(project, dataset, table, columns=None, condit
     :param str client_project: The ID of the project that executes the query. Will be passed when creating a job. If `None`, it will be set with the same value as `project`.
     :param credentials: The authorization credentials to attach to requests. See google.auth.credentials.Credentials for more details.
     :rtype: DataFrame
+
+    Example:
+
+    >>> import os
+    >>> os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = '../path/to/project_access_key.json'
+    >>> from vaex.contrib.io.gbq import download_google_bigquery_table
+
+    >>> client_project = 'my_project_id'
+    >>> project = 'bigquery-public-data'
+    >>> dataset = 'ml_datasets'
+    >>> table = 'iris'
+    >>> columns = ['species', 'sepal_width', 'petal_width']
+    >>> conditions = 'species = "virginica"'
+    >>> df = download_google_bigquery_table(project=project,
+                                            dataset=dataset,
+                                            table=table,
+                                            columns=columns,
+                                            condition=conditions,
+                                            client_project=client_project)
+    >>> df.head(3)
+    #    sepal_width    petal_width  species
+    0            2.5            1.7  virginica
+    1            2.5            2    virginica
+    2            2.2            1.5  virginica
+    >>>
+
     '''
     # Instantiate the table path and the reading session
     bq_table = f'projects/{project}/datasets/{dataset}/tables/{table}'
@@ -95,6 +144,20 @@ def upload_to_google_bigquery_table(df, dataset, table, job_config=None, client_
     :param chunk_size: In case the local disk space is limited, export the dataset in chunks.
                        This is considerably slower than a single file upload and it should be avoided.
     :param progress: Valid only if chunk_size is not None. A callable that takes one argument (a floating point value between 0 and 1) indicating the progress, calculations are cancelled when this callable returns False
+
+    Example:
+
+    >>> import os
+    >>> os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = '../path/to/project_access_key.json'
+    >>> import vaex
+    >>> from vaex.contrib.io.gbq import upload_to_google_bigquery_table
+
+    >>> df = vaex.example()
+    >>> dataset = 'test_dataset'
+    >>> table = 'test_upload_table_titanic'
+
+    >>> upload_to_google_bigquery_table(df=df, dataset=dataset, table=table)
+
     '''
 
     # Instantiate the BigQuery Client
