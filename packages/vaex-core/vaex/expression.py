@@ -283,7 +283,7 @@ class StructOperations(object):
 
         struct = self.expression.values
         self.assert_struct_dtype(struct)
-        return pd.Series(self.keys, index=self.indices)
+        return pd.Series(self.keys, index=self.indices, dtype='string')
 
     @property
     def dtypes(self):
