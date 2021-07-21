@@ -19,7 +19,7 @@ google = vaex.utils.optional_import("google", modules=[
 ])
 
 
-def query_google_big_query(query, client_project=None, credentials=None):
+def from_query(query, client_project=None, credentials=None):
     '''Make a query to Google BigQuery and get the result as a Vaex DataFrame.
 
     :param str query: The SQL query.
@@ -31,14 +31,14 @@ def query_google_big_query(query, client_project=None, credentials=None):
 
     >>> import os
     os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = '../path/to/project_access_key.json'
-    >>> from vaex.contrib.io.gbq import query_google_big_query
+    >>> from vaex.contrib.io.gbq import from_query
 
     >>> query = """
         select * from `bigquery-public-data.ml_datasets.iris`
         where species = "virginica"
     """
 
-    >>> df = query_google_big_query(query=query)
+    >>> df = from_query(query=query)
     >>> df.head(3)
     #    sepal_length    sepal_width    petal_length    petal_width  species
     0             4.9            2.5             4.5            1.7  virginica
@@ -51,7 +51,7 @@ def query_google_big_query(query, client_project=None, credentials=None):
     return vaex.from_arrow_table(job.to_arrow())
 
 
-def download_google_bigquery_table(project, dataset, table, columns=None, condition=None, export=None, client_project=None, credentials=None):
+def from_table(project, dataset, table, columns=None, condition=None, export=None, client_project=None, credentials=None):
     '''Download (stream) an entire Google BigQuery table locally.
 
     :param str project: The Google BigQuery project that owns the table.
@@ -68,7 +68,7 @@ def download_google_bigquery_table(project, dataset, table, columns=None, condit
 
     >>> import os
     >>> os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = '../path/to/project_access_key.json'
-    >>> from vaex.contrib.io.gbq import download_google_bigquery_table
+    >>> from vaex.contrib.io.gbq import from_table
 
     >>> client_project = 'my_project_id'
     >>> project = 'bigquery-public-data'
@@ -76,7 +76,7 @@ def download_google_bigquery_table(project, dataset, table, columns=None, condit
     >>> table = 'iris'
     >>> columns = ['species', 'sepal_width', 'petal_width']
     >>> conditions = 'species = "virginica"'
-    >>> df = download_google_bigquery_table(project=project,
+    >>> df = from_table(project=project,
                                             dataset=dataset,
                                             table=table,
                                             columns=columns,
@@ -129,7 +129,7 @@ def download_google_bigquery_table(project, dataset, table, columns=None, condit
         return vaex.open(export)
 
 
-def upload_to_google_bigquery_table(df, dataset, table, job_config=None, client_project=None, credentials=None, chunk_size=None, progress=None):
+def to_table(df, dataset, table, job_config=None, client_project=None, credentials=None, chunk_size=None, progress=None):
     '''Upload a Vaex DataFrame to a Google BigQuery Table.
 
     Note that the upload creates a temporary parquet file on the local disk, which is then upload to
@@ -150,13 +150,13 @@ def upload_to_google_bigquery_table(df, dataset, table, job_config=None, client_
     >>> import os
     >>> os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = '../path/to/project_access_key.json'
     >>> import vaex
-    >>> from vaex.contrib.io.gbq import upload_to_google_bigquery_table
+    >>> from vaex.contrib.io.gbq import to_table
 
     >>> df = vaex.example()
     >>> dataset = 'my_dataset'
     >>> table = 'my_table'
 
-    >>> upload_to_google_bigquery_table(df=df, dataset=dataset, table=table)
+    >>> to_table(df=df, dataset=dataset, table=table)
 
     '''
 
