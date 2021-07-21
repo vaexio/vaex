@@ -153,8 +153,8 @@ def upload_to_google_bigquery_table(df, dataset, table, job_config=None, client_
     >>> from vaex.contrib.io.gbq import upload_to_google_bigquery_table
 
     >>> df = vaex.example()
-    >>> dataset = 'test_dataset'
-    >>> table = 'test_upload_table_titanic'
+    >>> dataset = 'my_dataset'
+    >>> table = 'my_table'
 
     >>> upload_to_google_bigquery_table(df=df, dataset=dataset, table=table)
 
