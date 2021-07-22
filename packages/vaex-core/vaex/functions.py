@@ -2675,6 +2675,32 @@ import vaex.arrow.numpy_dispatch
 
 @register_function()
 def where(condition, x, y, dtype=None):
+    ''' Return the values row-wise chosen from `x` or `y` depending on the `condition`.
+
+    This a useful function when you want to create based on some condition.
+    If the condition is True, the value from `x` is taken, and othewise the value from `y` is taken.
+    An easy way to think about the syntax is `df.func.where("if", "then", "else")`.
+    Please see the example below.
+
+    Note: if the function is used as a method of an expression, that expression is assumed to be the condition.
+
+    :param condition: An boolean expression
+    :param x: A single value or an expression, the value passed on if the condition is satisfied.
+    :param y: A single value or an expression, the value passed on if the condition is not satisfied.
+    :param dtype: Optionally specify the dtype of the resulting expression
+    :rtype: Expression
+
+    Example:
+    >>> import vaex
+    >>> df = vaex.from_arrays(x=[0, 1, 2, 3])
+    >>> df['y'] = df.func.where(df.x >=2, df.x, -1)
+    >>> df
+    #    x    y
+    0    0   -1
+    1    1   -1
+    2    2    2
+    3    3    3
+    '''
     # special where support for strings
     # TODO: this should be replaced by an arrow compute function in the future
     if type(x) == str:
