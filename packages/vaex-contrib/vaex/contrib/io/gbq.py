@@ -11,6 +11,7 @@ import tempfile
 import pyarrow as pa
 import pyarrow.parquet as pq
 
+from vaex.docstrings import docsubst
 import vaex.utils
 
 google = vaex.utils.optional_import("google", modules=[
@@ -50,8 +51,8 @@ def from_query(query, client_project=None, credentials=None):
     job = client.query(query=query)
     return vaex.from_arrow_table(job.to_arrow())
 
-
-def from_table(project, dataset, table, columns=None, condition=None, export=None, client_project=None, credentials=None):
+@docsubst
+def from_table(project, dataset, table, columns=None, condition=None, export=None, fs=None, fs_options=None, client_project=None, credentials=None):
     '''Download (stream) an entire Google BigQuery table locally.
 
     :param str project: The Google BigQuery project that owns the table.
@@ -60,6 +61,8 @@ def from_table(project, dataset, table, columns=None, condition=None, export=Non
     :param list columns: A list of columns (field names) to download. If None, all columns will be downloaded.
     :param str condition: SQL text filtering statement, similar to a WHERE clause in a query. Aggregates are not supported.
     :param str export: Pass an filename or path to download the table as an Apache Arrow file, and leverage memory mapping. If `None` the DataFrame is in memory.
+    :param fs: Valid if export is not None. {fs}
+    :param fs: Valid if export is not None. {fs_options}
     :param str client_project: The ID of the project that executes the query. Will be passed when creating a job. If `None`, it will be set with the same value as `project`.
     :param credentials: The authorization credentials to attach to requests. See google.auth.credentials.Credentials for more details.
     :rtype: DataFrame
@@ -119,7 +122,7 @@ def from_table(project, dataset, table, columns=None, condition=None, export=Non
         schema = first_batch.schema
 
         # This does the writing - streams the batches to disk!
-        with vaex.file.open(path=export, mode='wb') as sink:
+        with vaex.file.open(path=export, mode='wb', fs=fs, fs_options=fs_options) as sink:
             with pa.RecordBatchStreamWriter(sink, schema) as writer:
                 writer.write_batch(first_batch)
                 for page in pages:
