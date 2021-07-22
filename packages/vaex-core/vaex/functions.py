@@ -2691,6 +2691,7 @@ def where(condition, x, y, dtype=None):
     :rtype: Expression
 
     Example:
+
     >>> import vaex
     >>> df = vaex.from_arrays(x=[0, 1, 2, 3])
     >>> df['y'] = df.func.where(df.x >=2, df.x, -1)
