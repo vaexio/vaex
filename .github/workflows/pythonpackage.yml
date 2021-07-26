@@ -132,6 +132,16 @@ jobs:
       run: |
         conda activate vaex-dev
         py.test vaex-enterprise/tests --timeout=1000
+    - name: Test the contrib package
+      uses: google-github-actions/setup-gcloud@master
+      with:
+        project_id: ${{ secrets.GCP_PROJECT_ID_VAEX }}
+        service_account_key: ${{ secrets.GCP_SA_KEY_VAEX }}
+        export_default_credentials: true
+        env:
+          PROJECT_ID: ${{ secrets.GCP_PROJECT_ID_VAEX }}
+        run: |
+          ./ci/06-run-contrib-tests.sh
     - name: Test notebooks
       if: matrix.os != 'windows-latest'
       run: |
