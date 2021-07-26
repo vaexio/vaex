@@ -141,8 +141,8 @@ jobs:
     - name: Test vaex-contrib package
       env:
         PROJECT_ID: ${{ secrets.GCP_PROJECT_ID_VAEX }}
-        run: |
-          ./ci/06-run-contrib-tests.sh
+      run: |
+        ./ci/06-run-contrib-tests.sh
     - name: Test notebooks
       if: matrix.os != 'windows-latest'
       run: |
