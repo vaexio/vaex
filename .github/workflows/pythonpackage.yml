@@ -132,7 +132,7 @@ jobs:
       run: |
         conda activate vaex-dev
         py.test vaex-enterprise/tests --timeout=1000
-    - name: Authenticate GCP
+    - name: Authenticate Google Cloud Platform
       uses: google-github-actions/setup-gcloud@master
       with:
         project_id: ${{ secrets.GCP_PROJECT_ID_VAEX }}
