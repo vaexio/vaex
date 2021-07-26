@@ -6,6 +6,6 @@ if [ -f ${HOME}/.bashrc ]; then
 else
     source ${HOME}/.bash_profile
 fi
-conda activate vaex-dev
+# conda activate vaex-dev
 
-pytest packages/vaex-contrib/vaex/contrib/
+py.test packages/vaex-contrib/vaex/contrib/

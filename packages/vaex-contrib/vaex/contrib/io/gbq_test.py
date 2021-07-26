@@ -1,11 +1,12 @@
+from datetime import datetime
 import os
+
+from google.cloud import bigquery
 
 import pytest
 
-import vaex
-from vaex.contrib.io.gbq import (from_query,
-                                 from_table,
-                                 to_table)
+import vaex.ml
+from vaex.contrib.io.gbq import from_query, from_table, to_table
 
 
 client_project_id = os.getenv('PROJECT_ID')
@@ -55,5 +56,3 @@ def test_to_table():
     t = client.get_table(table_id)
     assert t.created.date() == datetime.now().date()
     assert len(t.schema) == 14
-
-
