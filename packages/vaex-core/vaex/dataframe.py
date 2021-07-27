@@ -343,7 +343,7 @@ class DataFrame(object):
 
     def category_values(self, column):
         column = _ensure_string_from_expression(column)
-        return self._categories[column]['values']
+        return self.columns[column]
 
     def category_count(self, column):
         column = _ensure_string_from_expression(column)
