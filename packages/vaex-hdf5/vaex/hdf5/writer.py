@@ -29,11 +29,11 @@ class Writer:
         self._layout_called = False
 
     def close(self):
-        self.h5.close()
         if self.mmap is not None:
             self.mmap.close()
             self.file.close()
-
+        self.h5.close()
+        
     def __enter__(self):
         return self
 

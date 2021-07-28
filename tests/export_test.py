@@ -116,6 +116,16 @@ def test_export_string_mask(tmpdir):
     df_arrow = vaex.open(path)
     assert df.s.tolist() == df_arrow.s.tolist()
 
+def test_export_unicode_column_name_hdf5(tmpdir):
+    # prepare many columns for multithreaded export
+    src_dict = {"あ": [1, 2, 3], "a": [1, 2, 3], "b": [1, 2, 3], 
+            "c": [1, 2, 3], "d": [1, 2, 3], "a1": [1, 2, 3], 
+            "b2": [1, 2, 3], "c3": [1, 2, 3], "d4": [1, 2, 3]}
+    path = str(tmpdir.join('test.hdf5'))
+    df = vaex.from_dict(src_dict)
+    df.export(path)
+    df_open = vaex.open(path)
+    assert df_open["あ"].tolist() == [1, 2, 3]
 
 # N = 2**32+2
 # @pytest.mark.skipif(not os.environ.get('VAEX_EXPORT_BIG', False),
