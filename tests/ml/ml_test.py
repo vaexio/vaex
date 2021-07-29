@@ -1,3 +1,4 @@
+from re import A
 import pytest
 import numpy as np
 import vaex
@@ -654,3 +655,13 @@ def test_kbinsdiscretizer(tmpdir, strategy):
     assert df_test.shape == (6, 4)
     assert df_test.binned_x.tolist() == expected_result_test_x
     assert df_test.binned_y.tolist() == expected_result_test_y
+
+def test_transformer_repr():
+    scaler = vaex.ml.StandardScaler(features=['x'], with_mean=False)
+    assert str(scaler) == "vaex.ml.transformations.StandardScaler({'features': ['x'], 'prefix': 'standard_scaled_', 'with_mean': False, 'with_std': True})"
+
+    gbtrans = vaex.ml.GroupByTransformer()
+    assert str(gbtrans) == "vaex.ml.transformations.GroupByTransformer({'agg': {}, 'by': '', 'df_group_': None, 'features': [], 'rprefix': '', 'rsuffix': ''})"
+
+    imputer = vaex.ml.Imputer(predix='imp_')
+    assert str(imputer) == "vaex.ml.transformations.Imputer({'features': [], 'prefix': '', 'strategy': {}})"

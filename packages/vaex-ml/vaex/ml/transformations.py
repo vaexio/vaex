@@ -38,6 +38,11 @@ class Transformer(HasState):
     '''
     features = traitlets.List(traitlets.Unicode(), help=help_features).tag(ui='SelectMultiple')
 
+    def __repr__(self):
+        class_name = str(self.__class__).split('\'')[1]
+        view = {name: value for  name, value in self.trait_values().items() if self.trait_metadata(name, 'output') is not True}
+        return f'{class_name}({view})'
+
     def fit_transform(self, df):
         '''Fit and apply the transformer to the supplied DataFrame.
 
@@ -1376,6 +1381,3 @@ class Imputer(Transformer):
         copy = copy.drop(['__index__'])
 
         return copy
-    # TODO: Make this a thing in the Transformer class
-    def __repr__(self):
-        return f"Imputer({self.strategy})"
