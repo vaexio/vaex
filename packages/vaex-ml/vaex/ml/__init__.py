@@ -99,3 +99,4 @@ from .transformations import CycleTransformer
 from .transformations import BayesianTargetEncoder
 from .transformations import WeightOfEvidenceEncoder
 from .transformations import GroupByTransformer, KBinsDiscretizer
+from .transformations import Imputer
