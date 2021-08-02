@@ -715,7 +715,7 @@
     },
     {
         "classname": "KBinsDiscretizer",
-        "doc": "Bin continous features into discrete bins.\n\n    A stretegy to encode continuous features into discrete bins. The transformed\n    columns contain the bin label each sample falls into. In a way this\n    transformer Label/Ordinal encodes continous features.\n\n    Example:\n\n    >>> import vaex\n    >>> import vaex.ml\n    >>> df = vaex.from_arrays(x=[0, 2.5, 5, 7.5, 10, 12.5, 15])\n    >>> bin_trans = vaex.ml.KBinsDiscretizer(features=['x'], n_bins=3, strategy='uniform')\n    >>> bin_trans.fit_transform(df)\n      #     x    binned_x\n      0   0             0\n      1   2.5           0\n      2   5             1\n      3   7.5           1\n      4  10             2\n      5  12.5           2\n      6  15             2\n    ",
+        "doc": "Bin continuous features into discrete bins.\n\n    A strategy to encode continuous features into discrete bins. The transformed\n    columns contain the bin label each sample falls into. In a way this\n    transformer Label/Ordinal encodes continuous features.\n\n    Example:\n\n    >>> import vaex\n    >>> import vaex.ml\n    >>> df = vaex.from_arrays(x=[0, 2.5, 5, 7.5, 10, 12.5, 15])\n    >>> bin_trans = vaex.ml.KBinsDiscretizer(features=['x'], n_bins=3, strategy='uniform')\n    >>> bin_trans.fit_transform(df)\n      #     x    binned_x\n      0   0             0\n      1   2.5           0\n      2   5             1\n      3   7.5           1\n      4  10             2\n      5  12.5           2\n      6  15             2\n    ",
         "module": "vaex.ml.transformations",
         "snake_name": "kbins_discretizer",
         "traits": [
