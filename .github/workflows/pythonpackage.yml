@@ -132,6 +132,10 @@ jobs:
       run: |
         conda activate vaex-dev
         py.test vaex-enterprise/tests --timeout=1000
+    - name: Test notebooks
+      if: matrix.os != 'windows-latest'
+      run: |
+        ./ci/05-run-notebooks.sh
     - name: Authenticate Google Cloud Platform
       uses: google-github-actions/setup-gcloud@master
       with:
@@ -139,11 +143,7 @@ jobs:
         service_account_key: ${{ secrets.GCP_SA_KEY_VAEX }}
         export_default_credentials: true
     - name: Test vaex-contrib
-      # env:
-      #   PROJECT_ID: ${{ secrets.GCP_PROJECT_ID_VAEX }}
+      env:
+        PROJECT_ID: ${{ secrets.GCP_PROJECT_ID_VAEX }}
       run: |
-        ./ci/06-run-contrib-tests.sh
-    - name: Test notebooks
-      if: matrix.os != 'windows-latest'
-      run: |
-        ./ci/05-run-notebooks.sh
+        chmod +x ./ci/06-run-contrib-tests.sh
