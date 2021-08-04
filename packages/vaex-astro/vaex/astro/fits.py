@@ -170,7 +170,7 @@ def empty(filename, length, column_names, data_types, data_shapes, ucds, units, 
 			pass
 
 		def write(key, value, comment=""):
-			first_part = "{key:8}= {value:20} / ".format(key=key, value=value)
+			first_part = "{key:8}= {value:>20} / ".format(key=key, value=value)
 			f.write(first_part.encode("ascii"))
 			leftover = 80 - len(first_part)
 			f.write(("{comment:"+str(leftover) +"}").format(comment=comment).encode("ascii"))
