@@ -282,15 +282,32 @@ def open(path, mode='rb', fs_options={}, fs=None, for_arrow=False, mmap=False, e
             return io.TextIOWrapper(fp, encoding=encoding)
     elif mode == 'wb':
         def create():
-            return fs.open_output_stream(path)
+            return _make_argument_optional(fs.open_output_stream, metadata=None)(path)
     elif mode == "w":
         def create():
-            fa = fs.open_output_stream(path)
+            fa =  _make_argument_optional(fs.open_output_stream, metadata=None)(path)
             fp = FileProxy(fa, path, lambda: fs.open_output_stream(path))
             return io.TextIOWrapper(fa, encoding=encoding)
     else:
         raise ValueError(f'Only mode=rb/bw/r/w are supported, not {mode}')
     return FileProxy(create(), path, create)
+
+
+def _make_argument_optional(f, **defaults):
+    # workaround for https://issues.apache.org/jira/browse/ARROW-13546
+    # makes f act as if arguments have default values (or ignore when the argument does not exist)
+    import inspect
+    import functools
+    sig = inspect.signature(f)
+    params = sig.parameters
+    @functools.wraps(f)
+    def wrapper(*args, **kwargs):
+        kwargs = kwargs.copy()
+        for name, value in defaults.items():
+            if name in params and name not in kwargs:
+                kwargs[name] = value
+        return f(*args, **kwargs)
+    return wrapper
 
 
 def dup(file):
