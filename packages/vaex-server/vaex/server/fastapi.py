@@ -310,70 +310,6 @@ class Settings(BaseSettings):
         env_file = '.env'
         env_file_encoding = 'utf-8'
 
-for name, path in vaex.settings.webserver.get("datasets", {}).items():
-    datasets[name] = vaex.open(path).dataset
-
-
-def ensure_example():
-    if 'example' not in datasets:
-        datasets['example'] = vaex.example().dataset
-
-ensure_example()
-
-
-def update_service(dfs=None):
-    global service_threaded
-    import vaex.server.service
-    if dfs is None:
-        dfs = {name: vaex.from_dataset(dataset) for name, dataset in datasets.items()}
-
-    service_bare = vaex.server.service.Service(dfs)
-    server_thread_count = 1
-    threads_per_job = 32
-    service_threaded = vaex.server.service.AsyncThreadedService(service_bare, server_thread_count, threads_per_job)
-
-
-
-def main(argv=sys.argv):
-    import uvicorn
-    import argparse
-    parser = argparse.ArgumentParser(argv[0])
-    parser.add_argument("filename", help="filename for dataset", nargs='*')
-    parser.add_argument("--host", help="address to bind the server to (default: %(default)s)", default="0.0.0.0")
-    parser.add_argument("--base-url", help="External base url (default is <host>:port)", default=None)
-    parser.add_argument("--port", help="port to listen on (default: %(default)s)", type=int, default=8081)
-    parser.add_argument('--verbose', '-v', action='count', default=2)
-    config = parser.parse_args(argv[1:])
-
-    verbosity = ["ERROR", "WARNING", "INFO", "DEBUG"]
-    logging.getLogger("vaex").setLevel(verbosity[config.verbose])
-
-    if config.filename:
-        datasets.clear()
-        for path in config.filename:
-            if "=" in path:
-                name, path = path.split('=')
-                df = vaex.open(path)
-                datasets[name] = df.dataset
-            else:
-                df = vaex.open(path)
-                name, _, _ = vaex.file.split_ext(os.path.basename(path))
-                datasets[name] = df.dataset
-    if not datasets:
-        datasets['example'] = vaex.example().dataset
-    update_service()
-    host = config.host
-    port = config.port
-    base_url = config.base_url
-    if not base_url:
-        base_url = host
-        if port != 80:
-            base_url += f":{port}"
-    for name in datasets:
-        line = f"{name}:  http://{base_url}/dataset/{name} for REST or ws://{base_url}/{name} for websocket"
-        logger.info(line)
-
-    uvicorn.run(app, port=port, host=host)
 
 
 # used for testing
@@ -439,6 +375,73 @@ class Server(threading.Thread):
         if self.stopped.wait(1) is not None:
             logger.error('stopping server failed')
         logger.debug("stopped server")
+
+
+for name, path in vaex.settings.webserver.get("datasets", {}).items():
+    datasets[name] = vaex.open(path).dataset
+
+
+def ensure_example():
+    if 'example' not in datasets:
+        datasets['example'] = vaex.example().dataset
+
+ensure_example()
+
+
+def update_service(dfs=None):
+    global service_threaded
+    import vaex.server.service
+    if dfs is None:
+        dfs = {name: vaex.from_dataset(dataset) for name, dataset in datasets.items()}
+
+    service_bare = vaex.server.service.Service(dfs)
+    server_thread_count = 1
+    threads_per_job = 32
+    service_threaded = vaex.server.service.AsyncThreadedService(service_bare, server_thread_count, threads_per_job)
+
+
+def main(argv=sys.argv):
+    import uvicorn
+    import argparse
+    parser = argparse.ArgumentParser(argv[0])
+    parser.add_argument("filename", help="filename for dataset", nargs='*')
+    parser.add_argument("--host", help="address to bind the server to (default: %(default)s)", default="0.0.0.0")
+    parser.add_argument("--base-url", help="External base url (default is <host>:port)", default=None)
+    parser.add_argument("--port", help="port to listen on (default: %(default)s)", type=int, default=8081)
+    parser.add_argument('--verbose', '-v', action='count', help='show more info', default=2)
+    parser.add_argument('--quiet', '-q', action='count', help="less info", default=0)
+    config = parser.parse_args(argv[1:])
+
+    verbosity = ["ERROR", "WARNING", "INFO", "DEBUG"]
+    logging.getLogger("vaex").setLevel(verbosity[config.verbose - config.quiet])
+
+    if config.filename:
+        datasets.clear()
+        for path in config.filename:
+            if "=" in path:
+                name, path = path.split('=')
+                df = vaex.open(path)
+                datasets[name] = df.dataset
+            else:
+                df = vaex.open(path)
+                name, _, _ = vaex.file.split_ext(os.path.basename(path))
+                datasets[name] = df.dataset
+    if not datasets:
+        datasets['example'] = vaex.example().dataset
+    update_service()
+    host = config.host
+    port = config.port
+    base_url = config.base_url
+    if not base_url:
+        base_url = host
+        if port != 80:
+            base_url += f":{port}"
+    for name in datasets:
+        line = f"{name}:  http://{base_url}/dataset/{name} for REST or ws://{base_url}/{name} for websocket"
+        logger.info(line)
+
+    uvicorn.run(app, port=port, host=host)
+
 
 if __name__ == "__main__":
     main()

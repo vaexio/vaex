@@ -1053,4 +1053,4 @@ def get_env_type(type, key, default=None):
         value = default
     if value is not None:
         import ast
-        return type(ast.literal_eval(str(value)))
+        return type(ast.literal_eval(repr(value)))

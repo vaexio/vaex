@@ -13,6 +13,29 @@ def reset(df):
         df.executor.remote_calls = 0
 
 
+def test_memory():
+    with vaex.cache.off():
+        assert vaex.cache.cache is None
+        with vaex.cache.memory_infinite():
+            assert isinstance(vaex.cache.cache, dict)
+        assert vaex.cache.cache is None
+        vaex.cache.memory_infinite()
+        assert isinstance(vaex.cache.cache, dict)
+
+
+def test_on():
+    with vaex.cache.off():
+        assert vaex.cache.cache is None
+        with vaex.cache.on():
+            assert isinstance(vaex.cache.cache, dict)
+        assert vaex.cache.cache is None
+        vaex.cache.on()
+        assert isinstance(vaex.cache.cache, dict)
+        vaex.cache.off()
+        assert vaex.cache.cache is None
+
+
+
 def test_cached_result(df_local):
     with vaex.cache.memory_infinite(clear=True):
         assert vaex.cache.is_on()
