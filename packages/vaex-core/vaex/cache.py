@@ -68,7 +68,7 @@ class _cleanup:
         log.debug('entered')
         return self._result
 
-    def __exit__(self, type, value, traceback):
+    def __exit__(self, type=None, value=None, traceback=None):
         try:
             next(self._gen)
         except StopIteration:

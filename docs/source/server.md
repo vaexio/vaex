@@ -12,18 +12,18 @@ There are various cases where the calculations and/or aggregations need to happe
 You can skip running your own server and first try out using `https://dataframe.vaex.io`
 ```
 
-The vaex webserver can be started from the command line like:
+The vaex (web) server can be started from the command line like:
 ```bash
-$ vaex webserver
-INFO:MainThread:vaex.webserver:datasets:
-INFO:MainThread:vaex.webserver: http://0.0.0.0:9000/example or ws://0.0.0.0:9000/example
-INFO:MainThread:vaex.webserver:serving at http://0.0.0.0:9000
+$ vaex server --port 8082 /data/taxi/yellow_taxi_2012.hdf5 gaia=/data/gaia/gaia-edr3-x-ps1.hdf5
+INFO:MainThread:vaex.server:yellow_taxi_2012:  http://0.0.0.0:8082/dataset/yellow_taxi_2012 for REST or ws://0.0.0.0:8082/yellow_taxi_2012 for websocket
+INFO:MainThread:vaex.server:gaia:  http://0.0.0.0:8082/dataset/gaia for REST or ws://0.0.0.0:8082/gaia for websocket
+INFO:     Started server process [617048]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8082 (Press CTRL+C to quit)
 ```
 
 Pass files on the command line, or query help by passing the `--help` flag.
-```bash
-$ vaex webserver my_large_file.hdf5 my_small_file.parquet
-```
 
 ## DataFrame server
 
@@ -32,13 +32,10 @@ When the client is a Python program, the easiest API is the remote dataframe in 
 ```python
 import vaex
 # the data is kept remote
-df = vaex.open('wss://dataframe.vaex.io/example')
+df = vaex.open('vaex+wss://dataframe.vaex.io/example')
 # only the result of the aggregations are send over the wire
 df.x.mean()
 ```
-
-
-
 
 
 ## REST API
