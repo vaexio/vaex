@@ -70,8 +70,8 @@ def webserver_tornado():
 
 @pytest.fixture(scope='session')
 def webserver_fastapi():
-    import vaex.server.rest
-    webserver = vaex.server.rest.Server(port=test_port+1)
+    import vaex.server.fastapi
+    webserver = vaex.server.fastapi.Server(port=test_port+1)
     webserver.serve_threaded()
     webserver.wait_until_serving()
     yield webserver

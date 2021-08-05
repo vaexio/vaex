@@ -7,16 +7,16 @@ from fastapi.testclient import TestClient
 from myst_parser.main import to_tokens
 import aiohttp
 
-import vaex.server.rest
+import vaex.server.fastapi
 
 
 @pytest.fixture(scope='session')
 def request_client(webserver):
-    client = TestClient(vaex.server.rest.app, raise_server_exceptions=True)
+    client = TestClient(vaex.server.fastapi.app, raise_server_exceptions=True)
     return client
 
 
-vaex.server.rest.ensure_example()
+vaex.server.fastapi.ensure_example()
 
 
 def test_list(request_client):

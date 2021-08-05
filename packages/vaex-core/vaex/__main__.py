@@ -61,9 +61,9 @@ def main(args=None):
             else:
                 extra = " (using Python %s)" % (sys.version)
             print(vaex.__full_name__ + extra)
-        elif len(args) > 1 and args[1] == "webserver":
-            import vaex.server.tornado_server
-            vaex.server.tornado_server.main([os.path.basename(args[0]) + " " + args[1]] + args[2:])
+        elif len(args) > 1 and args[1] in ["webserver", "server"]:
+            import vaex.server.server
+            vaex.server.server.main([os.path.basename(args[0]) + " " + args[1]] + args[2:])
         elif len(args) > 1 and args[1] == "benchmark":
             import vaex.benchmark
             vaex.benchmark.main([os.path.basename(args[0]) + " " + args[1]] + args[2:])
