@@ -3,13 +3,13 @@
 
 There are various cases where the calculations and/or aggregations need to happen on a different computer than where the (aggregated) data is needed. For instance, when making a dashboard, the dashboard server might not be powerful enough for the calculations. Another example is where the client lives in a different process, such as a browser.
 
-### Starting the dataframe server
+## Starting the dataframe server
 
 
 ```{admonition} Use our server first
 :class: tip
 
-You can skip running your own server and first try out using `https://dataframe.vaex.io`
+You can skip running your own server and first try out using [https://dataframe.vaex.io](https://dataframe.vaex.io)
 ```
 
 The vaex (web) server can be started from the command line like:
@@ -25,9 +25,9 @@ INFO:     Uvicorn running on http://0.0.0.0:8082 (Press CTRL+C to quit)
 
 Pass files on the command line, or query help by passing the `--help` flag.
 
-## DataFrame server
+## Python API
 
-When the client is a Python program, the easiest API is the remote dataframe in the `vaex` packages itself.
+When the client is a Python program, the easiest API is the remote dataframe in the `vaex` packages itself. This does not use the REST API, but communicates over a websocket for low latency bi-directional communication.
 
 ```python
 import vaex
@@ -36,6 +36,8 @@ df = vaex.open('vaex+wss://dataframe.vaex.io/example')
 # only the result of the aggregations are send over the wire
 df.x.mean()
 ```
+
+This means you can use almost all features of a normal (local) Vaex dataframe, without having to download the data.
 
 
 ## REST API

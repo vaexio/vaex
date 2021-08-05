@@ -32,7 +32,18 @@
                 </v-container>
                 <v-container>
                     <h1>REST API</h1>
-                    To try the REST API, <a href="/docs" target="_blank">try the Swagger documentation.</a>
+                    <a href="/docs" target="_blank">The REST API is documented using Swagger.</a>
+                </v-container>
+                <v-container>
+                    <h1>GraphQL</h1>
+                    <div v-if="graphql">
+                        <a href="/graphql" target="_blank">Try the GraphQL interface</a>
+                    </div>
+                    <div v-if="!graphql">
+                        GraphQL is not enabled.
+                        Run with<code>VAEX_SERVER_GRAPHQL=1</code> or pass the <code>--graphql</code> flag
+                        </code>
+                    </div>
                 </v-container>
                 <v-container>
                     <h1>Remote dataframe</h1>
@@ -90,6 +101,7 @@
             data: function () {
                 return {
                     datasets: [],
+                    graphql: false,
                 }
             },
             computed: {

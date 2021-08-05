@@ -26,6 +26,13 @@ def test_list(request_client):
     assert 'example' in json
 
 
+def test_dataset(request_client):
+    response = request_client.get("/dataset/example")
+    assert response.status_code == 200
+    json = response.json()
+    assert 'row_count' in json
+
+
 def test_histogram(request_client, df_example_original):
     df = df_example_original
     # GET
@@ -48,6 +55,15 @@ def test_histogram(request_client, df_example_original):
 
     response = request_client.get(f"/histogram/doesnotexist/x?min={min}&max={max}&shape={shape}")
     assert response.status_code == 404
+
+
+def test_histogram_plot(request_client, df_example_original):
+    df = df_example_original
+    # GET
+    min, max = 0, 10
+    shape = 5
+    response = request_client.get(f"/histogram.plot/example/x?min={min}&max={max}&shape={shape}")
+    assert response.status_code == 200
 
 
 def test_heatmap(request_client, df_example_original):
@@ -86,6 +102,21 @@ def test_heatmap(request_client, df_example_original):
     assert json['centers_x'] == centers_x.tolist()
     assert json['centers_y'] == centers_y.tolist()
     assert json['values'] == values.tolist()
+
+
+
+
+def test_heatmap_plot(request_client, df_example_original):
+    df = df_example_original
+    # GET
+    min_x, max_x = 0, 10
+    shape_x = 5
+    min_y, max_y = 0, 20
+    shape_y = 10
+    shape = shape_x, shape_y
+    limits = (min_x, max_x), (min_y, max_y)
+    response = request_client.get(f"/heatmap.plot/example/x/y?min_x={min_x}&max_x={max_x}&min_y={min_y}&max_y={max_y}&shape_x={shape_x}&shape_y={shape_y}")
+    assert response.status_code == 200
 
 
 # TODO: we can't use this using threads, need to use asyncio

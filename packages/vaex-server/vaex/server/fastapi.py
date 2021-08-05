@@ -32,6 +32,7 @@ global_lock = asyncio.Lock()
 logger = logging.getLogger("vaex.server")
 VAEX_FAVICON = 'https://vaex.io/img/logos/vaex_alt.png'
 HERE = pathlib.Path(__file__).parent
+use_graphql = vaex.utils.get_env_type(bool, 'VAEX_SERVER_GRAPHQL', False)
 
 
 class ImageResponse(Response):
@@ -100,7 +101,7 @@ router = APIRouter()
 path_dataset = Path(..., title="The name of the dataset", description="The name of the dataset")
 
 
-@router.get("/", response_class=HTMLResponse)
+@router.get("/", response_class=HTMLResponse, include_in_schema=False)
 async def root():
     with (HERE / 'index.html').open() as f:
         content = f.read()
@@ -112,23 +113,20 @@ async def root():
             'column': list(ds),
             'schema': [{'name': k, 'type': str(vaex.dtype(v))} for k, v in ds.schema().items()]
         })
-    content = content.replace('// DATA', 'app.$data.datasets = %s' % json.dumps(data))
+    content = content.replace('// DATA', 'app.$data.datasets = %s\n app.$data.graphql = %s' % (json.dumps(data), json.dumps(use_graphql)))
     return content
 
 
-@router.get("/dataset")
+@router.get("/dataset", summary="Lists all dataset names")
 async def dataset():
     return list(datasets.keys())
 
 
-@router.get("/dataset/{dataset_id}")
+@router.get("/dataset/{dataset_id}", summary="Meta information about a dataset (schema etc)")
 async def dataset(dataset_id: str = path_dataset):
-    df = get_df(dataset_id)
-    schema = {k: str(v) for k, v in df.schema().items()}
-    return {"id": dataset_id, "row_count": len(df), "schema": schema}
-
-import contextvars
-context = contextvars.ContextVar('executor state')
+    async with get_df(dataset_id) as df:
+        schema = {k: str(v) for k, v in df.schema().items()}
+        return {"id": dataset_id, "row_count": len(df), "schema": schema}
 
 @contextlib.asynccontextmanager
 async def get_df(name):
@@ -152,14 +150,14 @@ async def _compute_histogram(input: HistogramInput) -> HistogramOutput:
         return df, counts, limits
 
 
-@router.get("/histogram/{dataset_id}/{expression}", response_model=HistogramOutput, tags=["easy"])
+@router.get("/histogram/{dataset_id}/{expression}", response_model=HistogramOutput, tags=["easy"], summary="histogram data (1d)")
 async def histogram(input: HistogramInput = Depends(HistogramInput)) -> HistogramOutput:
     df, counts, limits = await _compute_histogram(input)
     centers = df.bin_centers(input.expression, limits, input.shape)
     return HistogramOutput(dataset_id=input.dataset_id, values=counts.tolist(), centers=centers.tolist())
 
 
-@router.post("/histogram", response_model=HistogramOutput, tags=["easy"])
+@router.post("/histogram", response_model=HistogramOutput, tags=["easy"], summary="histogram data (1d)")
 async def histogram(input: HistogramInput) -> HistogramOutput:
     df, counts, limits = await _compute_histogram(input)
     centers = df.bin_centers(input.expression, limits, input.shape)
@@ -169,8 +167,8 @@ async def histogram(input: HistogramInput) -> HistogramOutput:
                            centers=centers.tolist())
 
 
-@router.get("/histogram.plot/{dataset_id}/{expression}", response_class=ImageResponse, tags=["easy"])
-async def histogram(input: HistogramInput = Depends(HistogramInput)) -> HistogramOutput:
+@router.get("/histogram.plot/{dataset_id}/{expression}", response_class=ImageResponse, tags=["easy"], summary="Quick histogram plot")
+async def histogram_plot(input: HistogramInput = Depends(HistogramInput)) -> HistogramOutput:
     import matplotlib
     import matplotlib.pyplot as plt
     df, counts, limits = await _compute_histogram(input)
@@ -205,7 +203,7 @@ async def _compute_heatmap(input: HeatmapInput) -> HeatmapOutput:
         return df, counts, limits
 
 
-@router.get("/heatmap/{dataset_id}/{expression_x}/{expression_y}", response_model=HeatmapOutput, tags=["easy"], summary="2d aggragation data")
+@router.get("/heatmap/{dataset_id}/{expression_x}/{expression_y}", response_model=HeatmapOutput, tags=["easy"], summary="heatmap data (2d)")
 async def heatmap(input: HeatmapInput = Depends(HeatmapInput)) -> HeatmapOutput:
     df, counts, limits = await _compute_heatmap(input)
     centers_x = df.bin_centers(input.expression_x, limits[0], input.shape_x)
@@ -218,7 +216,7 @@ async def heatmap(input: HeatmapInput = Depends(HeatmapInput)) -> HeatmapOutput:
                          centers_y=centers_y.tolist())
 
 
-@router.post("/heatmap", response_model=HeatmapOutput, tags=["easy"], summary="2d aggragation data")
+@router.post("/heatmap", response_model=HeatmapOutput, tags=["easy"], summary="heatmap data (2d)")
 async def heatmap(input: HeatmapInput) -> HeatmapOutput:
     df, counts, limits = await _compute_heatmap(input)
     centers_x = df.bin_centers(input.expression_x, limits[0], input.shape_x)
@@ -231,25 +229,18 @@ async def heatmap(input: HeatmapInput) -> HeatmapOutput:
                          centers_y=centers_y.tolist())
 
 
-@router.get("/heatmap.plot/{dataset_id}/{expression_x}/{expression_y}", response_class=ImageResponse, tags=["easy"], summary="plot of 2d aggragation data")
-async def heatmap(input: HeatmapInput = Depends(HeatmapInput), f: str ="identity") -> HeatmapOutput:
+@router.get("/heatmap.plot/{dataset_id}/{expression_x}/{expression_y}", response_class=ImageResponse, tags=["easy"], summary="Quick heatmap plot")
+async def heatmap_plot(input: HeatmapInput = Depends(HeatmapInput), f: str ="identity") -> HeatmapOutput:
     import matplotlib
     import matplotlib.pyplot as plt
     df, counts, limits = await _compute_heatmap(input)
     matplotlib.use('agg', force=True)
     fig = plt.figure()
-    df.viz.heatmap(input.expression_x, input.expression_y, limits=limits, shape=input.shape, grid=counts, f=f)
+    df.viz.heatmap(input.expression_x, input.expression_y, limits=limits, shape=[input.shape_x, input.shape_y], grid=counts, f=f)
     with io.BytesIO() as f:
         fig.canvas.print_png(f)
         plt.close(fig)
         return ImageResponse(content=f.getvalue())
-
-
-from vaex.encoding import serialize, deserialize, Encoding
-import asyncio
-from .tornado_server import exception
-
-
 
 
 @router.websocket("/websocket")
@@ -381,6 +372,16 @@ for name, path in vaex.settings.webserver.get("datasets", {}).items():
     datasets[name] = vaex.open(path).dataset
 
 
+def add_graphql():
+    import vaex.graphql
+    import graphene
+    from starlette.graphql import GraphQLApp
+    dfs = {name: vaex.from_dataset(ds) for name, ds in datasets.items()}
+    Query = vaex.graphql.create_query(dfs)
+    schema = graphene.Schema(query=Query)
+    app.add_route("/graphql", GraphQLApp(schema=schema))
+
+
 def ensure_example():
     if 'example' not in datasets:
         datasets['example'] = vaex.example().dataset
@@ -410,6 +411,7 @@ def main(argv=sys.argv):
     parser.add_argument("--port", help="port to listen on (default: %(default)s)", type=int, default=8081)
     parser.add_argument('--verbose', '-v', action='count', help='show more info', default=2)
     parser.add_argument('--quiet', '-q', action='count', help="less info", default=0)
+    parser.add_argument('--graphql', default=use_graphql, action='store_true', help="Add graphql endpoint")
     config = parser.parse_args(argv[1:])
 
     verbosity = ["ERROR", "WARNING", "INFO", "DEBUG"]
@@ -428,6 +430,9 @@ def main(argv=sys.argv):
                 datasets[name] = df.dataset
     if not datasets:
         datasets['example'] = vaex.example().dataset
+    use_graphql = config.graphql
+    if use_graphql:
+        add_graphql()
     update_service()
     host = config.host
     port = config.port
@@ -447,3 +452,5 @@ if __name__ == "__main__":
     main()
 else:
     update_service()
+    if use_graphql:
+        add_graphql()

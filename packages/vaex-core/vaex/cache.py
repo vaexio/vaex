@@ -1,7 +1,7 @@
 '''(Currently experimental, use at own risk)
 Vaex can cache task results, such as aggregations, or the internal hashmaps used for groupby to make recurring calculations much faster, at the cost of calculating cache keys and storing/retrieving the cached values.
 
-Internally, Vaex calculates fingerprints (such as hashes of data, or file paths and mtimes) to create cache keys that are similar across processes, such that a restart of a process will most likely result in simlar hash keys.
+Internally, Vaex calculates fingerprints (such as hashes of data, or file paths and mtimes) to create cache keys that are similar across processes, such that a restart of a process will most likely result in similar hash keys.
 
 Caches can turned on globally, or used as a context manager:
 
@@ -30,6 +30,16 @@ A good library to use for in-memory caching is cachetools (https://pypi.org/proj
 >>> import cachetools
 >>> df = vaex.example()
 >>> vaex.cache.cache = cachetools.LRUCache(1_000_000_000)  # 1gb cache
+
+Configure using environment variables
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Especially when using the `vaex server <server.html>`_ it can be useful to turn on caching externally using enviroment variables.
+
+    $ VAEX_CACHE=disk VAEX_CACHE_DISK_SIZE_LIMIT="10GB" python -m vaex.server
+
+Will enable caching using :func:`vaex.cache.disk` and configure it to use at max 10 GB of disk space.
+
 
 '''
 import contextlib
