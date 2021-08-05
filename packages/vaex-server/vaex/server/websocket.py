@@ -66,10 +66,9 @@ class WebSocketHandler:
                 # emit when it's the first time (None), at least 0.05 sec lasted, or and the end
                 # but never send old or same values
                 if (last_progress is None or (f - last_progress) > 0.05 or f == 1.0) and (last_progress is None or f > last_progress):
-                    future = send_progress()
-                    ioloop.call_soon_threadsafe(future)
-                    # task = asyncio.create_task(send_progress())
-                    progress_futures.append(future)
+                    def wrapper():
+                        progress_futures.append(asyncio.create_task(send_progress()))
+                    ioloop.call_soon_threadsafe(wrapper)
                 return True
 
             command = msg['command']

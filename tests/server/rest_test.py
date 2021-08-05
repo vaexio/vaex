@@ -2,6 +2,7 @@ import concurrent.futures
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
+import pytest
 from fastapi.testclient import TestClient
 from myst_parser.main import to_tokens
 import aiohttp
@@ -9,24 +10,28 @@ import aiohttp
 import vaex.server.rest
 
 
-client = TestClient(vaex.server.rest.app, raise_server_exceptions=True)
+@pytest.fixture(scope='session')
+def request_client(webserver):
+    client = TestClient(vaex.server.rest.app, raise_server_exceptions=True)
+    return client
+
+
 vaex.server.rest.ensure_example()
 
 
-def test_list():
-    response = client.get("/")
+def test_list(request_client):
+    response = request_client.get("/dataset")
     assert response.status_code == 200
     json = response.json()
-    assert 'datasets' in json
-    assert 'example' in json['datasets']
+    assert 'example' in json
 
 
-def test_histogram(df_example_original):
+def test_histogram(request_client, df_example_original):
     df = df_example_original
     # GET
     min, max = 0, 10
     shape = 5
-    response = client.get(f"/histogram/example/x?min={min}&max={max}&shape={shape}")
+    response = request_client.get(f"/histogram/example/x?min={min}&max={max}&shape={shape}")
     assert response.status_code == 200
     json = response.json()
     values = df.count(binby='x', limits=[min, max], shape=shape)
@@ -35,17 +40,17 @@ def test_histogram(df_example_original):
     assert json['values'] == values.tolist()
 
     # POST
-    response = client.post(f"/histogram", json=dict(dataset_id='example', expression='x', min=min, max=max, shape=shape))
+    response = request_client.post(f"/histogram", json=dict(dataset_id='example', expression='x', min=min, max=max, shape=shape))
     assert response.status_code == 200
     json = response.json()
     assert json['centers'] == centers.tolist()
     assert json['values'] == values.tolist()
 
-    response = client.get(f"/histogram/doesnotexist/x?min={min}&max={max}&shape={shape}")
+    response = request_client.get(f"/histogram/doesnotexist/x?min={min}&max={max}&shape={shape}")
     assert response.status_code == 404
 
 
-def test_heatmap(df_example_original):
+def test_heatmap(request_client, df_example_original):
     df = df_example_original
     # GET
     min_x, max_x = 0, 10
@@ -54,7 +59,7 @@ def test_heatmap(df_example_original):
     shape_y = 10
     shape = shape_x, shape_y
     limits = (min_x, max_x), (min_y, max_y)
-    response = client.get(f"/heatmap/example/x/y?min_x={min_x}&max_x={max_x}&min_y={min_y}&max_y={max_y}&shape_x={shape_x}&shape_y={shape_y}")
+    response = request_client.get(f"/heatmap/example/x/y?min_x={min_x}&max_x={max_x}&min_y={min_y}&max_y={max_y}&shape_x={shape_x}&shape_y={shape_y}")
     assert response.status_code == 200
     json = response.json()
     values = df.count(binby=['x', 'y'], limits=limits, shape=shape)
@@ -65,7 +70,7 @@ def test_heatmap(df_example_original):
     assert json['values'] == values.tolist()
 
     # POST
-    response = client.post(f"/heatmap", json=dict(
+    response = request_client.post(f"/heatmap", json=dict(
         dataset_id='example',
         expression_x='x',
         expression_y='y',
@@ -89,7 +94,7 @@ def test_heatmap(df_example_original):
 #     def request():
 #         min, max = 0, 10
 #         shape = 5
-#         response = client.get(f"/histogram/example/x?min={min}&max={max}&shape={shape}")
+#         response = request_client.get(f"/histogram/example/x?min={min}&max={max}&shape={shape}")
 #         assert response.status_code == 200, f"Unexpected response: {response.text}"
 #         return 42
 #     N = 10

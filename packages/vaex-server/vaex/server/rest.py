@@ -1,3 +1,4 @@
+import threading
 from typing import List, Union, Optional, Dict
 import time
 import asyncio
@@ -9,11 +10,14 @@ import pathlib
 import contextlib
 import json
 
+
 from fastapi import FastAPI, Query, Path, Depends, Request, WebSocket, APIRouter, HTTPException
 from fastapi.security import OAuth2PasswordBearer
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from fastapi.openapi.docs import get_swagger_ui_html
+import requests
+
 
 from pydantic import BaseModel, BaseSettings
 from starlette.responses import HTMLResponse
@@ -108,7 +112,7 @@ async def root():
             'column': list(ds),
             'schema': [{'name': k, 'type': str(vaex.dtype(v))} for k, v in ds.schema().items()]
         })
-    content = content.replace('// MAGIC', 'app.$data.datasets = %s' % json.dumps(data))
+    content = content.replace('// DATA', 'app.$data.datasets = %s' % json.dumps(data))
     return content
 
 
@@ -250,14 +254,13 @@ from .tornado_server import exception
 
 @router.websocket("/websocket")
 async def websocket_endpoint(websocket: WebSocket):
-    _test_latency = 0
     await websocket.accept()
+    handler = vaex.server.websocket.WebSocketHandler(websocket.send_bytes, service_threaded)
     while True:
-        handler = vaex.server.websocket.WebSocketHandler(websocket.send_bytes, service_threaded)
         data = await websocket.receive()
         if data['type'] == 'websocket.disconnect':
             return
-        await handler.handle_message(data['bytes'])
+        asyncio.create_task(handler.handle_message(data['bytes']))
 
 
 app = FastAPI(
@@ -318,10 +321,11 @@ def ensure_example():
 ensure_example()
 
 
-def update_service():
+def update_service(dfs=None):
     global service_threaded
     import vaex.server.service
-    dfs = {name: vaex.from_dataset(dataset) for name, dataset in datasets.items()}
+    if dfs is None:
+        dfs = {name: vaex.from_dataset(dataset) for name, dataset in datasets.items()}
 
     service_bare = vaex.server.service.Service(dfs)
     server_thread_count = 1
@@ -371,6 +375,70 @@ def main(argv=sys.argv):
 
     uvicorn.run(app, port=port, host=host)
 
+
+# used for testing
+class Server(threading.Thread):
+    def __init__(self, port, host='localhost', **kwargs):
+        self.port = port
+        self.host = host
+        self.kwargs = kwargs
+        self.started = threading.Event()
+        self.stopped = threading.Event()
+        super().__init__(name="fastapi-thread")
+        self.setDaemon(True)
+
+    def set_datasets(self, dfs):
+        global datasets
+        dfs = {df.name: df for df in dfs}
+        update_service(dfs)
+
+    def run(self):
+        self.mainloop()
+
+    def serve_threaded(self):
+        logger.debug("start thread")
+        self.start()
+        logger.debug("wait for thread to run")
+        self.started.wait()
+        logger.debug("make tornado io loop the main thread's current")
+
+    def wait_until_serving(self):
+        for n in range(10):
+            url = f'http://{self.host}:{self.port}/'
+            try:
+                response = requests.get(url)
+            except requests.exceptions.ConnectionError:
+                pass
+            else:
+                if response.status_code == 200:
+                    return
+            time.sleep(0.05)
+        else:
+            raise RuntimeError(f'Server at {url} does not seem to be running')
+
+    def mainloop(self):
+        logger.info("serving at http://%s:%d" % (self.host, self.port))
+
+        from uvicorn.config import Config
+        from uvicorn.server import Server
+
+        # uvloop will trigger a: RuntimeError: There is no current event loop in thread 'fastapi-thread'
+        config = Config(app, host=self.host, port=self.port, **self.kwargs, loop='asyncio')
+        self.server = Server(config=config)
+        self.started.set()
+        try:
+            self.server.run()
+        except:
+            logger.exception("Oops, server stopped unexpectedly")
+        finally:
+            self.stopped.set()
+
+    def stop_serving(self):
+        logger.debug("stopping server")
+        self.server.should_exit = True
+        if self.stopped.wait(1) is not None:
+            logger.error('stopping server failed')
+        logger.debug("stopped server")
 
 if __name__ == "__main__":
     main()

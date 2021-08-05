@@ -1,3 +1,4 @@
+import asyncio
 import builtins
 import logging
 from urllib.parse import urlparse
@@ -7,7 +8,7 @@ import tornado.websocket
 
 import vaex
 import vaex.asyncio
-import asyncio
+import vaex.server.utils
 from vaex.server import client
 from .executor import Executor
 
