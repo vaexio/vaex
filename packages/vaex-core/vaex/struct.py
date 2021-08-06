@@ -6,8 +6,21 @@ import functools
 import json
 
 import pyarrow as pa
-import vaex.expression
+import vaex
 from vaex import register_function
+
+
+def assert_struct_dtype(struct):
+    """Helper function to ensure that struct operations are only applied to struct arrays."""
+
+    try:
+        dtype = struct.type  # arrow type
+    except AttributeError:
+        dtype = struct.dtype  # numpy type
+
+    dtype = vaex.datatype.DataType(dtype)
+    if not dtype.is_struct:
+        raise TypeError(f"Struct functions needs to be applied on struct dtype, got '{dtype}' instead.")
 
 
 def format_struct_item_vaex_style(struct_item):
@@ -31,7 +44,7 @@ def format_duplicated_struct_item_vaex_style(struct_item):
     """
 
     mapping = {idx: dtype.name for idx, dtype in enumerate(struct_item.type)}
-    values = [f"'{label}({idx})': {json.dumps(struct_item[idx].as_py())}"
+    values = [f"'{label}': {struct_item[idx].as_py()}"
               for idx, label in mapping.items()]
 
     return f"{{{', '.join(values)}}}"
@@ -67,12 +80,10 @@ def _assert_struct_dtype(func):
 
     @functools.wraps(func)
     def wrapper(struct, *args, **kwargs):
-        vaex.expression.StructOperations.assert_struct_dtype(struct)
+        assert_struct_dtype(struct)
         return func(struct, *args, **kwargs)
 
     return wrapper
-
-
 
 
 def _check_valid_struct_fields(struct, fields):
