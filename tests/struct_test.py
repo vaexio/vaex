@@ -126,49 +126,70 @@ def test_struct_project_invalid_dtype(df):
 
 
 def test_struct_keys(df):
-    assert df.array.struct.keys == ["col1", "col2", "col3"]
+    assert list(df.array.struct.keys()) == ["col1", "col2", "col3"]
 
 
 def test_struct_keys_duplicated(df_duplicated):
-    assert df_duplicated.array.struct.keys == ["col1", "col1", "col3"]
+    assert list(df_duplicated.array.struct.keys()) == ["col1", "col1", "col3"]
 
 
 def test_struct_keys_invalid_dtypes(df):
     """Ensure that struct function is only applied to correct dtype."""
     with pytest.raises(TypeError):
-        df.integer.struct.keys
+        df.integer.struct.keys()
 
 
-def test_struct_indices(df):
-    assert df.array.struct.indices == [0, 1, 2]
+def test_struct_values(df):
+    values = [vaex.datatype.DataType(pa.int64()),
+              vaex.datatype.DataType(pa.string()),
+              vaex.datatype.DataType(pa.int64())]
+    assert list(df.array.struct.values()) == values
 
 
-def test_struct_indices_duplicated(df_duplicated):
-    assert df_duplicated.array.struct.indices == [0, 1, 2]
+def test_struct_values_duplicated(df_duplicated):
+    values = [vaex.datatype.DataType(pa.int64()),
+              vaex.datatype.DataType(pa.string()),
+              vaex.datatype.DataType(pa.int64())]
+    assert list(df_duplicated.array.struct.values()) == values
 
 
-def test_struct_indices_invalid_dtypes(df):
+def test_struct_values_invalid_dtypes(df):
     """Ensure that struct function is only applied to correct dtype."""
     with pytest.raises(TypeError):
-        df.integer.struct.indices
+        df.integer.struct.values()
 
 
-def test_struct_keys_indices(df):
-    keys_indices = df.array.struct.keys_indices
-    assert keys_indices.index.tolist() == [0, 1, 2]
-    assert keys_indices.tolist() == ["col1", "col2", "col3"]
+def test_struct_items(df):
+    items = [("col1", vaex.datatype.DataType(pa.int64())),
+             ("col2", vaex.datatype.DataType(pa.string())),
+             ("col3", vaex.datatype.DataType(pa.int64()))]
+    assert list(df.array.struct.items()) == items
 
 
-def test_struct_keys_indices_duplicated(df_duplicated):
-    keys_indices = df_duplicated.array.struct.keys_indices
-    assert keys_indices.index.tolist() == [0, 1, 2]
-    assert keys_indices.tolist() == ["col1", "col1", "col3"]
+def test_struct_items_duplicated(df_duplicated):
+    items = [("col1", vaex.datatype.DataType(pa.int64())),
+             ("col1", vaex.datatype.DataType(pa.string())),
+             ("col3", vaex.datatype.DataType(pa.int64()))]
+    assert list(df_duplicated.array.struct.items()) == items
 
 
-def test_struct_keys_indices_invalid_dtypes(df):
+def test_struct_items_invalid_dtypes(df):
     """Ensure that struct function is only applied to correct dtype."""
     with pytest.raises(TypeError):
-        df.integer.struct.keys_indices
+        df.integer.struct.items()
+
+
+def test_struct_len(df):
+    assert len(df.array.struct) == 3
+
+
+def test_struct_len_invalid_dtypes(df):
+    with pytest.raises(TypeError):
+        len(df.integer.struct)
+
+
+def test_struct_iter(df):
+    assert list(df.array.struct) == ["col1", "col2", "col3"]
 
 
 def test_struct_dtypes(df):
