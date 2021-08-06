@@ -72,7 +72,7 @@ def _get_struct_field_label(dtype, identifier):
     return dtype[identifier].name
 
 
-def _assert_struct_dtype(func):
+def assert_struct_dtype_argument(func):
     """Decorator to ensure that struct functions are only applied to expressions containing
     struct dtype. Otherwise, provide helpful error message.
 
@@ -109,14 +109,14 @@ def _check_valid_struct_fields(struct, fields):
     if duplicated_label_lookup:
         raise ValueError(f"Invalid field lookup due to duplicated field "
                          f"labels '{duplicated_label_lookup}'. Please use "
-                         f"index position baesd lookup for fields with "
+                         f"index position based lookup for fields with "
                          f"duplicated labels to uniquely identify relevant "
                          f"field. To get index positions for field labels, "
-                         f"please use `df.array.struct.keys_indices`.")
+                         f"please use `{{idx: key for idx, key in enumerate(df.array.struct)}}`.")
 
 
 @register_function(scope="struct")
-@_assert_struct_dtype
+@assert_struct_dtype_argument
 def struct_get(x, field):
     """Return a single field from a struct array. You may also use the shorthand notation `df.name[:, 'field']`.
 
@@ -166,7 +166,7 @@ def struct_get(x, field):
 
 
 @register_function(scope="struct")
-@_assert_struct_dtype
+@assert_struct_dtype_argument
 def struct_project(x, fields):
     """Project one or more fields of a struct array to a new struct array. You may also use the shorthand notation
     `df.name[:, ['field1', 'field2']]`.
