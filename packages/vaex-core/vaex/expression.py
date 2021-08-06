@@ -962,7 +962,7 @@ class Expression(with_metaclass(Meta)):
             if counters[thread_index] is None:
                 counters[thread_index] = counter_type()
             if data_type.is_list and axis is None:
-                ar = ar._array
+                ar = ar.values
             if data_type_item.is_string:
                 ar = _to_string_sequence(ar)
             else:
@@ -982,7 +982,7 @@ class Expression(with_metaclass(Meta)):
             counter0.merge(other)
         value_counts = counter0.extract()
         index = np.array(list(value_counts.keys()))
-        counts = np.array(list(value_counts._array()))
+        counts = np.array(list(value_counts.values()))
 
         order = np.argsort(counts)
         if not ascending:
