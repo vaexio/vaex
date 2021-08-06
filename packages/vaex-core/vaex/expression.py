@@ -197,20 +197,45 @@ class StringOperationsPandas(object):
         self.expression = expression
 
 
-class StructOperations(object):
+class StructOperations(collections.abc.Mapping):
     """Struct Array operations.
 
     Usually accessed using e.g. `df.name.struct.get_field('field1')`
 
     """
+
     def __init__(self, expression):
         self.expression = expression
+        self._array = self.expression.values
 
-    @property
+    def __iter__(self):
+        for name in self.keys():
+            yield name
+
+    def __getitem__(self, key):
+        """Return struct field by either field name (string) or index position (index).
+
+        In case of ambiguous field names, a `LookupError` is raised.
+
+        """
+
+        self.assert_struct_dtype()
+        if key in self._duplicates:
+            raise LookupError("Duplicated label: please use index position.")
+        return self._array.field(key)
+
+    def __len__(self):
+        """Return the number of struct fields contained in struct array.
+
+        """
+
+        self._assert_struct_dtype()
+        return len(self._array.type)
+
     def keys(self):
         """Return all field names contained in struct array.
 
-        :returns: a list of field names.
+        :returns: a generator expression of field names.
 
         Example:
 
@@ -223,45 +248,18 @@ class StructOperations(object):
         0	{'col1': 1, 'col2': 'a'}
         1	{'col1': 2, 'col2': 'b'}
 
-        >>> df.array.struct.keys
+        >>> list(df.array.struct.keys())
         ["col1", "col2"]
 
         """
-        struct = self.expression.values
-        self.assert_struct_dtype(struct)
-        return [x.name for x in struct.type]
 
-    @property
-    def indices(self):
-        """Return all index positions contained in struct array.
+        self._assert_struct_dtype()
+        return (field.name for field in self._array.type)
 
-        :returns: a list index positions.
+    def values(self):
+        """Return all field types contained in struct array.
 
-        Example:
-
-        >>> import vaex
-        >>> import pyarrow as pa
-        >>> array = pa.StructArray.from_arrays(arrays=[[1,2], ["a", "b"]], names=["col1", "col2"])
-        >>> df = vaex.from_arrays(array=array)
-        >>> df
-        # 	array
-        0	{'col1': 1, 'col2': 'a'}
-        1	{'col1': 2, 'col2': 'b'}
-
-        >>> df.array.struct.indices
-        [0, 1]
-
-        """
-
-        struct = self.expression.values
-        self.assert_struct_dtype(struct)
-        return list(range(struct.type.num_fields))
-
-    @property
-    def keys_indices(self):
-        """Return all field names along with unique index positions.
-
-        :returns: pandas.Series with field indices as index and keys as values.
+        :returns: a generator expression of field types.
 
         Example:
 
@@ -274,16 +272,47 @@ class StructOperations(object):
         0	{'col1': 1, 'col2': 'a'}
         1	{'col1': 2, 'col2': 'b'}
 
-        >>> df.array.struct.keys_indices
-        0    a
-        1    b
-        dtype: object
+        >>> list(df.array.struct.values())
+        [int64, string]
 
         """
 
-        struct = self.expression.values
-        self.assert_struct_dtype(struct)
-        return pd.Series(self.keys, index=self.indices)
+        self._assert_struct_dtype()
+        dtypes = (field.type for field in self._array.type)
+        vaex_dtypes = (DataType(x) for x in dtypes)
+
+        return vaex_dtypes
+
+    def items(self):
+        """Return all field names along with corresponding types.
+
+        :returns: generator expression of tuples of field names and types.
+
+        Example:
+
+        >>> import vaex
+        >>> import pyarrow as pa
+        >>> array = pa.StructArray.from_arrays(arrays=[[1,2], ["a", "b"]], names=["col1", "col2"])
+        >>> df = vaex.from_arrays(array=array)
+        >>> df
+        # 	array
+        0	{'col1': 1, 'col2': 'a'}
+        1	{'col1': 2, 'col2': 'b'}
+
+        >>> list(df.array.struct.items())
+        [('col1', int64), ('col2', string)]
+
+        """
+        return zip(self.keys(), self.values())
+
+    def get(self, key):
+        """Return struct field by either field name (string) or index position (index).
+
+        In case of ambiguous field names, a `LookupError` is raised.
+
+        """
+
+        return self[key]
 
     @property
     def dtypes(self):
@@ -309,27 +338,16 @@ class StructOperations(object):
 
         """
 
-        struct = self.expression.values
-        self.assert_struct_dtype(struct)
+        return pd.Series(self.values(), index=self.keys())
 
-        keys = self.keys
-        dtypes = [field.type for field in struct.type]
-        vaex_dtypes = [vaex.datatype.DataType(x) for x in dtypes]
 
-        return pd.Series(vaex_dtypes, index=keys)
+    def _assert_struct_dtype(self):
+        """Ensure that struct operations are only called on valid struct dtype.
 
-    @staticmethod
-    def assert_struct_dtype(struct):
-        """Helper function to ensure that struct operations are only applied to struct arrays."""
+        """
+        from vaex.struct import assert_struct_dtype
+        assert_struct_dtype(self._array)
 
-        try:
-            dtype = struct.type # arrow type
-        except AttributeError:
-            dtype = struct.dtype # numpy type
-
-        dtype = vaex.datatype.DataType(dtype)
-        if not dtype.is_struct:
-            raise TypeError(f"Struct functions needs to be applied on struct dtype, got '{dtype}' instead.")
 
 class Expression(with_metaclass(Meta)):
     """Expression class"""
@@ -944,7 +962,7 @@ class Expression(with_metaclass(Meta)):
             if counters[thread_index] is None:
                 counters[thread_index] = counter_type()
             if data_type.is_list and axis is None:
-                ar = ar.values
+                ar = ar._array
             if data_type_item.is_string:
                 ar = _to_string_sequence(ar)
             else:
@@ -964,7 +982,7 @@ class Expression(with_metaclass(Meta)):
             counter0.merge(other)
         value_counts = counter0.extract()
         index = np.array(list(value_counts.keys()))
-        counts = np.array(list(value_counts.values()))
+        counts = np.array(list(value_counts._array()))
 
         order = np.argsort(counts)
         if not ascending:
