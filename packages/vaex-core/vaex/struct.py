@@ -20,7 +20,8 @@ def assert_struct_dtype(struct):
 
     dtype = vaex.datatype.DataType(dtype)
     if not dtype.is_struct:
-        raise TypeError(f"Struct functions needs to be applied on struct dtype, got '{dtype}' instead.")
+        raise TypeError(
+            f"Struct functions needs to be applied on struct dtype, got '{dtype}' instead.")
 
 
 def format_struct_item_vaex_style(struct_item):
@@ -99,20 +100,21 @@ def _check_valid_struct_fields(struct, fields):
     non_existant_fields = {field for field in fields
                            if field not in valid_field_lookups}
     if non_existant_fields:
-        raise ValueError(f"Invalid field lookup provided: {non_existant_fields}. "
-                         f"Valid field lookups are '{valid_field_lookups}'")
+        raise LookupError(
+            f"Invalid field lookup provided: {non_existant_fields}. "
+            f"Valid field lookups are '{valid_field_lookups}'")
 
     # check for duplicated field names and provide helpful error message
     labels = [field.name for field in struct.type]
     duplis = {x for x in labels if labels.count(x) > 1}
     duplicated_label_lookup = duplis.intersection(fields)
     if duplicated_label_lookup:
-        raise ValueError(f"Invalid field lookup due to duplicated field "
-                         f"labels '{duplicated_label_lookup}'. Please use "
-                         f"index position based lookup for fields with "
-                         f"duplicated labels to uniquely identify relevant "
-                         f"field. To get index positions for field labels, "
-                         f"please use `{{idx: key for idx, key in enumerate(df.array.struct)}}`.")
+        raise LookupError(f"Invalid field lookup due to duplicated field "
+                          f"labels '{duplicated_label_lookup}'. Please use "
+                          f"index position based lookup for fields with "
+                          f"duplicated labels to uniquely identify relevant "
+                          f"field. To get index positions for field labels, "
+                          f"please use `{{idx: key for idx, key in enumerate(df.array.struct)}}`.")
 
 
 @register_function(scope="struct")
@@ -122,7 +124,7 @@ def struct_get(x, field):
 
     Please note, in case of duplicated field labels, a field can't be uniquely identified. Please
     use index position based access instead. To get corresponding field indices, please use
-    `df.array.struct.keys_indices`.
+    `{{idx: key for idx, key in enumerate(df.array.struct)}}`.
 
     :param {str, int} field: A string (label) or integer (index position) identifying a struct field.
     :returns: an expression containing a struct field.
