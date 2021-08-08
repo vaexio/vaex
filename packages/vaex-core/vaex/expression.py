@@ -200,7 +200,7 @@ class StringOperationsPandas(object):
 class StructOperations(collections.abc.Mapping):
     """Struct Array operations.
 
-    Usually accessed using e.g. `df.name.struct.get_field('field1')`
+    Usually accessed using e.g. `df.name.struct.get('field1')`
 
     """
 
@@ -219,10 +219,8 @@ class StructOperations(collections.abc.Mapping):
 
         """
 
-        self.assert_struct_dtype()
-        if key in self._duplicates:
-            raise LookupError("Duplicated label: please use index position.")
-        return self._array.field(key)
+        self._assert_struct_dtype()
+        return self.get(key)
 
     def __len__(self):
         """Return the number of struct fields contained in struct array.
@@ -235,7 +233,7 @@ class StructOperations(collections.abc.Mapping):
     def keys(self):
         """Return all field names contained in struct array.
 
-        :returns: a generator expression of field names.
+        :returns: list of field names.
 
         Example:
 
@@ -248,18 +246,18 @@ class StructOperations(collections.abc.Mapping):
         0	{'col1': 1, 'col2': 'a'}
         1	{'col1': 2, 'col2': 'b'}
 
-        >>> list(df.array.struct.keys())
+        >>> df.array.struct.keys()
         ["col1", "col2"]
 
         """
 
         self._assert_struct_dtype()
-        return (field.name for field in self._array.type)
+        return [field.name for field in self._array.type]
 
     def values(self):
         """Return all field types contained in struct array.
 
-        :returns: a generator expression of field types.
+        :returns: list of field types.
 
         Example:
 
@@ -272,21 +270,21 @@ class StructOperations(collections.abc.Mapping):
         0	{'col1': 1, 'col2': 'a'}
         1	{'col1': 2, 'col2': 'b'}
 
-        >>> list(df.array.struct.values())
+        >>> df.array.struct.values()
         [int64, string]
 
         """
 
         self._assert_struct_dtype()
         dtypes = (field.type for field in self._array.type)
-        vaex_dtypes = (DataType(x) for x in dtypes)
+        vaex_dtypes = [DataType(x) for x in dtypes]
 
         return vaex_dtypes
 
     def items(self):
         """Return all field names along with corresponding types.
 
-        :returns: generator expression of tuples of field names and types.
+        :returns: list of tuples with field names and types.
 
         Example:
 
@@ -299,20 +297,11 @@ class StructOperations(collections.abc.Mapping):
         0	{'col1': 1, 'col2': 'a'}
         1	{'col1': 2, 'col2': 'b'}
 
-        >>> list(df.array.struct.items())
+        >>> df.array.struct.items()
         [('col1', int64), ('col2', string)]
 
         """
-        return zip(self.keys(), self.values())
-
-    def get(self, key):
-        """Return struct field by either field name (string) or index position (index).
-
-        In case of ambiguous field names, a `LookupError` is raised.
-
-        """
-
-        return self[key]
+        return list(zip(self.keys(), self.values()))
 
     @property
     def dtypes(self):
@@ -345,6 +334,7 @@ class StructOperations(collections.abc.Mapping):
         """Ensure that struct operations are only called on valid struct dtype.
 
         """
+
         from vaex.struct import assert_struct_dtype
         assert_struct_dtype(self._array)
 
