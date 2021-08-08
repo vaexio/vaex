@@ -39,8 +39,12 @@ def test_struct_get_label(df):
 
 
 def test_struct_get_label_duplicated_raise(df_duplicated):
-    with pytest.raises(ValueError):
+    with pytest.raises(LookupError):
         df_duplicated.array.struct.get("col1").tolist()
+
+def test_struct_get_label_duplicated_raise_bracket_notation(df_duplicated):
+    with pytest.raises(LookupError):
+        df_duplicated.array.struct["col1"].tolist()
 
 
 def test_struct_get_index(df):
@@ -67,7 +71,7 @@ def test_struct_get_getitem_notation(df):
 
 
 def test_struct_get_invalid_field(df):
-    with pytest.raises(ValueError):
+    with pytest.raises(LookupError):
         df.array.struct.get("doesNotExist").tolist()
 
 
@@ -112,7 +116,7 @@ def test_struct_project_getitem_notation(df):
 
 
 def test_struct_project_invalid_field(df):
-    with pytest.raises(ValueError):
+    with pytest.raises(LookupError):
         df.array.struct.project(["doesNotExist"]).tolist()
 
 
@@ -126,11 +130,11 @@ def test_struct_project_invalid_dtype(df):
 
 
 def test_struct_keys(df):
-    assert list(df.array.struct.keys()) == ["col1", "col2", "col3"]
+    assert df.array.struct.keys() == ["col1", "col2", "col3"]
 
 
 def test_struct_keys_duplicated(df_duplicated):
-    assert list(df_duplicated.array.struct.keys()) == ["col1", "col1", "col3"]
+    assert df_duplicated.array.struct.keys() == ["col1", "col1", "col3"]
 
 
 def test_struct_keys_invalid_dtypes(df):
@@ -143,14 +147,14 @@ def test_struct_values(df):
     values = [vaex.datatype.DataType(pa.int64()),
               vaex.datatype.DataType(pa.string()),
               vaex.datatype.DataType(pa.int64())]
-    assert list(df.array.struct.values()) == values
+    assert df.array.struct.values() == values
 
 
 def test_struct_values_duplicated(df_duplicated):
     values = [vaex.datatype.DataType(pa.int64()),
               vaex.datatype.DataType(pa.string()),
               vaex.datatype.DataType(pa.int64())]
-    assert list(df_duplicated.array.struct.values()) == values
+    assert df_duplicated.array.struct.values() == values
 
 
 def test_struct_values_invalid_dtypes(df):
@@ -163,14 +167,14 @@ def test_struct_items(df):
     items = [("col1", vaex.datatype.DataType(pa.int64())),
              ("col2", vaex.datatype.DataType(pa.string())),
              ("col3", vaex.datatype.DataType(pa.int64()))]
-    assert list(df.array.struct.items()) == items
+    assert df.array.struct.items() == items
 
 
 def test_struct_items_duplicated(df_duplicated):
     items = [("col1", vaex.datatype.DataType(pa.int64())),
              ("col1", vaex.datatype.DataType(pa.string())),
              ("col3", vaex.datatype.DataType(pa.int64()))]
-    assert list(df_duplicated.array.struct.items()) == items
+    assert df_duplicated.array.struct.items() == items
 
 
 def test_struct_items_invalid_dtypes(df):
