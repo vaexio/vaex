@@ -46,6 +46,3 @@ def test_keras_model(tmpdir, df_iris):
     copy.state_load(state_path)
 
     assert copy.pred.shape == (150, 3)
-
-
-
