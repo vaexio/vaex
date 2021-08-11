@@ -1098,7 +1098,6 @@ def f({0}):
         dtype = self.data_type(self.expression)
         dtype_item = self.data_type(self.expression, axis=-1)
         if dtype_item.is_float:
-            print(nan_value)
             values  = [np.nan, None] + [key for key in mapper if key == key and key is not None]
             choices = [default_value, nan_value, missing_value] + [mapper[key] for key in mapper if key == key and key is not None]
         else:
