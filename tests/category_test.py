@@ -121,3 +121,23 @@ def test_ordinal_encode_optimize():
     df = vaex.from_arrays(x=x)
     with pytest.warns(UserWarning, match='.*categorize.*'):
         df.ordinal_encode(df.x)
+
+
+def test_cat_code_dict_encoded(df_factory_arrow):
+    indices = pa.array([0, 0, 1, 2])
+    dictionary = pa.array(['aap', 'noot', 'mies'])
+    c = pa.DictionaryArray.from_arrays(indices, dictionary)
+    c = pa.chunked_array([c[i:i+1] for i in range(len(c))])
+    df = df_factory_arrow(c=c)
+    df = df._future()
+    assert df.c.codes.tolist() == indices.tolist()
+
+
+@pytest.mark.parametrize("auto_encode", [False, True])
+def test_cat_codes_vaex_metadata(df_factory, auto_encode):
+    indices = [0, 0, 1, 2]
+    df = df_factory(c=indices)
+    dictionary = pa.array(['aap', 'noot', 'mies'])
+    df = df.categorize('c', labels=['a', 'b', 'c'])
+    df = df._future() if auto_encode else df
+    assert df.c.codes.tolist() == indices
