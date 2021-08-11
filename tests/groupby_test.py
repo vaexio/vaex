@@ -425,3 +425,8 @@ def test_groupby_state(df_factory, rebuild_dataframe):
     assert df.g.tolist() == [0, 1, 2]
     assert df['count'].tolist() == [3, 2, 1]
     assert df['sum'].tolist() == [1+2+3, 4+5, 6]
+
+
+def test_old_years():
+    df = vaex.from_arrays(t=[np.datetime64('1900-01-01'), np.datetime64('1945-01-01'), np.datetime64('2020-02-01')])
+    assert df.groupby(df.t.astype('datetime64[Y]'), 'count')['count'].tolist() == [1, 1, 1]

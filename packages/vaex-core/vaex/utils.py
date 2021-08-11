@@ -889,7 +889,7 @@ def find_type_from_dtype(namespace, prefix, dtype, transient=True, support_non_n
         if postfix == '>f8':
             postfix = 'float64'
         if dtype.kind == "M":
-            postfix = "uint64"
+            postfix = "int64"
         if dtype.kind == "m":
             postfix = "int64"
         # for object there is no non-native version
