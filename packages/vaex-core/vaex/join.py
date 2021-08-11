@@ -188,7 +188,7 @@ def join(df, other, on=None, left_on=None, right_on=None, lprefix='', rprefix=''
                 previous_ar = ar
                 ar = _to_string_sequence(ar)
             if dtype.is_datetime:
-                ar = ar.view(np.uint64)
+                ar = ar.view(np.int64)
             if np.ma.isMaskedArray(ar):
                 mask = np.ma.getmaskarray(ar)
                 found_masked = index.map_index_masked(ar.data, mask, lookup[i1:i2])
