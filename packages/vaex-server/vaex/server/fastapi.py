@@ -91,8 +91,8 @@ datasets = {}
 
 openapi_tags = [
     {
-        "name": "easy",
-        "description": "Easy API for common cases",
+        "name": "quick",
+        "description": "Quick API for common cases",
     }
 
 ]
@@ -150,14 +150,14 @@ async def _compute_histogram(input: HistogramInput) -> HistogramOutput:
         return df, counts, limits
 
 
-@router.get("/histogram/{dataset_id}/{expression}", response_model=HistogramOutput, tags=["easy"], summary="histogram data (1d)")
+@router.get("/histogram/{dataset_id}/{expression}", response_model=HistogramOutput, tags=["quick"], summary="histogram data (1d)")
 async def histogram(input: HistogramInput = Depends(HistogramInput)) -> HistogramOutput:
     df, counts, limits = await _compute_histogram(input)
     centers = df.bin_centers(input.expression, limits, input.shape)
     return HistogramOutput(dataset_id=input.dataset_id, values=counts.tolist(), centers=centers.tolist())
 
 
-@router.post("/histogram", response_model=HistogramOutput, tags=["easy"], summary="histogram data (1d)")
+@router.post("/histogram", response_model=HistogramOutput, tags=["quick"], summary="histogram data (1d)")
 async def histogram(input: HistogramInput) -> HistogramOutput:
     df, counts, limits = await _compute_histogram(input)
     centers = df.bin_centers(input.expression, limits, input.shape)
@@ -167,7 +167,7 @@ async def histogram(input: HistogramInput) -> HistogramOutput:
                            centers=centers.tolist())
 
 
-@router.get("/histogram.plot/{dataset_id}/{expression}", response_class=ImageResponse, tags=["easy"], summary="Quick histogram plot")
+@router.get("/histogram.plot/{dataset_id}/{expression}", response_class=ImageResponse, tags=["quick"], summary="Quick histogram plot")
 async def histogram_plot(input: HistogramInput = Depends(HistogramInput)) -> HistogramOutput:
     import matplotlib
     import matplotlib.pyplot as plt
@@ -203,7 +203,7 @@ async def _compute_heatmap(input: HeatmapInput) -> HeatmapOutput:
         return df, counts, limits
 
 
-@router.get("/heatmap/{dataset_id}/{expression_x}/{expression_y}", response_model=HeatmapOutput, tags=["easy"], summary="heatmap data (2d)")
+@router.get("/heatmap/{dataset_id}/{expression_x}/{expression_y}", response_model=HeatmapOutput, tags=["quick"], summary="heatmap data (2d)")
 async def heatmap(input: HeatmapInput = Depends(HeatmapInput)) -> HeatmapOutput:
     df, counts, limits = await _compute_heatmap(input)
     centers_x = df.bin_centers(input.expression_x, limits[0], input.shape_x)
@@ -216,7 +216,7 @@ async def heatmap(input: HeatmapInput = Depends(HeatmapInput)) -> HeatmapOutput:
                          centers_y=centers_y.tolist())
 
 
-@router.post("/heatmap", response_model=HeatmapOutput, tags=["easy"], summary="heatmap data (2d)")
+@router.post("/heatmap", response_model=HeatmapOutput, tags=["quick"], summary="heatmap data (2d)")
 async def heatmap(input: HeatmapInput) -> HeatmapOutput:
     df, counts, limits = await _compute_heatmap(input)
     centers_x = df.bin_centers(input.expression_x, limits[0], input.shape_x)
@@ -229,7 +229,7 @@ async def heatmap(input: HeatmapInput) -> HeatmapOutput:
                          centers_y=centers_y.tolist())
 
 
-@router.get("/heatmap.plot/{dataset_id}/{expression_x}/{expression_y}", response_class=ImageResponse, tags=["easy"], summary="Quick heatmap plot")
+@router.get("/heatmap.plot/{dataset_id}/{expression_x}/{expression_y}", response_class=ImageResponse, tags=["quick"], summary="Quick heatmap plot")
 async def heatmap_plot(input: HeatmapInput = Depends(HeatmapInput), f: str ="identity") -> HeatmapOutput:
     import matplotlib
     import matplotlib.pyplot as plt
@@ -256,7 +256,7 @@ async def websocket_endpoint(websocket: WebSocket):
 
 app = FastAPI(
     title="Vaex dataset/dataframe API",
-    description="Vaex: Quick data aggregation",
+    description="Vaex: Fast data aggregation",
     version=vaex.__version__["vaex-server"],
     openapi_tags=openapi_tags,
     docs_url=None,
@@ -273,7 +273,6 @@ app.add_middleware(
 
 @app.get("/docs", include_in_schema=False)
 async def custom_swagger_ui_html():
-    print("GO " * 100)
     return get_swagger_ui_html(
         openapi_url=app.openapi_url,
         title=app.title + " - Swagger UI",
@@ -402,10 +401,12 @@ def update_service(dfs=None):
 
 
 def main(argv=sys.argv):
+    global use_graphql
     import uvicorn
     import argparse
     parser = argparse.ArgumentParser(argv[0])
     parser.add_argument("filename", help="filename for dataset", nargs='*')
+    parser.add_argument('--add-example', default=False, action='store_true', help="add the example dataset")
     parser.add_argument("--host", help="address to bind the server to (default: %(default)s)", default="0.0.0.0")
     parser.add_argument("--base-url", help="External base url (default is <host>:port)", default=None)
     parser.add_argument("--port", help="port to listen on (default: %(default)s)", type=int, default=8081)
@@ -430,6 +431,8 @@ def main(argv=sys.argv):
                 datasets[name] = df.dataset
     if not datasets:
         datasets['example'] = vaex.example().dataset
+    if config.add_example:
+        ensure_example()
     use_graphql = config.graphql
     if use_graphql:
         add_graphql()
