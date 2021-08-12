@@ -823,8 +823,8 @@ class RobustScaler(Transformer):
     with_scaling = traitlets.CBool(default_value=True, help='If True, scale each feature between the specified percentile range.').tag(ui='Checkbox')
     percentile_range = traitlets.Tuple(default_value=(25, 75), help='The percentile range to which to scale each feature to.').tag().tag(ui='FloatRangeSlider')
     prefix = traitlets.Unicode(default_value="robust_scaled_", help=help_prefix).tag(ui='Text')
-    center_ = traitlets.List(traitlets.CFloat(), default_value=None, help='The median of each feature.').tag(output=True)
-    scale_ = traitlets.List(traitlets.CFloat(), default_value=None, help='The percentile range for each feature.').tag(output=True)
+    center_ = traitlets.List(traitlets.CFloat(), default_value=[], help='The median of each feature.').tag(output=True)
+    scale_ = traitlets.List(traitlets.CFloat(), default_value=[], help='The percentile range for each feature.').tag(output=True)
 
     def fit(self, df):
         '''
