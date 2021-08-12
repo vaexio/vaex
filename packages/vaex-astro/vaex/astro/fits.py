@@ -47,8 +47,10 @@ class FitsBinTable(DatasetMemoryMapped):
                                 # numpy dtype code, like f8, i4
                                 dtypecode = astropy.io.fits.column.FITS2NUMPY[fitstype]
 
-
-                                dtype = np.dtype((">" +dtypecode, arraylength))
+                                if arraylength == 1:
+                                    dtype = np.dtype(">" +dtypecode)
+                                else:
+                                    dtype = np.dtype((">" +dtypecode, (arraylength,)))
                                 if 0:
                                     if arraylength > 1:
                                         dtype = np.dtype((">" +dtypecode, arraylength))

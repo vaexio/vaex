@@ -120,7 +120,7 @@ def histogram(self, x=None, what="count(*)", grid=None, shape=64, facet=None, li
                 what = what.strip()
                 index = what.index("(")
                 import re
-                groups = re.match("(.*)\((.*)\)", what).groups()
+                groups = re.match(r"(.*)\((.*)\)", what).groups()
                 if groups and len(groups) == 2:
                     function = groups[0]
                     arguments = groups[1].strip()
@@ -525,7 +525,7 @@ def heatmap(self, x=None, y=None, z=None, what="count(*)", vwhat=None, reduce=["
                     what = what.strip()
                     index = what.index("(")
                     import re
-                    groups = re.match("(.*)\((.*)\)", what).groups()
+                    groups = re.match(r"(.*)\((.*)\)", what).groups()
                     if groups and len(groups) == 2:
                         function = groups[0]
                         arguments = groups[1].strip()

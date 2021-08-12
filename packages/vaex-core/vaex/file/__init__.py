@@ -172,7 +172,7 @@ def exists(path, fs_options={}, fs=None):
     >>> vaex.file.exists('/you/do/not')
     False
 
-    >>> vaex.file.exists('s3://vaex/taxi/nyc_taxi_2015_mini.parquet', fs_options={'anon': True})
+    >>> vaex.file.exists('s3://vaex/taxi/nyc_taxi_2015_mini.parquet', fs_options={'anon': True})  # doctest: +SKIP
     True
     """
     fs, path = parse(path, fs_options=fs_options, fs=fs)
