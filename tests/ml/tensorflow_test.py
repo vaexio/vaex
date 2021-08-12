@@ -9,7 +9,7 @@ import vaex.ml
 import vaex.ml.tensorflow
 
 
-def test_kears_model(tmpdir, df_iris):
+def test_keras_model(tmpdir, df_iris):
     df = df_iris
     copy = df.copy()
     features = ['sepal_width', 'petal_length', 'sepal_length', 'petal_width']

@@ -23,7 +23,7 @@ class KerasModel(vaex.ml.state.HasState):
     '''
     features = traitlets.List(traitlets.Unicode(), help='List of features to use when applying the KerasModel.')
     prediction_name = traitlets.Unicode(default_value='keras_prediction', help='The name of the virtual column housing the predictions.')
-    model = traitlets.Any(help='A fitted Kears Model')
+    model = traitlets.Any(help='A fitted Keras Model')
 
     def __call__(self, *args):
         data2d = np.stack([np.asarray(arg, np.float64) for arg in args], axis=-1)
