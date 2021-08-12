@@ -25,6 +25,10 @@ class DataType:
     True
     >>> type1 == pa.int64()
     False
+    >>> DataType(np.dtype('f4'))
+    float32
+    >>> DataType(pa.float32())
+    float32
 
     """
     def __init__(self, dtype):

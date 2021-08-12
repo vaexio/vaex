@@ -1,7 +1,7 @@
 '''(Currently experimental, use at own risk)
 Vaex can cache task results, such as aggregations, or the internal hashmaps used for groupby to make recurring calculations much faster, at the cost of calculating cache keys and storing/retrieving the cached values.
 
-Internally, Vaex calculates fingerprints (such as hashes of data, or file paths and mtimes) to create cache keys that are similar across processes, such that a restart of a process will most likely result in simlar hash keys.
+Internally, Vaex calculates fingerprints (such as hashes of data, or file paths and mtimes) to create cache keys that are similar across processes, such that a restart of a process will most likely result in similar hash keys.
 
 Caches can turned on globally, or used as a context manager:
 
@@ -31,6 +31,16 @@ A good library to use for in-memory caching is cachetools (https://pypi.org/proj
 >>> df = vaex.example()
 >>> vaex.cache.cache = cachetools.LRUCache(1_000_000_000)  # 1gb cache
 
+Configure using environment variables
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Especially when using the `vaex server <server.html>`_ it can be useful to turn on caching externally using enviroment variables.
+
+    $ VAEX_CACHE=disk VAEX_CACHE_DISK_SIZE_LIMIT="10GB" python -m vaex.server
+
+Will enable caching using :func:`vaex.cache.disk` and configure it to use at max 10 GB of disk space.
+
+
 '''
 import contextlib
 import functools
@@ -48,10 +58,9 @@ import functools
 diskcache = vaex.utils.optional_import('diskcache')
 _redis = vaex.utils.optional_import('redis')
 
-
 log = logging.getLogger('vaex.cache')
-_enable_cache_results = vaex.utils.get_env_type(bool, 'VAEX_CACHE_RESULTS', False)
-
+_cache_tasks_type = vaex.utils.get_env_type(str, 'VAEX_CACHE', None)  # disk/redis/memory_infinite
+disk_size_limit = vaex.utils.get_env_type(str, 'VAEX_CACHE_DISK_SIZE_LIMIT', '1GB')
 
 dask.base.normalize_token.register(pa.DataType, repr)
 
@@ -69,7 +78,7 @@ class _cleanup:
         log.debug('entered')
         return self._result
 
-    def __exit__(self, type, value, traceback):
+    def __exit__(self, type=None, value=None, traceback=None):
         try:
             next(self._gen)
         except StopIteration:
@@ -104,7 +113,7 @@ def memory_infinite(clear=False):
 
 
 @_with_cleanup
-def disk(clear=False, size_limit="1GB", eviction_policy='least-recently-stored'):
+def disk(clear=False, size_limit=disk_size_limit, eviction_policy='least-recently-stored'):
     '''Stored cached values using the diskcache library.
 
     The path to store the cache is: ~/.vaex/cache/diskcache
@@ -173,6 +182,21 @@ def redis(client=None):
     yield
     log.debug("restore old cache")
     cache = old_cache
+
+
+@_with_cleanup
+def on(type="memory_infinite", **kwargs):
+    log.debug("Set cache to %r", type)
+    if type == "memory_infinite":
+        c = memory_infinite(**kwargs)
+    elif type == "disk":
+        c = disk(**kwargs)
+    elif type == "redis":
+        c = redis(**kwargs)
+    else:
+        raise ValueError(f'Unknown type of cache {type}')
+    yield
+    c.__exit__()
 
 
 @_with_cleanup
@@ -304,5 +328,5 @@ def output_file(callable=None, path_input=None, fs_options_input={}, fs_input=No
         return wrapper2
     return wrapper1()
 
-if _enable_cache_results:
-    memory_infinite()
+if _cache_tasks_type:
+    on(_cache_tasks_type)

@@ -8,6 +8,7 @@ else
 fi
 conda activate vaex-dev
 
+export VAEX_SERVER_OVERRIDE='{"dataframe.vaex.io":"dataframe-dev.vaex.io"}'
 python -m pip install healpy
 cd docs/source
 python -m nbconvert --TagRemovePreprocessor.remove_cell_tags="('skip-ci',)" --to html --execute tutorial_jupyter.ipynb --ExecutePreprocessor.timeout=240

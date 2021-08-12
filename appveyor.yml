@@ -28,7 +28,7 @@ install:
   - activate vaex-dev
   - "mamba install -c conda-forge --file ci/conda-env.yml --file ci/conda-env-notebooks.yml"
   - pip install -r requirements-ml.txt
-  - pip install "ipython>=7" "dask>=1" xgboost blake3 # similar to GHA
+  - pip install "ipython>=7" "dask>=1" xgboost myst_parser # similar to GHA
   - pip uninstall -y xgboost  # seems to crash, tests will be skipped
   - pushd packages\vaex-core   && pip install . && popd
   - pushd packages\vaex-hdf5   && pip install . && popd
@@ -41,5 +41,6 @@ install:
   - pushd packages\vaex-graphql   && pip install . && popd
 
 test_script:
+ - set VAEX_SERVER_OVERRIDE={"dataframe.vaex.io":"dataframe-dev.vaex.io"}
  - python -m vaex.test.dataset TestDataset
  - py.test tests/ --timeout=1000

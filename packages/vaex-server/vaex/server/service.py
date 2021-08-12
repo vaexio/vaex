@@ -1,3 +1,4 @@
+import asyncio
 import concurrent.futures
 import logging
 import threading
@@ -32,10 +33,10 @@ class Service:
         method = getattr(df, methodname)
         return method(*args, **kwargs)
 
-    def execute(self, df, tasks):
+    async def execute(self, df, tasks, progress=None):
         assert df.executor.tasks == []
         tasks = [df.executor.schedule(task) for task in tasks]
-        df.execute()
+        await df.execute_async()
         return [task.get() for task in tasks]
 
 
@@ -69,21 +70,25 @@ class AsyncThreadedService(Proxy):
         for thread_pool in self.thread_pools:
             thread_pool.shutdown()
 
-    def execute(self, df, tasks, progress=None):
+    async def execute(self, df, tasks, progress=None):
         def execute():
             if not hasattr(self.thread_local, "executor"):
                 logger.debug("creating thread pool and executor")
                 self.thread_local.thread_pool = vaex.multithreading.ThreadPoolIndex(max_workers=self.threads_per_job)
                 self.thread_local.executor = vaex.execution.ExecutorLocal(thread_pool=self.thread_local.thread_pool)
+                self.thread_local.ioloop = loop = asyncio.new_event_loop()
                 self.thread_pools.append(self.thread_local.thread_pool)
-            executor = self.thread_local.executor
-            try:
-                if progress:
-                    executor.signal_progress.connect(progress)
-                df.executor = executor
-                return self.service.execute(df, tasks)
-            finally:
-                if progress:
-                    executor.signal_progress.disconnect(progress)
+            async def execute_async():
+                executor = self.thread_local.executor
+                try:
+                    if progress:
+                        executor.signal_progress.connect(progress)
+                    df.executor = executor
+                    return await self.service.execute(df, tasks)
+                finally:
+                    if progress:
+                        executor.signal_progress.disconnect(progress)
+            return self.thread_local.ioloop.run_until_complete(execute_async())
 
-        return self.thread_pool.submit(execute)
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(self.thread_pool, execute)

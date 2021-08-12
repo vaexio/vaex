@@ -379,7 +379,10 @@ class DataFrame(object):
             for task in self.executor.tasks:
                 print(repr(task))
         from .asyncio import just_run
-        just_run(self.execute_async())
+        if self.executor.tasks:
+            # we only run when there are tasks, since we may trigger this
+            # call in an async loop context that cannot be patched (like uvloop)
+            just_run(self.execute_async())
 
     async def execute_async(self):
         '''Async version of execute'''
@@ -1544,18 +1547,26 @@ class DataFrame(object):
         waslist, [expressions, ] = vaex.utils.listify(expression)
         limits = []
         for expr in expressions:
-            limits_minmax = self.minmax(expr, selection=selection)
-            vmin, vmax = limits_minmax
-            size = 1024 * 16
-            counts = self.count(binby=expr, shape=size, limits=limits_minmax, selection=selection)
-            cumcounts = np.concatenate([[0], np.cumsum(counts)])
-            cumcounts = cumcounts / cumcounts.max()
-            # TODO: this is crude.. see the details!
-            f = (1 - percentage / 100.) / 2
-            x = np.linspace(vmin, vmax, size + 1)
-            l = np.interp([f, 1 - f], cumcounts, x)
-            limits.append(l)
-        return vaex.utils.unlistify(waslist, limits)
+            @delayed
+            def compute(limits_minmax, expr=expr):
+                @delayed
+                def compute_limits(counts):
+                    cumcounts = np.concatenate([[0], np.cumsum(counts)])
+                    cumcounts = cumcounts / cumcounts.max()
+                    # TODO: this is crude.. see the details!
+                    f = (1 - percentage / 100.) / 2
+                    x = np.linspace(vmin, vmax, size + 1)
+                    l = np.interp([f, 1 - f], cumcounts, x)
+                    return l
+                vmin, vmax = limits_minmax
+                size = 1024 * 16
+                counts = self.count(binby=expr, shape=size, limits=limits_minmax, selection=selection, delay=delay)
+                return compute_limits(counts)
+                # limits.append(l)
+            limits_minmax = self.minmax(expr, selection=selection, delay=delay)
+            limits1 = compute(limits_minmax=limits_minmax)
+            limits.append(limits1)
+        return self._delay(delay, delayed(vaex.utils.unlistify)(waslist, limits))
 
     @docsubst
     def limits(self, expression, value=None, square=False, selection=None, delay=False, shape=None):
@@ -1655,7 +1666,7 @@ class DataFrame(object):
                             elif type in ["ss", "sigmasquare"]:
                                 limits = self.limits_sigma(number, square=True)
                             elif type in ["%", "percent"]:
-                                limits = self.limits_percentage(expression, number, selection=selection, delay=False)
+                                limits = self.limits_percentage(expression, number, selection=selection, delay=True)
                             elif type in ["%s", "%square", "percentsquare"]:
                                 limits = self.limits_percentage(expression, number, selection=selection, square=True, delay=True)
                 elif value is None:
@@ -2442,9 +2453,11 @@ class DataFrame(object):
         :param bool set_filter: Set the filter from the state (default), or leave the filter as it is it.
         :param bool warn: Give warning when issues are found in the state transfer that are recoverable.
         """
-        self.description = state['description']
+        if 'description' in state:
+            self.description = state['description']
         if use_active_range:
-            self._index_start, self._index_end = state['active_range']
+            if 'active_range' in state:
+                self._index_start, self._index_end = state['active_range']
         self._length_unfiltered = self._index_end - self._index_start
         if keep_columns:
             all_columns = self.get_column_names()
@@ -2457,18 +2470,20 @@ class DataFrame(object):
                     self._rename(old, new)
                 elif warn:
                     warnings.warn(f'The state wants to rename {old} to {new}, but {new} was not found, ignoring the rename')
-        for name, value in state['functions'].items():
-            self.add_function(name, vaex.serialize.from_dict(value, trusted=trusted))
-        self.variables = state['variables']
+        if 'functions' in state:
+            for name, value in state['functions'].items():
+                self.add_function(name, vaex.serialize.from_dict(value, trusted=trusted))
+        if 'variables' in state:
+            self.variables = state['variables']
         if 'column_names' in state:
             # we clear all columns, and add them later on, since otherwise self[name] = ... will try
             # to rename the columns (which is unsupported for remote dfs)
             self.column_names = []
             self.virtual_columns = {}
-                # self._save_assign_expression(name)
             self.column_names = list(set(self.dataset) & set(state['column_names']))  # initial values not to have virtual column trigger missing column values
-            for name, value in state['virtual_columns'].items():
-                self[name] = self._expr(value)
+            if 'virtual_columns' in state:
+                for name, value in state['virtual_columns'].items():
+                    self[name] = self._expr(value)
             self.column_names = list(state['column_names'])
             if keep_columns:
                 self.column_names += list(keep_columns)
@@ -2479,22 +2494,23 @@ class DataFrame(object):
             self.virtual_columns = {}
             for name, value in state['virtual_columns'].items():
                 self[name] = self._expr(value)
-        units = {key: astropy.units.Unit(value) for key, value in state["units"].items()}
-        self.units.update(units)
-        for name, selection_dict in state['selections'].items():
-            if name == FILTER_SELECTION_NAME and not set_filter:
-                continue
-            # TODO: make selection use the vaex.serialize framework
-            if selection_dict is None:
-                selection = None
-            else:
-                selection = selections.selection_from_dict(selection_dict)
-            self.set_selection(selection, name=name)
+        if 'units' in state:
+            units = {key: astropy.units.Unit(value) for key, value in state["units"].items()}
+            self.units.update(units)
+        if 'selections' in state:
+            for name, selection_dict in state['selections'].items():
+                if name == FILTER_SELECTION_NAME and not set_filter:
+                    continue
+                # TODO: make selection use the vaex.serialize framework
+                if selection_dict is None:
+                    selection = None
+                else:
+                    selection = selections.selection_from_dict(selection_dict)
+                self.set_selection(selection, name=name)
         if self.is_local():
             for name in self.dataset:
                 if name not in self.column_names:
                     del self.columns[name]
-
 
 
     def state_write(self, file, fs_options=None, fs=None):

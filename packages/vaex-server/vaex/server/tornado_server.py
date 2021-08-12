@@ -28,17 +28,11 @@ import vaex.core._version
 import vaex.server._version
 import vaex.server.dataframe
 
-
-logger = logging.getLogger("vaex.webserver")
-
-
-def exception(exception):
-    logger.exception("handled exception at server, all fine: %r", exception)
-    return ({"exception": {"class": str(exception.__class__.__name__), "msg": str(exception)}})
+from .utils import exception, error
+import vaex.server.websocket
 
 
-def error(msg):
-    return ({"error": msg})
+logger = logging.getLogger("vaex.webserver.tornado")
 
 
 class WebSocketHandler(tornado.websocket.WebSocketHandler):
@@ -46,117 +40,20 @@ class WebSocketHandler(tornado.websocket.WebSocketHandler):
         self.service = service
         self.webserver = webserver
         self.submit_threaded = submit_threaded
-        self.cache = cache
-        self.cache_selection = cache_selection
-        self.trusted = False
-        self._msg_id_to_tasks = {}
+        self.handler = vaex.server.websocket.WebSocketHandler(self.send, self.service, token=self.webserver.token, token_trusted=self.webserver.token_trusted)
 
-    def check_origin(self, origin):
-        return True
+    async def send(self, value):
+        await self.write_message(value, binary=True)
 
-    def open(self):
-        logger.debug("WebSocket opened")
-
-    @tornado.gen.coroutine
-    def on_message(self, websocket_msg):
+    async def on_message(self, websocket_msg):
         # Tornado does not receive messages before the current is finished, this
         # avoids this limitation of tornado, so we can send progress/cancel information
-        self.webserver.ioloop.add_callback(self._on_message, websocket_msg)
+        logger.debug("get msg: %r", websocket_msg)
+        asyncio.create_task(self._on_message(websocket_msg))
 
-    @tornado.gen.coroutine
-    def _on_message(self, websocket_msg):
-        if self.webserver._test_latency:
-            yield tornado.gen.sleep(self.webserver._test_latency)
-        msg_id = 'invalid'
-        encoding = Encoding()
-        try:
-            websocket_msg = deserialize(websocket_msg, encoding)
-            logger.debug("websocket message: %s", websocket_msg)
-            msg_id, msg, auth = websocket_msg['msg_id'], websocket_msg['msg'], websocket_msg['auth']
-
-            token = auth['token']  # are we even allowed to execute?
-            token_trusted = auth['token-trusted']  # do we trust arbitrary code execution?
-            trusted = token_trusted == self.webserver.token_trusted and token_trusted
-
-            if not ((token == self.webserver.token) or
-                    (self.webserver.token_trusted and token_trusted == self.webserver.token_trusted)):
-                raise ValueError('No token provided, not authorized')
-
-            last_progress = None
-
-            def progress(f):
-                nonlocal last_progress
-
-                def send_progress():
-                    vaex.asyncio.check_patch_tornado()  # during testing asyncio might be patched
-                    nonlocal last_progress
-                    logger.debug("progress: %r", f)
-                    last_progress = f
-                    return self.write_json({'msg_id': msg_id, 'msg': {'progress': f}})
-                # emit when it's the first time (None), at least 0.05 sec lasted, or and the end
-                # but never send old or same values
-                if (last_progress is None or (f - last_progress) > 0.05 or f == 1.0) and (last_progress is None or f > last_progress):
-                    self.webserver.ioloop.add_callback(send_progress)
-                return True
-
-            command = msg['command']
-            if command == 'list':
-                result = self.service.list()
-                self.write_json({'msg_id': msg_id, 'msg': {'result': result}})
-            elif command == 'versions':
-                result = {'vaex.core': vaex.core._version.__version_tuple__, 'vaex.server': vaex.server._version.__version_tuple__}
-                self.write_json({'msg_id': msg_id, 'msg': {'result': result}})
-            elif command == 'execute':
-                df = self.service[msg['df']].copy()
-                df.state_set(msg['state'], use_active_range=True, trusted=trusted)
-                tasks = encoding.decode_list('task', msg['tasks'], df=df)
-                self._msg_id_to_tasks[msg_id] = tasks  # keep a reference for cancelling
-                try:
-                    results = yield self.service.execute(df, tasks, progress=progress)
-                finally:
-                    del self._msg_id_to_tasks[msg_id]
-                # make sure the final progress value is send, and also old values are not send
-                last_progress = 1.0
-                self.write_json({'msg_id': msg_id, 'msg': {'progress': 1.0}})
-                encoding = Encoding()
-                results = encoding.encode_list('vaex-task-result', results)
-                self.write_json({'msg_id': msg_id, 'msg': {'result': results}}, encoding)
-            elif command == 'cancel':
-                try:
-                    tasks = self._msg_id_to_tasks[msg['cancel_msg_id']]
-                except KeyError:
-                    pass  # already done, or cancelled
-                else:
-                    for task in tasks:
-                        task.cancel()
-            elif command == 'call-dataframe':
-                df = self.service[msg['df']].copy()
-                df.state_set(msg['state'], use_active_range=True, trusted=trusted)
-                # TODO: yield
-                if msg['method'] not in vaex.server.dataframe.allowed_method_names:
-                    raise NotImplementedError("Method is not rmi invokable")
-                results = self.service._rmi(df, msg['method'], msg['args'], msg['kwargs'])
-                encoding = Encoding()
-                if msg['method'] == "_evaluate_implementation":
-                    results = encoding.encode('vaex-evaluate-result', results)
-                else:
-                    results = encoding.encode('vaex-rmi-result', results)
-                self.write_json({'msg_id': msg_id, 'msg': {'result': results}}, encoding)
-            else:
-                raise ValueError(f'Unknown command: {command}')
-
-        except Exception as e:
-            logger.exception("Exception while handling msg")
-            msg = exception(e)
-            self.write_json({'msg_id': msg_id, 'msg': msg})
-
-    def write_json(self, msg, encoding=None):
-        encoding = encoding or Encoding()
-        logger.debug("writing json: %r", msg)
-        try:
-            return self.write_message(serialize(msg, encoding), binary=True)
-        except:  # noqa
-            logger.exception('Failed to write: %s', msg)
+    async def _on_message(self, websocket_msg):
+        logger.debug("handle msg: %r", websocket_msg)
+        await self.handler.handle_message(websocket_msg)
 
     def on_close(self):
         logger.debug("WebSocket closed")
@@ -298,6 +195,7 @@ def main(argv, WebServer=WebServer):
     parser.add_argument('--compress', help="compress larger replies (default: %(default)s)", default=True, action='store_true')
     parser.add_argument('--no-compress', dest="compress", action='store_false')
     parser.add_argument('--development', default=False, action='store_true', help="enable development features (auto reloading)")
+    parser.add_argument('--add-example', default=False, action='store_true', help="add the example dataset")
     parser.add_argument('--token', default=None, help="optionally protect server access by a token")
     parser.add_argument('--token-trusted', default=None, help="when using this token, the server allows more deserialization (e.g. pickled function)")
     parser.add_argument('--threads-per-job', default=4, type=int, help="threads per job (default: %(default)s)")
@@ -313,12 +211,18 @@ def main(argv, WebServer=WebServer):
     filenames = config.filename
     datasets = []
     for filename in filenames:
-        ds = vx.open(filename)
-        if ds is None:
+        df = vx.open(filename)
+        if df is None:
             print("error opening file: %r" % filename)
         else:
-            datasets.append(ds)
+            datasets.append(df)
+    if config.add_example:
+        df_example = vaex.example()
+        df_example.name = "example"
+        datasets.append(df_example)
+
     datasets = datasets or [vx.example()]
+
     # datasets = [ds for ds in datasets if ds is not None]
     logger.info("datasets:")
     for dataset in datasets:

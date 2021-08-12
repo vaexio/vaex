@@ -54,7 +54,7 @@ class Client:
 
     def __getitem__(self, name):
         if name not in self.df_map:
-            raise KeyError("no such DataFrame '%s' at server, possible names: %s" % (name, " ".join(self.df_map.keys())))
+            raise KeyError("no such DataFrame '%s' at server, possible names: %s" % (name, ", ".join(self.df_map.keys())))
         return self.df_map[name]
 
     def _list(self):

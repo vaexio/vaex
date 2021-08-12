@@ -225,7 +225,7 @@ class dtype_encoding:
         dtype = DataType(dtype)
         if dtype.is_list:
             return {'type': 'list', 'value_type': encoding.encode('dtype', dtype.value_type)}
-        dtype = DataType(dtype).internal
+        dtype = DataType(dtype)
         return str(dtype)
 
     @staticmethod
@@ -490,7 +490,8 @@ class binary:
         json_data = json.loads(json_data)
         data = json_data['data']
         encoding.blobs = {key: blob for key, blob in zip(json_data['blob_refs'], blobs)}
-        encoding._object_specs = json_data['objects']
+        if 'objects' in json_data:  # for backwards compatibility, otherwise we might not be able to parse old msg'es
+            encoding._object_specs = json_data['objects']
         return data
 
 
