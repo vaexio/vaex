@@ -362,8 +362,35 @@ class Expression(with_metaclass(Meta)):
         import pandas as pd
         return pd.Series(self.values)
 
-    def __getitem__(self, slice):
-        return self.ds[slice][self.expression]
+    def __getitem__(self, slicer):
+        if isinstance(slicer, slice):
+            indices = slicer
+            fields = None
+        elif isinstance(slicer, tuple) and len(slicer) == 2:
+            indices, fields = slicer
+        else:
+            raise NotImplementedError
+        if indices != slice(None):
+            expr = self.df[indices][self.expression]
+        else:
+            expr = self
+
+        if fields is None:
+            return expr
+        elif isinstance(fields, (int, str)):
+            if self.dtype.is_struct:
+                return expr.struct.get(fields)
+            elif self.ndim == 2:
+                if not isinstance(fields, int):
+                    raise TypeError(f'Expected an integer, not {type(fields)}')
+                else:
+                    return expr.getitem(fields)
+            else:
+                raise TypeError(f'Only getting struct fields or 2d columns supported')
+        elif isinstance(fields, (tuple, list)):
+            return expr.struct.project(fields)
+        else:
+            raise TypeError("Invalid type provided. Needs to be None, str or list/tuple.")
 
     def __abs__(self):
         """Returns the absolute value of the expression"""

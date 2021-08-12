@@ -2785,3 +2785,9 @@ def stack(arrays, strict=False):
     arrays = [vaex.arrow.numpy_dispatch.unwrap(k) for k in arrays]
     arrays = [vaex.array_types.to_numpy(k) for k in arrays]
     return np.ma.stack(arrays, axis=1)
+
+
+@register_function()
+def getitem(ar, item):
+    slicer = (slice(None), item)
+    return ar.__getitem__(slicer)
