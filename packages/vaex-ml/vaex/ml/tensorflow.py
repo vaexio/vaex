@@ -32,7 +32,7 @@ class KerasModel(vaex.ml.state.HasState):
     def fit(self, df):
         '''Not implemented: A Placeholder method, put here for potential future developement.
         '''
-        raise RuntimeError('The `fit` method is not implemented. To satisfy the large number of use-cases and for maximum flexiblity, please fit the model using the `tensorflow.keras` API.')
+        raise NotImplementedError('The `fit` method is not implemented. To satisfy the large number of use-cases and for maximum flexiblity, please fit the model using the `tensorflow.keras` API.')
 
     def transform(self, df):
         '''Transform a DataFrame such that it contains the predictions of the KerasModel in form of a virtual column.
