@@ -196,6 +196,14 @@ class StringOperationsPandas(object):
         self.expression = expression
 
 
+class ListOperations(object):
+    """List operations on arrow arrays"""
+    def __init__(self, expression):
+        self.expression = expression
+
+    def __getitem__(self, slice):
+        return self.slice(slice)
+
 class Expression(with_metaclass(Meta)):
     """Expression class"""
     def __init__(self, ds, expression, ast=None):
@@ -405,6 +413,11 @@ class Expression(with_metaclass(Meta)):
     def td(self):
         """Gives access to timedelta operations via :py:class:`TimeDelta`"""
         return TimeDelta(self)
+
+    @property
+    def list(self):
+        """Gives access to list operations via :py:class:`ListOperations`"""
+        return ListOperations(self)
 
     @property
     def str(self):

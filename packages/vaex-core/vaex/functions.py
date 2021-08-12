@@ -34,6 +34,7 @@ def _arrow_string_kernel_dispatch(name, ascii, *args):
 
 scopes = {
     'str': vaex.expression.StringOperations,
+    'list': vaex.expression.ListOperations,
     'str_pandas': vaex.expression.StringOperationsPandas,
     'dt': vaex.expression.DateTime,
     'td': vaex.expression.TimeDelta
