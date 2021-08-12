@@ -39,6 +39,18 @@ def test_categorical():
 	assert  df2['year'].tolist() == df['year'].tolist()
 	assert  df2['weekday'].tolist() == df['weekday'].tolist()
 
+def test_virtual_column():
+	df = vaex.from_arrays(
+		x=np.array([True, True, False]),
+		y=np.array([1, 2, 0]),
+		z=np.array([9.2, 10.5, 11.8]))
+	df.add_virtual_column("r", "sqrt(y**2 + z**2)")
+	df2 = from_dataframe_to_vaex(df)
+	assert  df2.x.tolist() == df.x.tolist()
+	assert  df2.y.tolist() == df.y.tolist()
+	assert  df2.z.tolist() == df.z.tolist()
+	assert  df2.r.tolist() == df.r.tolist()
+
 def test_arrow_dictionary():
 	# ERRORS!
 	indices = pa.array([0, 1, 0, 1, 2, 0, None, 2])
@@ -53,4 +65,3 @@ def test_arrow_dictionary():
 
 	df2 = from_dataframe_to_vaex(df)
 	assert  df2.x.tolist() == df.x.tolist()
-	

@@ -71,7 +71,7 @@ class _DtypeKind(enum.IntEnum):
     DATETIME = 22
     CATEGORICAL = 23
     
-def convert_column_to_ndarray(col):
+def convert_column_to_ndarray(col) -> np.ndarray:
     """
     Convert an int, uint, float or bool column to a numpy array
     """
@@ -111,7 +111,7 @@ def buffer_to_ndarray(_buffer, _dtype) -> np.ndarray:
 
     return x
 
-def convert_categorical_column(col):
+def convert_categorical_column(col) -> Tuple[np.ndarray, np.ndarray]:
     """
     Convert a categorical column to a numpy array of codes, values and categories/labels
     """
@@ -136,7 +136,7 @@ class _VaexBuffer:
     Data in the buffer is guaranteed to be contiguous in memory.
     """
 
-    def __init__(self, x):
+    def __init__(self, x) -> None:
         """
         Handle only regular columns (= numpy arrays) for now.
         """
@@ -191,7 +191,7 @@ class _VaexColumn:
           doesn't need its own version or ``__column__`` protocol.
     """
 
-    def __init__(self, column, metadata : dict = {}):
+    def __init__(self, column, metadata : dict = {}) -> None:
         """
         Note: assuming column is an expression.
         """
@@ -440,7 +440,7 @@ class _VaexDataFrame:
         self._nan_as_null = nan_as_null
         
     @property
-    def metadata(self):
+    def metadata(self) -> Dict[str, Any]:
         is_category = {}
         labels = {}
         for i in self._df.get_names():
