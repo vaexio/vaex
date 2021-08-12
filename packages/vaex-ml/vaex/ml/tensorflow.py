@@ -55,11 +55,11 @@ class KerasModel(vaex.ml.state.HasState):
         self.model.save(filename)
         with open(filename, 'rb') as f:
             data = f.read()
-        state['keras_model'] = base64.encodebytes(data).decode('ascii')
+        state['model'] = base64.encodebytes(data).decode('ascii')
         return state
 
     def state_set(self, state, trusted=True):
-        model_data = state.pop('keras_model')
+        model_data = state.pop('model')
         super(KerasModel, self).state_set(state)
 
         data = base64.decodebytes(model_data.encode('ascii'))
