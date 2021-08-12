@@ -255,9 +255,9 @@ class StructOperations(collections.abc.Mapping):
         return [field.name for field in self._array.type]
 
     def values(self):
-        """Return all field types contained in struct array.
+        """Return all fields as vaex expressions.
 
-        :returns: list of field types.
+        :returns: list of vaex expressions corresponding to each field in struct.
 
         Example:
 
@@ -271,20 +271,26 @@ class StructOperations(collections.abc.Mapping):
         1	{'col1': 2, 'col2': 'b'}
 
         >>> df.array.struct.values()
-        [int64, string]
+        [Expression = struct_get(array, 0)
+         Length: 2 dtype: int64 (expression)
+         -----------------------------------
+         0  1
+         1  2,
+         Expression = struct_get(array, 1)
+         Length: 2 dtype: string (expression)
+         ------------------------------------
+         0  a
+         1  b]
 
         """
 
         self._assert_struct_dtype()
-        dtypes = (field.type for field in self._array.type)
-        vaex_dtypes = [DataType(x) for x in dtypes]
-
-        return vaex_dtypes
+        return [self[i] for i in range(len(self))]
 
     def items(self):
-        """Return all field names along with corresponding types.
+        """Return all fields with names along with corresponding vaex expressions.
 
-        :returns: list of tuples with field names and types.
+        :returns: list of tuples with field names and fields as vaex expressions.
 
         Example:
 
@@ -298,9 +304,22 @@ class StructOperations(collections.abc.Mapping):
         1	{'col1': 2, 'col2': 'b'}
 
         >>> df.array.struct.items()
-        [('col1', int64), ('col2', string)]
+        [('col1',
+          Expression = struct_get(array, 0)
+          Length: 2 dtype: int64 (expression)
+          -----------------------------------
+          0  1
+          1  2),
+         ('col2',
+          Expression = struct_get(array, 1)
+          Length: 2 dtype: string (expression)
+          ------------------------------------
+          0  a
+          1  b)]
 
         """
+
+        self._assert_struct_dtype()
         return list(zip(self.keys(), self.values()))
 
     @property
@@ -327,8 +346,11 @@ class StructOperations(collections.abc.Mapping):
 
         """
 
-        return pd.Series(self.values(), index=self.keys())
+        self._assert_struct_dtype()
+        dtypes = (field.type for field in self._array.type)
+        vaex_dtypes = [DataType(x) for x in dtypes]
 
+        return pd.Series(vaex_dtypes, index=self.keys())
 
     def _assert_struct_dtype(self):
         """Ensure that struct operations are only called on valid struct dtype.

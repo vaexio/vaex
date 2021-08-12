@@ -42,6 +42,7 @@ def test_struct_get_label_duplicated_raise(df_duplicated):
     with pytest.raises(LookupError):
         df_duplicated.array.struct.get("col1").tolist()
 
+
 def test_struct_get_label_duplicated_raise_bracket_notation(df_duplicated):
     with pytest.raises(LookupError):
         df_duplicated.array.struct["col1"].tolist()
@@ -144,17 +145,15 @@ def test_struct_keys_invalid_dtypes(df):
 
 
 def test_struct_values(df):
-    values = [vaex.datatype.DataType(pa.int64()),
-              vaex.datatype.DataType(pa.string()),
-              vaex.datatype.DataType(pa.int64())]
-    assert df.array.struct.values() == values
+    assert df.array.struct.values() == [df.array.struct[0],
+                                        df.array.struct[1],
+                                        df.array.struct[2]]
 
 
 def test_struct_values_duplicated(df_duplicated):
-    values = [vaex.datatype.DataType(pa.int64()),
-              vaex.datatype.DataType(pa.string()),
-              vaex.datatype.DataType(pa.int64())]
-    assert df_duplicated.array.struct.values() == values
+    assert df_duplicated.array.struct.values() == [df_duplicated.array.struct[0],
+                                                   df_duplicated.array.struct[1],
+                                                   df_duplicated.array.struct[2]]
 
 
 def test_struct_values_invalid_dtypes(df):
@@ -164,16 +163,16 @@ def test_struct_values_invalid_dtypes(df):
 
 
 def test_struct_items(df):
-    items = [("col1", vaex.datatype.DataType(pa.int64())),
-             ("col2", vaex.datatype.DataType(pa.string())),
-             ("col3", vaex.datatype.DataType(pa.int64()))]
+    items = [("col1", df.array.struct[0]),
+             ("col2", df.array.struct[1]),
+             ("col3", df.array.struct[2])]
     assert df.array.struct.items() == items
 
 
 def test_struct_items_duplicated(df_duplicated):
-    items = [("col1", vaex.datatype.DataType(pa.int64())),
-             ("col1", vaex.datatype.DataType(pa.string())),
-             ("col3", vaex.datatype.DataType(pa.int64()))]
+    items = [("col1", df_duplicated.array.struct[0]),
+             ("col1", df_duplicated.array.struct[1]),
+             ("col3", df_duplicated.array.struct[2])]
     assert df_duplicated.array.struct.items() == items
 
 
