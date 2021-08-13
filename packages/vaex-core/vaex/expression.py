@@ -10,6 +10,7 @@ import weakref
 
 from future.utils import with_metaclass
 import numpy as np
+import pandas as pd
 import tabulate
 import pyarrow as pa
 from vaex.datatype import DataType
@@ -196,6 +197,170 @@ class StringOperationsPandas(object):
         self.expression = expression
 
 
+class StructOperations(collections.abc.Mapping):
+    """Struct Array operations.
+
+    Usually accessed using e.g. `df.name.struct.get('field1')`
+
+    """
+
+    def __init__(self, expression):
+        self.expression = expression
+        self._array = self.expression.values
+
+    def __iter__(self):
+        for name in self.keys():
+            yield name
+
+    def __getitem__(self, key):
+        """Return struct field by either field name (string) or index position (index).
+
+        In case of ambiguous field names, a `LookupError` is raised.
+
+        """
+
+        self._assert_struct_dtype()
+        return self.get(key)
+
+    def __len__(self):
+        """Return the number of struct fields contained in struct array.
+
+        """
+
+        self._assert_struct_dtype()
+        return len(self._array.type)
+
+    def keys(self):
+        """Return all field names contained in struct array.
+
+        :returns: list of field names.
+
+        Example:
+
+        >>> import vaex
+        >>> import pyarrow as pa
+        >>> array = pa.StructArray.from_arrays(arrays=[[1,2], ["a", "b"]], names=["col1", "col2"])
+        >>> df = vaex.from_arrays(array=array)
+        >>> df
+        # 	array
+        0	{'col1': 1, 'col2': 'a'}
+        1	{'col1': 2, 'col2': 'b'}
+
+        >>> df.array.struct.keys()
+        ["col1", "col2"]
+
+        """
+
+        self._assert_struct_dtype()
+        return [field.name for field in self._array.type]
+
+    def values(self):
+        """Return all fields as vaex expressions.
+
+        :returns: list of vaex expressions corresponding to each field in struct.
+
+        Example:
+
+        >>> import vaex
+        >>> import pyarrow as pa
+        >>> array = pa.StructArray.from_arrays(arrays=[[1,2], ["a", "b"]], names=["col1", "col2"])
+        >>> df = vaex.from_arrays(array=array)
+        >>> df
+        # 	array
+        0	{'col1': 1, 'col2': 'a'}
+        1	{'col1': 2, 'col2': 'b'}
+
+        >>> df.array.struct.values()
+        [Expression = struct_get(array, 0)
+         Length: 2 dtype: int64 (expression)
+         -----------------------------------
+         0  1
+         1  2,
+         Expression = struct_get(array, 1)
+         Length: 2 dtype: string (expression)
+         ------------------------------------
+         0  a
+         1  b]
+
+        """
+
+        self._assert_struct_dtype()
+        return [self[i] for i in range(len(self))]
+
+    def items(self):
+        """Return all fields with names along with corresponding vaex expressions.
+
+        :returns: list of tuples with field names and fields as vaex expressions.
+
+        Example:
+
+        >>> import vaex
+        >>> import pyarrow as pa
+        >>> array = pa.StructArray.from_arrays(arrays=[[1,2], ["a", "b"]], names=["col1", "col2"])
+        >>> df = vaex.from_arrays(array=array)
+        >>> df
+        # 	array
+        0	{'col1': 1, 'col2': 'a'}
+        1	{'col1': 2, 'col2': 'b'}
+
+        >>> df.array.struct.items()
+        [('col1',
+          Expression = struct_get(array, 0)
+          Length: 2 dtype: int64 (expression)
+          -----------------------------------
+          0  1
+          1  2),
+         ('col2',
+          Expression = struct_get(array, 1)
+          Length: 2 dtype: string (expression)
+          ------------------------------------
+          0  a
+          1  b)]
+
+        """
+
+        self._assert_struct_dtype()
+        return list(zip(self.keys(), self.values()))
+
+    @property
+    def dtypes(self):
+        """Return all field names along with corresponding types.
+
+        :returns: a pandas series with keys as index and types as values.
+
+        Example:
+
+        >>> import vaex
+        >>> import pyarrow as pa
+        >>> array = pa.StructArray.from_arrays(arrays=[[1,2], ["a", "b"]], names=["col1", "col2"])
+        >>> df = vaex.from_arrays(array=array)
+        >>> df
+        # 	array
+        0	{'col1': 1, 'col2': 'a'}
+        1	{'col1': 2, 'col2': 'b'}
+
+        >>> df.array.struct.dtypes
+        col1     int64
+        col2    string
+        dtype: object
+
+        """
+
+        self._assert_struct_dtype()
+        dtypes = (field.type for field in self._array.type)
+        vaex_dtypes = [DataType(x) for x in dtypes]
+
+        return pd.Series(vaex_dtypes, index=self.keys())
+
+    def _assert_struct_dtype(self):
+        """Ensure that struct operations are only called on valid struct dtype.
+
+        """
+
+        from vaex.struct import assert_struct_dtype
+        assert_struct_dtype(self._array)
+
+
 class Expression(with_metaclass(Meta)):
     """Expression class"""
     def __init__(self, ds, expression, ast=None):
@@ -363,6 +528,58 @@ class Expression(with_metaclass(Meta)):
         return pd.Series(self.values)
 
     def __getitem__(self, slicer):
+        """Provides row and optional field access (struct arrays) via bracket notation.
+
+        Examples:
+
+        >>> import vaex
+        >>> import pyarrow as pa
+        >>> array = pa.StructArray.from_arrays(arrays=[[1, 2, 3], ["a", "b", "c"]], names=["col1", "col2"])
+        >>> df = vaex.from_arrays(array=array, integer=[5, 6, 7])
+        >>> df
+        # 	array 	                    integer
+        0	{'col1': 1, 'col2': 'a'}	5
+        1	{'col1': 2, 'col2': 'b'}	6
+        2	{'col1': 3, 'col2': 'c'}	7
+
+        >>> df.integer[1:]
+        Expression = integer
+        Length: 2 dtype: int64 (column)
+        -------------------------------
+        0  6
+        1  7
+
+        >>> df.array[1:]
+        Expression = array
+        Length: 2 dtype: struct<col1: int64, col2: string> (column)
+        -----------------------------------------------------------
+        0  {'col1': 2, 'col2': 'b'}
+        1  {'col1': 3, 'col2': 'c'}
+
+        >>> df.array[:, "col1"]
+        Expression = struct_get(array, 'col1')
+        Length: 3 dtype: int64 (expression)
+        -----------------------------------
+        0  1
+        1  2
+        2  3
+
+        >>> df.array[1:, ["col1"]]
+        Expression = struct_project(array, ['col1'])
+        Length: 2 dtype: struct<col1: int64> (expression)
+        -------------------------------------------------
+        0  {'col1': 2}
+        1  {'col1': 3}
+
+        >>> df.array[1:, ["col2", "col1"]]
+        Expression = struct_project(array, ['col2', 'col1'])
+        Length: 2 dtype: struct<col2: string, col1: int64> (expression)
+        ---------------------------------------------------------------
+        0  {'col2': 'b', 'col1': 2}
+        1  {'col2': 'c', 'col1': 3}
+
+        """
+
         if isinstance(slicer, slice):
             indices = slicer
             fields = None
@@ -370,6 +587,7 @@ class Expression(with_metaclass(Meta)):
             indices, fields = slicer
         else:
             raise NotImplementedError
+        
         if indices != slice(None):
             expr = self.df[indices][self.expression]
         else:
@@ -415,6 +633,11 @@ class Expression(with_metaclass(Meta)):
     def str_pandas(self):
         """Gives access to string operations via :py:class:`StringOperationsPandas` (using Pandas Series)"""
         return StringOperationsPandas(self)
+
+    @property
+    def struct(self):
+        """Gives access to struct operations via :py:class:`StructOperations`"""
+        return StructOperations(self)
 
     @property
     def values(self):

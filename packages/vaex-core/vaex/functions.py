@@ -3,12 +3,12 @@ import json
 import numpy as np
 import pyarrow as pa
 import pyarrow.compute as pc
-from vaex import column
-from vaex.column import _to_string_sequence, _to_string_column, _to_string_list_sequence, _is_stringy
+from vaex import column, register_function
+from vaex.column import _to_string_sequence, _is_stringy
 from vaex.dataframe import docsubst
+from vaex.registry import scopes
 import vaex.arrow.numpy_dispatch
 import vaex.arrow.utils
-import re
 import vaex.expression
 import functools
 import six
@@ -30,89 +30,6 @@ def _arrow_string_kernel_dispatch(name, ascii, *args):
     variant = 'ascii' if ascii else 'utf8'
     kernel_name = f'{variant}_{name}'  # eg utf8_istitle / ascii_istitle
     return pc.call_function(kernel_name, args)
-
-
-scopes = {
-    'str': vaex.expression.StringOperations,
-    'str_pandas': vaex.expression.StringOperationsPandas,
-    'dt': vaex.expression.DateTime,
-    'td': vaex.expression.TimeDelta
-}
-
-def register_function(scope=None, as_property=False, name=None, on_expression=True, df_accessor=None, multiprocessing=False):
-    """Decorator to register a new function with vaex.
-
-    If on_expression is True, the function will be available as a method on an
-    Expression, where the first argument will be the expression itself.
-
-    If `df_accessor` is given, it is added as a method to that dataframe accessor (see e.g. vaex/geo.py)
-
-    Example:
-
-    >>> import vaex
-    >>> df = vaex.example()
-    >>> @vaex.register_function()
-    >>> def invert(x):
-    >>>     return 1/x
-    >>> df.x.invert()
-
-
-    >>> import numpy as np
-    >>> df = vaex.from_arrays(departure=np.arange('2015-01-01', '2015-12-05', dtype='datetime64'))
-    >>> @vaex.register_function(as_property=True, scope='dt')
-    >>> def dt_relative_day(x):
-    >>>     return vaex.functions.dt_dayofyear(x)/365.
-    >>> df.departure.dt.relative_day
-    """
-    import vaex.multiprocessing
-    prefix = ''
-    if scope:
-        prefix = scope + "_"
-        if scope not in scopes:
-            raise KeyError("unknown scope")
-    def wrapper(f, name=name):
-        name = name or f.__name__
-        # remove possible prefix
-        if name.startswith(prefix):
-            name = name[len(prefix):]
-        full_name = prefix + name
-        if df_accessor:
-            def closure(name=name, full_name=full_name, function=f):
-                def wrapper(self, *args, **kwargs):
-                    lazy_func = getattr(self.df.func, full_name)
-                    lazy_func = vaex.arrow.numpy_dispatch.autowrapper(lazy_func)
-                    return vaex.multiprocessing.apply(lazy_func, args, kwargs, multiprocessing)
-                return functools.wraps(function)(wrapper)
-            if as_property:
-                setattr(df_accessor, name, property(closure()))
-            else:
-                setattr(df_accessor, name, closure())
-        else:
-            if on_expression:
-                if scope:
-                    def closure(name=name, full_name=full_name, function=f):
-                        def wrapper(self, *args, **kwargs):
-                            lazy_func = getattr(self.expression.ds.func, full_name)
-                            lazy_func = vaex.arrow.numpy_dispatch.autowrapper(lazy_func)
-                            args = (self.expression, ) + args
-                            return vaex.multiprocessing.apply(lazy_func, args, kwargs, multiprocessing)
-                        return functools.wraps(function)(wrapper)
-                    if as_property:
-                        setattr(scopes[scope], name, property(closure()))
-                    else:
-                        setattr(scopes[scope], name, closure())
-                else:
-                    def closure(name=name, full_name=full_name, function=f):
-                        def wrapper(self, *args, **kwargs):
-                            lazy_func = getattr(self.ds.func, full_name)
-                            lazy_func = vaex.arrow.numpy_dispatch.autowrapper(lazy_func)
-                            args = (self,) + args
-                            return vaex.multiprocessing.apply(lazy_func, args, kwargs, multiprocessing=multiprocessing)
-                        return functools.wraps(function)(wrapper)
-                    setattr(vaex.expression.Expression, name, closure())
-        vaex.expression.expression_namespace[prefix + name] = vaex.arrow.numpy_dispatch.autowrapper(f)
-        return f  # we leave the original function as is
-    return wrapper
 
 
 def auto_str_unwrap(f):
@@ -356,7 +273,6 @@ def notna(x):
 
 def _pandas_dt_fix(x):
     # see https://github.com/pandas-dev/pandas/issues/23276
-    import pandas as pd
     # not sure which version this is fixed in
     if not x.flags['WRITEABLE']:
         x = x.copy()
@@ -393,7 +309,6 @@ def dt_date(x):
     1  2016-02-11
     2  2015-11-12
     """
-    import pandas as pd
     return _to_pandas_series(x).dt.date.values.astype(np.datetime64)
 
 @register_function(scope='dt', as_property=True)
@@ -422,7 +337,6 @@ def dt_dayofweek(x):
     1  3
     2  3
     """
-    import pandas as pd
     return _to_pandas_series(x).dt.dayofweek.values
 
 @register_function(scope='dt', as_property=True)
@@ -451,7 +365,6 @@ def dt_dayofyear(x):
     1   42
     2  316
     """
-    import pandas as pd
     return _to_pandas_series(x).dt.dayofyear.values
 
 @register_function(scope='dt', as_property=True)
@@ -480,7 +393,6 @@ def dt_is_leap_year(x):
     1   True
     2  False
     """
-    import pandas as pd
     return _to_pandas_series(x).dt.is_leap_year.values
 
 @register_function(scope='dt', as_property=True)
@@ -509,7 +421,6 @@ def dt_year(x):
     1  2016
     2  2015
     """
-    import pandas as pd
     return _to_pandas_series(x).dt.year.values
 
 @register_function(scope='dt', as_property=True)
@@ -538,7 +449,6 @@ def dt_month(x):
     1   2
     2  11
     """
-    import pandas as pd
     return _to_pandas_series(x).dt.month.values
 
 @register_function(scope='dt', as_property=True)
@@ -567,7 +477,6 @@ def dt_month_name(x):
     1  February
     2  November
     """
-    import pandas as pd
     return pa.array(_to_pandas_series(x).dt.month_name())
 
 @register_function(scope='dt', as_property=True)
@@ -596,7 +505,6 @@ def dt_quarter(x):
     1  1
     2  4
     """
-    import pandas as pd
     return _to_pandas_series(x).dt.quarter.values
 
 @register_function(scope='dt', as_property=True)
@@ -625,7 +533,6 @@ def dt_day(x):
     1  11
     2  12
     """
-    import pandas as pd
     return _to_pandas_series(x).dt.day.values
 
 @register_function(scope='dt', as_property=True)
@@ -654,7 +561,6 @@ def dt_day_name(x):
     1  Thursday
     2  Thursday
     """
-    import pandas as pd
     return pa.array(_to_pandas_series(x).dt.day_name())
 
 @register_function(scope='dt', as_property=True)
@@ -683,7 +589,6 @@ def dt_weekofyear(x):
     1   6
     2  46
     """
-    import pandas as pd
     return _to_pandas_series(x).dt.weekofyear.values
 
 @register_function(scope='dt', as_property=True)
@@ -712,7 +617,6 @@ def dt_hour(x):
     1  10
     2  11
     """
-    import pandas as pd
     return _to_pandas_series(x).dt.hour.values
 
 @register_function(scope='dt', as_property=True)
@@ -741,7 +645,6 @@ def dt_minute(x):
     1  17
     2  34
     """
-    import pandas as pd
     return _to_pandas_series(x).dt.minute.values
 
 @register_function(scope='dt', as_property=True)
@@ -770,7 +673,6 @@ def dt_second(x):
     1  34
     2  22
     """
-    import pandas as pd
     return _to_pandas_series(x).dt.second.values
 
 @register_function(scope='dt')
@@ -799,7 +701,6 @@ def dt_strftime(x, date_format):
     1  2016-02
     2  2015-11
     """
-    import pandas as pd
     return pa.array(_to_pandas_series(x).dt.strftime(date_format))
 
 @register_function(scope='dt')
@@ -829,7 +730,6 @@ def dt_floor(x, freq, *args):
     1  2016-02-11 10:00:00.000000000
     2  2015-11-12 11:00:00.000000000
     """
-    import pandas as pd
     return _to_pandas_series(x).dt.floor(freq, *args).values
 
 
@@ -858,7 +758,6 @@ def dt_quarter(x):
     1  1
     2  4
     """
-    import pandas as pd
     return _to_pandas_series(x).dt.quarter.values
 
 
@@ -920,7 +819,6 @@ def td_days(x):
     2  471
     3  -22
     """
-    import pandas as pd
     return _to_pandas_series(x).dt.days.values
 
 @register_function(scope='td', as_property=True)
@@ -951,7 +849,6 @@ def td_microseconds(x):
     2   19583
     3  709551
     """
-    import pandas as pd
     return _to_pandas_series(x).dt.microseconds.values
 
 @register_function(scope='td', as_property=True)
@@ -982,7 +879,6 @@ def td_nanoseconds(x):
     2  488
     3  616
     """
-    import pandas as pd
     return _to_pandas_series(x).dt.nanoseconds.values
 
 @register_function(scope='td', as_property=True)
@@ -1013,7 +909,6 @@ def td_seconds(x):
     2  28681
     3  23519
     """
-    import pandas as pd
     return _to_pandas_series(x).dt.seconds.values
 
 @register_function(scope='td', as_property=False)
@@ -1043,7 +938,6 @@ def td_total_seconds(x):
     2   6.72134e+08
     3   2.85489e+08
     """
-    import pandas as pd
     return _to_pandas_series(x).dt.total_seconds().values
 
 
@@ -2444,6 +2338,7 @@ def str_istitle(x, ascii=False):
 # def str_isdecimal(x):
 #     sl = _to_string_sequence(x).isnumeric()
 
+
 @register_function()
 def to_string(x):
     '''Cast/convert to string, same as `expression.astype('str')`'''
@@ -2504,7 +2399,6 @@ def _ordinal_values(x, ordered_set):
 
 @register_function()
 def _choose(ar, choices, default=None):
-    from vaex.column import _to_string_sequence
     # if not isinstance(choices, np.ndarray) or choices.dtype.kind in 'US':
     #     choices = _to_string_sequence(choices)
     if default is not None:
@@ -2518,7 +2412,6 @@ def _choose(ar, choices, default=None):
 @register_function()
 def _choose_masked(ar, choices):
     """Similar to _choose, but -1 maps to NA"""
-    from vaex.column import _to_string_sequence
     mask = ar == -1
     ar[mask] == 0  # we fill it in with some values, doesn't matter, since it is masked
     ar = choices[ar]
