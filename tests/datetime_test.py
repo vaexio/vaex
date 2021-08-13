@@ -151,3 +151,11 @@ def test_create_str_column_from_datetime64():
     date_format = "%Y/%m/%d"
 
     assert df.date.dt.strftime(date_format).values.tolist() == pandas_df.date.dt.strftime(date_format).values.tolist()
+
+
+def test_non_ns_units():
+    date1 = np.datetime64('1900-10-12T03:31:00')
+    date2 = np.datetime64('2011-01-01T07:02:01')
+    dates = np.array([date1, date2], dtype='M8[ms]')
+    df = vaex.from_arrays(dates=pa.array(dates))
+    assert np.all(df.dates.to_numpy() == dates)
