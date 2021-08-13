@@ -248,7 +248,7 @@ def open(path, convert=False, shuffle=False, fs_options={}, fs=None, *args, **kw
             raise IOError('Unknown error opening: {}'.format(path))
         return df
     except:
-        logging.getLogger("vaex").error("error opening %r" % path)
+        logging.getLogger("vaex").exception("error opening %r" % path)
         raise
 
 

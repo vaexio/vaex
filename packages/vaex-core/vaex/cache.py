@@ -42,19 +42,18 @@ Will enable caching using :func:`vaex.cache.disk` and configure it to use at max
 
 
 '''
-import contextlib
 import functools
 from typing import MutableMapping
-import numpy
-import dask.base
 import logging
 import shutil
 import uuid
 import pickle
+import threading
+
+import dask.base
 import pyarrow as pa
 
 import vaex.utils
-import functools
 diskcache = vaex.utils.optional_import('diskcache')
 _redis = vaex.utils.optional_import('redis')
 
@@ -265,15 +264,28 @@ def get(key, default=None, type=None):
         return cache.get(key, default)
 
 
+class _ThreadLocalCallablePatch:
+    def __init__(self, original, patch):
+        self.local = threading.local()
+        self.local.patch = patch
+        self.original = original
+
+    def __call__(self, *args, **kwargs):
+        f = getattr(self.local, 'patch', self.original)
+        return f(*args, **kwargs)
+
+
+def _explain(*args):
+    raise TypeError('You have passed in an object for which we cannot determine a fingerprint')
+
+
 def fingerprint(*args, **kwargs):
     try:
-        _restore = uuid.uuid4
-        def explain(*args):
-            raise TypeError('You have passed in an object for which we cannot determine a fingerprint')
-        uuid.uuid4 = explain
+        original = uuid.uuid4
+        uuid.uuid4 = _ThreadLocalCallablePatch(original, _explain)
         return dask.base.tokenize(*args, **kwargs)
     finally:
-        uuid.uuid4 = _restore
+        uuid.uuid4 = original
 
 
 def output_file(callable=None, path_input=None, fs_options_input={}, fs_input=None, path_output=None, fs_options_output={}, fs_output=None):
