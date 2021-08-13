@@ -7,6 +7,7 @@ import pkg_resources
 import uuid
 from urllib.parse import urlparse
 from typing import Set, List
+import threading
 
 import numpy as np
 from frozendict import frozendict
@@ -30,6 +31,7 @@ HASH_VERSION_KEY = "version"
 
 
 _dataset_types = {}
+lock = threading.Lock()
 
 
 def register(cls, name=None):
@@ -53,15 +55,16 @@ class dataset_encoding:
 
 def open(path, fs_options={}, fs=None, *args, **kwargs):
     failures = []
-    if not opener_classes:
-        for entry in pkg_resources.iter_entry_points(group='vaex.dataset.opener'):
-            logger.debug('trying opener: ' + entry.name)
-            try:
-                opener = entry.load()
-                opener_classes.append(opener)
-            except Exception as e:
-                logger.exception('issue loading ' + entry.name)
-                failures.append((e, entry))
+    with lock:  # since we cache, make this thread save
+        if not opener_classes:
+            for entry in pkg_resources.iter_entry_points(group='vaex.dataset.opener'):
+                logger.debug('trying opener: ' + entry.name)
+                try:
+                    opener = entry.load()
+                    opener_classes.append(opener)
+                except Exception as e:
+                    logger.exception('issue loading ' + entry.name)
+                    failures.append((e, entry))
 
     # first the quick path
     for opener in opener_classes:
