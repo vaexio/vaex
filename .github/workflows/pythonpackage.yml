@@ -146,5 +146,6 @@ jobs:
       env:
         PROJECT_ID: ${{ secrets.GCP_PROJECT_ID_VAEX }}
       run: |
+        conda activate vaex-dev
         pip install -e 'packages/vaex-contrib[gcp]'
         ./ci/06-run-contrib-tests.sh
