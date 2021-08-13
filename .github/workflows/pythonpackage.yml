@@ -146,4 +146,4 @@ jobs:
       env:
         PROJECT_ID: ${{ secrets.GCP_PROJECT_ID_VAEX }}
       run: |
-        chmod +x ./ci/06-run-contrib-tests.sh
+        ./ci/06-run-contrib-tests.sh
