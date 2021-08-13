@@ -197,13 +197,21 @@ def numpy_dtype(x, strict=True):
         return x.dtype
     elif isinstance(x, supported_arrow_array_types):
         arrow_type = x.type
-        try:
-            dtype = arrow_type.to_pandas_dtype()
-        except NotImplementedError:
-            # assume dtype object as fallback in case arrow has no pandas dtype equivalence
-            dtype = 'O'
-
-        dtype = np.dtype(dtype)  # turn into instance
+        from .datatype import DataType
+        # dtype = DataType(arrow_type)
+        if pa.types.is_timestamp(arrow_type):
+            # https://arrow.apache.org/docs/python/pandas.html#type-differences says:
+            #  'Also datetime64 is currently fixed to nanosecond resolution.'
+            # so we need to do this ourselves
+            unit = arrow_type.unit
+            dtype = np.dtype(f'datetime64[{unit}]')
+        else:
+            try:
+                dtype = arrow_type.to_pandas_dtype()
+            except NotImplementedError:
+                # assume dtype object as fallback in case arrow has no pandas dtype equivalence
+                dtype = 'O'
+            dtype = np.dtype(dtype)  # turn into instance
         if strict:
             return dtype
         else:
