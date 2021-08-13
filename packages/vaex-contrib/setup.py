@@ -1,5 +1,6 @@
 import os
 import imp
+from numpy.lib.function_base import extract
 from setuptools import setup
 
 dirname = os.path.dirname(__file__)
@@ -17,6 +18,9 @@ setup(name=name + '-contrib',
       description='Community contributed modules to vaex',
       url=url,
       install_requires=install_requires_contrib,
+      extras_require={
+            'gcp': ['google-cloud-bigquery', 'google-cloud-bigquery-storage'],
+      },
       license=license,
       packages=['vaex.contrib', 'vaex.contrib.io'],
       include_package_data=True,
