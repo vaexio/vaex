@@ -1,4 +1,5 @@
 import ast
+import copy
 import os
 import base64
 import cloudpickle as pickle
@@ -475,11 +476,11 @@ class Expression(with_metaclass(Meta)):
 
     @property
     def dtype(self):
-        return self.df.data_type(self.expression)
+        return self.df.data_type(self)
 
     # TODO: remove this method?
     def data_type(self, array_type=None, axis=0):
-        return self.df.data_type(self.expression, axis=axis)
+        return self.df.data_type(self, axis=axis)
 
     @property
     def shape(self):
@@ -1042,7 +1043,7 @@ class Expression(with_metaclass(Meta)):
         :param bool axis: Axis over which to determine the unique elements (None will flatten arrays or lists)
         :param bool array_type: {array_type}
         """
-        return self.ds.unique(self.expression, dropna=dropna, dropnan=dropnan, dropmissing=dropmissing, selection=selection, array_type=array_type, axis=axis, delay=delay)
+        return self.ds.unique(self, dropna=dropna, dropnan=dropnan, dropmissing=dropmissing, selection=selection, array_type=array_type, axis=axis, delay=delay)
 
     def nunique(self, dropna=False, dropnan=False, dropmissing=False, selection=None, axis=None, delay=False):
         """Counts number of unique values, i.e. `len(df.x.unique()) == df.x.nunique()`.
