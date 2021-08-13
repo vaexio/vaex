@@ -101,6 +101,11 @@ router = APIRouter()
 path_dataset = Path(..., title="The name of the dataset", description="The name of the dataset")
 
 
+@router.get("/hello", include_in_schema=False)
+async def hello():
+    return "hi"
+
+
 @router.get("/", response_class=HTMLResponse, include_in_schema=False)
 async def root():
     with (HERE / 'index.html').open() as f:
