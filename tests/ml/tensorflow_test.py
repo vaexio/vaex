@@ -45,6 +45,7 @@ def test_keras_model_classification(tmpdir, df_iris):
 
 def test_keras_model_regression(df_example):
     df = df_example
+    df = df[:1_000]  # To make the tests run faster
     df_train, df_valid, df_test = df.split_random([0.8, 0.1, 0.1], random_state=42)
     features = ['vx', 'vy', 'vz']
     target = 'FeH'
@@ -78,8 +79,8 @@ def test_keras_model_regression(df_example):
     assert 'pred' in df_train
     assert 'pred' in df_valid
     assert 'pred' in df_test
-    assert df_valid.shape == (33000, 15)
-    assert df_test.shape == (33000, 15)
+    assert df_valid.shape == (100, 15)
+    assert df_test.shape == (100, 15)
 
 
 @pytest.mark.parametrize("parallel", [False, True])
