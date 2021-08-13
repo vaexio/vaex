@@ -49,10 +49,10 @@ def test_to_table():
     to_table(df=df, dataset=dataset, table=table)
 
     # Verify that the table exists
-    # That it was created today
+    # That it was created/modified today
     # And that it has the right schema
     client = bigquery.Client()
     table_id = f"vaex-282913.{dataset}.{table}"
     t = client.get_table(table_id)
-    assert t.created.date() == datetime.now().date()
+    assert t.modified.astimezone().date() == datetime.now().date()
     assert len(t.schema) == 14
