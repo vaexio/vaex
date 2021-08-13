@@ -1,5 +1,6 @@
 import base64
 import tempfile
+import shutil
 
 import numpy as np
 
@@ -147,19 +148,24 @@ class KerasModel(vaex.ml.state.HasState):
     def state_get(self):
         state = super(KerasModel, self).state_get()
 
-        filename = tempfile.mktemp(".hdf5")
-        self.model.save(filename)
-        with open(filename, 'rb') as f:
-            data = f.read()
-        state['model'] = base64.encodebytes(data).decode('ascii')
-        return state
+        with tempfile.TemporaryDirectory() as directory:
+            self.model.save(directory)
+            zip_path = tempfile.mktemp(".zip")
+            shutil.make_archive(zip_path[:-4], 'zip', directory)
+            with open(zip_path, 'rb') as f:
+                data = f.read()
+            state['model'] = base64.encodebytes(data).decode('ascii')
+            return state
 
     def state_set(self, state, trusted=True):
+        state = state.copy()
         model_data = state.pop('model')
         super(KerasModel, self).state_set(state)
 
         data = base64.decodebytes(model_data.encode('ascii'))
-        filename = tempfile.mktemp()
-        with open(filename, 'wb') as f:
-            f.write(data)
-        self.model = K.models.load_model(filename)
+        with tempfile.TemporaryDirectory() as directory:
+            zip_path = tempfile.mktemp('.zip')
+            with open(zip_path, 'wb') as f:
+                f.write(data)
+            shutil.unpack_archive(zip_path, directory)
+            self.model = K.models.load_model(directory)
