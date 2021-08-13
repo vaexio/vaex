@@ -178,8 +178,8 @@ def to_table(df, dataset, table, job_config=None, client_project=None, credentia
 
     if chunk_size is None:
         with tempfile.TemporaryFile(suffix='.parquet') as tmp:
-            df.export_parquet(tmp.name)
-            with open(tmp.name, "rb") as source_file:
+            df.export_parquet('tmp.parquet')
+            with open('tmp.parquet', 'rb') as source_file:
                 job = client.load_table_from_file(source_file, table_bq, job_config=job_config)
             job.result()
 
@@ -190,8 +190,8 @@ def to_table(df, dataset, table, job_config=None, client_project=None, credentia
         for i1, i2, table in df.to_arrow_table(chunk_size=chunk_size):
             progressbar(i1 / n_samples)
             with tempfile.TemporaryFile(suffix='.parquet') as tmp:
-                pq.write_table(table, tmp.name)
-                with open(tmp.name, "rb") as source_file:
+                pq.write_table(table, 'tmp.parquet')
+                with open('tmp.parquet', 'rb') as source_file:
                     job = client.load_table_from_file(source_file, table_bq, job_config=job_config)
                 job.result()
         progressbar(1.0)
