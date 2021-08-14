@@ -6495,9 +6495,15 @@ class DataFrameLocal(DataFrame):
         :return:
         """
         from vaex.hdf5.writer import Writer
-        with Writer(path=path, group=group, mode=mode) as writer:
+        with Writer(path=path, group=group, mode=mode, byteorder=byteorder) as writer:
             writer.layout(self)
-            writer.write(self, chunk_size=chunk_size, progress=progress, column_count=column_count)
+            writer.write(
+                self,
+                chunk_size=chunk_size,
+                progress=progress,
+                column_count=column_count,
+                parallel=parallel,
+                export_threads=writer_threads)
 
     @docsubst
     def export_fits(self, path, progress=None):
