@@ -121,6 +121,7 @@ class KerasModel(vaex.ml.state.HasState):
     features = traitlets.List(traitlets.Unicode(), help='List of features to use when applying the KerasModel.')
     prediction_name = traitlets.Unicode(default_value='keras_prediction', help='The name of the virtual column housing the predictions.')
     model = traitlets.Any(help='A fitted Keras Model')
+    custom_objects = traitlets.Dict(help='Optional dictionary mapping names (strings) to custom classes or functions to be used during deserialization. See "tf.keras.models.load_model" for more details.').tag(**vaex.ml.state.serialize_pickle)
 
     def __call__(self, *args):
         data2d = np.stack([np.asarray(arg, np.float64) for arg in args], axis=-1)
@@ -168,4 +169,4 @@ class KerasModel(vaex.ml.state.HasState):
             with open(zip_path, 'wb') as f:
                 f.write(data)
             shutil.unpack_archive(zip_path, directory)
-            self.model = K.models.load_model(directory)
+            self.model = K.models.load_model(directory, custom_objects=self.custom_objects)
