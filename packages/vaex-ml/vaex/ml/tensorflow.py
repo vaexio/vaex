@@ -117,6 +117,35 @@ class KerasModel(vaex.ml.state.HasState):
     '''A simple class that makes a Keras model serializable in the Vaex state, as well as enables lazy transformations of the preditions.
 
     For more infromation on how to use the Keras library, please visit https://keras.io/.
+
+    Example:
+
+    >>> import vaex
+    >>> import vaex.ml.tensorflow
+    >>> import tensorflow.keras as K
+
+    >>> df = vaex.example()
+    >>> df_train, df_test = df.ml.train_test_split(0.2)
+
+    >>> features = ['vx', 'vy', 'vz']
+    >>> target = 'FeH'
+
+    >>> gen_train = df_train.ml.tensorflow.to_keras_generator(features=features, target=target, batch_size=512)
+    Recommended "steps_per_epoch" arg: 516.0
+
+    >>> nn_model = K.Sequential()
+    >>> nn_model.add(K.layers.Dense(3, activation='tanh'))
+    >>> nn_model.add(K.layers.Dense(1, activation='linear'))
+    >>> nn_model.compile(optimizer='sgd', loss='mse')
+    >>> nn_model.fit(x=gen_train, epochs=11, steps_per_epoch=516, verbose=0)
+
+    >>> keras_model = vaex.ml.tensorflow.KerasModel(features=features, prediction_name='pred', model=nn_model)
+    >>> df_test = keras_model.transform(df_test)
+    >>> print(df_test.head(3)['vx', 'vy', 'vz', 'FeH', 'pred'])
+    #         vx       vy         vz       FeH  pred
+    0   301.155   174.059   27.4275   -1.00539  array([-1.5861175], dtype=float32)
+    1  -195       170.472  142.53     -1.70867  array([-1.6035867], dtype=float32)
+    2   -48.6342  171.647   -2.07944  -1.83361  array([-1.5978462], dtype=float32)
     '''
     features = traitlets.List(traitlets.Unicode(), help='List of features to use when applying the KerasModel.')
     prediction_name = traitlets.Unicode(default_value='keras_prediction', help='The name of the virtual column housing the predictions.')
