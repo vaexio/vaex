@@ -139,6 +139,13 @@ Timedelta operations
      :members:
      :special-members:
 
+Struct (arrow) operations
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. autoclass:: vaex.expression.StructOperations
+     :members:
+     :special-members:
+
 Geo operations
 ~~~~~~~~~~~~~~
 
