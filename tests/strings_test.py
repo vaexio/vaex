@@ -300,6 +300,17 @@ def test_string_replace_regex_unicode(dfs, pattern, replacement, flags):
            dfs.s.str_pandas.replace(pattern, replacement, flags=flags, regex=True).tolist()
 
 
+def test_string_extract_regex():
+    ds = vaex.from_arrays(email=["foo@bar.org", "bar@foo.org", "open@source.org", "invalid@address.com"])
+    pattern = "(?P<name>.*)@(?P<address>.*)\.org"
+
+    expr = ds.email.str.extract_regex(pattern=pattern)
+    assert expr.tolist() == [{"name": "foo", "address": "bar"},
+                             {"name": "bar", "address": "foo"},
+                             {"name": "open", "address": "source"},
+                             None]
+
+
 @pytest.mark.parametrize("sub", ["v", unicode_compat("æ")])
 @pytest.mark.parametrize("start", [0, 3, 5])
 @pytest.mark.parametrize("end", [-1, 3, 5, 10])
