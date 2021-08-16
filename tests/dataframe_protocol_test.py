@@ -1,16 +1,18 @@
+from common import *
 import vaex
 import numpy as np
 import pyarrow as pa
 from vaex.dataframe_protocol import _from_dataframe_to_vaex, _DtypeKind
 
-def test_float_only():
-	df = vaex.from_arrays(x=np.array([1.5, 2.5, 3.5]), y=np.array([9.2, 10.5, 11.8]))
+
+def test_float_only(df_factory):
+	df = df_factory(x=[1.5, 2.5, 3.5], y=[9.2, 10.5, 11.8])
 	df2 = _from_dataframe_to_vaex(df.__dataframe__())
 	assert  df2.x.tolist() == df.x.tolist()
 	assert  df2.y.tolist() == df.y.tolist()
 
-def test_mixed_intfloat():
-	df = vaex.from_arrays(x=np.array([1, 2, 0]), y=np.array([9.2, 10.5, 11.8]))
+def test_mixed_intfloat(df_factory):
+	df = df_factory(x=[1, 2, 0], y=[9.2, 10.5, 11.8])
 	df2 = _from_dataframe_to_vaex(df.__dataframe__())
 	assert  df2.x.tolist() == df.x.tolist()
 	assert  df2.y.tolist() == df.y.tolist()

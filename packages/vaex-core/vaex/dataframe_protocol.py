@@ -202,9 +202,9 @@ class _VaexColumn:
         self._col = column
         
         # Store the info about category
-        self.is_cat = metadata["vaex.cetagories_bool"][self._col.expression] #is column categorical
+        self.is_cat = metadata["vaex.cetagories_bool"][self._col.expression] # is column categorical
         if metadata["vaex.cetagories"]:
-            self.labels = metadata["vaex.cetagories"][self._col.expression] #list of categories/labels
+            self.labels = metadata["vaex.cetagories"][self._col.expression] # list of categories/labels
         else:
             self.labels = metadata["vaex.cetagories"]
     
@@ -266,7 +266,10 @@ class _VaexColumn:
             bool_c = True # internal, categorical must stay categorical
 
         dtype = self._col.dtype
-            
+        
+        if dtype.is_encoded:
+            dtype = dtype.index_type
+
         return self._dtype_from_vaexdtype(dtype, bool_c)
     
     def _dtype_from_vaexdtype(self, dtype, bool_c) -> Tuple[enum.IntEnum, int, str, str]:
@@ -405,7 +408,11 @@ class _VaexColumn:
                 codes = self._col.values # values are already codes for the labels
             buffer = _VaexBuffer(codes)
             bool_c = False # If it is external (call from_dataframe) _dtype_from_vaexdtype must give data dtype
-            dtype = self._dtype_from_vaexdtype(self._col.dtype, bool_c)
+            data_dtype = self._col.dtype
+            # If column is arrow dictionary we have to get the type of the indices
+            if data_dtype.is_encoded:
+                data_dtype = data_dtype.index_type
+            dtype = self._dtype_from_vaexdtype(data_dtype, bool_c)
         else:
             raise NotImplementedError(f"Data type {self._col.dtype} not handled yet")
 
@@ -457,7 +464,7 @@ class _VaexDataFrame:
         return {"vaex.cetagories_bool": is_category, "vaex.cetagories": labels}
         
     def num_columns(self) -> int:
-        return len(self._df.columns)
+        return len(self._df.get_column_names())
 
     def num_rows(self) -> int:
         return len(self._df)
