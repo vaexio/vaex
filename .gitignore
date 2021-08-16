@@ -79,6 +79,7 @@ catboost_info/
 
 # symlinks generated in setup.py
 packages/vaex-core/vaex/astro
+packages/vaex-core/vaex/contrib
 packages/vaex-core/vaex/distributed
 packages/vaex-core/vaex/graphql
 packages/vaex-core/vaex/hdf5
