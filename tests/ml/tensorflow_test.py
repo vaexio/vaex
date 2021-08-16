@@ -8,6 +8,13 @@ import vaex.ml
 import vaex.ml.tensorflow
 
 
+# Custom metric used in some of the tests
+def r2_keras(y_true, y_pred):
+    SS_res =  K.backend.sum(K.backend.square(y_true - y_pred))
+    SS_tot = K.backend.sum(K.backend.square(y_true - K.backend.mean(y_true)))
+    return (1 - SS_res/(SS_tot + K.backend.epsilon()))
+
+
 def test_keras_model_classification(tmpdir, df_iris):
     df = df_iris
     copy = df.copy()
@@ -30,7 +37,7 @@ def test_keras_model_classification(tmpdir, df_iris):
 
     X = df[features].values
     y = df[targets].values
-    nn_model.fit(x=X, y=y, validation_split=0.05, epochs=11)
+    nn_model.fit(x=X, y=y, validation_split=0.05, epochs=11, verbose=0)
 
     keras_model = vaex.ml.tensorflow.KerasModel(features=features, prediction_name='pred', model=nn_model)
     df_trans = keras_model.transform(df)
@@ -58,17 +65,17 @@ def test_keras_model_regression(df_example):
     state_prep = df_train.state_get()
     df_valid.state_set(state_prep)
 
-    train_gen = df_train.ml.tensorflow.to_keras_generator(features=features, target=target, batch_size=512)
-    valid_gen = df_valid.ml.tensorflow.to_keras_generator(features=features, target=target, batch_size=512)
+    train_gen = df_train.ml.tensorflow.to_keras_generator(features=features, target=target, batch_size=128)
+    valid_gen = df_valid.ml.tensorflow.to_keras_generator(features=features, target=target, batch_size=128)
 
     # Create the model
     nn_model = K.Sequential()
     nn_model.add(K.layers.Dense(3, activation='tanh'))
     nn_model.add(K.layers.Dense(1, activation='linear'))
-    nn_model.compile(optimizer='sgd', loss='mse')
-    nn_model.fit(x=train_gen, validation_data=valid_gen, epochs=3, steps_per_epoch=516, validation_steps=64)
+    nn_model.compile(optimizer='sgd', loss='mse', metrics=[r2_keras])
+    nn_model.fit(x=train_gen, validation_data=valid_gen, epochs=5, steps_per_epoch=7, validation_steps=1, verbose=0)
 
-    keras_model = vaex.ml.tensorflow.KerasModel(features=features, prediction_name='pred', model=nn_model)
+    keras_model = vaex.ml.tensorflow.KerasModel(features=features, prediction_name='pred', model=nn_model, custom_objects={'r2_keras': r2_keras})
     df_train = keras_model.transform(df_train)
 
     # The final state transfer
