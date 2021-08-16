@@ -41,7 +41,6 @@ import vaex.events
 from .datatype import DataType
 from .docstrings import docsubst
 
-from vaex.dataframe_protocol import _VaexDataFrame, _VaexColumn, _VaexBuffer, _DtypeKind
 
 astropy = vaex.utils.optional_import("astropy.units")
 
@@ -251,7 +250,7 @@ class DataFrame(object):
     def __dataframe__(self, nan_as_null : bool = False):
         """
         """
-        return _VaexDataFrame(self, nan_as_null=nan_as_null)
+        return vaex.dataframe_protocol._VaexDataFrame(self, nan_as_null=nan_as_null)
 
     def _future(self, version=5, inplace=False):
         '''Act like a Vaex dataframe version 5.

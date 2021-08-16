@@ -11,20 +11,19 @@ from typing import Any, Optional, Tuple, Dict, Iterable, Sequence
 DataFrameObject = Any
 ColumnObject = Any
 
-def from_dataframe_to_vaex(df):
+def from_dataframe_to_vaex(df: DataFrameObject) -> vaex.dataframe.DataFrame:
     """
     Construct a vaex DataFrame from ``df`` if it supports ``__dataframe__``
     """
-    # NOTE: commented out for roundtrip testing
-    # if isinstance(df, vaex.dataframe.DataFrame):
-    #     return df
+    if isinstance(df, vaex.dataframe.DataFrame):
+        return df
 
     if not hasattr(df, '__dataframe__'):
         raise ValueError("`df` does not support __dataframe__")
 
     return _from_dataframe_to_vaex(df.__dataframe__())
 
-def _from_dataframe_to_vaex(df):
+def _from_dataframe_to_vaex(df : DataFrameObject) -> vaex.dataframe.DataFrame:
     """
     Note: we need to implement/test support for bit/byte masks, chunk handling, etc.
     """
@@ -71,7 +70,7 @@ class _DtypeKind(enum.IntEnum):
     DATETIME = 22
     CATEGORICAL = 23
     
-def convert_column_to_ndarray(col) -> np.ndarray:
+def convert_column_to_ndarray(col : ColumnObject) -> np.ndarray:
     """
     Convert an int, uint, float or bool column to a numpy array
     """
@@ -111,7 +110,7 @@ def buffer_to_ndarray(_buffer, _dtype) -> np.ndarray:
 
     return x
 
-def convert_categorical_column(col) -> Tuple[np.ndarray, np.ndarray]:
+def convert_categorical_column(col : ColumnObject) -> Tuple[np.ndarray, np.ndarray]:
     """
     Convert a categorical column to a numpy array of codes, values and categories/labels
     """
@@ -136,7 +135,7 @@ class _VaexBuffer:
     Data in the buffer is guaranteed to be contiguous in memory.
     """
 
-    def __init__(self, x) -> None:
+    def __init__(self, x : np.ndarray) -> None:
         """
         Handle only regular columns (= numpy arrays) for now.
         """
@@ -191,7 +190,7 @@ class _VaexColumn:
           doesn't need its own version or ``__column__`` protocol.
     """
 
-    def __init__(self, column, metadata : dict = {}) -> None:
+    def __init__(self, column : vaex.expression.Expression, metadata : dict = {}) -> None:
         """
         Note: assuming column is an expression.
         """
@@ -414,10 +413,18 @@ class _VaexColumn:
     
     def get_mask(self) -> _VaexBuffer:
         """
-        Return the buffer containing the mask values indicating missing data.
+        Return the buffer containing the mask values indicating missing data (not handled yet).
         Raises RuntimeError if null representation is not a bit or byte mask.
         """
-        return {}
+        null, value = self.describe_null
+        if null == 0:
+            msg = "This column is non-nullable so does not have a mask"
+        elif null == 1:
+            msg = "This column uses NaN as null so does not have a separate mask"
+        else:
+            raise NotImplementedError('See self.describe_null')
+
+        raise RuntimeError(msg)
     
 class _VaexDataFrame:
     """
@@ -427,7 +434,7 @@ class _VaexDataFrame:
     ``vaex.dataframe.DataFrame.__dataframe__`` as objects with the methods and
     attributes defined on this class.
     """
-    def __init__(self, df, nan_as_null : bool = False) -> None:
+    def __init__(self, df : vaex.dataframe.DataFrame, nan_as_null : bool = False) -> None:
         """
         Constructor - an instance of this (private) class is returned from
         `vaex.dataframe.DataFrame.__dataframe__`.
