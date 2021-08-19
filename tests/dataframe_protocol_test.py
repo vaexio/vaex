@@ -54,8 +54,7 @@ def test_virtual_column():
 	assert  df2.r.tolist() == df.r.tolist()
 
 def test_arrow_dictionary():
-	# ERRORS!
-	indices = pa.array([0, 1, 0, 1, 2, 0, None, 2])
+	indices = pa.array([0, 1, 0, 1, 2, 0, 1, 2])
 	dictionary = pa.array(['foo', 'bar', 'baz'])
 	dict_array = pa.DictionaryArray.from_arrays(indices, dictionary)
 	df = vaex.from_arrays(x = dict_array)

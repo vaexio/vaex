@@ -48,16 +48,11 @@ def _from_dataframe_to_vaex(df : DataFrameObject) -> vaex.dataframe.DataFrame:
             # Simple numerical or bool dtype, turn into numpy array
             columns[name] = convert_column_to_ndarray(col)
         elif col.dtype[0] == _k.CATEGORICAL:
-            codes, categories = convert_categorical_column(col)
-            columns[name] = codes
-            labels[name] = categories
+            columns[name] = convert_categorical_column(col)
         else:
             raise NotImplementedError(f"Data type {col.dtype[0]} not handled yet")
     
     dataframe = vaex.from_dict(columns)
-    # Iterating over the list of categorical columns use categorize() to set the correct dtype
-    for cat in labels:
-        dataframe = dataframe.categorize(cat, labels=list(labels[cat]))
             
     return dataframe
 
@@ -121,11 +116,16 @@ def convert_categorical_column(col : ColumnObject) -> Tuple[np.ndarray, np.ndarr
     categories = np.asarray(list(mapping.values()))
     codes_buffer, codes_dtype = col.get_data_buffer()
     codes = buffer_to_ndarray(codes_buffer, codes_dtype)
-    #values = categories[codes]
-
-    # TODO: null values   
     
-    return (codes, categories)
+    if col.describe_null[0] not in (0, 1):
+        raise NotImplementedError("Null values represented as masks or "
+                                  "sentinel values not handled yet") 
+    
+    indices = pa.array(codes)
+    dictionary = pa.array(categories)
+    values = pa.DictionaryArray.from_arrays(indices, dictionary)
+    
+    return values
 
 # Implementation of interchange protocol
 # --------------------------------------
@@ -203,7 +203,7 @@ class _VaexColumn:
         
         # Store the info about category
         self.is_cat = metadata["vaex.cetagories_bool"][self._col.expression] # is column categorical
-        if metadata["vaex.cetagories"]:
+        if self.is_cat:
             self.labels = metadata["vaex.cetagories"][self._col.expression] # list of categories/labels
         else:
             self.labels = metadata["vaex.cetagories"]
@@ -264,11 +264,7 @@ class _VaexColumn:
         bool_c = False
         if self.is_cat:
             bool_c = True # internal, categorical must stay categorical
-
         dtype = self._col.dtype
-        
-        if dtype.is_encoded:
-            dtype = dtype.index_type
 
         return self._dtype_from_vaexdtype(dtype, bool_c)
     
@@ -399,20 +395,18 @@ class _VaexColumn:
             buffer = _VaexBuffer(self._col.to_numpy())
             dtype = self.dtype
         elif self.dtype[0] == _k.CATEGORICAL:
-            codes = self._col.values
-            # If values are subset of labels and are not codes, codes mst be generated
-            if self._col.values[0] in self.labels:
-                for i in self._col.values:
-                    codes[np.where(codes==i)] = np.where(self.labels == i) # if values are same as labels
-            else: 
-                codes = self._col.values # values are already codes for the labels
-            buffer = _VaexBuffer(codes)
             bool_c = False # If it is external (call from_dataframe) _dtype_from_vaexdtype must give data dtype
-            data_dtype = self._col.dtype
-            # If column is arrow dictionary we have to get the type of the indices
-            if data_dtype.is_encoded:
-                data_dtype = data_dtype.index_type
-            dtype = self._dtype_from_vaexdtype(data_dtype, bool_c)
+            if isinstance(self._col.values, (pa.DictionaryArray)):
+                codes = self._col.values.indices.to_numpy()
+                dtype = self._dtype_from_vaexdtype(self._col.dtype.index_type, bool_c)
+            else:
+                codes = self._col.values
+                # if codes are not real codes but values = labels
+                if min(codes)!=0: 
+                    for i in self._col.values:
+                        codes[np.where(codes==i)] = np.where(self.labels == i) 
+                dtype = self._dtype_from_vaexdtype(self._col.dtype, bool_c)
+            buffer = _VaexBuffer(codes)
         else:
             raise NotImplementedError(f"Data type {self._col.dtype} not handled yet")
 
