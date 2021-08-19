@@ -1348,29 +1348,22 @@ def f({0}):
         # note that here we map 'planned' unknown values to the default values
         # and later on in _choose, we map values not even seen in the dataframe
         # to the default_value
-        dtype = self.data_type(self.expression)
         dtype_item = self.data_type(self.expression, axis=-1)
-        if dtype_item.is_float:
-            values  = [np.nan, None] + [key for key in mapper if key == key and key is not None]
-            choices = [default_value] + [mapper[key] for key in mapper if key == key and key is not None]
+        null_count = mapper_keys.count(None)
+        nan_count = len([k for k in mapper_keys if k != k])
+        if null_count:
+            null_value = mapper_keys.index(None)
         else:
-            values  = [None] + [key for key in mapper if key is not None]
-            choices = [default_value, missing_value] + [mapper[key] for key in mapper if key is not None]
-        values = mapper_keys
+            null_value = 0x7fffffff
+
+        mapper_keys = dtype_item.create_array(mapper_keys)
         if vaex.array_types.is_string_type(dtype_item):
-            values = _to_string_sequence(values)
-        else:
-            values = vaex.array_types.to_numpy(values)
+            mapper_keys = _to_string_sequence(mapper_keys)
+
         from .hash import ordered_set_type_from_dtype
         ordered_set_type = ordered_set_type_from_dtype(dtype_item)
-        ordered_set = ordered_set_type(1)
-        if np.ma.isMaskedArray(values):
-            mask = np.ma.getmaskarray(values)
-            ordered_set.update(values.data, mask)
-        else:
-            ordered_set.update(values)
-        keys = ordered_set.keys()
-        indices = ordered_set.map_ordinal(values)
+        ordered_set = ordered_set_type(mapper_keys, null_value, nan_count, null_count)
+        indices = ordered_set.map_ordinal(mapper_keys)
         mapper_values = [mapper_values[i] for i in indices]
 
         choices = [default_value] + [mapper_values[index] for index in indices]
