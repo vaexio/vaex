@@ -27,5 +27,6 @@ setup(name=name + '-ml',
       include_package_data=True,
       zip_safe=False,
       entry_points={'vaex.dataframe.accessor': ['ml = vaex.ml:DataFrameAccessorML',
-                                                'ml.tensorflow = vaex.ml.tensorflow:DataFrameAccessorTensorflow']}
+                                                'ml.tensorflow = vaex.ml.tensorflow:DataFrameAccessorTensorflow',
+                                                'ml.metrics = vaex.ml.metrics:DataFrameAccessorMetrics']}
 )
