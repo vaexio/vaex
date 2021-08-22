@@ -25,6 +25,7 @@ class DataFrameAccessorMetrics():
         :returns: The accuracy score.
 
         Example:
+
         >>> import vaex
         >>> import vaex.ml.metrics
         >>> df = vaex.from_arrays(y_true=[1, 1, 0, 1, 0], y_pred=[1, 0, 0, 1, 1])
