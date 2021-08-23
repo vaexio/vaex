@@ -11,6 +11,13 @@ def ensure_string_arguments(*args):
 
 
 class DataFrameAccessorMetrics():
+    '''Common metrics for evaluating machine learning tasks.
+
+    This DataFrame Accessor contains a number of common machine learning evaluation metrics.
+    The idea is that the metrics can be evaluated out-of-core, and without the need to materialize the target and predicted columns.
+
+    See https://vaex.io/docs/api.html#metrics for a list of supported evaluation metrics.
+    '''
     def __init__(self, ml):
         self.ml = ml
         self.df = self.ml.df
@@ -88,8 +95,10 @@ class DataFrameAccessorMetrics():
         if average == 'binary':
             assert set(self.df[y_true].unique()) == {0, 1}, '`y_true` must be encoded in 1s and 0s'
             assert set(self.df[y_pred].unique()) == {0, 1}, '`y_pred` must be encoded in 1s and 0s'
-            precision = self.df.count(selection=f'({y_true}==1) & ({y_pred}==1)') / self.df.count(selection=f'{y_pred}==1')
-            recall = self.df.count(selection=f'({y_true}==1) & ({y_pred}==1)') / self.df.count(selection=f'{y_true}==1')
+            selections = [f'({y_true}==1) & ({y_pred}==1)', f'{y_pred}==1', f'{y_true}==1']
+            count_y_true_y_pred, count_y_pred, count_y_true = self.df.count(selection=selections)
+            precision = count_y_true_y_pred / count_y_pred
+            recall = count_y_true_y_pred / count_y_true
             f1 = 2 * (precision * recall) / (precision + recall)
 
         else:

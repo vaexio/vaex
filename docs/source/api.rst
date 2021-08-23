@@ -410,19 +410,6 @@ Clustering
 Metrics
 ~~~~~~~
 
-.. autosummary::
-
-     vaex.ml.metrics.DataFrameAccessorMetrics.accuracy_score
-     vaex.ml.metrics.DataFrameAccessorMetrics.precision_score
-     vaex.ml.metrics.DataFrameAccessorMetrics.recall_score
-     vaex.ml.metrics.DataFrameAccessorMetrics.f1_score
-     vaex.ml.metrics.DataFrameAccessorMetrics.confusion_matrix
-     vaex.ml.metrics.DataFrameAccessorMetrics.precision_recall_fscore
-     vaex.ml.metrics.DataFrameAccessorMetrics.matthews_correlation_coefficient
-     vaex.ml.metrics.DataFrameAccessorMetrics.classification_report
-     vaex.ml.metrics.DataFrameAccessorMetrics.mean_absolute_error
-     vaex.ml.metrics.DataFrameAccessorMetrics.mean_squared_error
-     vaex.ml.metrics.DataFrameAccessorMetrics.r2_score
 
 .. autoclass:: vaex.ml.metrics.DataFrameAccessorMetrics
      :members:
