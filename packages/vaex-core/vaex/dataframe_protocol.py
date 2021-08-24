@@ -65,19 +65,29 @@ class _DtypeKind(enum.IntEnum):
     DATETIME = 22
     CATEGORICAL = 23
     
-def convert_column_to_ndarray(col : ColumnObject) -> np.ndarray:
+def convert_column_to_ndarray(col : ColumnObject) -> pa.Array:
     """
-    Convert an int, uint, float or bool column to a numpy array
+    Convert an int, uint, float or bool column to an arrow array
     """
     if col.offset != 0:
-        raise NotImplementedError("column.offset > 0 not handled yet")
-
-    if col.describe_null[0] not in (0, 1):
-        raise NotImplementedError("Null values represented as masks or "
+        raise NotImplementedError("column.offset > 0 not handled yet")    
+        
+    if col.describe_null[0] not in (0, 1, 3, 4):
+        raise NotImplementedError("Null values represented as"
                                   "sentinel values not handled yet")
-
+    
     _buffer, _dtype = col.get_data_buffer()
-    return buffer_to_ndarray(_buffer, _dtype)
+    x = buffer_to_ndarray(_buffer, _dtype)
+
+    # If there are any missing data with mask, apply the mask to the data
+    if col.describe_null[0] in (3, 4) and col.null_count>0:
+        mask_buffer, mask_dtype = col.get_mask()
+        mask = buffer_to_ndarray(mask_buffer, mask_dtype)
+        x = pa.array(x, mask=mask)
+    else:
+        x = pa.array(x)
+    
+    return x
 
 def buffer_to_ndarray(_buffer, _dtype) -> np.ndarray:
     # Handle the dtype
@@ -105,25 +115,32 @@ def buffer_to_ndarray(_buffer, _dtype) -> np.ndarray:
 
     return x
 
-def convert_categorical_column(col : ColumnObject) -> Tuple[np.ndarray, np.ndarray]:
+def convert_categorical_column(col : ColumnObject) -> pa.DictionaryArray:
     """
-    Convert a categorical column to a numpy array of codes, values and categories/labels
+    Convert a categorical column to an arrow dictionary
     """
     ordered, is_dict, mapping = col.describe_categorical
     if not is_dict:
         raise NotImplementedError('Non-dictionary categoricals not supported yet')
-    
+
     categories = np.asarray(list(mapping.values()))
     codes_buffer, codes_dtype = col.get_data_buffer()
     codes = buffer_to_ndarray(codes_buffer, codes_dtype)
-    
-    if col.describe_null[0] not in (0, 1):
-        raise NotImplementedError("Null values represented as masks or "
-                                  "sentinel values not handled yet") 
+
+    if col.describe_null[0] == 2:  # sentinel value
+        codes = pd.Series(codes) # TODO: can we do without Pandas?
+        sentinel = col.describe_null[1]
+        codes[codes == sentinel] = None 
     
     indices = pa.array(codes)
     dictionary = pa.array(categories)
-    values = pa.DictionaryArray.from_arrays(indices, dictionary)
+  
+    if col.describe_null[0] in (3, 4) and col.null_count>0: # masked missing values
+        mask_buffer, mask_dtype = col.get_mask()
+        mask = buffer_to_ndarray(mask_buffer, mask_dtype)
+        values = pa.DictionaryArray.from_arrays((pa.array(codes, mask=mask)), dictionary)
+    else:
+        values = pa.DictionaryArray.from_arrays(indices, dictionary)
     
     return values
 
@@ -340,20 +357,9 @@ class _VaexColumn:
         _k = _DtypeKind
         kind = self.dtype[0]
         value = None
-        if kind == _k.FLOAT:
-            null = 1  # np.nan
-        elif kind == _k.DATETIME:
-            null = 1  # np.datetime64('NaT')
-        elif kind in (_k.INT, _k.UINT, _k.BOOL):
-            # TODO: check if extension dtypes are used once support for them is
-            #       implemented in this procotol code
-            null = 0  # integer and boolean dtypes are non-nullable
-        elif kind == _k.CATEGORICAL:
-            # Null values for categoricals are stored as `-1` sentinel values
-            # in the category date (e.g., `col.values.codes` is int8 np.ndarray)
-            null = 2
-            value = -1
-        else:
+        if kind in (_k.INT, _k.UINT, _k.FLOAT, _k.BOOL, _k.CATEGORICAL):
+            null = 3
+        else:    
             raise NotImplementedError(f'Data type {self.dtype} not yet supported')
 
         return null, value
@@ -363,7 +369,7 @@ class _VaexColumn:
         """
         Number of null elements. Should always be known.
         """
-        return {}
+        return self._col.countmissing()
 
     def num_chunks(self) -> int:
         """
@@ -392,40 +398,53 @@ class _VaexColumn:
         """
         _k = _DtypeKind
         if self.dtype[0] in (_k.INT, _k.UINT, _k.FLOAT, _k.BOOL):
-            buffer = _VaexBuffer(self._col.to_numpy())
+            # If arrow array is boolean .to_numpy changes values for some reason
+            # For that reason data is transferred to numpy through .tolist
+            if self.dtype[0] == _k.BOOL and isinstance(self._col.values, (pa.Array, pa.ChunkedArray)):
+                buffer = _VaexBuffer(np.array(self._col.tolist(), dtype=bool))
+            else:
+                buffer = _VaexBuffer(self._col.to_numpy())
             dtype = self.dtype
-        elif self.dtype[0] == _k.CATEGORICAL:
+        elif self.dtype[0] == _k.CATEGORICAL: 
+            # TODO: Use expression.codes (https://github.com/vaexio/vaex/pull/1503), when merged
             bool_c = False # If it is external (call from_dataframe) _dtype_from_vaexdtype must give data dtype
             if isinstance(self._col.values, (pa.DictionaryArray)):
-                codes = self._col.values.indices.to_numpy()
-                dtype = self._dtype_from_vaexdtype(self._col.dtype.index_type, bool_c)
+                # If indices from arrow dict are used something funny comes out from the buffer
+                # I have to create a separate Vaex dataframe containing the indices column
+                # and then transfer it through the buffer
+                # TODO: try to optimize this (maybe expressions.codes (#1503) will solve this)
+                name = self._col.expression
+                some_dict = {}
+                some_dict[name] = self._col.evaluate().indices
+                between = vaex.from_arrays(**some_dict)
+                buffer = _VaexBuffer(between[name].to_numpy())
+                dtype = self._dtype_from_vaexdtype(between[name].dtype, bool_c)
             else:
                 codes = self._col.values
-                # if codes are not real codes but values = labels
+                # In case of Vaex categorize
+                # if codes are not real codes but values (= labels)
                 if min(codes)!=0: 
                     for i in self._col.values:
                         codes[np.where(codes==i)] = np.where(self.labels == i) 
                 dtype = self._dtype_from_vaexdtype(self._col.dtype, bool_c)
-            buffer = _VaexBuffer(codes)
+                buffer = _VaexBuffer(codes)
         else:
             raise NotImplementedError(f"Data type {self._col.dtype} not handled yet")
-
         return buffer, dtype
     
-    def get_mask(self) -> _VaexBuffer:
+    def get_mask(self) -> Tuple[_VaexBuffer, Any]:
         """
-        Return the buffer containing the mask values indicating missing data (not handled yet).
-        Raises RuntimeError if null representation is not a bit or byte mask.
+        Return the buffer containing the mask values indicating missing data.
         """
-        null, value = self.describe_null
-        if null == 0:
-            msg = "This column is non-nullable so does not have a mask"
-        elif null == 1:
-            msg = "This column uses NaN as null so does not have a separate mask"
+        mask = self._col.ismissing()
+        if isinstance(self._col.values, (pa.Array, pa.ChunkedArray)):
+            data = np.array(mask.tolist())
         else:
-            raise NotImplementedError('See self.describe_null')
-
-        raise RuntimeError(msg)
+            data = mask.to_numpy()
+        buffer = _VaexBuffer(data)
+        dtype = self._dtype_from_vaexdtype(mask.dtype, False)
+        
+        return buffer, dtype
     
 class _VaexDataFrame:
     """

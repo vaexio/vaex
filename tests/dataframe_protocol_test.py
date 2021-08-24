@@ -10,15 +10,19 @@ def test_float_only(df_factory):
 	df2 = _from_dataframe_to_vaex(df.__dataframe__())
 	assert  df2.x.tolist() == df.x.tolist()
 	assert  df2.y.tolist() == df.y.tolist()
+	assert df2.__dataframe__().get_column_by_name('x').null_count == 0
+	assert df2.__dataframe__().get_column_by_name('y').null_count == 0
 
 def test_mixed_intfloat(df_factory):
 	df = df_factory(x=[1, 2, 0], y=[9.2, 10.5, 11.8])
 	df2 = _from_dataframe_to_vaex(df.__dataframe__())
 	assert  df2.x.tolist() == df.x.tolist()
 	assert  df2.y.tolist() == df.y.tolist()
+	assert df2.__dataframe__().get_column_by_name('x').null_count == 0
+	assert df2.__dataframe__().get_column_by_name('y').null_count == 0
 	
-def test_mixed_intfloatbool():
-	df = vaex.from_arrays(
+def test_mixed_intfloatbool(df_factory):
+	df = df_factory(
 		x=np.array([True, True, False]),
 		y=np.array([1, 2, 0]),
 		z=np.array([9.2, 10.5, 11.8]))
@@ -26,6 +30,9 @@ def test_mixed_intfloatbool():
 	assert  df2.x.tolist() == df.x.tolist()
 	assert  df2.y.tolist() == df.y.tolist()
 	assert  df2.z.tolist() == df.z.tolist()
+	assert df2.__dataframe__().get_column_by_name('x').null_count == 0
+	assert df2.__dataframe__().get_column_by_name('y').null_count == 0
+	assert df2.__dataframe__().get_column_by_name('z').null_count == 0
 
 def test_categorical():
 	df = vaex.from_arrays(year=[2012, 2015, 2019], weekday=[0, 4, 6])
@@ -38,11 +45,11 @@ def test_categorical():
 	assert col.describe_categorical == (False, True, {0: 'Mon', 1: 'Tue', 2: 'Wed', 3: 'Thu', 4: 'Fri', 5: 'Sat', 6: 'Sun'})
 
 	df2 = _from_dataframe_to_vaex(df.__dataframe__())
-	assert  df2['year'].tolist() == df['year'].tolist()
-	assert  df2['weekday'].tolist() == df['weekday'].tolist()
+	assert  df2['year'].tolist() == [2012, 2015, 2019]
+	assert  df2['weekday'].tolist() == ['Mon', 'Fri', 'Sun']
 
-def test_virtual_column():
-	df = vaex.from_arrays(
+def test_virtual_column(df_factory):
+	df = df_factory(
 		x=np.array([True, True, False]),
 		y=np.array([1, 2, 0]),
 		z=np.array([9.2, 10.5, 11.8]))
@@ -66,3 +73,45 @@ def test_arrow_dictionary():
 
 	df2 = _from_dataframe_to_vaex(df.__dataframe__())
 	assert  df2.x.tolist() == df.x.tolist()
+	assert df2.__dataframe__().get_column_by_name('x').null_count == 0
+
+def test_arrow_dictionary_missing():
+	indices = pa.array([0, 1, 2, 0, 1], mask=np.array([0, 1, 1, 0, 0], dtype=bool))
+	dictionary = pa.array(['aap', 'noot', 'mies'])
+	dict_array = pa.DictionaryArray.from_arrays(indices, dictionary)
+	df = vaex.from_arrays(x = dict_array)
+
+	# Some detailed testing for correctness of dtype and null handling:
+	col = df.__dataframe__().get_column_by_name('x')
+	assert col.dtype[0] == _DtypeKind.CATEGORICAL
+	assert col.describe_categorical == (False, True, {0: 'aap', 1: 'noot', 2: 'mies'})
+
+	df2 = _from_dataframe_to_vaex(df.__dataframe__())
+	assert  df2.x.tolist() == df.x.tolist()
+	assert df2.__dataframe__().get_column_by_name('x').null_count == 2
+	assert df['x'].dtype.index_type == df2['x'].dtype.index_type
+
+def test_missing_from_masked(df_factory):
+	df = df_factory(
+		x=np.ma.array([1, 2, 3, 4, 0], mask=[0, 0, 0, 1, 1], dtype=int),
+    	y=np.ma.array([1.5, 2.5, 3.5, 4.5, 0], mask=[False, True, True, True, False], dtype=float),
+    	z=np.ma.array([True, False, True, True, True], mask=[1, 0, 0, 1, 0], dtype=bool))
+	
+	df2 = _from_dataframe_to_vaex(df.__dataframe__())
+
+	assert df.__dataframe__().metadata == df2.__dataframe__().metadata
+
+	assert df['x'].tolist() == df2['x'].tolist()
+	assert not df2['x'].is_masked
+	assert df2.__dataframe__().get_column_by_name('x').null_count == 2
+	assert df['x'].dtype == df2['x'].dtype
+
+	assert df['y'].tolist() == df2['y'].tolist()
+	assert not df2['y'].is_masked
+	assert df2.__dataframe__().get_column_by_name('y').null_count == 3
+	assert df['y'].dtype == df2['y'].dtype
+
+	assert df['z'].tolist() == df2['z'].tolist()
+	assert not df2['z'].is_masked
+	assert df2.__dataframe__().get_column_by_name('z').null_count == 2
+	assert df['z'].dtype == df2['z'].dtype
