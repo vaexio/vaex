@@ -28,6 +28,7 @@ class RiverModel(state.HasState):
     method is evaluated lazily, and no memory copies are made.
 
     Example:
+
     >>> import vaex
     >>> import vaex.ml
     >>> from vaex.ml.incubator.river import RiverModel

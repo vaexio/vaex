@@ -336,31 +336,7 @@ Machine learning with vaex.ml
 See the `ML tutorial <tutorial_ml.ipynb>`_ an introduction, and the `ML examples <examples.rst>`_ for more advanced usage.
 
 
-Scikit-learn
-~~~~~~~~~~~~
-
-.. autosummary::
-
-    vaex.ml.sklearn.IncrementalPredictor
-    vaex.ml.sklearn.Predictor
-
-.. automodule:: vaex.ml.sklearn
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
-
-Clustering
-~~~~~~~~~~
-
-.. autosummary::
-
-    vaex.ml.cluster.KMeans
-
-.. autoclass:: vaex.ml.cluster.KMeans
-     :members:
-
-Transformers/encoders
+Transformers & Encoders
 ~~~~~~~~~~~~~~~~~~~~~
 
 .. autosummary::
@@ -420,6 +396,39 @@ Transformers/encoders
      :members:
 
 
+Clustering
+~~~~~~~~~~
+
+.. autosummary::
+
+    vaex.ml.cluster.KMeans
+
+.. autoclass:: vaex.ml.cluster.KMeans
+     :members:
+
+
+Metrics
+~~~~~~~
+
+
+.. autoclass:: vaex.ml.metrics.DataFrameAccessorMetrics
+     :members:
+
+
+Scikit-learn
+~~~~~~~~~~~~
+
+.. autosummary::
+
+    vaex.ml.sklearn.IncrementalPredictor
+    vaex.ml.sklearn.Predictor
+
+.. automodule:: vaex.ml.sklearn
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+
 Boosted trees
 ~~~~~~~~~~~~~
 
@@ -439,6 +448,20 @@ Boosted trees
 .. autoclass:: vaex.ml.catboost.CatBoostModel
      :members:
 
+Tensorflow
+~~~~~~~~~~
+
+.. autosummary::
+
+     vaex.ml.tensorflow.KerasModel
+
+.. autoclass:: vaex.ml.tensorflow.KerasModel
+     :members:
+
+.. autoclass:: vaex.ml.tensorflow.DataFrameAccessorTensorflow
+     :members:
+
+
 Incubator/experimental
 ~~~~~~~~~~~~~~~~~~~~~~
 
@@ -448,4 +471,7 @@ These models are in the incubator phase and may disappear in the future
 ..      :members:
 
 .. autoclass:: vaex.ml.incubator.annoy.ANNOYModel
+     :members:
+
+.. autoclass:: vaex.ml.incubator.river.RiverModel
      :members:
