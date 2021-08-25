@@ -338,8 +338,8 @@ class counter : public hash_base<counter<U, Hashmap2>, U, Hashmap2>, public coun
         // same
         return this->nan_count;
     }
-    int64_t value_null() { return this.null_count; }
-    int64_t value_nan() { return this.nan_count; }
+    int64_t value_null() { return this->null_count; }
+    int64_t value_nan() { return this->nan_count; }
     value_type add_new(int16_t map_index, key_type &value, int64_t index) {
         auto &map = this->maps[map_index];
         map.emplace(value, 1);
