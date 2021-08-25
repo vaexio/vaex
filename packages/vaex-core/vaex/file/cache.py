@@ -6,8 +6,12 @@ import logging
 import os
 import mmap
 
+
 import numpy as np
 from pyarrow.fs import FileSystemHandler
+from filelock import FileLock
+
+
 import vaex.utils
 import vaex.file
 
@@ -109,11 +113,12 @@ class MMappedFile:
     def __init__(self, path, length, dtype=np.uint8):
         self.path = path
         self.length = length
-        if not os.path.exists(path):
-            with open(self.path, 'wb') as fp:
-                fp.seek(self.length-1)
-                fp.write(b'\00')
-                fp.flush()
+        with FileLock(f'{path}.lock'):
+            if not os.path.exists(path):
+                with open(self.path, 'wb') as fp:
+                    fp.seek(self.length-1)
+                    fp.write(b'\00')
+                    fp.flush()
 
         self.fp = open(self.path, 'rb+')
         kwargs = {}

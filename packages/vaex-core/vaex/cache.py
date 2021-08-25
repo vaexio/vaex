@@ -50,8 +50,10 @@ import uuid
 import pickle
 import threading
 
+
 import dask.base
 import pyarrow as pa
+from filelock import FileLock
 
 import vaex.utils
 diskcache = vaex.utils.optional_import('diskcache')
@@ -312,7 +314,8 @@ def output_file(callable=None, path_input=None, fs_options_input={}, fs_input=No
 
                 if not vaex.file.exists(path_output, fs_options=fs_options_output_, fs=fs_output):
                     log.info('file %s does not exist yet, running conversion %s → %s', path_output_meta, path_input, path_output)
-                    value = callable(*args, **kwargs)
+                    with FileLock(f"{fp}.lock"):
+                        value = callable(*args, **kwargs)
                     write_fingerprint()
                     return value
 
