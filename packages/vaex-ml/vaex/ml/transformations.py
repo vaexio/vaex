@@ -450,6 +450,91 @@ class OneHotEncoder(Transformer):
 
 @register
 @generate.register
+class MultiHotEncoder(Transformer):
+    '''Encode categorical columns according to a binary multi-hot scheme.
+
+    With Multi-Hot Encoder (sometimes called Binary Encoder), the categorical variables are first
+    ordinal encoded, and those encodings are converted to a binary number. Each digit of that binary number
+    is a separate column, containing either a "0" or a "1". This is can be considered as an improvement
+    over the One-Hot encoder as it guards against generating too many new columns when the cardinality of the
+    categorical column is high, while effecively removing the ordinality that an Ordinal Encoder would introduce.
+
+    Example:
+
+    >>> import vaex
+    >>> import vaex.ml
+    >>> df = vaex.from_arrays(color=['red', 'green', 'green', 'blue', 'red'])
+    >>> df
+    #  color
+    0  red
+    1  green
+    2  green
+    3  blue
+    4  red
+    >>> encoder = vaex.ml.MultiHotEncoder(features=['color'])
+    >>> encoder.fit_transform(df)
+    #  color      color_0    color_1    color_2
+    0  red              0          1          1
+    1  green            0          1          0
+    2  green            0          1          0
+    3  blue             0          0          1
+    4  red              0          1          1
+    '''
+
+    prefix = traitlets.Unicode(default_value='', help=help_prefix).tag(ui='Text')
+    labels_ = traitlets.Dict(default_value={}, allow_none=True, help='The ordinal-encoded labels of each feature.').tag(output=True)
+    n_dims_ = traitlets.Dict(default_value={}, allow_none=True, help='Number dimensions of the multi-hot vector.').tag(output=True)
+    binary_labels_ = traitlets.Dict(default_value={}, allow_none=True, help='The binary-encoded labels of each feature.').tag(output=True)
+
+    def fit(self, df):
+        '''Fit MultiHotEncoder to the DataFrame.
+
+        :param df: A vaex DataFrame.
+        '''
+        for feature in self.features:
+            # Get unique labels
+            labels = vaex.array_types.tolist(df[feature].unique())
+            n_labels = len(labels)
+            if None in labels:
+                labels.remove(None)
+                labels.sort()
+                labels.insert(0, None)  # This is done in place
+            else:
+                labels.sort()
+
+            labels_dict = dict(zip(labels, np.arange(1, n_labels+1)))
+            self.labels_[feature] = labels_dict
+            self.n_dims_[feature] = self._get_n_dims(n_labels)
+            self.binary_labels_[feature] = {key: f'{int(bin(value)[2:]):0{self.n_dims_[feature]}d}' for key, value in labels_dict.items()}
+
+    def _get_n_dims(self, n_labels):
+        '''Get the number of dimensions for the multi-hot vector, based on the number of unique labels.'''
+        if np.mod(n_labels, 2) == 0:
+            binary = bin(n_labels)[2:]
+            return len(binary)
+        else:
+            binary = bin(n_labels)[2:]
+            return len(binary) + 1
+
+    def transform(self, df):
+        '''Transform a DataFrame with a fitted MultiHotEncoder.
+
+        :param df: A vaex DataFrame.
+        :return: A shallow copy of the DataFrame that includes the encodings.
+        :rtype: DataFrame
+        '''
+        copy = df.copy()
+        for feature in self.features:
+            unseen_value = f'{0:0{self.n_dims_[feature]}d}'
+            tmp = copy[feature].map(self.binary_labels_[feature], default_value=unseen_value)
+            for i in range(self.n_dims_[feature]):
+                name = f'{self.prefix}{feature}_{i}'
+                copy[name] = tmp.str.get(i).astype('int8')
+        return copy
+
+
+@register
+@generate.register
 class FrequencyEncoder(Transformer):
     '''Encode categorical columns by the frequency of their respective samples.
 
