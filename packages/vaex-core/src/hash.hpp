@@ -172,7 +172,7 @@ class hash_common {
                 result_ptr(i) = out_ptr(i) + offsets[map_index_ptr(i)];
             }
         }
-        return out;
+        return std::move(out);
     }
 
     virtual value_type nan_index() { return 0; }

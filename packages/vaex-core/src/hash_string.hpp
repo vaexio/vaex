@@ -244,8 +244,8 @@ class counter : public hash_base<counter<T, A>, T, A, V>, public counter_mixin<T
         // same
         return this->null_count;
     }
-    int64_t value_null() { return this.null_count; }
-    int64_t value_nan() { return this.nan_count; }
+    int64_t value_null() { return this->null_count; }
+    int64_t value_nan() { return this->nan_count; }
     value_type add_new(int16_t map_index, key_type &value, int64_t index) {
         auto &map = this->maps[map_index];
         map.emplace(value, 1);
@@ -675,7 +675,7 @@ class index_hash : public hash_base<index_hash<T>, T, T, V> {
             }
             map_index++;
         }
-        return m;
+        return std::move(m);
     }
 
     void merge(const index_hash &other) {
