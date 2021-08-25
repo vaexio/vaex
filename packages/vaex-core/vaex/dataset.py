@@ -933,7 +933,7 @@ class DatasetFiltered(DatasetDecorator):
         self._filter = filter
         self._lazy_hash_filter = None
         self._create_columns()
-        self._row_count = np.sum(self._filter)
+        self._row_count = np.sum(self._filter).item()
         self.state = state
         self.selection = selection
         if expected_length is not None:
@@ -1164,6 +1164,9 @@ class DatasetDropped(DatasetDecorator):
         self._create_columns()
         self._ids = frozendict({name: ar for name, ar in original._ids.items() if name not in names})
         self._set_row_count()
+
+    def dropped(self, *names):
+        return DatasetDropped(self.original, self._dropped_names + names)
 
     @property
     def _fingerprint(self):
