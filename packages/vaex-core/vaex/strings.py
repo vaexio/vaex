@@ -22,3 +22,14 @@ def array(ar):
 def to_string_sequence(strings):
     strings = vaex.column.ColumnStringArrow.from_arrow(pa.array(strings))
     return strings.string_sequence
+
+
+def to_arrow(ar):
+    if isinstance(ar, (StringList32, StringList64)):
+        col = vaex.column.ColumnStringArrow.from_string_sequence(ar)
+        ar = pa.array(col)
+    elif isinstance(ar, vaex.array_types.supported_arrow_array_types):
+        pass
+    else:
+        raise TypeError(f'{ar} cannot be converted to array string array')
+    return ar

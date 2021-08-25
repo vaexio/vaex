@@ -324,7 +324,10 @@ class selection_encoding:
 class ordered_set_encoding:
     @staticmethod
     def encode(encoding, obj):
-        keys = encoding.encode('array', obj.key_array())
+        keys = obj.key_array()
+        if isinstance(keys, (vaex.strings.StringList32, vaex.strings.StringList64)):
+            keys = vaex.strings.to_arrow(keys)
+        keys = encoding.encode('array', keys)
         clsname = obj.__class__.__name__
         return {
             'class': clsname,
