@@ -346,6 +346,7 @@ Transformers & Encoders
     vaex.ml.transformations.MaxAbsScaler
     vaex.ml.transformations.MinMaxScaler
     vaex.ml.transformations.OneHotEncoder
+    vaex.ml.transformations.MultiHotEncoder
     vaex.ml.transformations.PCA
     vaex.ml.transformations.RobustScaler
     vaex.ml.transformations.StandardScaler
