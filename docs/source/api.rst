@@ -372,6 +372,9 @@ Transformers & Encoders
 .. autoclass:: vaex.ml.transformations.OneHotEncoder
      :members:
 
+.. autoclass:: vaex.ml.transformations.MultiHotEncoder
+     :members:
+
 .. autoclass:: vaex.ml.transformations.PCA
      :members:
 
