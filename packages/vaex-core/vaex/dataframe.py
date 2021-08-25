@@ -567,6 +567,10 @@ class DataFrame(object):
             keys = ordered_set.keys()
             if dropnan:
                 keys = [k for k in keys if k == k]
+            if dropmissing and ordered_set.has_null:
+                keys = keys[1:]
+            if dropnan and ordered_set.has_nan:
+                keys = keys[1:]
             # TODO: dropmissing
             # if not dropnan and ordered_set.has_nan:
             #     keys = [math.nan] + keys
