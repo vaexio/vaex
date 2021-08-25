@@ -1,3 +1,4 @@
+from concurrent.futures import ThreadPoolExecutor
 import glob
 import tempfile
 import os
@@ -36,6 +37,20 @@ def test_open_convert_kwargs():
 def test_open_convert_non_hdf5():
     csv2 = os.path.join(path, 'data', 'smæll2.csv')
     df = vaex.open(csv2, convert='smæll2.parquet')
+
+
+def test_open_convert_multithreaded():
+    def do(i):
+        fn = os.path.join(path, 'data', 'smæll2.csv')
+        df = vaex.open(csv2, convert='smæll2.hdf5')
+        df = vaex.open(csv2, convert='smæll2.parquet')
+        df = vaex.open(csv2, convert='smæll2.arrow')
+    for i in range(10):
+        with ThreadPoolExecutor(4) as tpe:
+            values = list(tpe.map(do, range(5)))
+            assert values == [None] * 5
+        for ext in ['hdf5', 'parquet', 'arrow']:
+            os.remove(os.path.join(f'smæll2.{ext}'))
 
 
 def test_open_convert_explicit_path():
