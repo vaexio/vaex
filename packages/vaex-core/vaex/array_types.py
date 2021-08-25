@@ -77,6 +77,8 @@ def concat(arrays):
 
 
 def is_string_type(data_type):
+    if isinstance(data_type, pa.DictionaryType):
+        data_type = data_type.value_type
     return not isinstance(data_type, np.dtype) and data_type in string_types
 
 

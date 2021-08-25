@@ -225,6 +225,8 @@ class dtype_encoding:
         dtype = DataType(dtype)
         if dtype.is_list:
             return {'type': 'list', 'value_type': encoding.encode('dtype', dtype.value_type)}
+        elif dtype.is_encoded:
+            return {'type': 'dict', 'value_type': encoding.encode('dtype', dtype.value_type), 'index_type': encoding.encode('dtype', dtype.index_type), 'ordered': dtype.arrow.ordered}
         dtype = DataType(dtype)
         return str(dtype)
 
@@ -234,6 +236,11 @@ class dtype_encoding:
             if type_spec['type'] == 'list':
                 sub = encoding.decode('dtype', type_spec['value_type']).arrow
                 return DataType(pa.list_(sub))
+            elif type_spec['type'] == 'dict':
+                value_type = encoding.decode('dtype', type_spec["value_type"]).arrow
+                index_type = encoding.decode('dtype', type_spec["index_type"]).arrow
+                bool_ordered = type_spec["ordered"]
+                return DataType(pa.dictionary(index_type, value_type, bool_ordered))
             else:
                 raise ValueError(f'Do not understand type {type_spec}')
         if type_spec == 'string':
