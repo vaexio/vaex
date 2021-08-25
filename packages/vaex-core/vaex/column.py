@@ -538,7 +538,7 @@ def _is_stringy(x):
 
 def _to_string_sequence(x, force=True):
     if isinstance(x, pa.DictionaryArray):
-        x = x.dictionary_decode()
+        x = x.dictionary.take(x.indices)  # equivalent to PyArrow 5.0.0's dictionary_decode() but backwards compatible
     if isinstance(x, pa.ChunkedArray):
         # turn into pa.Array, TODO: do we want this, this may result in a big mem copy
         table = pa.Table.from_arrays([x], ["single"])
