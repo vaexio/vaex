@@ -1,3 +1,4 @@
+from re import A
 import pytest
 import numpy as np
 import vaex
@@ -329,6 +330,100 @@ def test_one_hot_encoding_with_na(df_factory):
     assert(str(df_test['y_31.0'].dtype) == 'uint8')
     assert(str(df_test['y_nan'].dtype) == 'uint8')
 
+def test_imputer_tranformer():
+    import pyarrow as pa
+
+    df = vaex.from_dict({
+        'floats': [2.0, 3.1, 4.2, np.nan, np.nan],
+        'bool': pa.array([True, True, True, False, None]),
+        'int': pa.array([1, 2, 3, 4, None]),
+        'str': ['a', 'b', 'b', 'c', None],
+        'mean': [1, 2, 4, 5, np.nan],
+        'int_mode': pa.array([1, 1, 1, 2, None]),
+        'int_new_value': pa.array([1, 1, 1, 2, np.nan]),
+        'str_mode': ['a', 'a', 'a', 'b', None],
+        'median': [1, 1, 2, 2, np.nan],
+        'str_new_value': ['a', 'c', 'b', None, None],
+        'int_new_value': pa.array([1, 2, 3, 4, None]),
+        'str_value': ['a', 'a', 'a', 'a', None],
+        'int_value': pa.array([1, 2, 3, 4, None]),
+        'float_value': [1.0, 1.1, np.nan, np.nan, np.nan],
+    })
+
+    assert df.countna() == 17
+
+    strategy = {int: 0,
+                float: 0.0,
+                str: 'NONE',
+                'mean': 'mean',
+                'int_mode': 'mode',
+                'int_new_value': 'new_value',
+                'str_mode': 'mode',
+                'median': 'median',
+                'str_new_value': 'new_value',
+                'float_value': -2,
+                'str_value': 'b'}
+
+    imputer = vaex.ml.Imputer(strategy=strategy)
+    transformed = imputer.fit_transform(df)
+
+    assert transformed.countna() == 0
+
+    record = transformed.to_records(-1)
+    assert record['floats'] == strategy.get(float)
+    assert record['bool'] is False  # default
+    assert record['int'] == strategy.get(int)
+    assert record['str'] == 'NONE'
+    assert record['mean'] == 3.
+    np.testing.assert_almost_equal(actual=1.500733137829912, desired=record['median'])
+    assert record['int_mode'] == 1
+    assert record['int_new_value'] == 5
+    assert record['str_mode'] == 'a'
+    assert record['str_value'] == 'b'
+    assert record['str_new_value'] not in df['str_new_value'].tolist()
+    assert record['float_value'] == -2
+
+    # handle missing columns
+    empty = vaex.from_arrays(x=[1])
+    record = imputer.transform(empty).to_records(0)
+    assert record['floats'] == strategy.get(float)
+    assert record['bool'] is False  # default
+    assert record['int'] == strategy.get(int)
+    assert record['str'] == 'NONE'
+    assert record['mean'] == 3.
+    np.testing.assert_almost_equal(actual=1.500733137829912, desired=record['median'])
+    assert record['int_mode'] == 1
+    assert record['int_new_value'] == 5
+    assert record['str_mode'] == 'a'
+    assert record['str_value'] == 'b'
+    assert record['str_new_value'] not in df['str_new_value'].tolist()
+    assert record['float_value'] == -2
+
+
+def test_imputer_tranformer_state_transfer():
+
+    df = vaex.from_dict({'x': np.array([2, 3, 4]),
+                         'y': np.array([1, 2, 3]),
+                         's': ['Edinburgh', 'Warsaw', 'Ljubljana']})
+
+    df_test = vaex.from_dict({'x': np.array([np.nan, 0, np.nan]),
+                              's': ['Groningen', 'Zwolle', None]})
+
+    def my_imputing_func(expr):
+        return expr.mean() / 2
+
+    strategy = {'x': -1, 'y': my_imputing_func, 's': 'Unknown'}
+    imputer = vaex.ml.Imputer(strategy=strategy)
+
+    df = imputer.fit_transform(df)
+
+    state = df.state_get()
+    df_test.state_set(state)
+
+    assert df_test.x.tolist() == [-1, 0, -1]
+    assert df_test.y.tolist() == [1, 1, 1]
+    assert df_test.s.tolist() == ['Groningen', 'Zwolle', 'Unknown']
+
 
 def test_maxabs_scaler(df_factory):
     x = np.array([-2.65395789, -7.97116295, -4.76729177, -0.76885033, -6.45609635])
@@ -560,3 +655,13 @@ def test_kbinsdiscretizer(tmpdir, strategy):
     assert df_test.shape == (6, 4)
     assert df_test.binned_x.tolist() == expected_result_test_x
     assert df_test.binned_y.tolist() == expected_result_test_y
+
+def test_transformer_repr():
+    scaler = vaex.ml.StandardScaler(features=['x'], with_mean=False)
+    assert str(scaler) == "vaex.ml.transformations.StandardScaler({'features': ['x'], 'prefix': 'standard_scaled_', 'with_mean': False, 'with_std': True})"
+
+    gbtrans = vaex.ml.GroupByTransformer()
+    assert str(gbtrans) == "vaex.ml.transformations.GroupByTransformer({'agg': {}, 'by': '', 'df_group_': None, 'features': [], 'rprefix': '', 'rsuffix': ''})"
+
+    imputer = vaex.ml.Imputer(predix='imp_')
+    assert str(imputer) == "vaex.ml.transformations.Imputer({'features': [], 'prefix': '', 'strategy': {}})"

@@ -5,6 +5,7 @@ from . import generate
 from .state import HasState
 import traitlets
 from vaex.utils import _ensure_strings_from_expressions
+import uuid
 import warnings
 
 sklearn = vaex.utils.optional_import("sklearn", modules=[
@@ -36,6 +37,11 @@ class Transformer(HasState):
     ''' Parent class for all of the transformers.
     '''
     features = traitlets.List(traitlets.Unicode(), help=help_features).tag(ui='SelectMultiple')
+
+    def __repr__(self):
+        class_name = str(self.__class__).split('\'')[1]
+        view = {name: value for  name, value in self.trait_values().items() if self.trait_metadata(name, 'output') is not True}
+        return f'{class_name}({view})'
 
     def fit_transform(self, df):
         '''Fit and apply the transformer to the supplied DataFrame.
@@ -1189,3 +1195,189 @@ class GroupByTransformer(Transformer):
                 join_name = self.rprefix + join_name + self.rsuffix
             df[join_name] = df[self.by].map(mapper, allow_missing=True)
         return df
+
+@register
+@generate.register
+class Imputer(Transformer):
+    '''Imputer to impute N/A (missing, masked and  `np.nan`) values in features.
+
+    Via the `strategy` dictionary argument one can specify how each or a group of features will be imputed.
+    The keys of the `stratege` dictionary can be individual feature names, or feature data types (e.g. int, float, str).
+    The fill-values can either be directly specified, or be computed from the data via the reserved words 'mean', 'median', 'mode'. N/A values can be imputed with a brand new distinct value via the reserved 'new_value' value.
+    The fill-value can even be a custom callable function that thats that column/expression as an argument and returns a single value.
+
+    Example:
+
+    >>> import vaex
+    >>> import vaex.ml
+    >>> import numpy as np
+
+    >>> df = vaex.from_dict({'x1': np.ma.masked_array(data=[1, 2, 3], mask=[False, False, True]),
+                        'x2': np.ma.masked_array(data=[1, 2, 3], mask=[False, False, True]),
+                        'x3': np.ma.masked_array(data=[1, 2, 3], mask=[False, False, True]),
+                        'f1': np.ma.masked_array(data=[0.5, 1.5, 2.5], mask=[False, False, True]),
+                        'f2': np.ma.masked_array(data=[1.5, 2.5, 3.5], mask=[False, False, True]),
+                        's': ['Amstedam', 'Paris', None]})
+
+    >>> print(df)
+      #  x1    x2    x3    f1    f2    s
+      0  1     1     1     0.5   1.5   Amstedam
+      1  2     2     2     1.5   2.5   Paris
+      2  --    --    --    --    --    --
+
+    >>> strategy = {'x1': 100,
+                    int: -1,
+                    float: 'new_value',
+                    's': 'Unknwon'}
+
+    >>> im = vaex.ml.Imputer(strategy=strategy)
+    >>> im.fit_transform(df)
+      #    x1    x2    x3    f1    f2  s
+      0     1     1     1   0.5   1.5  Amstedam
+      1     2     2     2   1.5   2.5  Paris
+      2   100    -1    -1   2     3    Unknwon
+    '''
+    strategy = traitlets.Dict(help='Strategy for handling missing values.')
+    prefix = traitlets.Unicode(default_value='', help=help_prefix)
+    fill_values_ = traitlets.Dict(help='The fill value of each feature.').tag(output=True)
+
+
+    def get_new_fill_value(self, expr):
+        '''Get a new fill value, depending on dtype'''
+        if expr.dtype.is_string:
+            return f"NA_{str(uuid.uuid4())}"
+        elif expr.dtype.is_numeric:
+            return int(expr.max()) + 1
+        raise ValueError(f"Can not create a new value for {expr.expression} of {expr.dtype} dtype")
+
+
+    def get_default_dtype_fill_value(self, dtype):
+        '''Get the default fill value based on the dtype.
+        TODO: support arrow structs when $1447 gets in
+
+        If the dtype is numeric, the default fill value is 0.
+        If the dtype is string, the default fill value is "".
+        If the dtype is bool, the default value is False.
+        If the dtype is object, the default value is {} - this may not be supported in the future.
+        '''
+        if dtype.is_string:
+            return ''
+        if dtype.is_numeric:
+            return 0
+        try:
+            if dtype.name == 'bool':
+                return False
+        except:
+            pass
+
+        warnings.warn(f'dtype {dtype} has no default value.')
+        return None
+
+    def get_fill_value(self, ar):
+        '''Get the fill value of a column according to the specified strategy of defaults.'''
+
+        # TODO run in one go
+        dtype = ar.dtype
+        name = ar.expression
+        feature_strategy = None
+
+        try:
+            # TODO fix the NotImplementedError: large_string is fixed
+            dtype_name = dtype.name
+        except:
+            dtype_name = None
+
+        try:
+            shape = ar.shape
+        except:
+            shape = (1,)
+
+        if name in self.strategy:  # by name
+            feature_strategy = self.strategy.get(name)
+        elif 1 < len(shape):  # nd arrays
+            feature_strategy = None
+        # by dtype
+        elif dtype_name is not None and dtype_name in self.strategy:
+            feature_strategy = self.strategy.get(dtype_name.name)
+        elif dtype.is_integer and int in self.strategy:
+            feature_strategy = self.strategy.get(int)
+        elif dtype.is_float and float in self.strategy:
+            feature_strategy = self.strategy.get(float)
+        elif dtype == bool and bool in self.strategy:
+            feature_strategy = self.strategy.get(bool)
+        elif dtype == str and str in self.strategy:
+            feature_strategy = self.strategy.get(str)
+
+        if feature_strategy is None and len(shape) == 1:
+            feature_strategy = self.get_default_dtype_fill_value(dtype)
+
+        if callable(feature_strategy):
+            feature_strategy = feature_strategy(ar)
+
+        fill_value = feature_strategy
+
+        if dtype.is_string:
+            if not isinstance(fill_value, str):
+                fill_value = str(fill_value)
+            if feature_strategy == 'mode':
+                fill_value = ar.value_counts(dropna=True).index[0]
+            elif feature_strategy == 'new_value':
+                fill_value = self.get_new_fill_value(ar)
+        elif dtype.is_numeric and len(shape) == 1:
+            if isinstance(feature_strategy, str):
+                if feature_strategy == 'mean':
+                    fill_value = float(ar.mean())
+                elif feature_strategy == 'median':
+                    fill_value = float(ar.df.percentile_approx(ar))
+                elif feature_strategy == 'mode':
+                    fill_value = float(ar.value_counts(dropna=True).index[0])
+                elif feature_strategy == 'new_value':
+                    fill_value = float(self.get_new_fill_value(ar))
+
+            if not isinstance(fill_value, (int, float)):
+                raise RuntimeError(f"Fill value {fill_value} cannot be used for column '{name}' of type {dtype}")
+
+        if fill_value is None:
+            warnings.warn(f"Fill value {fill_value} was 'None' for column '{name}' of type {dtype}")
+        return fill_value
+
+    def fit(self, df):
+        '''
+        Fit Imputer to the DataFrame.
+
+        :param df: A vaex DataFrame.
+        '''
+        features = self.features or df.get_column_names()
+        for feature in features:
+            self.fill_values_[feature] = self.get_fill_value(df[feature])
+        return self
+
+    def transform(self, df):
+        '''
+        Transform a DataFrame with a fitted Imputer.
+
+        :param df: A vaex DataFrame.
+
+        :returns copy: a shallow copy of the DataFrame that includes the imputed features.
+        :rtype: DataFrame
+        '''
+        copy = df.copy()
+
+        # TODO: Createa a proper way of creating virtual column of constant values (numeric or string)
+        copy['__index__'] = vaex.vrange(0, len(df)) # Used only for the trick to create columns of constant values
+
+        for feature, fill_value in self.fill_values_.items():
+            name = self.prefix + feature
+            if fill_value is None:
+                warnings.warn(f"Could not fill missing values for column '{name}'.")
+                continue
+            elif feature not in copy:
+                warnings.warn(f'Feature {feature} was not found in the DataFrame, and thus it will be created with the fill value {fill_value}.')
+                copy[name] = copy.func.where(copy['__index__'] == True, fill_value, fill_value)
+            else:
+                copy[name] = copy[feature].fillna(fill_value)
+
+        # Remove the helper column
+        copy = copy.drop(['__index__'])
+
+        return copy
