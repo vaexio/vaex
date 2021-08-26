@@ -567,7 +567,6 @@ void add_string_list(Module m, Base &base, const char *class_name) {
         // .def("get", (py::object (StringSequenceBase::*)(size_t, size_t))&StringSequenceBase::get, py::return_value_policy::take_ownership)
         .def_property_readonly("bytes",
                                [](const StringList &sl) {
-                                   printf("byte_length: %i\n", sl.byte_length);
                                    return py::array_t<char>(sl.byte_length, sl.bytes, py::cast(sl));
                                })
         .def_property_readonly("indices", [](const StringList &sl) { return py::array_t<typename StringList::index_type>(sl.length + 1, sl.indices, py::cast(sl)); })

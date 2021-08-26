@@ -564,18 +564,19 @@ class DataFrame(object):
                     pass
                 self.map_reduce(map, reduce, [expression], delay=delay, name='unique_return_inverse', info=True, to_numpy=False, selection=selection)
             ordered_set.seal()
-            keys = ordered_set.keys()
-            if dropnan:
-                keys = [k for k in keys if k == k]
+            # if array_type == 'python':
+            keys = ordered_set.key_array()
+            deletes = []
             if dropmissing and ordered_set.has_null:
-                keys = keys[1:]
+                deletes.append(ordered_set.null_value)
             if dropnan and ordered_set.has_nan:
-                keys = keys[1:]
-            # TODO: dropmissing
-            # if not dropnan and ordered_set.has_nan:
-            #     keys = [math.nan] + keys
-            # if not dropmissing and ordered_set.has_null:
-            #     keys = [None] + keys
+                deletes.append(ordered_set.nan_value)
+            if isinstance(keys, (vaex.strings.StringList32, vaex.strings.StringList64)):
+                keys = vaex.strings.to_arrow(keys)
+                indices = np.delete(np.arange(len(keys)), deletes)
+                keys = keys.take(indices)
+            else:
+                keys = np.delete(keys, deletes)
         keys = vaex.array_types.convert(keys, array_type)
         if return_inverse:
             return keys, inverse
