@@ -398,11 +398,8 @@ class DataFrame(object):
             print("Tasks:")
             for task in self.executor.tasks:
                 print(repr(task))
-        from .asyncio import just_run
         if self.executor.tasks:
-            # we only run when there are tasks, since we may trigger this
-            # call in an async loop context that cannot be patched (like uvloop)
-            just_run(self.execute_async())
+            self.executor.execute()
 
     async def execute_async(self):
         '''Async version of execute'''
