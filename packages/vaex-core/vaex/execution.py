@@ -1,5 +1,6 @@
 from __future__ import division, print_function
 import ast
+import asyncio
 from collections import defaultdict
 import os
 import time
@@ -134,6 +135,17 @@ class Executor:
         self.signal_cancel = vaex.events.Signal("cancel")
         self.local = threading.local()  # to make it non-reentrant
         self.lock = threading.Lock()
+        self.event_loop = asyncio.new_event_loop()
+
+    async def execute_async(self):
+        pass
+
+    def execute(self):
+        return self.run(self.execute_async())
+
+    def run(self, coro):
+        with vaex.asyncio.with_event_loop(self.event_loop):
+            return self.event_loop.run_until_complete(coro)
 
     def schedule(self, task):
         '''Schedules new task for execution, will return an existing tasks if the same task was already added'''
@@ -198,6 +210,7 @@ class ExecutorLocal(Executor):
         self.passes = 0  # how many times we passed over the data
         self.zig = True  # zig or zag
         self.zigzag = zigzag
+        self.event_loop = asyncio.new_event_loop()
 
     def _cancel(self, run):
         logger.debug("cancelling")
