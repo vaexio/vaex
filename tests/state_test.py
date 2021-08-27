@@ -40,29 +40,37 @@ def test_isin(tmpdir):
     assert df.test.tolist() == df2.test.tolist()
 
 
-def test_state_get_set(ds_local):
-    ds = ds_local
+@pytest.mark.parametrize("future", [False, True])
+def test_state_get_set(df_local, future):
+    df = df_local
+    df = df._future() if future else df
 
-    ds_copy = ds.copy()
+    df_copy = df.copy()
 
-    ds['v'] = ds.x + 1
+    df['v'] = df.x + 1
 
-    state = ds.state_get()
-    ds_copy.state_set(state)
-    assert ds_copy.v.values.tolist() == ds.v.values.tolist()
+    state = df.state_get()
+    df_copy.state_set(state)
+    assert df_copy.v.values.tolist() == df.v.values.tolist()
 
     # making a copy when the state is set should work as well
-    assert ds_copy.copy().v.values.tolist() == ds.v.values.tolist()
-    assert 'v' in ds_copy.get_column_names()
+    assert df_copy.copy().v.values.tolist() == df.v.values.tolist()
+    assert 'v' in df_copy.get_column_names()
 
 
-def test_state_rename(df_factory):
+@pytest.mark.parametrize("future", [False, True])
+def test_state_rename(df_factory, future):
     df = df_factory(x=[1])
+    df = df._future() if future else df
     dfc = df.copy()
-    df.rename('x', 'y')
-    df.y.tolist() == [1]
-    dfc.state_set(df.state_get())
-    assert dfc.y.tolist() == [1]
+    df['y'] = df.x + 1
+    df.rename('x', 'a')
+    df.rename('y', 'b')
+    df.a.tolist() == [1]
+    state = df.state_get()
+    dfc.state_set(state)
+    assert dfc.a.tolist() == [1]
+    assert dfc.b.tolist() == [2]
 
 
 def test_state_mem_waste(df_trimmed):
@@ -175,3 +183,124 @@ def test_state_drop():
     dfc.state_set(df.state_get())
     assert 'x' not in dfc
     assert 'x' not in dfc.dataset
+
+
+def test_transform(df_factory_numpy, tmpdir):
+    df = df_factory_numpy(x=[1, 1, 2, 2, 2, 3], y=[0, 1, 2, 3, 4, 5])
+    df['y'] = df.y + 1
+    def add(df, col, value):
+        df[col] = df[col] + value
+        return df
+
+    df2 = df.transform(add, 'y', 2)
+    assert df2['y'].tolist() == [3, 4, 5, 6, 7, 8]
+
+
+def test_notebook():
+    import os
+    os.environ["CUDA_VISIBLE_DEVICES"]="-1" 
+
+    import numpy as np
+
+    import pylab as p
+    import seaborn as sns
+
+    import pandas as pd 
+
+    import shap
+
+    from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+
+    # import tensorflow as tf
+    # from tensorflow import keras as K
+
+    from tqdm.notebook import tqdm
+
+    import vaex
+    import vaex.ml
+
+    import warnings
+    df_train_full = vaex.open('/home/maartenbreddels/github/JovanVeljanoski/vaex-notebooks/dash/Predictive-maintenance/data/data_train.hdf5')._future()
+    val_index = np.array([34, 70,  4, 71, 96])  # Fixed to ensure reproducibility
+
+    print('units part of the validation set:', val_index)
+
+    # Split on train and validation sets based on the val_index
+    df_train = df_train_full[~df_train_full.unit_number.isin(val_index)].extract()
+    df_val = df_train_full[df_train_full.unit_number.isin(val_index)].extract()
+    df_train_copy = df_train.copy()
+
+
+    # Get the sensor names
+    sensors = df_train.get_column_names()[5:-1]
+
+    # Curate a list of columns to drop
+    # Drop the settings - as they are not sensors to be monitored
+    cols_to_drop = ['setting_1', 'setting_2', 'setting_3']
+
+    # Remove sensors with constant or near constant values
+    cols_const = [s for s in sensors if df_train[s].nunique() < 5]
+    print('Columns with constant values:', cols_const)
+    cols_to_drop += cols_const
+
+    # Find Sensors that too weakly correlate with the RUL
+    cols_weak_corr_target = np.array(sensors)[np.array([np.abs(df_train.correlation(s, 'RUL')) for s in sensors]) < 0.01].tolist()
+    print('Columns too weakly correlating with the RUL:', cols_weak_corr_target)
+    cols_to_drop += cols_weak_corr_target
+
+    # Find highly correlated columns
+    # TODO - depending on the "new" correlation and mutual information API
+    cols_high_corr = ['NRc']
+    print('Highly correlated (> 0.95) columns:', cols_high_corr)
+    cols_to_drop += cols_high_corr
+
+    # Remove duplicates from the list of columns to drop
+    cols_to_drop = sorted(list(set(cols_to_drop)))
+
+    print()
+    print('Final list of columns to drop:', cols_to_drop)
+
+    # Drop columns that are not needed
+    df_train = df_train.drop(columns=cols_to_drop)
+
+    # Columns to MinMax scale
+    cols_to_scale = df_train.get_column_names()[2:-1]
+
+    # Normalize in range (0, 1)
+    df_train = df_train.ml.minmax_scaler(features=cols_to_scale)
+
+    # Get the scaled columns and from them create columns to be transformed into features
+    scaled_cols = df_train.get_column_names(regex='^minmax')
+    for col in scaled_cols:
+        feat_name = col.replace('minmax_scaled', 'feat')
+        df_train[feat_name] = df_train[col].copy()
+    
+    features = df_train.get_column_names(regex='^minmax_')
+    # features = df_train.get_column_names(regex='^minmax_')
+    features_to_reshape = features + ['RUL']
+    target = 'RUL_target'
+    sequence_length = 50
+    batch_size = 192
+    
+
+    def shift_and_concat(df, split_column, shift_columns, sequence_length):
+        df = vaex.concat([df_tmp.shift(periods=(0, sequence_length), column=shift_columns, trim=True) for _, df_tmp in df.groupby(split_column)])
+        return df
+
+    df_train = df_train.transform(shift_and_concat, 'unit_number', features_to_reshape, sequence_length)
+    df_train['RUL_target'] = df_train.RUL[:, -1]
+
+    df_val_copy = df_val.copy()
+    df_val = df_train.pipeline.transform(df_val)
+    df_train.pipeline.save('pipeline.json')
+
+    df_val = df_val_copy.copy()
+    df_val = df_val.pipeline.load_and_transform('pipeline.json', trusted=True)
+
+
+
+
+    #df_val.pipeline._apply(.pipeline_get(), trusted=True)
+    assert len(df_val.RUL_target.tolist()) == len(df_val)
+    # import pdb; pdb.set_trace()
+

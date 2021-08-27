@@ -1,6 +1,7 @@
 import ast
 import os
 import base64
+import copy
 import cloudpickle as pickle
 import functools
 import operator

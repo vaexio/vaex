@@ -30,6 +30,7 @@ import vaex.multithreading
 import vaex.promise
 import vaex.execution
 import vaex.expresso
+import vaex.transformer
 import logging
 import vaex.kld
 from . import selections, tasks, scopes
@@ -135,6 +136,40 @@ class _DataFrameEncoder:
         df = vaex.from_dataset(dataset)._future()
         df.state_set(state)
         return df
+
+
+def _mutating_transformer(name=None):
+    def wrapper_outter(method):
+        method_name = name or method.__name__
+        @functools.wraps(method)
+        def wrapper(self, *args, **kwargs):
+            # if self._future_behaviour == 5:
+            previous = self.pipeline.transformer
+            result = method(self, *args, **kwargs)
+            transformer = vaex.transformer.Method(method.__name__, name, args, kwargs, previous)
+            self.pipeline.transformer = transformer
+            # else:
+            #     result = method(self, *args, **kwargs)
+            return result
+        return wrapper
+    return wrapper_outter
+
+
+def _transformer(name=None):
+    def wrapper_outter(method):
+        method_name = name or method.__name__
+        @functools.wraps(method)
+        def wrapper(self, *args, **kwargs):
+            # if self._future_behaviour == 5:
+            previous = self.pipeline.transformer
+            df = method(self, *args, **kwargs)
+            transformer = vaex.transformer.Method(method.__name__, name, args, kwargs, previous)
+            self.pipeline.transformer = transformer
+            # else:
+            #     df = method(self, *args, **kwargs)
+            return df
+        return wrapper
+    return wrapper_outter
 
 
 class DataFrame(object):
@@ -2202,6 +2237,15 @@ class DataFrame(object):
             os.makedirs(dir)
         return dir
 
+    def transform(self, func, *args, **kwargs):
+        # df = func(*args, **kwargs)
+        # dataset = vaex.dataset.DatasetTransform(df.dataset, df._state_get_v5(), func, args, kwargs)
+        # return DataFrameLocal(dataset)
+        transformer = vaex.transformer.Apply(func, args, kwargs, self.pipeline.transformer)
+        df = transformer.apply(self)
+        df.pipeline.transformer = transformer
+        return df
+
     def state_get(self, skip=None):
         if self._future_behaviour == 5:
             return self._state_get_vaex_5(skip=skip)
@@ -2244,7 +2288,7 @@ class DataFrame(object):
         descriptions = {key: value for key, value in self.descriptions.items()}
         selections = {name: self.get_selection(name) for name, history in self.selection_histories.items() if self.has_selection(name)}
         encoding = vaex.encoding.Encoding()
-        state = dict(virtual_columns=dict(self.virtual_columns),
+        state = dict(transformer=None, # if self._transformer is None else encoding.encode('transformer', self._transformer),
                      column_names=list(self.column_names),
                      variables={name: encoding.encode("variable", value) for name, value in self.variables.items()},
                      functions={name: encoding.encode("function", value) for name, value in self.functions.items()},
@@ -2255,24 +2299,25 @@ class DataFrame(object):
                      descriptions=descriptions,
                      active_range=[self._index_start, self._index_end]
         )
-        datasets = self.dataset.leafs() if skip is None else skip
-        for dataset in datasets:
-            # mark leafs to not encode
-            encoding._object_specs[dataset.id] = None
-            assert encoding.has_object_spec(dataset.id)
-        if len(datasets) != 1:
-            raise ValueError('Multiple datasets present, please pass skip= argument so we know which dataset not to include in the state.')
-        dataset_main = datasets[0]
-        if dataset_main is not self.dataset:
-            # encode without the leafs
-            data = encoding.encode('dataset', self.dataset)
-            # remove the dummy leaf data
-            for dataset in datasets:
-                assert encoding._object_specs[dataset.id] is None
-                del encoding._object_specs[dataset.id]
-            if data is not None:
-                state['dataset'] = data
-                state['dataset_missing'] = {'main': dataset_main.id}
+        # datasets = self.dataset.leafs() if skip is None else skip
+        # datasets = self.dataset.leafs() if skip is None else skip
+        # for dataset in datasets:
+        #     # mark leafs to not encode
+        #     encoding._object_specs[dataset.id] = None
+        #     assert encoding.has_object_spec(dataset.id)
+        # if len(datasets) != 1:
+        #     raise ValueError('Multiple datasets present, please pass skip= argument so we know which dataset not to include in the state.')
+        # dataset_main = datasets[0]
+        # if dataset_main is not self.dataset:
+        #     # encode without the leafs
+        #     data = encoding.encode('dataset', self.dataset)
+        #     # remove the dummy leaf data
+        #     for dataset in datasets:
+        #         assert encoding._object_specs[dataset.id] is None
+        #         del encoding._object_specs[dataset.id]
+        #     if data is not None:
+        #         state['dataset'] = data
+        #         state['dataset_missing'] = {'main': dataset_main.id}
         state['blobs'] = {key: base64.b64encode(value).decode('ascii') for key, value in encoding.blobs.items()}
         if encoding._object_specs:
             state['objects'] = encoding._object_specs
@@ -2328,25 +2373,29 @@ class DataFrame(object):
             encoding.blobs = {key: base64.b64decode(value.encode('ascii')) for key, value in state['blobs'].items()}
         if 'objects' in state:
             encoding._object_specs = state['objects']
-        if 'dataset' in state:
-            encoding.set_object(state['dataset_missing']['main'], self.dataset)
-            self.dataset = encoding.decode('dataset', state['dataset'])
+        # if 'dataset' in state:
+        #     encoding.set_object(state['dataset_missing']['main'], self.dataset)
+        #     self.dataset = encoding.decode('dataset', state['dataset'])
 
         for name, value in state['functions'].items():
             self.add_function(name, encoding.decode("function", value, trusted=trusted))
         # we clear all columns, and add them later on, since otherwise self[name] = ... will try
         # to rename the columns (which is unsupported for remote dfs)
-        self.column_names = []
+        # self.column_names = []
         self.virtual_columns = {}
-        self.column_names = list(set(self.dataset) & set(state['column_names']))  # initial values not to have virtual column trigger missing column values
+        # self.column_names = list(set(self.dataset) & set(state['column_names']))  # initial values not to have virtual column trigger missing column values
         if 'variables' in state:
             self.variables = {name: encoding.decode("variable", value) for name, value in state['variables'].items()}
-        for name, value in state['virtual_columns'].items():
-            self[name] = self._expr(value)
+        transformer = encoding.decode('transformer', state['transformer'], trusted=trusted)
+        if transformer is not None:
+            transformer.apply_deep(self)
+        
+        # for name, value in state['virtual_columns'].items():
+        #     self[name] = self._expr(value)
             # self._save_assign_expression(name)
-        self.column_names = list(state['column_names'])
-        if keep_columns:
-            self.column_names += list(keep_columns)
+        # self.column_names = list(state['column_names'])
+        # if keep_columns:
+        #     self.column_names += list(keep_columns)
         for name in self.column_names:
             self._save_assign_expression(name)
         if "units" in state:
@@ -2358,10 +2407,10 @@ class DataFrame(object):
                 if name == FILTER_SELECTION_NAME and not set_filter:
                     continue
                 self.set_selection(selection, name=name)
-        if self.is_local():
-            for name in self.dataset:
-                if name not in self.column_names:
-                    del self.columns[name]
+        # if self.is_local():
+        #     for name in self.dataset:
+        #         if name not in self.column_names:
+        #             del self.columns[name]
 
     def _state_get_pre_vaex_5(self):
         """Return the internal state of the DataFrame in a dictionary
@@ -2384,6 +2433,8 @@ class DataFrame(object):
         'variables': {},
         'virtual_columns': {'r': '(((x ** 2) + (y ** 2)) ** 0.5)'}}
         """
+        # if self._transformer is not None:
+        #     raise RuntimeError('transformer only supported for v5 state, use df._future() first')
 
         virtual_names = list(self.virtual_columns.keys()) + list(self.variables.keys())
         units = {key: str(value) for key, value in self.units.items()}
@@ -2416,6 +2467,7 @@ class DataFrame(object):
                      description=self.description,
                      active_range=[self._index_start, self._index_end])
         return state
+    pipeline_get = _state_get_vaex_5 
 
     def _state_set_pre_vaex_5(self, state, use_active_range=False, keep_columns=None, set_filter=True, trusted=True, warn=True):
         """Sets the internal state of the df
@@ -2467,7 +2519,7 @@ class DataFrame(object):
         if 'renamed_columns' in state:
             for old, new in state['renamed_columns']:
                 if old in self:
-                    self._rename(old, new)
+                    self.rename(old, new)
                 elif warn:
                     warnings.warn(f'The state wants to rename {old} to {new}, but {new} was not found, ignoring the rename')
         if 'functions' in state:
@@ -3502,6 +3554,7 @@ class DataFrame(object):
         self.functions[name] = function
         return function
 
+    @_mutating_transformer()
     def add_virtual_column(self, name, expression, unique=False):
         """Add a virtual column to the DataFrame.
 
@@ -3538,6 +3591,7 @@ class DataFrame(object):
         self._save_assign_expression(valid_name)
         self.signal_column_changed.emit(self, valid_name, "add")
 
+    @_mutating_transformer(name="rename")
     def rename(self, name, new_name, unique=False):
         """Renames a column or variable, and rewrite expressions such that they refer to the new name"""
         if name == new_name:
@@ -3559,6 +3613,7 @@ class DataFrame(object):
             # if we don't do this locally, we still store this info
             # in self._renamed_columns, so it will happen at the server
             self.dataset = self.dataset.renamed({old: new})
+
         if rename_meta_data:
             for d in [self.ucds, self.units, self.descriptions]:
                 if old in d:
@@ -4470,6 +4525,7 @@ class DataFrame(object):
         virtual_columns = df.virtual_columns.copy()
         # these are the columns we want to shift, but *also* want to keep the original
         columns_conflict = columns_keep & columns_shift
+        # import pdb; pdb.set_trace()
 
         column_shift_mapping = {}
         # we use this dataframe for tracking virtual columns when renaming
@@ -5094,6 +5150,7 @@ class DataFrame(object):
             except:
                 pass
 
+    @_transformer()
     @docsubst
     def drop(self, columns, inplace=False, check=True):
         """Drop columns (or a single column).
@@ -5103,7 +5160,6 @@ class DataFrame(object):
         :param check: When true, it will check if the column is used in virtual columns or the filter, and hide it instead.
         """
         columns = _ensure_list(columns)
-        columns = _ensure_strings_from_expressions(columns)
         df = self if inplace else self.copy()
         depending_columns = df._depending_columns(columns_exclude=columns)
         for column in columns:
@@ -5322,6 +5378,7 @@ class DataFrameLocal(DataFrame):
             name = name or dataset.name
         super(DataFrameLocal, self).__init__(name)
         self._dataset = dataset
+        self._dataset_initial = dataset
         if hasattr(dataset, 'units'):
             self.units.update(dataset.units)
         if hasattr(dataset, 'ucds'):
@@ -5667,6 +5724,8 @@ class DataFrameLocal(DataFrame):
             hide = required - set(column_names) - set(self.variables)
 
         # restore some metadata
+        df.pipeline.transformer = self.pipeline.transformer
+        df._dataset_initial = self._dataset_initial
         df._length_unfiltered = self._length_unfiltered
         df._length_original = self._length_original
         df._cached_filtered_length = self._cached_filtered_length

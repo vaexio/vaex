@@ -1,4 +1,5 @@
 from collections import defaultdict
+import functools
 import os
 import re
 import sys
@@ -12,7 +13,27 @@ import vaex
 registry = []
 
 
+# 'copied' from vaex.dataframe, if ML transformers are normal transformers, get rid of this
+def _transformer(name=None):
+    def wrapper_outter(method):
+        method_name = name or method.__name__
+        @functools.wraps(method)
+        def wrapper(self, df, *args, **kwargs):
+            # if self._future_behaviour == 5:
+            previous = df.pipeline.transformer
+            df = method(self, df, *args, **kwargs)
+            transformer = vaex.transformer.ML(self, previous=previous)
+            df.pipeline.transformer = transformer
+            # else:
+            #     df = method(self, *args, **kwargs)
+            return df
+        return wrapper
+    return wrapper_outter
+
+
+
 def register(cls):
+    cls.transform = _transformer()(cls.transform)
     registry.append(cls)
     docstring_args_template = Template("""
 {% for arg in docargs %}

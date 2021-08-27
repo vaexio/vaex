@@ -4,7 +4,7 @@ import base64
 import io
 import json
 import numbers
-import pickle
+import cloudpickle as pickle
 import uuid
 import struct
 import collections.abc
@@ -38,12 +38,16 @@ def make_class_registery(groupname):
     class encoding:
         @staticmethod
         def encode(encoding, obj):
+            if obj is None:
+                return None
             spec = obj.encode(encoding)
             spec[f'{groupname}-type'] = obj.snake_name
             return spec
 
         @staticmethod
         def decode(encoding, spec, **kwargs):
+            if spec is None:
+                return None
             spec = spec.copy()
             type = spec.pop(f'{groupname}-type')
             cls = _encoding_types[type]
@@ -59,6 +63,22 @@ class vaex_json_encoding:
     @classmethod
     def decode(cls, encoding, result_encoded):
         return result_encoded
+
+
+@register("pickle")  # this will simply use pickle (Python specific)
+class vaex_json_encoding:
+    @classmethod
+    def encode(cls, encoding, value):
+        blob = pickle.dumps(value)        
+        return {'blob': encoding.add_blob(blob)}
+
+    @classmethod
+    def decode(cls, encoding, spec, trusted=False):
+        if not trusted:
+            raise ValueError("Will not unpickle func or arguments when source is not trusted")
+        blob = encoding.get_blob(spec['blob'])
+        return pickle.loads(blob)
+
 
 
 @register("vaex-task-result")

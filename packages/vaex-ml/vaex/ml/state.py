@@ -29,7 +29,7 @@ def default_to_json(trait_name, value, state_obj):
 def default_from_json(trait_name, data, state_obj):
     return data
 
-
+# @vaex.transformer.register('ml')
 class HasState(traitlets.HasTraits):
 
     @classmethod
@@ -59,3 +59,12 @@ class HasState(traitlets.HasTraits):
     def state_load(self, f):
         state = vaex.utils.read_json_or_yaml(f)
         self.state_set(state)
+
+    # def encode(self, encoding):
+    #     return {
+    #         'state': self.state_get(),
+    #     }
+
+    # @classmethod
+    # def decode(cls, encoding, spec, trusted=False):
+    #     return vaex.serialize.from_dict(spec['state'], trusted=trusted)
