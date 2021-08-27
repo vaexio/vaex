@@ -28,7 +28,8 @@ void init_hash_(M m, std::string name, std::string suffix) {
     {
         typedef counter<T, Hashmap> Type;
         std::string countername = "counter_" + name + suffix;
-        auto cls = py::class_<Type>(m, countername.c_str()).def(py::init<int>())
+        auto cls = py::class_<Type>(m, countername.c_str())
+            .def(py::init<int>())
             // .def("reserve", &Type::reserve)
             ;
         bind_common<Type>(cls);

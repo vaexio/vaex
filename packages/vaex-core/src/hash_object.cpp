@@ -129,6 +129,7 @@ class counter : public hash_base<counter<T, A>, T, A> {
 public:
     using typename hash_base<counter<T, A>, T, A>::value_type;
     using typename hash_base<counter<T, A>, T, A>::storage_type;
+    counter(int ignore) {}
 
     void add(storage_type& storage_value) {
         Py_IncRef(storage_value);
@@ -159,6 +160,7 @@ template<class T=PyObject*>
 class ordered_set : public hash_base<ordered_set<T>, T, T> {
 public:
     using typename hash_base<ordered_set<T>, T, T>::value_type;
+    ordered_set(int ignore) {}
     using typename hash_base<ordered_set<T>,T, T>::storage_type;
     py::array_t<bool> isin(py::buffer object_array) {
         py::buffer_info info = object_array.request();
@@ -292,7 +294,7 @@ void init_hash_object(py::module &m) {
         typedef counter<> Type;
         std::string countername = "counter_object";
         py::class_<Type>(m, countername.c_str())
-            .def(py::init<>())
+            .def(py::init<int>())
             .def("update", &Type::update)
             .def("update", &Type::update_with_mask)
             .def("merge", &Type::merge)
@@ -308,7 +310,7 @@ void init_hash_object(py::module &m) {
         std::string ordered_setname = "ordered_set_object";
         typedef ordered_set<> Type;
         py::class_<Type>(m, ordered_setname.c_str())
-            .def(py::init<>())
+            .def(py::init<int>())
             .def("isin", &Type::isin)
             .def("update", &Type::update)
             .def("update", &Type::update_with_mask)
