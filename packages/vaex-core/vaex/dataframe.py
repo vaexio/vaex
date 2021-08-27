@@ -2390,7 +2390,6 @@ class DataFrame(object):
         transformer = encoding.decode('transformer', state['transformer'], trusted=trusted)
         if transformer is not None:
             transformer.apply_deep(self)
-
         # for name, value in state['virtual_columns'].items():
         #     self[name] = self._expr(value)
             # self._save_assign_expression(name)
