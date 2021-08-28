@@ -312,17 +312,10 @@
     },
     {
         "classname": "MultiHotEncoder",
-        "doc": "Docstring\n    ",
+        "doc": "Encode categorical columns according to a binary multi-hot scheme.\n\n    With Multi-Hot Encoder (sometimes called Binary Encoder), the categorical variables are first\n    ordinal encoded, and those encodings are converted to a binary number. Each digit of that binary number\n    is a separate column, containing either a \"0\" or a \"1\". This is can be considered as an improvement\n    over the One-Hot encoder as it guards against generating too many new columns when the cardinality of the\n    categorical column is high, while effecively removing the ordinality that an Ordinal Encoder would introduce.\n\n    Example:\n\n    >>> import vaex\n    >>> import vaex.ml\n    >>> df = vaex.from_arrays(color=['red', 'green', 'green', 'blue', 'red'])\n    >>> df\n    #  color\n    0  red\n    1  green\n    2  green\n    3  blue\n    4  red\n    >>> encoder = vaex.ml.MultiHotEncoder(features=['color'])\n    >>> encoder.fit_transform(df)\n    #  color      color_0    color_1    color_2\n    0  red              0          1          1\n    1  green            0          1          0\n    2  green            0          1          0\n    3  blue             0          0          1\n    4  red              0          1          1\n    ",
         "module": "vaex.ml.transformations",
         "snake_name": "multi_hot_encoder",
         "traits": [
-            {
-                "default": null,
-                "has_default": true,
-                "help": "The binary-encoded labels of each feature.",
-                "name": "binary_labels_",
-                "type": "Dict"
-            },
             {
                 "default": null,
                 "has_default": true,
@@ -335,13 +328,6 @@
                 "has_default": true,
                 "help": "The ordinal-encoded labels of each feature.",
                 "name": "labels_",
-                "type": "Dict"
-            },
-            {
-                "default": null,
-                "has_default": true,
-                "help": "Number dimensions of the multi-hot vector.",
-                "name": "n_dims_",
                 "type": "Dict"
             },
             {
