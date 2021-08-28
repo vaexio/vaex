@@ -583,7 +583,7 @@ def test_multihot_encoder(tmpdir, df_factory):
     df_test.state_load(str(tmpdir.join('test.json')))
 
     # Verify dogs
-    assert encoder.binary_labels_['animals']['dog'] == '010'
+    # 'dog' binary code is '010'
     dogs = df_train[df_train.animals == 'dog'][df_train.get_column_names(regex='^animals_')]
     assert dogs.animals_0.unique() == [0]
     assert dogs.animals_1.unique() == [1]
@@ -594,7 +594,7 @@ def test_multihot_encoder(tmpdir, df_factory):
     assert dogs.animals_2.unique() == [0]
 
     # Verify cats
-    assert encoder.binary_labels_['animals']['cat'] == '001'
+    # 'cat' binary code is '001'
     cats = df_train[df_train.animals == 'cat'][df_train.get_column_names(regex='^animals_')]
     assert cats.animals_0.unique() == [0]
     assert cats.animals_1.unique() == [0]
@@ -605,7 +605,7 @@ def test_multihot_encoder(tmpdir, df_factory):
     assert cats.animals_2.unique() == [1]
 
     # Verify mice
-    assert encoder.binary_labels_['animals']['mouse'] == '011'
+    # mouse binary code is '011'
     mice = df_train[df_train.animals == 'mouse'][df_train.get_column_names(regex='^animals_')]
     assert mice.animals_0.unique() == [0]
     assert mice.animals_1.unique() == [1]
@@ -616,8 +616,8 @@ def test_multihot_encoder(tmpdir, df_factory):
     assert mice.animals_2.unique() == [1]
 
 
-    # Verify Orange
-    assert encoder.binary_labels_['colors']['red'] == '1001'
+    # Verify Red
+    # 'red' binary code is '1001'
     clr = df_test[df_test.colors == 'red'][df_test.get_column_names(regex='^colors_')]
     assert clr.colors_0.unique() == [1]
     assert clr.colors_1.unique() == [0]
@@ -625,7 +625,7 @@ def test_multihot_encoder(tmpdir, df_factory):
     assert clr.colors_3.unique() == [1]
 
     # Verity white
-    assert encoder.binary_labels_['colors']['white'] == '1011'
+    # 'white' binary code is '1011'
     clr = df_test[df_test.colors == 'white'][df_test.get_column_names(regex='^colors_')]
     assert clr.colors_0.unique() == [1]
     assert clr.colors_1.unique() == [0]
@@ -633,7 +633,7 @@ def test_multihot_encoder(tmpdir, df_factory):
     assert clr.colors_3.unique() == [1]
 
     # Verify blue
-    assert encoder.binary_labels_['colors']['blue'] == '0010'
+    # 'blue' binary code is '0010'
     clr = df_test[df_test.colors == 'blue'][df_test.get_column_names(regex='^colors_')]
     assert clr.colors_0.unique() == [0]
     assert clr.colors_1.unique() == [0]

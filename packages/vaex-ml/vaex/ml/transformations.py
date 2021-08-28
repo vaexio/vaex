@@ -1,11 +1,14 @@
-import vaex.dataframe
-from vaex.serialize import register
+import math
 import numpy as np
-from . import generate
-from .state import HasState
 import traitlets
-from vaex.utils import _ensure_strings_from_expressions
 import warnings
+
+import vaex.dataframe
+from vaex.ml import generate
+from vaex.ml.state import HasState
+from vaex.serialize import register
+from vaex.utils import _ensure_strings_from_expressions
+
 
 sklearn = vaex.utils.optional_import("sklearn", modules=[
     "sklearn.decomposition",
@@ -483,8 +486,6 @@ class MultiHotEncoder(Transformer):
 
     prefix = traitlets.Unicode(default_value='', help=help_prefix).tag(ui='Text')
     labels_ = traitlets.Dict(default_value={}, allow_none=True, help='The ordinal-encoded labels of each feature.').tag(output=True)
-    n_dims_ = traitlets.Dict(default_value={}, allow_none=True, help='Number dimensions of the multi-hot vector.').tag(output=True)
-    binary_labels_ = traitlets.Dict(default_value={}, allow_none=True, help='The binary-encoded labels of each feature.').tag(output=True)
 
     def fit(self, df):
         '''Fit MultiHotEncoder to the DataFrame.
@@ -504,17 +505,10 @@ class MultiHotEncoder(Transformer):
 
             labels_dict = dict(zip(labels, np.arange(1, n_labels+1)))
             self.labels_[feature] = labels_dict
-            self.n_dims_[feature] = self._get_n_dims(n_labels)
-            self.binary_labels_[feature] = {key: f'{int(bin(value)[2:]):0{self.n_dims_[feature]}d}' for key, value in labels_dict.items()}
 
     def _get_n_dims(self, n_labels):
         '''Get the number of dimensions for the multi-hot vector, based on the number of unique labels.'''
-        if np.mod(n_labels, 2) == 0:
-            binary = bin(n_labels)[2:]
-            return len(binary)
-        else:
-            binary = bin(n_labels)[2:]
-            return len(binary) + 1
+        return math.floor(math.log2(n_labels)) + 1 + np.mod(n_labels, 2)
 
     def transform(self, df):
         '''Transform a DataFrame with a fitted MultiHotEncoder.
@@ -525,11 +519,14 @@ class MultiHotEncoder(Transformer):
         '''
         copy = df.copy()
         for feature in self.features:
-            unseen_value = f'{0:0{self.n_dims_[feature]}d}'
-            tmp = copy[feature].map(self.binary_labels_[feature], default_value=unseen_value)
-            for i in range(self.n_dims_[feature]):
+            tmp = copy[feature].map(self.labels_[feature], default_value=0)
+            n_labels = len(self.labels_[feature])
+            n_dims = self._get_n_dims(n_labels=n_labels)
+            # i is for the order of the features names,
+            # j tracks the order of the labels, as it goes backwards.
+            for i, j in enumerate(range(n_dims-1, -1, -1)):
                 name = f'{self.prefix}{feature}_{i}'
-                copy[name] = tmp.str.get(i).astype('int8')
+                copy[name] = (tmp >> j) & 1
         return copy
 
 
