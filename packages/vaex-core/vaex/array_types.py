@@ -297,8 +297,9 @@ def type_promote(t1, t2):
 
     # TODO: so far we only use this in in code that converts to arrow
     # if we want to support numpy, we have to check it types were numpy types
-    is_numerics = [pa.types.is_floating, pa.types.is_integer, pa.types.is_timestamp]
-    if any(test(t1) for test in is_numerics) and any(test(t2) for test in is_numerics):
+    is_numerics = [pa.types.is_floating, pa.types.is_integer]
+    if (any(test(t1) for test in is_numerics) and any(test(t2) for test in is_numerics)) \
+       or (pa.types.is_timestamp(t1) and pa.types.is_timestamp(t2)):
         # leverage numpy for type promotion
         dtype1 = numpy_dtype_from_arrow_type(t1)
         dtype2 = numpy_dtype_from_arrow_type(t2)
