@@ -289,3 +289,4 @@ def test_concat_timestamp():
     df2_vx = vaex.from_arrow_table(df2)
     df = vaex.concat([df1_vx, df2_vx])
     assert df.ts.tolist() == df1['ts'].to_pylist() + df2['ts'].to_pylist()
+    assert df.ts.dtype.internal == pa.timestamp('ns')
