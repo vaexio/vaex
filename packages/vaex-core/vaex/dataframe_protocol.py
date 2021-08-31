@@ -27,34 +27,31 @@ def _from_dataframe_to_vaex(df : DataFrameObject) -> vaex.dataframe.DataFrame:
     """
     Note: we need to implement/test support for bit/byte masks, chunk handling, etc.
     """
-    # Check number of chunks, if there's more than one we need to iterate
-    # For now it is set to 1
-    if df.num_chunks() > 1:
-        raise NotImplementedError
+    # Iterate through the chunks
+    dataframe = []
+    for chunk in df.get_chunks():
+        # We need a dict of columns here, with each column being a numpy array.
+        columns = dict()
+        labels = dict()
+        _k = _DtypeKind
+        for name in chunk.column_names():
+            col = chunk.get_column_by_name(name)
+            # Warning if variable name is not a string
+            # protocol-design-requirements No.4
+            if not isinstance(name, str):
+                raise NotImplementedError(f"Column names must be string (not {name}).")
+            if col.dtype[0] in (_k.INT, _k.UINT, _k.FLOAT, _k.BOOL):
+                # Simple numerical or bool dtype, turn into numpy array
+                columns[name] = convert_column_to_ndarray(col)
+            elif col.dtype[0] == _k.CATEGORICAL:
+                columns[name] = convert_categorical_column(col)
+            else:
+                raise NotImplementedError(f"Data type {col.dtype[0]} not handled yet")
+        dataframe.append(vaex.from_dict(columns))
 
-    # We need a dict of columns here, with each column being a numpy array.
-    columns = dict()
-    labels = dict()
-    _k = _DtypeKind
-    for name in df.column_names():
-        col = df.get_column_by_name(name)
-        
-        # Warning if variable name is not a string
-        # protocol-design-requirements No.4
-        if not isinstance(name, str):
-            raise NotImplementedError(f"Column names must be string (not {name}).")
-            
-        if col.dtype[0] in (_k.INT, _k.UINT, _k.FLOAT, _k.BOOL):
-            # Simple numerical or bool dtype, turn into numpy array
-            columns[name] = convert_column_to_ndarray(col)
-        elif col.dtype[0] == _k.CATEGORICAL:
-            columns[name] = convert_categorical_column(col)
-        else:
-            raise NotImplementedError(f"Data type {col.dtype[0]} not handled yet")
-    
-    dataframe = vaex.from_dict(columns)
-            
-    return dataframe
+
+    # Join the chunks into tuple for now
+    return vaex.concat(dataframe, resolver='strict')
 
 class _DtypeKind(enum.IntEnum):
     INT = 0
@@ -86,7 +83,6 @@ def convert_column_to_ndarray(col : ColumnObject) -> pa.Array:
         x = pa.array(x, mask=mask)
     else:
         x = pa.array(x)
-    
     return x
 
 def buffer_to_ndarray(_buffer, _dtype) -> np.ndarray:
@@ -230,7 +226,7 @@ class _VaexColumn:
         """
         Size of the column, in elements.
         """
-        return self._col.values.size
+        return self._col.df.count("*")
     
     @property
     def offset(self) -> int:
@@ -375,22 +371,42 @@ class _VaexColumn:
         """
         Return the number of chunks the column consists of.
         """
-        return 1
+        if isinstance(self._col.values, pa.ChunkedArray):
+            return self._col.values.num_chunks
+        else:
+            return 1
 
-    def get_chunks(self, n_chunks : Optional[int] = None) -> Iterable['_PandasColumn']:
+    def get_chunks(self, metadata, n_chunks : Optional[int] = None) -> Iterable['_VaexColumn']:
         """
         Return an iterator yielding the chunks.
         See `DataFrame.get_chunks` for details on ``n_chunks``.
         """
-        return {}
+        if n_chunks==None:
+            size = self.size
+            n_chunks = self.num_chunks()
+            i = self._col.df.evaluate_iterator(self._col, chunk_size=size//n_chunks)
+            iterator = []
+            for i1, i2, chunk in i:
+                iterator.append(_VaexColumn(self._col[i1:i2], metadata))
+            return iterator        
+        elif self.num_chunks==1:
+            size = self.size
+            i = self._col.df.evaluate_iterator(self._col, chunk_size=size//n_chunks)
+            iterator = []
+            for i1, i2, chunk in i:
+                iterator.append(_VaexColumn(self._col[i1:i2], metadata))
+            return iterator             
+            
+        else:
+            raise ValueError(f'Column {self._col.expression} is already chunked.')
     
     @property
-    def metadata(self, dict_is_cat) -> Dict[str, Any]:
+    def metadata(self, metadata) -> Dict[str, Any]:
         """
         Store specific metadata of the column.
         """
-        # Boolean if column is categorical or not
-        return dict_is_cat
+        # Metadata about categories
+        return metadata
     
     def get_data_buffer(self) -> Tuple[_VaexBuffer, Any]:  # Any is for self.dtype tuple
         """
@@ -483,7 +499,10 @@ class _VaexDataFrame:
         return len(self._df)
 
     def num_chunks(self) -> int:
-        return 1
+        if isinstance(self.get_column(0)._col.values, pa.ChunkedArray):
+            return self.get_column(0)._col.values.num_chunks
+        else:
+            return 1
 
     def column_names(self) -> Iterable[str]:
         return self._df.get_column_names()
@@ -506,11 +525,26 @@ class _VaexDataFrame:
     def select_columns_by_name(self, names: Sequence[str]) -> '_VaexDataFrame':
         if not isinstance(names, collections.Sequence):
             raise ValueError("`names` is not a sequence")
-
-        return {} # TODO
+        return self._df[names]
 
     def get_chunks(self, n_chunks : Optional[int] = None) -> Iterable['_VaexDataFrame']:
         """
         Return an iterator yielding the chunks.
         """
-        return {} # TODO
+        if n_chunks==None:
+            size = self.num_rows()
+            n_chunks = self.num_chunks()
+            i = self._df.evaluate_iterator(self.get_column(0)._col, chunk_size=size//n_chunks)
+            iterator = []
+            for i1, i2, chunk in i:
+                iterator.append(_VaexDataFrame(self._df[i1:i2]))
+            return iterator        
+        elif self.num_chunks==1:
+            size = self.num_rows()
+            i = self._df.evaluate_iterator(self.get_column(0)._col, chunk_size=size//n_chunks)
+            iterator = []
+            for i1, i2, chunk in i:
+                iterator.append(_VaexColumn(self._df[i1:i2]))
+            return iterator             
+        else:
+            raise ValueError("Column `self._col.expression` is already chunked.")
