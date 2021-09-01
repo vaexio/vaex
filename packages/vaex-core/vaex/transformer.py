@@ -70,7 +70,7 @@ class Apply(Transformer):
             'func': encoding.decode('pickle', spec['func'], trusted=trusted),
             'args': encoding.decode('pickle', spec['args'], trusted=trusted),
             'kwargs': encoding.decode('pickle', spec['kwargs'], trusted=trusted),
-            'previous': encoding.decode('transformer', spec['previous']),
+            'previous': encoding.decode('transformer', spec['previous'], trusted=trusted),
         }
         return cls(**kwargs)
 
