@@ -164,7 +164,7 @@ def _transformer(name=None):
             previous = self.pipeline.transformer
             df = method(self, *args, **kwargs)
             transformer = vaex.transformer.Method(method.__name__, name, args, kwargs, previous)
-            self.pipeline.transformer = transformer
+            df.pipeline.transformer = transformer
             # else:
             #     df = method(self, *args, **kwargs)
             return df
