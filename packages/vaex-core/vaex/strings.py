@@ -20,7 +20,9 @@ def array(ar):
         raise ValueError('Cannot convert %r to a string array' % ar)
 
 def to_string_sequence(strings):
-    strings = vaex.column.ColumnStringArrow.from_arrow(pa.array(strings))
+    if not vaex.array_types.is_arrow_array(strings):
+        strings = pa.array(strings)
+    strings = vaex.column.ColumnStringArrow.from_arrow(strings)
     return strings.string_sequence
 
 
