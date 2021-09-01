@@ -2389,7 +2389,7 @@ class DataFrame(object):
         transformer = encoding.decode('transformer', state['transformer'], trusted=trusted)
         if transformer is not None:
             transformer.apply_deep(self)
-        
+
         # for name, value in state['virtual_columns'].items():
         #     self[name] = self._expr(value)
             # self._save_assign_expression(name)
@@ -2467,7 +2467,7 @@ class DataFrame(object):
                      description=self.description,
                      active_range=[self._index_start, self._index_end])
         return state
-    pipeline_get = _state_get_vaex_5 
+    pipeline_get = _state_get_vaex_5
 
     def _state_set_pre_vaex_5(self, state, use_active_range=False, keep_columns=None, set_filter=True, trusted=True, warn=True):
         """Sets the internal state of the df
@@ -4426,6 +4426,7 @@ class DataFrame(object):
             yield self[start:offset]
             start = offset
 
+    @_transformer()
     @docsubst
     def sort(self, by, ascending=True, kind='quicksort'):
         '''Return a sorted DataFrame, sorted by the expression 'by'
