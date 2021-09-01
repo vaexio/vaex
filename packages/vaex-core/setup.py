@@ -70,6 +70,12 @@ class get_pybind_include(object):
 USE_ABSL = False
 USE_TSL = True
 
+define_macros = []
+if USE_ABSL:
+    define_macros += [('VAEX_USE_ABSL', None)]
+if USE_TSL:
+    define_macros += [('VAEX_USE_TSL', None)]
+
 dll_files = []
 if platform.system().lower() == 'windows':
     extra_compile_args = ["/EHsc"]
@@ -78,10 +84,6 @@ else:
     # TODO: maybe enable these flags for non-wheel/conda builds? ["-mtune=native", "-march=native"]
     extra_compile_args = ["-std=c++11", "-O3", "-funroll-loops"]
     extra_compile_args.append("-g")
-    if USE_ABSL:
-        extra_compile_args += ['-DVAEX_USE_ABSL']
-    if USE_TSL:
-        extra_compile_args += ['-DVAEX_USE_TSL']
     extra_compile_args += extra_dev_options
 if sys.platform == 'darwin':
     extra_compile_args.append("-mmacosx-version-min=10.9")
@@ -131,6 +133,7 @@ extension_superutils = Extension("vaex.superutils", [
         'vendor/string-view-lite/include',
     ],
     extra_compile_args=extra_compile_args,
+    define_macros=define_macros,
     )
 
 extension_superagg = Extension("vaex.superagg", [
@@ -148,7 +151,9 @@ extension_superagg = Extension("vaex.superagg", [
         'vendor/hopscotch-map/include',
         'vendor/string-view-lite/include'
     ],
-    extra_compile_args=extra_compile_args)
+    extra_compile_args=extra_compile_args,
+    define_macros=define_macros,
+    )
 
 setup(name=name + '-core',
       version=version,
