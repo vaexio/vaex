@@ -577,6 +577,10 @@ class DataFrame(object):
                 keys = keys.take(indices)
             else:
                 keys = np.delete(keys, deletes)
+                if not dropmissing and ordered_set.has_null:
+                    mask = np.zeros(len(keys), dtype=np.uint8)
+                    mask[ordered_set.null_value] = 1
+                    keys = np.ma.array(keys, mask=mask)
         keys = vaex.array_types.convert(keys, array_type)
         if return_inverse:
             return keys, inverse
