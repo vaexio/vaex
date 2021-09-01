@@ -4,7 +4,7 @@ pytest.importorskip("annoy")
 import annoy
 import vaex.ml.incubator.annoy
 import vaex.ml.datasets
-import test_utils
+from . import test_utils
 
 
 @test_utils.skip_incubator
