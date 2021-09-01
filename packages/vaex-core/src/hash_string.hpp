@@ -56,7 +56,7 @@ class hash_base : public hash_common<Derived, T, hashmap<T, int64_t>> {
         int64_t size = strings->length;
 
         // for strings we always use offsets, we don't copy the data
-        const bool use_offsets = return_values;
+        // const bool use_offsets = return_values;
 
         py::array_t<value_type> values_array(return_values ? size : 1);
         auto values_ptr = values_array.mutable_data(0);
@@ -374,14 +374,17 @@ class ordered_set : public hash_base<ordered_set<T>, T, T, V> {
         py::array_t<bool> result(size);
         auto output = result.template mutable_unchecked<1>();
         py::gil_scoped_release gil;
+        size_t nmaps = this->maps.size();
         if (strings->has_null()) {
             for (int64_t i = 0; i < size; i++) {
                 if (strings->is_null(i)) {
                     output(i) = this->null_count > 0;
                 } else {
                     const storage_type_view &value = strings->get(i);
-                    auto search = this->maps[0].find(value);
-                    auto end = this->maps[0].end();
+                    std::size_t hash = hasher_map_choice()(value);
+                    size_t map_index = (hash % nmaps);
+                    auto search = this->maps[map_index].find(value);
+                    auto end = this->maps[map_index].end();
                     if (search == end) {
                         output(i) = false;
                     } else {
@@ -392,8 +395,10 @@ class ordered_set : public hash_base<ordered_set<T>, T, T, V> {
         } else {
             for (int64_t i = 0; i < size; i++) {
                 const storage_type_view &value = strings->get(i);
-                auto search = this->maps[0].find(value);
-                auto end = this->maps[0].end();
+                std::size_t hash = hasher_map_choice()(value);
+                size_t map_index = (hash % nmaps);
+                auto search = this->maps[map_index].find(value);
+                auto end = this->maps[map_index].end();
                 if (search == end) {
                     output(i) = false;
                 } else {
@@ -404,7 +409,7 @@ class ordered_set : public hash_base<ordered_set<T>, T, T, V> {
         return result;
     }
     py::object map_ordinal(StringSequence *strings) {
-        size_t size = this->maps[0].size() + (this->null_count > 0 ? 1 : 0);
+        size_t size = this->length();
         if (size < (1u << 7u)) {
             return this->template _map_ordinal<int8_t>(strings);
         } else if (size < (1u << 15u)) {

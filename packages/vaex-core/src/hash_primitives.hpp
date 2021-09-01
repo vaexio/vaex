@@ -476,15 +476,17 @@ class ordered_set : public hash_base<ordered_set<T2, Hashmap2>, T2, Hashmap2> {
         py::array_t<bool> result(size);
         auto input = values.template unchecked<1>();
         auto output = result.template mutable_unchecked<1>();
+        size_t nmaps = this->maps.size();
         py::gil_scoped_release gil;
         for (int64_t i = 0; i < size; i++) {
             const key_type &value = input(i);
             if (custom_isnan(value)) {
                 output(i) = this->nan_count > 0;
             } else {
-                // TODO: wrong
-                auto search = this->maps[0].find(value);
-                auto end = this->maps[0].end();
+                std::size_t hash = hasher_map_choice()(value);
+                size_t map_index = (hash % nmaps);
+                auto search = this->maps[map_index].find(value);
+                auto end = this->maps[map_index].end();
                 if (search == end) {
                     output(i) = false;
                 } else {
