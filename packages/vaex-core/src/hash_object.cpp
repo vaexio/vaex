@@ -50,7 +50,8 @@ public:
         }    
     }
 
-    void update(py::buffer object_array) {
+    // keep function signature the same
+    void update(py::buffer &object_array, int64_t start_index = 0, int64_t chunk_size = 1024 * 16, int64_t bucket_size = 1024 * 128, bool return_values = false) {
         py::buffer_info info = object_array.request();
         if(info.ndim != 1) {
             throw std::runtime_error("Expected a 1d byte buffer");
@@ -117,6 +118,15 @@ public:
             Py_DECREF(count);
         }
         return  py::reinterpret_steal<py::object>(dict);
+    }
+    int64_t length() {
+        int64_t l = map.size();
+        if (nan_count > 0) {
+            l++;
+        }
+        if (null_count > 0) {
+            l++;
+        }
     }
     hashmap<storage_type, int64_t, std::hash<storage_type>, CompareObjects> map;
     int64_t count;
@@ -262,8 +272,9 @@ public:
     void add(Bucket& position, storage_type& storage_value) {
         // we can do nothing here
     }
-    void merge(const ordered_set & other) {
-        for (auto & elem : other.map) {
+    void merge(std::vector<const ordered_set*> & others) {
+        for (auto &other : others) {
+        for (auto & elem : other->map) {
             const value_type& value = elem.first;
             auto search = this->map.find(value);
             auto end = this->map.end();
@@ -275,8 +286,9 @@ public:
                 // if already in, it's fine
             }
         }
-        this->nan_count += other.nan_count;
-        this->null_count += other.null_count;
+        this->nan_count += other->nan_count;
+        this->null_count += other->null_count;
+        }
     }
     py::object keys() {
         PyObject* list = PyList_New(this->map.size());
@@ -295,7 +307,8 @@ void init_hash_object(py::module &m) {
         std::string countername = "counter_object";
         py::class_<Type>(m, countername.c_str())
             .def(py::init<int>())
-            .def("update", &Type::update)
+            .def("update", &Type::update, "add values", py::arg("values"), py::arg("start_index") = 0, py::arg("chunk_size") = 1024 * 128, py::arg("bucket_size") = 1024 * 128,
+                 py::arg("return_values") = false)
             .def("update", &Type::update_with_mask)
             .def("merge", &Type::merge)
             .def("extract", &Type::extract)
@@ -312,8 +325,10 @@ void init_hash_object(py::module &m) {
         py::class_<Type>(m, ordered_setname.c_str())
             .def(py::init<int>())
             .def("isin", &Type::isin)
-            .def("update", &Type::update)
+            .def("update", &Type::update, "add values", py::arg("values"), py::arg("start_index") = 0, py::arg("chunk_size") = 1024 * 128, py::arg("bucket_size") = 1024 * 128,
+                 py::arg("return_values") = false)
             .def("update", &Type::update_with_mask)
+            .def("__len__", &Type::length)
             .def("merge", &Type::merge)
             .def("extract", &Type::extract)
             .def("keys", &Type::keys)

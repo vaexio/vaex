@@ -161,7 +161,6 @@ class hash_base : public hash_common<Derived, T, hashmap<T, int64_t>> {
         // first get the lenghts
         std::vector<int64_t> lengths(size);
         int64_t buffer_length = 0;
-        lengths[0] = 0;
         auto offsets = this->offsets();
         size_t map_index = 0;
         int64_t natural_order = 0;
