@@ -4641,6 +4641,8 @@ class DataFrame(object):
             df[name] = df.func.fillna(df[name], value)
         return df
 
+    @_transformer()
+    @docsubst
     def materialize(self, virtual_column, inplace=False):
         '''Returns a new DataFrame where the virtual column is turned into an in memory numpy array.
 
