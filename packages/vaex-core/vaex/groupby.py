@@ -443,8 +443,8 @@ class GroupByBase(object):
 
 class BinBy(GroupByBase):
     """Implementation of the binning and aggregation of data, see :method:`binby`."""
-    def __init__(self, df, by):
-        super(BinBy, self).__init__(df, by)
+    def __init__(self, df, by, sort=False):
+        super(BinBy, self).__init__(df, by, sort=sort)
 
     def agg(self, actions, merge=False):
         import xarray as xr

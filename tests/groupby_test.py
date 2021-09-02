@@ -153,7 +153,7 @@ def test_binby_1d(ds_local):
     ds = ds_local.extract()
     g = np.array([0, 0, 0, 0, 1, 1, 1, 1, 2, 2])
     ds.add_column('g', g)
-    ar = ds.binby(by=ds.g, agg={'count': vaex.agg.count()})
+    ar = ds.binby(by=ds.g, agg={'count': vaex.agg.count()}, sort=True)
 
     assert ar.coords['g'].values.tolist() == [0, 1, 2]
     assert ar.coords['statistic'].values.tolist() == ["count"]
@@ -178,14 +178,14 @@ def test_binby_2d(ds_local):
     h = np.array([5, 5, 5, 6, 5, 5, 5, 5, 6, 6])
     ds['g'] = g
     ds['h'] = h
-    ar = ds.binby(by=[ds.g, ds.h], agg={'count': vaex.agg.count()})
+    ar = ds.binby(by=[ds.g, ds.h], agg={'count': vaex.agg.count()}, sort=True)
     assert ar.coords['g'].values.tolist() == [0, 1, 2]
     assert ar.coords['h'].values.tolist() == [5, 6]
     assert ar.coords['statistic'].values.tolist() == ["count"]
     assert ar.dims == ('statistic', 'g', 'h')
     assert ar.data.tolist() == [[[3, 1], [4, 0], [0, 2]]]
 
-    ar = ds.binby(by=[ds.g, ds.h], agg=vaex.agg.count())
+    ar = ds.binby(by=[ds.g, ds.h], agg=vaex.agg.count(), sort=True)
     assert ar.dims == ('g', 'h')
     assert ar.data.tolist() == [[3, 1], [4, 0], [0, 2]]
 
@@ -408,7 +408,7 @@ def test_groupby_datetime():
 
 def test_groupby_state(df_factory, rebuild_dataframe):
     df = df_factory(g=[0, 0, 0, 1, 1, 2], x=[1, 2, 3, 4, 5, 6])._future()
-    dfg = df.groupby(by=df.g, agg={'count': vaex.agg.count(), 'sum': vaex.agg.sum('x')})
+    dfg = df.groupby(by=df.g, agg={'count': vaex.agg.count(), 'sum': vaex.agg.sum('x')}, sort=True)
     dfg.sort('g')  # TODO: sort it not yet implemented in the dataset state
     assert dfg.g.tolist() == [0, 1, 2]
     assert dfg['count'].tolist() == [3, 2, 1]

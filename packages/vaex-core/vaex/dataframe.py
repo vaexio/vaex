@@ -6651,7 +6651,7 @@ class DataFrameLocal(DataFrame):
         else:
             return groupby.agg(agg)
 
-    def binby(self, by=None, agg=None):
+    def binby(self, by=None, agg=None, sort=False):
         """Return a :class:`BinBy` or :class:`DataArray` object when agg is not None
 
         The binby operation does not return a 'flat' DataFrame, instead it returns an N-d grid
@@ -6664,7 +6664,7 @@ class DataFrameLocal(DataFrame):
         :return: :class:`DataArray` or :class:`BinBy` object.
         """
         from .groupby import BinBy
-        binby = BinBy(self, by=by)
+        binby = BinBy(self, by=by, sort=sort)
         if agg is None:
             return binby
         else:
