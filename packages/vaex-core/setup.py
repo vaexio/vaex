@@ -82,7 +82,7 @@ if platform.system().lower() == 'windows':
     dll_files = ['pcre.dll', 'pcrecpp.dll', 'vcruntime140_1.dll']
 else:
     # TODO: maybe enable these flags for non-wheel/conda builds? ["-mtune=native", "-march=native"]
-    extra_compile_args = ["-std=c++11", "-O1", "-funroll-loops", "-Werror=return-type", "-Wno-unused-parameter"]
+    extra_compile_args = ["-std=c++11", "-O3", "-funroll-loops", "-Werror=return-type", "-Wno-unused-parameter"]
     extra_compile_args.append("-g")
     extra_compile_args += extra_dev_options
 if sys.platform == 'darwin':
