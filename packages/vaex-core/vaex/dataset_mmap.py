@@ -91,16 +91,20 @@ class DatasetMemoryMapped(vaex.dataset.DatasetFile):
         for name, file in self.file_map.items():
             file.close()
 
-    def _map_array(self, offset=None, length=None, dtype=np.float64, path=None):
+    def _map_array(self, offset=None, shape=None, dtype=np.float64, path=None):
         if path is None:
             path = self.path
-        return self._do_map(path, offset, length, dtype)
+        return self._do_map(path, offset, shape, dtype)
     
-    def _do_map(self, path, offset, length, dtype):        
+    def _do_map(self, path, offset, shape, dtype):
+        length = np.product(shape)
         if self.nommap:
+            if len(shape) > 1:
+                raise RuntimeError('not supported, high d arrays from non local files')
             file = self._get_file(path)
             column = ColumnFile(file, offset, length, dtype, write=self.write, path=self.path, tls=self.tls_map[path])
         else:
             mapping = self._get_mapping(path)
             column = np.frombuffer(mapping, dtype=dtype, count=length, offset=offset)
+            column = column.reshape(shape)
         return column

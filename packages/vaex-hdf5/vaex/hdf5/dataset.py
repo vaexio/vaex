@@ -262,7 +262,7 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
                     if dtype == 'utf32':
                         dtype = np.dtype('U' + str(data.attrs['dlength']))
             #self.addColumn(column_name, offset, len(data), dtype=dtype)
-            array = self._map_array(offset, dtype=dtype, length=len(data))
+            array = self._map_array(offset, dtype=dtype, shape=shape)
             if mask is not None:
                 mask_array = self._map_hdf5_array(mask)
                 if isinstance(array, np.ndarray):

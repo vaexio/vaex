@@ -66,7 +66,7 @@ class FitsBinTable(DatasetMemoryMapped):
                                         dtypecode += str(arraylength)
                                     logger.debug("column type: %r", (column.name, offset, dtype, length, column.format, column.dim))
                                     if arraylength == 1 or dtypecode[0] == "a":
-                                        ar = self._map_array(offset=offset, dtype=dtype, length=length)
+                                        ar = self._map_array(offset=offset, dtype=dtype, shape=(length,))
                                         self.add_column(column_name, ar)
                                     else:
                                         for i in range(arraylength):
