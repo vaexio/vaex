@@ -134,25 +134,19 @@ class Grouper(BinnerBase):
             logger.debug('Constructed grouper for expression %s with %i values', str(expression), len(self.bin_values))
 
             # since nan and null are at the start, we skip them with sorting
-            if set.has_null and set.has_nan:
-                offset = 2
-            elif set.has_null or set.has_nan:
-                offset = 1
-            else:
-                offset = 0
             if self.sort:
                 dtype = self.expression.dtype
-                indices = pa.compute.sort_indices(self.bin_values[offset:])
-                indices = pa.chunked_array([np.arange(offset), pa.compute.add(indices, offset)])
-                indices = pa.concat_arrays(indices.chunks)
+                indices = pa.compute.sort_indices(self.bin_values)#[offset:])
                 if pre_sort:
                     self.bin_values = pa.compute.take(self.bin_values, indices)
+                    # arrow sorts with null last
+                    null_value = -1 if not set.has_null else len(self.bin_values)-1
                     if dtype.is_string:
                         bin_values = vaex.column.ColumnStringArrow.from_arrow(self.bin_values)
                         string_sequence = bin_values.string_sequence
-                        set = type(set)(string_sequence, set.null_value, set.nan_count, set.null_count)
+                        set = type(set)(string_sequence, null_value, set.nan_count, set.null_count)
                     else:
-                        set = type(set)(self.bin_values, set.null_value, set.nan_count, set.null_count)
+                        set = type(set)(self.bin_values, null_value, set.nan_count, set.null_count)
                     self.sort_indices = None
                 else:
                     # TODO: skip first or first two values (null and/or nan)
@@ -230,13 +224,8 @@ class GrouperCategory(BinnerBase):
 
         self.bin_values = self.df.category_labels(self.expression_original, aslist=False)
         if self.sort:
-            # None will always be the first value
-            if self.bin_values[0] is None:
-                self.sort_indices = np.concatenate([[0], 1 + np.argsort(self.bin_values[1:])])
-                self.bin_values = np.array(self.bin_values)[self.sort_indices].tolist()
-            else:
-                self.sort_indices = np.argsort(self.bin_values)
-                self.bin_values = np.array(self.bin_values)[self.sort_indices].tolist()
+            self.sort_indices = pa.compute.sort_indices(self.bin_values)#[offset:])
+            self.bin_values = pa.compute.take(self.bin_values, self.sort_indices)
         else:
             self.sort_indices = None
         if isinstance(self.bin_values, list):

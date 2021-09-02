@@ -46,7 +46,13 @@ def test_set_int_multiple_maps():
     set0 = ordered_set_int32(2)
     set0.update(x)
     set0.seal()
-    assert set0.extract() == [{0: 0, 2: 1, 4:2}, {1:0, 3:1}]
+    # we're not guaranteed an order due to different hash functions on different
+    # platforms
+    values = {}
+    dicts = set0.extract()
+    for dict in dicts:
+        values.update(dict)
+    assert values == {0: 0, 2: 1, 4:2, 1:0, 3:1}
 
 
 @pytest.mark.parametrize("nan", [False, True])

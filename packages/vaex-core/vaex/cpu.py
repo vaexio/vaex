@@ -485,7 +485,7 @@ class TaskPartAggregation(TaskPart):
         if self.nbytes >= 1e7:
             splits = splits//2
         logger.info(f'Estimate for ideal number of splits: {splits:,}')
-        return max(2, splits)
+        return max(min(nthreads, 2), splits)
 
     def process(self, thread_index, i1, i2, filter_mask, *blocks):
         # self.check()

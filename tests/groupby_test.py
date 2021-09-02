@@ -120,8 +120,8 @@ def test_groupby_sort_string(df_factory, as_category):
     if as_category:
         df = df.ordinal_encode('g')
     dfg = df.groupby(by='g', sort=True, agg={'count': vaex.agg.count()})
-    assert dfg.g.tolist() == [None, 'a', 'b', 'c']
-    assert dfg['count'].tolist() == [4, 3, 1, 2]
+    assert dfg.g.tolist() == ['a', 'b', 'c', None]
+    assert dfg['count'].tolist() == [3, 1, 2, 4]
 
 
 @pytest.mark.parametrize("auto_encode", [False, True])
@@ -398,7 +398,7 @@ def test_groupby_datetime():
             }
 
     df = vaex.from_dict(data)
-    dfg = df.groupby(by='t').agg({'z': 'mean'})
+    dfg = df.groupby(by='t', sort=True).agg({'z': 'mean'})
 
     assert dfg.column_count() == 2
     assert dfg.z.tolist() == [3, 9]
