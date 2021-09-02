@@ -1,17 +1,40 @@
-import vaex
-import pyarrow
-import pyarrow as pa
-import numpy as np
+"""
+Implementation of the dataframe exchange protocol.
 
+Public API
+----------
+
+from_dataframe : construct a vaex.dataframe.DataFrame from an input data frame which
+                 implements the exchange protocol
+                 
+Notes
+-----
+- Interpreting a raw pointer (as in ``Buffer.ptr``) is annoying and unsafe to
+  do in pure Python. It's more general but definitely less friendly than having
+  ``to_arrow`` and ``to_numpy`` methods. So for the buffers which lack
+  ``__dlpack__`` (e.g., because the column dtype isn't supported by DLPack),
+  this is worth looking at again.
+"""
 import enum
 import collections.abc
 import ctypes
 from typing import Any, Optional, Tuple, Dict, Iterable, Sequence
 
+import vaex
+import pyarrow
+import pyarrow as pa
+import numpy as np
+import pandas as pd
+
+
+# A typing protocol could be added later to let Mypy validate code using
+# `from_dataframe` better.
 DataFrameObject = Any
 ColumnObject = Any
 
-def from_dataframe_to_vaex(df: DataFrameObject) -> vaex.dataframe.DataFrame:
+
+def from_dataframe_to_vaex(df : DataFrameObject,
+                          allow_copy : bool = True) -> vaex.dataframe.DataFrame:
     """
     Construct a vaex DataFrame from ``df`` if it supports ``__dataframe__``
     """
@@ -21,7 +44,8 @@ def from_dataframe_to_vaex(df: DataFrameObject) -> vaex.dataframe.DataFrame:
     if not hasattr(df, '__dataframe__'):
         raise ValueError("`df` does not support __dataframe__")
 
-    return _from_dataframe_to_vaex(df.__dataframe__())
+    return _from_dataframe_to_vaex(df.__dataframe__(allow_copy=allow_copy))
+
 
 def _from_dataframe_to_vaex(df : DataFrameObject) -> vaex.dataframe.DataFrame:
     """
@@ -29,29 +53,46 @@ def _from_dataframe_to_vaex(df : DataFrameObject) -> vaex.dataframe.DataFrame:
     """
     # Iterate through the chunks
     dataframe = []
+    _buffers = []
     for chunk in df.get_chunks():
-        # We need a dict of columns here, with each column being a numpy array.
+        
+        # We need a dict of columns here, with each column being an expression.
         columns = dict()
         _k = _DtypeKind
+        _buffers_chunks = []  # hold on to buffers, keeps memory alive        
         for name in chunk.column_names():
-            col = chunk.get_column_by_name(name)
-            # Warning if variable name is not a string
-            # protocol-design-requirements No.4
             if not isinstance(name, str):
-                raise NotImplementedError(f"Column names must be string (not {name}).")
+                raise ValueError(f"Column {name} is not a string")
+            if name in columns:
+                raise ValueError(f"Column {name} is not unique")
+            
+            col = chunk.get_column_by_name(name)
             if col.dtype[0] in (_k.INT, _k.UINT, _k.FLOAT, _k.BOOL):
-                # Simple numerical or bool dtype, turn into numpy array
-                columns[name] = convert_column_to_ndarray(col)
+                # Simple numerical or bool dtype, turn into arrow array
+                columns[name], _buf = convert_column_to_ndarray(col)
             elif col.dtype[0] == _k.CATEGORICAL:
-                columns[name] = convert_categorical_column(col)
+                columns[name], _buf = convert_categorical_column(col)
+            # TODO
+            #elif col.dtype[0] == _k.STRING:
+            #    columns[name], _buf = convert_string_column(col)
             else:
                 raise NotImplementedError(f"Data type {col.dtype[0]} not handled yet")
+            
+            _buffers_chunks.append(_buf)
+            
         dataframe.append(vaex.from_dict(columns))
-
-
+        # chunk buffers are added to list of all buffers
+        _buffers.append(_buffers_chunks)
+        
+    if df.num_chunks() == 1:
+        _buffers = _buffers[0]
+    
     # Join the chunks into tuple for now
-    return vaex.concat(dataframe, resolver='strict')
+    df_new = vaex.concat(dataframe)
+    df_new._buffers = _buffers
+    return df_new
 
+    
 class _DtypeKind(enum.IntEnum):
     INT = 0
     UINT = 1
@@ -60,6 +101,7 @@ class _DtypeKind(enum.IntEnum):
     STRING = 21   # UTF-8
     DATETIME = 22
     CATEGORICAL = 23
+
     
 def convert_column_to_ndarray(col : ColumnObject) -> pa.Array:
     """
@@ -72,17 +114,19 @@ def convert_column_to_ndarray(col : ColumnObject) -> pa.Array:
         raise NotImplementedError("Null values represented as"
                                   "sentinel values not handled yet")
     
-    _buffer, _dtype = col.get_data_buffer()
+    _buffer, _dtype = col.get_buffers()["data"]
     x = buffer_to_ndarray(_buffer, _dtype)
 
     # If there are any missing data with mask, apply the mask to the data
     if col.describe_null[0] in (3, 4) and col.null_count>0:
-        mask_buffer, mask_dtype = col.get_mask()
+        mask_buffer, mask_dtype = col._get_validity_buffer()
         mask = buffer_to_ndarray(mask_buffer, mask_dtype)
-        x = pa.array(x, mask=mask)
+        x = pa.array(x, mask=mask) 
     else:
         x = pa.array(x)
-    return x
+    
+    return x, _buffer
+
 
 def buffer_to_ndarray(_buffer, _dtype) -> np.ndarray:
     # Handle the dtype
@@ -104,11 +148,13 @@ def buffer_to_ndarray(_buffer, _dtype) -> np.ndarray:
     data_pointer = ctypes.cast(_buffer.ptr, ctypes.POINTER(ctypes_type))
 
     # NOTE: `x` does not own its memory, so the caller of this function must
-    #       either make a copy or hold on to a reference of the column or buffer!
+    #       either make a copy or hold on to a reference of the column or
+    #       buffer! (not done yet, this is pretty awful ...)
     x = np.ctypeslib.as_array(data_pointer,
                               shape=(_buffer.bufsize // (bitwidth//8),))
-
+    
     return x
+
 
 def convert_categorical_column(col : ColumnObject) -> pa.DictionaryArray:
     """
@@ -119,7 +165,7 @@ def convert_categorical_column(col : ColumnObject) -> pa.DictionaryArray:
         raise NotImplementedError('Non-dictionary categoricals not supported yet')
 
     categories = np.asarray(list(mapping.values()))
-    codes_buffer, codes_dtype = col.get_data_buffer()
+    codes_buffer, codes_dtype = col.get_buffers()["data"]
     codes = buffer_to_ndarray(codes_buffer, codes_dtype)
 
     if col.describe_null[0] == 2:  # sentinel value
@@ -127,17 +173,55 @@ def convert_categorical_column(col : ColumnObject) -> pa.DictionaryArray:
         sentinel = col.describe_null[1]
         codes[codes == sentinel] = None 
     
-    indices = pa.array(codes)
+    indices = pa.array(codes, type=pa.int16())
     dictionary = pa.array(categories)
   
     if col.describe_null[0] in (3, 4) and col.null_count>0: # masked missing values
-        mask_buffer, mask_dtype = col.get_mask()
+        mask_buffer, mask_dtype = col._get_validity_buffer()
         mask = buffer_to_ndarray(mask_buffer, mask_dtype)
         values = pa.DictionaryArray.from_arrays((pa.array(codes, mask=mask)), dictionary)
     else:
         values = pa.DictionaryArray.from_arrays(indices, dictionary)
+        
+    if not col.describe_null[0] in (2, 3, 4):
+        raise NotImplementedError("Only categorical columns with sentinel "
+                                  "value and masks supported at the moment")
     
-    return values
+    return values, codes_buffer
+
+
+def convert_string_column(col : ColumnObject) -> np.ndarray:
+    """
+    Convert a string column to a NumPy array.
+    """
+    #TODO
+    
+
+def __dataframe__(cls, nan_as_null : bool = False,
+                  allow_copy : bool = True) -> dict:
+    """
+    The public method to attach to pd.DataFrame.
+    We'll attach it via monkey-patching here for demo purposes. If Pandas adopts
+    the protocol, this will be a regular method on pandas.DataFrame.
+    ``nan_as_null`` is a keyword intended for the consumer to tell the
+    producer to overwrite null values in the data with ``NaN`` (or ``NaT``).
+    This currently has no effect; once support for nullable extension
+    dtypes is added, this value should be propagated to columns.
+    ``allow_copy`` is a keyword that defines whether or not the library is
+    allowed to make a copy of the data. For example, copying data would be
+    necessary if a library supports strided buffers, given that this protocol
+    specifies contiguous buffers.
+    Currently, if the flag is set to ``False`` and a copy is needed, a
+    ``RuntimeError`` will be raised.
+    """
+    return _VaexDataFrame(
+        cls, nan_as_null=nan_as_null, allow_copy=allow_copy)
+
+
+# Monkeypatch the Vaex DataFrame class to support the interchange protocol
+vaex.dataframe.DataFrame.__dataframe__ = __dataframe__
+vaex.dataframe.DataFrame._buffers = []
+
 
 # Implementation of interchange protocol
 # --------------------------------------
@@ -147,13 +231,23 @@ class _VaexBuffer:
     Data in the buffer is guaranteed to be contiguous in memory.
     """
 
-    def __init__(self, x : np.ndarray) -> None:
+    def __init__(self, x : np.ndarray, allow_copy : bool = True) -> None:
         """
         Handle only regular columns (= numpy arrays) for now.
         """
+        if not x.strides == (x.dtype.itemsize,):
+            # The protocol does not support strided buffers, so a copy is
+            # necessary. If that's not allowed, we need to raise an exception.
+            if allow_copy:
+                x = x.copy()
+            else:
+                raise RuntimeError("Exports cannot be zero-copy in the case "
+                                   "of a non-contiguous buffer")
+                
         # Store the numpy array in which the data resides as a private
         # attribute, so we can use it to retrieve the public attributes
         self._x = x
+    
     
     @property
     def bufsize(self) -> int:
@@ -195,16 +289,22 @@ class _VaexColumn:
     """
     A column object, with only the methods and properties required by the
     interchange protocol defined.
-    A column can contain one or more chunks. Each chunk can contain either one
-    or two buffers - one data buffer and (depending on null representation) it
-    may have a mask buffer.
+    
+    A column can contain one or more chunks. Each chunk can contain up to three
+    buffers - a data buffer, a mask buffer (depending on null representation),
+    and an offsets buffer (if variable-size binary; e.g., variable-length
+    strings).
+    
     Note: this Column object can only be produced by ``__dataframe__``, so
           doesn't need its own version or ``__column__`` protocol.
+          
     """
 
-    def __init__(self, column : vaex.expression.Expression) -> None:
+    def __init__(self, column : vaex.expression.Expression,
+                 allow_copy : bool = True) -> None:
         """
         Note: assuming column is an expression.
+        The values of an expression can be NumPy or Arrow.
         """
         if not isinstance(column, vaex.expression.Expression):
             raise NotImplementedError("Columns of type {} not handled "
@@ -212,7 +312,8 @@ class _VaexColumn:
 
         # Store the column as a private attribute
         self._col = column
-    
+        self._allow_copy = allow_copy
+        
     @property
     def size(self) -> int:
         """
@@ -231,7 +332,9 @@ class _VaexColumn:
     def dtype(self) -> Tuple[enum.IntEnum, int, str, str]:
         """
         Dtype description as a tuple ``(kind, bit-width, format string, endianness)``
+        
         Kind :
+        
             - INT = 0
             - UINT = 1
             - FLOAT = 2
@@ -239,11 +342,14 @@ class _VaexColumn:
             - STRING = 21   # UTF-8
             - DATETIME = 22
             - CATEGORICAL = 23
+            
         Bit-width : the number of bits as an integer
         Format string : data type description format string in Apache Arrow C
                         Data Interface format.
         Endianness : current only native endianness (``=``) is supported
+        
         Notes:
+        
             - Kind specifiers are aligned with DLPack where possible (hence the
               jump to 20, leave enough room for future extension)
             - Masks must be specified as boolean with either bit width 1 (for bit
@@ -262,15 +368,11 @@ class _VaexColumn:
             - Data types not included: complex, Arrow-style null, binary, decimal,
               and nested (list, struct, map, union) dtypes.
         """
-        # Define how _dtype_from_vaexdtype calculates kind
-        # If it is internal, categorical must stay categorical (info in metadata)
-        # If it is external (call from_dataframe) must give data dtype
-        
         dtype = self._col.dtype
         
         # Categorical
-        # If it is internal, kind is categorical (23)
-        # If it is external (call from_dataframe) must give data dtype
+        # If it is internal, kind must be categorical (23)
+        # If it is external (call from_dataframe), dtype must give type of the data
         if self._col.df.is_category(self._col):
             return (_DtypeKind.CATEGORICAL, 64, 'u', '=') # what should be the default??
         
@@ -297,6 +399,8 @@ class _VaexColumn:
                 raise ValueError(f"Data type {dtype} not supported by exchange"
                                  "protocol")
 
+        # TODO
+        #if kind not in (_k.INT, _k.UINT, _k.FLOAT, _k.BOOL, _k.CATEGORICAL, _k.STRING):
         if kind not in (_k.INT, _k.UINT, _k.FLOAT, _k.BOOL, _k.CATEGORICAL):
             raise NotImplementedError(f"Data type {dtype} not handled yet")
 
@@ -305,14 +409,19 @@ class _VaexColumn:
         endianness = dtype.byteorder if not kind == _k.CATEGORICAL else '='
         return (kind, bitwidth, format_str, endianness)
 
+    
     @property
     def describe_categorical(self) -> Dict[str, Any]:
         """
         If the dtype is categorical, there are two options:
+        
         - There are only values in the data buffer.
         - There is a separate dictionary-style encoding for categorical values.
+        
         Raises RuntimeError if the dtype is not categorical
+        
         Content of returned dict:
+        
             - "is_ordered" : bool, whether the ordering of dictionary indices is
                              semantically meaningful.
             - "is_dictionary" : bool, whether a dictionary-style mapping of
@@ -323,31 +432,38 @@ class _VaexColumn:
         if not self.dtype[0] == _DtypeKind.CATEGORICAL:
             raise TypeError("`describe_categorical only works on a column with "
                             "categorical dtype!")
-            
+   
         ordered = False
         is_dictionary = True        
         categories = self._col.df.category_labels(self._col)
         mapping = {ix: val for ix, val in enumerate(categories)}
         return ordered, is_dictionary, mapping
     
+    
     @property
     def describe_null(self) -> Tuple[int, Any]:
         """
         Return the missing value (or "null") representation the column dtype
         uses, as a tuple ``(kind, value)``.
+        
         Kind:
+        
             - 0 : non-nullable
             - 1 : NaN/NaT
             - 2 : sentinel value
             - 3 : bit mask
             - 4 : byte mask
-        Value : if kind is "sentinel value", the actual value. None otherwise.
+            
+        Value : if kind is "sentinel value", the actual value.  If kind is a bit
+        mask or a byte mask, the value (0 or 1) indicating a missing value. None
+        otherwise.
         """
         _k = _DtypeKind
         kind = self.dtype[0]
         value = None
         if kind in (_k.INT, _k.UINT, _k.FLOAT, _k.BOOL, _k.CATEGORICAL):
-            null = 3
+            null = 3 # or is it 4 (byte mask?)
+            value = 1
         else:    
             raise NotImplementedError(f'Data type {self.dtype} not yet supported')
 
@@ -360,6 +476,13 @@ class _VaexColumn:
         """
         return self._col.countmissing()
 
+    @property
+    def metadata(self) -> Dict[str, Any]:
+        """
+        Store specific metadata of the column.
+        """
+        return {}
+
     def num_chunks(self) -> int:
         """
         Return the number of chunks the column consists of.
@@ -369,9 +492,10 @@ class _VaexColumn:
         else:
             return 1
 
-    def get_chunks(self, metadata, n_chunks : Optional[int] = None) -> Iterable['_VaexColumn']:
+    def get_chunks(self, n_chunks : Optional[int] = None) -> Iterable['_VaexColumn']:
         """
         Return an iterator yielding the chunks.
+        
         See `DataFrame.get_chunks` for details on ``n_chunks``.
         """
         if n_chunks==None:
@@ -392,17 +516,45 @@ class _VaexColumn:
             
         else:
             raise ValueError(f'Column {self._col.expression} is already chunked.')
-    
-    @property
-    def metadata(self) -> Dict[str, Any]:
+
+    def get_buffers(self) -> Dict[str, Any]:
         """
-        Store specific metadata of the column.
+        Return a dictionary containing the underlying buffers.
+        
+        The returned dictionary has the following contents:
+        
+            - "data": a two-element tuple whose first element is a buffer
+                      containing the data and whose second element is the data
+                      buffer's associated dtype.
+            - "validity": a two-element tuple whose first element is a buffer
+                          containing mask values indicating missing data and
+                          whose second element is the mask value buffer's
+                          associated dtype. None if the null representation is
+                          not a bit or byte mask.
+            - "offsets": a two-element tuple whose first element is a buffer
+                         containing the offset values for variable-size binary
+                         data (e.g., variable-length strings) and whose second
+                         element is the offsets buffer's associated dtype. None
+                         if the data buffer does not have an associated offsets
+                         buffer.
         """
-        return {}
-    
-    def get_data_buffer(self) -> Tuple[_VaexBuffer, Any]:  # Any is for self.dtype tuple
+        buffers = {}
+        buffers["data"] = self._get_data_buffer()
+        try:
+            buffers["validity"] = self._get_validity_buffer()
+        except:
+            buffers["validity"] = None
+
+        try:
+            buffers["offsets"] = self._get_offsets_buffer()
+        except:
+            buffers["offsets"] = None
+
+        return buffers
+          
+    def _get_data_buffer(self) -> Tuple[_VaexBuffer, Any]:  # Any is for self.dtype tuple
         """
-        Return the buffer containing the data.
+        Return the buffer containing the data and the buffer's associated dtype.
         """
         _k = _DtypeKind
         if self.dtype[0] in (_k.INT, _k.UINT, _k.FLOAT, _k.BOOL):
@@ -436,33 +588,63 @@ class _VaexColumn:
                         codes[np.where(codes==i)] = np.where(self._col.df.category_labels(self._col) == i) 
                 dtype = self._dtype_from_vaexdtype(self._col.dtype)
                 buffer = _VaexBuffer(codes)
+        #elif self.dtype[0] == _k.STRING:
+            # TODO
         else:
             raise NotImplementedError(f"Data type {self._col.dtype} not handled yet")
+            
         return buffer, dtype
     
-    def get_mask(self) -> Tuple[_VaexBuffer, Any]:
+    def _get_validity_buffer(self) -> Tuple[_VaexBuffer, Any]:
         """
-        Return the buffer containing the mask values indicating missing data.
-        """
-        mask = self._col.ismissing()
-        if isinstance(self._col.values, (pa.Array, pa.ChunkedArray)):
-            data = np.array(mask.tolist())
-        else:
-            data = mask.to_numpy()
-        buffer = _VaexBuffer(data)
-        dtype = self._dtype_from_vaexdtype(mask.dtype)
+        Return the buffer containing the mask values indicating missing data and
+        the buffer's associated dtype.
         
-        return buffer, dtype
+        Raises RuntimeError if null representation is not a bit or byte mask.
+        """
+        null, invalid = self.describe_null
+        
+        _k = _DtypeKind
+        if null == 3:
+            mask = self._col.ismissing()
+            if isinstance(self._col.values, (pa.Array, pa.ChunkedArray)):
+                data = np.array(mask.tolist())
+            else:
+                data = mask.to_numpy()
+            buffer = _VaexBuffer(data)
+            dtype = self._dtype_from_vaexdtype(mask.dtype)
+
+            return buffer, dtype
+        
+        if null == 0:
+            msg = "This column is non-nullable so does not have a mask"
+        elif null == 1:
+            msg = "This column uses NaN as null so does not have a separate mask"
+        else:
+            raise NotImplementedError("See self.describe_null")
+
+        raise RuntimeError(msg)
+
+    def _get_offsets_buffer(self) -> Tuple[_VaexBuffer, Any]:
+        """
+        Return the buffer containing the offset values for variable-size binary
+        data (e.g., variable-length strings) and the buffer's associated dtype.
+        Raises RuntimeError if the data buffer does not have an associated
+        offsets buffer.
+        """
+        return {}
     
 class _VaexDataFrame:
     """
     A data frame class, with only the methods required by the interchange
     protocol defined.
+    
     Instances of this (private) class are returned from
     ``vaex.dataframe.DataFrame.__dataframe__`` as objects with the methods and
     attributes defined on this class.
     """
-    def __init__(self, df : vaex.dataframe.DataFrame, nan_as_null : bool = False) -> None:
+    def __init__(self, df : vaex.dataframe.DataFrame, nan_as_null : bool = False,
+                 allow_copy : bool = True) -> None:
         """
         Constructor - an instance of this (private) class is returned from
         `vaex.dataframe.DataFrame.__dataframe__`.
@@ -473,13 +655,14 @@ class _VaexDataFrame:
         # This currently has no effect; once support for nullable extension
         # dtypes is added, this value should be propagated to columns.
         self._nan_as_null = nan_as_null
+        self._allow_copy = allow_copy
         
     @property
     def metadata(self) -> Dict[str, Any]:
         return {}
         
     def num_columns(self) -> int:
-        return len(self._df.get_column_names())
+        return len(self._df.columns)
 
     def num_rows(self) -> int:
         return len(self._df)
@@ -494,13 +677,16 @@ class _VaexDataFrame:
         return self._df.get_column_names()
 
     def get_column(self, i: int) -> _VaexColumn:
-        return _VaexColumn(self._df[:, i])
+        return _VaexColumn(
+            self._df[:, i], allow_copy=self._allow_copy)
 
     def get_column_by_name(self, name: str) -> _VaexColumn:
-        return _VaexColumn(self._df[name])
+        return _VaexColumn(
+            self._df[name], allow_copy=self._allow_copy)
 
     def get_columns(self) -> Iterable[_VaexColumn]:
-        return [_VaexColumn(self._df[name]) for name in self._df.columns]
+        return [_VaexColumn(self._df[name], allow_copy=self._allow_copy)
+                for name in self._df.columns]
 
     def select_columns(self, indices: Sequence[int]) -> '_VaexDataFrame':
         if not isinstance(indices, collections.Sequence):
@@ -511,11 +697,14 @@ class _VaexDataFrame:
     def select_columns_by_name(self, names: Sequence[str]) -> '_VaexDataFrame':
         if not isinstance(names, collections.Sequence):
             raise ValueError("`names` is not a sequence")
-        return self._df[names]
+            
+        return _VaexColumn(
+            self._df[names], allow_copy=self._allow_copy)
 
     def get_chunks(self, n_chunks : Optional[int] = None) -> Iterable['_VaexDataFrame']:
         """
         Return an iterator yielding the chunks.
+        TODO: details on ``n_chunks``
         """
         if n_chunks==None:
             size = self.num_rows()
