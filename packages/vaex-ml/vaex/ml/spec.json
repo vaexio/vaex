@@ -311,6 +311,36 @@
         "version": "1.0.0"
     },
     {
+        "classname": "MultiHotEncoder",
+        "doc": "Encode categorical columns according to a binary multi-hot scheme.\n\n    With Multi-Hot Encoder (sometimes called Binary Encoder), the categorical variables are first\n    ordinal encoded, and those encodings are converted to a binary number. Each digit of that binary number\n    is a separate column, containing either a \"0\" or a \"1\". This is can be considered as an improvement\n    over the One-Hot encoder as it guards against generating too many new columns when the cardinality of the\n    categorical column is high, while effecively removing the ordinality that an Ordinal Encoder would introduce.\n\n    Example:\n\n    >>> import vaex\n    >>> import vaex.ml\n    >>> df = vaex.from_arrays(color=['red', 'green', 'green', 'blue', 'red'])\n    >>> df\n    #  color\n    0  red\n    1  green\n    2  green\n    3  blue\n    4  red\n    >>> encoder = vaex.ml.MultiHotEncoder(features=['color'])\n    >>> encoder.fit_transform(df)\n    #  color      color_0    color_1    color_2\n    0  red              0          1          1\n    1  green            0          1          0\n    2  green            0          1          0\n    3  blue             0          0          1\n    4  red              0          1          1\n    ",
+        "module": "vaex.ml.transformations",
+        "snake_name": "multi_hot_encoder",
+        "traits": [
+            {
+                "default": null,
+                "has_default": true,
+                "help": "List of features to transform.",
+                "name": "features",
+                "type": "List"
+            },
+            {
+                "default": null,
+                "has_default": true,
+                "help": "The ordinal-encoded labels of each feature.",
+                "name": "labels_",
+                "type": "Dict"
+            },
+            {
+                "default": "",
+                "has_default": false,
+                "help": "Prefix for the names of the transformed features.",
+                "name": "prefix",
+                "type": "Unicode"
+            }
+        ],
+        "version": "1.0.0"
+    },
+    {
         "classname": "FrequencyEncoder",
         "doc": "Encode categorical columns by the frequency of their respective samples.\n\n    Example:\n\n    >>> import vaex\n    >>> df = vaex.from_arrays(color=['red', 'green', 'green', 'blue', 'red', 'green'])\n    >>> df\n     #  color\n     0  red\n     1  green\n     2  green\n     3  blue\n     4  red\n    >>> encoder = vaex.ml.FrequencyEncoder(features=['color'])\n    >>> encoder.fit_transform(df)\n     #  color      frequency_encoded_color\n     0  red                       0.333333\n     1  green                     0.5\n     2  green                     0.5\n     3  blue                      0.166667\n     4  red                       0.333333\n     5  green                     0.5\n    ",
         "module": "vaex.ml.transformations",
@@ -1163,7 +1193,7 @@
     },
     {
         "classname": "RiverModel",
-        "doc": "This class wraps River (github.com/online-ml/river) estimators, making them vaex pipeline objects.\n\n    This class conveniently wraps River models making them vaex pipeline objects.\n    Thus they take full advantage of the serialization and pipeline system of vaex.\n    Only the River models that implement the `learn_many` are compatible.\n    One can also wrap an entire River pipeline, as long as each pipeline step\n    implements the `learn_many` method. With the wrapper one can iterate over the\n    data multiple times (epochs), and optinally shuffle each batch before it is\n    sent to the estimator. The `predict` method wil require as much memory as\n    needed to output the predictions as a numpy array, while the `transform`\n    method is evaluated lazily, and no memory copies are made.\n\n    Example:\n    >>> import vaex\n    >>> import vaex.ml\n    >>> from vaex.ml.incubator.river import RiverModel\n    >>> from river.linear_model import LinearRegression\n    >>> from river import optim\n    >>>\n    >>> df = vaex.example()\n    >>>\n    >>> features = df.column_names[:6]\n    >>> target = 'FeH'\n    >>>\n    >>> df = df.ml.standard_scaler(features=features, prefix='scaled_')\n    >>>\n    >>> features = df.get_column_names(regex='^scaled_')\n    >>> model = LinearRegression(optimizer=optim.SGD(lr=0.1), intercept_lr=0.1)\n    >>>\n    >>> river_model = RiverModel(model=model,\n                            features=features,\n                            target=target,\n                            batch_size=10_000,\n                            num_epochs=3,\n                            shuffle=True,\n                            prediction_name='pred_FeH')\n    >>>\n    >>> river_model.fit(df=df)\n    >>> df = river_model.transform(df)\n    >>> df.head(5)[['FeH', 'pred_FeH']]\n      #       FeH    pred_FeH\n      0  -1.00539    -1.6332\n      1  -1.70867    -1.56632\n      2  -1.83361    -1.55338\n      3  -1.47869    -1.60646\n      4  -1.85705    -1.5996\n    ",
+        "doc": "This class wraps River (github.com/online-ml/river) estimators, making them vaex pipeline objects.\n\n    This class conveniently wraps River models making them vaex pipeline objects.\n    Thus they take full advantage of the serialization and pipeline system of vaex.\n    Only the River models that implement the `learn_many` are compatible.\n    One can also wrap an entire River pipeline, as long as each pipeline step\n    implements the `learn_many` method. With the wrapper one can iterate over the\n    data multiple times (epochs), and optinally shuffle each batch before it is\n    sent to the estimator. The `predict` method wil require as much memory as\n    needed to output the predictions as a numpy array, while the `transform`\n    method is evaluated lazily, and no memory copies are made.\n\n    Example:\n\n    >>> import vaex\n    >>> import vaex.ml\n    >>> from vaex.ml.incubator.river import RiverModel\n    >>> from river.linear_model import LinearRegression\n    >>> from river import optim\n    >>>\n    >>> df = vaex.example()\n    >>>\n    >>> features = df.column_names[:6]\n    >>> target = 'FeH'\n    >>>\n    >>> df = df.ml.standard_scaler(features=features, prefix='scaled_')\n    >>>\n    >>> features = df.get_column_names(regex='^scaled_')\n    >>> model = LinearRegression(optimizer=optim.SGD(lr=0.1), intercept_lr=0.1)\n    >>>\n    >>> river_model = RiverModel(model=model,\n                            features=features,\n                            target=target,\n                            batch_size=10_000,\n                            num_epochs=3,\n                            shuffle=True,\n                            prediction_name='pred_FeH')\n    >>>\n    >>> river_model.fit(df=df)\n    >>> df = river_model.transform(df)\n    >>> df.head(5)[['FeH', 'pred_FeH']]\n      #       FeH    pred_FeH\n      0  -1.00539    -1.6332\n      1  -1.70867    -1.56632\n      2  -1.83361    -1.55338\n      3  -1.47869    -1.60646\n      4  -1.85705    -1.5996\n    ",
         "module": "vaex.ml.incubator.river",
         "snake_name": "river_model",
         "traits": [
