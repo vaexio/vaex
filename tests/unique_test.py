@@ -15,6 +15,13 @@ def test_unique_arrow(df_factory):
         assert np.array(values)[index].tolist() == ds.x.tolist()
 
 
+def test_unique_bool(df_factory):
+    df = df_factory(x=[True, False, True, True, False, False])
+    u = df.unique('x')
+    assert len(u) == 2
+    assert set(u) == {True, False}
+
+
 def test_unique(df_factory):
     ds = df_factory(colors=['red', 'green', 'blue', 'green'])
     with small_buffer(ds, 2):

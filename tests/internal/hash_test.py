@@ -41,6 +41,15 @@ def test_set_string():
     assert keys.tolist() == strings
 
 
+def test_set_bool():
+    bset = ordered_set_bool(4)
+    ar = np.array([True, True, False, False, True])
+    chunk_size = 1024**2
+    bset.update(ar, -1, chunk_size=chunk_size, bucket_size=chunk_size*4)
+    keys = bset.key_array()
+    assert len(keys) == 2
+    assert set(keys.tolist()) == {True, False}
+
 def test_set_int_multiple_maps():
     x = np.arange(5, dtype='i4')
     set0 = ordered_set_int32(2)

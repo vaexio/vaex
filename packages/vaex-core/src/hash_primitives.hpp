@@ -70,6 +70,9 @@ class hash_base : public hash_common<Derived, T, Hashmap<T, int64_t>> {
     py::object update(py::array_t<key_type> &keys, int64_t start_index = 0, int64_t chunk_size = 1024 * 16, int64_t bucket_size = 1024 * 128, bool return_values = false) {
         size_t size = keys.size();
         const key_type *keys_ptr = keys.data(0);
+        if (keys.strides()[0] != 1) {
+            throw std::runtime_error("stride not 1");
+        }
         return _update(size, keys_ptr, nullptr, start_index = start_index, chunk_size = chunk_size, bucket_size = bucket_size, return_values = return_values);
     }
 
@@ -81,6 +84,9 @@ class hash_base : public hash_common<Derived, T, Hashmap<T, int64_t>> {
         size_t size = keys.size();
         const key_type *keys_ptr = keys.data(0);
         const bool *mask_ptr = masks.data(0);
+        if (keys.strides()[0] != 1) {
+            throw std::runtime_error("stride not 1");
+        }
         return _update(size, keys_ptr, mask_ptr, start_index = start_index, chunk_size = chunk_size, bucket_size = bucket_size, return_values = return_values);
     }
 

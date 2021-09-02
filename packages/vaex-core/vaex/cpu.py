@@ -169,6 +169,8 @@ class TaskPartSetCreate(TaskPart):
             ar = _to_string_sequence(ar)
         else:
             ar = vaex.array_types.to_numpy(ar)
+            if ar.strides != (1,):
+                ar = ar.copy()
         chunk_size = 1024*1024
 
         if np.ma.isMaskedArray(ar):
