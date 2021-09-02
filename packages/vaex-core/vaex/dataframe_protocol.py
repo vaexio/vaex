@@ -32,7 +32,6 @@ def _from_dataframe_to_vaex(df : DataFrameObject) -> vaex.dataframe.DataFrame:
     for chunk in df.get_chunks():
         # We need a dict of columns here, with each column being a numpy array.
         columns = dict()
-        labels = dict()
         _k = _DtypeKind
         for name in chunk.column_names():
             col = chunk.get_column_by_name(name)
@@ -203,7 +202,7 @@ class _VaexColumn:
           doesn't need its own version or ``__column__`` protocol.
     """
 
-    def __init__(self, column : vaex.expression.Expression, metadata : dict = {}) -> None:
+    def __init__(self, column : vaex.expression.Expression) -> None:
         """
         Note: assuming column is an expression.
         """
@@ -213,13 +212,6 @@ class _VaexColumn:
 
         # Store the column as a private attribute
         self._col = column
-        
-        # Store the info about category
-        self.is_cat = metadata["vaex.cetagories_bool"][self._col.expression] # is column categorical
-        if self.is_cat:
-            self.labels = metadata["vaex.cetagories"][self._col.expression] # list of categories/labels
-        else:
-            self.labels = metadata["vaex.cetagories"]
     
     @property
     def size(self) -> int:
@@ -274,14 +266,17 @@ class _VaexColumn:
         # If it is internal, categorical must stay categorical (info in metadata)
         # If it is external (call from_dataframe) must give data dtype
         
-        bool_c = False
-        if self.is_cat:
-            bool_c = True # internal, categorical must stay categorical
         dtype = self._col.dtype
-
-        return self._dtype_from_vaexdtype(dtype, bool_c)
+        
+        # Categorical
+        # If it is internal, kind is categorical (23)
+        # If it is external (call from_dataframe) must give data dtype
+        if self._col.df.is_category(self._col):
+            return (_DtypeKind.CATEGORICAL, 64, 'u', '=') # what should be the default??
+        
+        return self._dtype_from_vaexdtype(dtype)
     
-    def _dtype_from_vaexdtype(self, dtype, bool_c) -> Tuple[enum.IntEnum, int, str, str]:
+    def _dtype_from_vaexdtype(self, dtype) -> Tuple[enum.IntEnum, int, str, str]:
         """
         See `self.dtype` for details
         """
@@ -292,16 +287,14 @@ class _VaexColumn:
         _np_kinds = {'i': _k.INT, 'u': _k.UINT, 'f': _k.FLOAT, 'b': _k.BOOL,
                      'U': _k.STRING,
                      'M': _k.DATETIME, 'm': _k.DATETIME}
-        
-        # If it is internal, categorical must stay categorical (23)
-        # else it is external (call from_dataframe) and must give data dtype
-        if bool_c:
-            kind = 23
-        else:
-            kind = _np_kinds.get(dtype.kind, None)
+        kind = _np_kinds.get(dtype.kind, None)
         
         if kind is None:
-            raise ValueError(f"Data type {dtype} not supported by exchange"
+            # Check if it's a an Arrow dictonary
+            if isinstance(self._col.values.type, pa.DictionaryType):
+                kind = 23
+            else:
+                raise ValueError(f"Data type {dtype} not supported by exchange"
                                  "protocol")
 
         if kind not in (_k.INT, _k.UINT, _k.FLOAT, _k.BOOL, _k.CATEGORICAL):
@@ -330,10 +323,10 @@ class _VaexColumn:
         if not self.dtype[0] == _DtypeKind.CATEGORICAL:
             raise TypeError("`describe_categorical only works on a column with "
                             "categorical dtype!")
-   
+            
         ordered = False
         is_dictionary = True        
-        categories = self.labels
+        categories = self._col.df.category_labels(self._col)
         mapping = {ix: val for ix, val in enumerate(categories)}
         return ordered, is_dictionary, mapping
     
@@ -387,26 +380,25 @@ class _VaexColumn:
             i = self._col.df.evaluate_iterator(self._col, chunk_size=size//n_chunks)
             iterator = []
             for i1, i2, chunk in i:
-                iterator.append(_VaexColumn(self._col[i1:i2], metadata))
+                iterator.append(_VaexColumn(self._col[i1:i2]))
             return iterator        
         elif self.num_chunks==1:
             size = self.size
             i = self._col.df.evaluate_iterator(self._col, chunk_size=size//n_chunks)
             iterator = []
             for i1, i2, chunk in i:
-                iterator.append(_VaexColumn(self._col[i1:i2], metadata))
+                iterator.append(_VaexColumn(self._col[i1:i2]))
             return iterator             
             
         else:
             raise ValueError(f'Column {self._col.expression} is already chunked.')
     
     @property
-    def metadata(self, metadata) -> Dict[str, Any]:
+    def metadata(self) -> Dict[str, Any]:
         """
         Store specific metadata of the column.
         """
-        # Metadata about categories
-        return metadata
+        return {}
     
     def get_data_buffer(self) -> Tuple[_VaexBuffer, Any]:  # Any is for self.dtype tuple
         """
@@ -434,15 +426,15 @@ class _VaexColumn:
                 some_dict[name] = self._col.evaluate().indices
                 between = vaex.from_arrays(**some_dict)
                 buffer = _VaexBuffer(between[name].to_numpy())
-                dtype = self._dtype_from_vaexdtype(between[name].dtype, bool_c)
+                dtype = self._dtype_from_vaexdtype(between[name].dtype)
             else:
                 codes = self._col.values
                 # In case of Vaex categorize
                 # if codes are not real codes but values (= labels)
                 if min(codes)!=0: 
                     for i in self._col.values:
-                        codes[np.where(codes==i)] = np.where(self.labels == i) 
-                dtype = self._dtype_from_vaexdtype(self._col.dtype, bool_c)
+                        codes[np.where(codes==i)] = np.where(self._col.df.category_labels(self._col) == i) 
+                dtype = self._dtype_from_vaexdtype(self._col.dtype)
                 buffer = _VaexBuffer(codes)
         else:
             raise NotImplementedError(f"Data type {self._col.dtype} not handled yet")
@@ -458,7 +450,7 @@ class _VaexColumn:
         else:
             data = mask.to_numpy()
         buffer = _VaexBuffer(data)
-        dtype = self._dtype_from_vaexdtype(mask.dtype, False)
+        dtype = self._dtype_from_vaexdtype(mask.dtype)
         
         return buffer, dtype
     
@@ -484,13 +476,7 @@ class _VaexDataFrame:
         
     @property
     def metadata(self) -> Dict[str, Any]:
-        is_category = {}
-        labels = {}
-        for i in self._df.get_names():
-            is_category[i] = self._df.is_category(i)
-            if self._df.is_category(i):
-                labels[i] = self._df.category_labels(i)
-        return {"vaex.cetagories_bool": is_category, "vaex.cetagories": labels}
+        return {}
         
     def num_columns(self) -> int:
         return len(self._df.get_column_names())
@@ -508,13 +494,13 @@ class _VaexDataFrame:
         return self._df.get_column_names()
 
     def get_column(self, i: int) -> _VaexColumn:
-        return _VaexColumn(self._df[:, i], self.metadata)
+        return _VaexColumn(self._df[:, i])
 
     def get_column_by_name(self, name: str) -> _VaexColumn:
-        return _VaexColumn(self._df[name], self.metadata)
+        return _VaexColumn(self._df[name])
 
     def get_columns(self) -> Iterable[_VaexColumn]:
-        return [_VaexColumn(self._df[name], self.metadata) for name in self._df.columns]
+        return [_VaexColumn(self._df[name]) for name in self._df.columns]
 
     def select_columns(self, indices: Sequence[int]) -> '_VaexDataFrame':
         if not isinstance(indices, collections.Sequence):
