@@ -212,7 +212,7 @@ def test_counter_float64(repickle):
 def test_ordered_set_object():
     s = str("hi there!!")
     ar = np.array([0, 1.5, s, None, s], dtype='O')
-    oset = ordered_set_object()
+    oset = ordered_set_object(-1)
     oset.update(ar)
     keys = np.array(oset.keys())
     assert set(oset.map_ordinal(keys)) == set(list(range(len(keys))))
@@ -228,7 +228,7 @@ def test_counter_object():
     start_ref_count = sys.getrefcount(s)
     start_ref_count2 = sys.getrefcount(s2)
 
-    counter = counter_object()
+    counter = counter_object(-1)
     ar = np.array([0, 1.5, s, None, s], dtype='O')
     assert sys.getrefcount(s) == start_ref_count+2
     counter.update(ar)
@@ -260,7 +260,7 @@ def test_counter_object():
     assert counter.nan_count == 2
     assert counts[0] == 2
 
-    counter2 = counter_object()
+    counter2 = counter_object(-1)
     ar2 = np.array([np.nan, np.nan, 0, 10, s, s2], dtype='O')
     assert sys.getrefcount(s) == start_ref_count+5
     assert sys.getrefcount(s2) == start_ref_count2+1

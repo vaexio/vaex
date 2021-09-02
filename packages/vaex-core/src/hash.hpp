@@ -176,7 +176,7 @@ class hash_common {
     }
 
     virtual value_type nan_index() { return 0; }
-    virtual value_type null_index() { return 1; }
+    virtual value_type null_index() { return this->nan_count ? 1 : 0; }
     py::list keys() {
         // if(!this->sealed) {
         //     throw std::runtime_error("hashmap not sealed, call .seal() first");

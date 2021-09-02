@@ -71,7 +71,10 @@ void init_hash_string(py::module &m) {
     {
         typedef counter<> Type;
         std::string countername = "counter_string";
-        auto cls = py::class_<Type>(m, countername.c_str()).def(py::init<int>());
+        auto cls = py::class_<Type>(m, countername.c_str())
+            .def(py::init<int>())
+            .def("counts", &Type::counts)
+            ;
         bind_common<Type>(cls);
     }
     {

@@ -60,6 +60,8 @@ class DataType:
             return self.is_list
         if other is dict:
             return self.is_struct
+        if other is object:
+            return self.is_object
         if isinstance(other, str):
             tester = 'is_' + other
             if hasattr(self, tester):
@@ -356,6 +358,11 @@ class DataType:
         True
         '''
         return self.is_arrow and pa.types.is_struct(self.internal)
+
+    @property
+    def is_object(self):
+        '''Test if a NumPy dtype=object (avoid if possible)'''
+        return self.is_numpy and self.internal == object
 
     @property
     def is_encoded(self):

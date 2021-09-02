@@ -958,6 +958,9 @@ class Expression(with_metaclass(Meta)):
         from pandas import Series
         if axis is not None:
             raise ValueError('only axis=None is supported')
+        if dropna:
+            dropnan = True
+            dropmissing = True
 
         data_type = self.data_type()
         data_type_item = self.data_type(axis=-1)
@@ -990,48 +993,70 @@ class Expression(with_metaclass(Meta)):
             return a+b
         self.ds.map_reduce(map, reduce, [self.expression], delay=False, progress=progress, name='value_counts', info=True, to_numpy=False)
         counters = [k for k in counters if k is not None]
-        counter0 = counters[0]
+        counter = counters[0]
         for other in counters[1:]:
-            counter0.merge(other)
-        value_counts = counter0.extract()[0]
-        index = np.array(list(value_counts.keys()))
-        counts = np.array(list(value_counts.values()))
+            counter.merge(other)
+        if data_type_item.is_object:
+            # for dtype=object we use the old interface
+            # since we don't care about multithreading (cannot release the GIL)
+            key_values = counter.extract()
+            keys = list(key_values.keys())
+            counts = list(key_values.values())
+            if counter.has_nan and not dropnan:
+                keys = [np.nan] + keys
+                counts = [counter.nan_count] + counts
+            if counter.has_null and not dropmissing:
+                keys = [None] + keys
+                counts = [counter.null_count] + counts
+            if dropmissing and None in keys:
+                # we still can have a None in the values
+                index = keys.index(None)
+                keys.pop(index)
+                counts.pop(index)
+            counts = np.array(counts)
+            keys = np.array(keys)
+        else:
+            keys = counter.key_array()
+            counts = counter.counts()
+            if isinstance(keys, (vaex.strings.StringList32, vaex.strings.StringList64)):
+                keys = vaex.strings.to_arrow(keys)
+
+            deletes = []
+            if counter.has_nan:
+                null_offset = 1
+            else:
+                null_offset = 0
+            if dropmissing and counter.has_null:
+                deletes.append(null_offset)
+            if dropnan and counter.has_nan:
+                deletes.append(0)
+            if vaex.array_types.is_arrow_array(keys):
+                indices = np.delete(np.arange(len(keys)), deletes)
+                keys = keys.take(indices)
+            else:
+                keys = np.delete(keys, deletes)
+                if not dropmissing and counter.has_null:
+                    mask = np.zeros(len(keys), dtype=np.uint8)
+                    mask[null_offset] = 1
+                    keys = np.ma.array(keys, mask=mask)
+            counts = np.delete(counts, deletes)
 
         order = np.argsort(counts)
         if not ascending:
             order = order[::-1]
         counts = counts[order]
-        index = index[order]
-        # nan can already be present for dtype=object, remove it
-        nan_mask = index != index
-        if np.any(nan_mask):
-            index = index[~mask]
-            counts = index[~mask]
-        # nan can already be present for dtype=object, optionally remove it
-        none_mask = index == None
-        if np.any(none_mask):
-            index = index.tolist()
-            counts = counts.tolist()
-            i = index.index(None)
-            if (dropmissing or dropna):
-                del index[i]
-                del counts[i]
-            else:
-                index[i] = "missing"
-            index = np.array(index)
-            counts = np.array(counts)
+        keys = keys.take(order)
 
-        if not dropna or not dropnan or not dropmissing:
-            index = index.tolist()
+        keys = keys.tolist()
+        if None in keys:
+            index = keys.index(None)
+            keys.pop(index)
+            keys = ["missing"] + keys
             counts = counts.tolist()
-            if not (dropnan or dropna) and counter0.nan_count:
-                index = [np.nan] + index
-                counts = [counter0.nan_count] + counts
-            if not (dropmissing or dropna) and counter0.null_count:
-                index = ['missing'] + index
-                counts = [counter0.null_count] + counts
+            count_null = counts.pop(index)
+            counts = [count_null] + counts
 
-        return Series(counts, index=index)
+        return Series(counts, index=keys)
 
     @docsubst
     def unique(self, dropna=False, dropnan=False, dropmissing=False, selection=None, axis=None, array_type='list', delay=False):

@@ -328,7 +328,14 @@ class counter : public hash_base<counter<U, Hashmap2>, U, Hashmap2>, public coun
 
     template <class Bucket>
     int64_t key_offset(int64_t natural_order, int16_t map_index, Bucket &bucket, int64_t offset) {
-        return natural_order;
+        int64_t effective_offset = natural_order;
+        if (this->null_count) {
+            effective_offset += 1;
+        }
+        if (this->nan_count) {
+            effective_offset += 1;
+        }
+        return effective_offset;
     }
     value_type add_null(int64_t index) {
         // parent already keeps track of the counts
@@ -349,6 +356,31 @@ class counter : public hash_base<counter<U, Hashmap2>, U, Hashmap2>, public coun
     value_type add_existing(Bucket &bucket, int16_t map_index, key_type &value, int64_t index) {
         set_second(bucket, bucket->second + 1);
         return bucket->second;
+    }
+    py::object counts() {
+        py::array_t<value_type> output_array(this->length());
+        auto output = output_array.template mutable_unchecked<1>();
+        py::gil_scoped_release gil;
+        auto offsets = this->offsets();
+        size_t map_index = 0;
+        int64_t natural_order = 0;
+        // TODO: can be parallel due to non-overlapping maps
+        for (auto &map : this->maps) {
+            for (auto &el : map) {
+                // key_type key = el.first;
+                value_type value = el.second;
+                int64_t index = key_offset(natural_order++, map_index, el, offsets[map_index]);
+                output(index) = value;
+            }
+            map_index += 1;
+        }
+        if (this->nan_count) {
+            output(this->nan_index()) = this->nan_count;
+        }
+        if (this->null_count) {
+            output(this->null_index()) = this->null_count;
+        }
+        return output_array;
     }
     void merge(const counter &other) {
         py::gil_scoped_release gil;

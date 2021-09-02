@@ -31,6 +31,7 @@ void init_hash_(M m, std::string name, std::string suffix) {
         auto cls = py::class_<Type>(m, countername.c_str())
             .def(py::init<int>())
             // .def("reserve", &Type::reserve)
+            .def("counts", &Type::counts)
             ;
         bind_common<Type>(cls);
     }
