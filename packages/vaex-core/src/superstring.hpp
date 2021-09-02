@@ -1051,11 +1051,11 @@ inline void lower(const string_view &source, char *&target) {
     target += source.length();
 }
 
-StringSequenceBase *StringSequenceBase::lstrip(std::string chars) { return _apply_seq<>(this, stripper(chars, true, false)); };
+StringSequenceBase *StringSequenceBase::lstrip(std::string chars) { return _apply_seq<>(this, stripper(chars, true, false)); }
 
-StringSequenceBase *StringSequenceBase::rstrip(std::string chars) { return _apply_seq<>(this, stripper(chars, false, true)); };
+StringSequenceBase *StringSequenceBase::rstrip(std::string chars) { return _apply_seq<>(this, stripper(chars, false, true)); }
 
-StringSequenceBase *StringSequenceBase::strip(std::string chars) { return _apply_seq<>(this, stripper(chars, true, true)); };
+StringSequenceBase *StringSequenceBase::strip(std::string chars) { return _apply_seq<>(this, stripper(chars, true, true)); }
 
 inline void capitalize(const string_view &source, char *&target) {
     size_t length = source.length();
@@ -1143,7 +1143,7 @@ StringSequenceBase *StringSequenceBase::pad(int width, std::string fillchar, boo
     byte_offset = target - sl->bytes;
     sl->indices[length] = byte_offset;
     return sl;
-};
+}
 
 StringSequenceBase *StringSequenceBase::concat(StringSequenceBase *other) {
     py::gil_scoped_release release;
@@ -1327,8 +1327,8 @@ struct slicer_copy {
     }
 };
 
-StringSequenceBase *StringSequenceBase::slice_string(int64_t start, int64_t stop) { return _apply_seq<>(this, slicer_copy(start, stop, false)); };
-StringSequenceBase *StringSequenceBase::slice_string_end(int64_t start) { return _apply_seq<>(this, slicer_copy(start, -1, true)); };
+StringSequenceBase *StringSequenceBase::slice_string(int64_t start, int64_t stop) { return _apply_seq<>(this, slicer_copy(start, stop, false)); }
+StringSequenceBase *StringSequenceBase::slice_string_end(int64_t start) { return _apply_seq<>(this, slicer_copy(start, -1, true)); }
 
 inline void titlecase(const string_view &source, char *&target) {
     size_t length = source.length();

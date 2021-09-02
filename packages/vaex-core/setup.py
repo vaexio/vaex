@@ -36,7 +36,7 @@ if "MACOSX_DEPLOYMENT_TARGET" not in os.environ:
 
 extra_dev_options = []
 # MB: I like these options during development, the second if for ccache
-# extra_dev_options = ['-fmax-errors=2', '-fdiagnostics-color']
+# extra_dev_options = ['-fmax-errors=4', '-fdiagnostics-color', '-pedantic-errors']
 
 class get_numpy_include(object):
     """Helper class to determine the numpy include path
@@ -82,7 +82,7 @@ if platform.system().lower() == 'windows':
     dll_files = ['pcre.dll', 'pcrecpp.dll', 'vcruntime140_1.dll']
 else:
     # TODO: maybe enable these flags for non-wheel/conda builds? ["-mtune=native", "-march=native"]
-    extra_compile_args = ["-std=c++11", "-O3", "-funroll-loops"]
+    extra_compile_args = ["-std=c++11", "-O1", "-funroll-loops", "-Werror=return-type", "-Wno-unused-parameter"]
     extra_compile_args.append("-g")
     extra_compile_args += extra_dev_options
 if sys.platform == 'darwin':

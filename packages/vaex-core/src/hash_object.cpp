@@ -49,6 +49,13 @@ public:
             Py_DECREF(key);
         }    
     }
+    size_t bytes_used() const {
+        int64_t buffer_size = 0;
+        size_t bytes = 0;
+        size_t buckets = map.size();
+        bytes += buckets * (buffer_size + sizeof(value_type));
+        return bytes;
+    }
 
     // keep function signature the same
     void update(py::buffer &object_array, int64_t start_index = 0, int64_t chunk_size = 1024 * 16, int64_t bucket_size = 1024 * 128, bool return_values = false) {
@@ -127,6 +134,7 @@ public:
         if (null_count > 0) {
             l++;
         }
+        return l;
     }
     hashmap<storage_type, int64_t, std::hash<storage_type>, CompareObjects> map;
     int64_t count;
@@ -312,6 +320,8 @@ void init_hash_object(py::module &m) {
             .def("update", &Type::update_with_mask)
             .def("merge", &Type::merge)
             .def("extract", &Type::extract)
+            .def("__len__", &Type::length)
+            .def("__sizeof__", &Type::bytes_used)
             .def_property_readonly("count", [](const Type &c) { return c.count; })
             .def_property_readonly("nan_count", [](const Type &c) { return c.nan_count; })
             .def_property_readonly("null_count", [](const Type &c) { return c.null_count; })
@@ -334,6 +344,7 @@ void init_hash_object(py::module &m) {
             .def("keys", &Type::keys)
             .def("map_ordinal", &Type::map_ordinal)
             .def("map_ordinal", &Type::map_ordinal_with_mask)
+            .def("__sizeof__", &Type::bytes_used)
             .def_property_readonly("count", [](const Type &c) { return c.count; })
             .def_property_readonly("nan_count", [](const Type &c) { return c.nan_count; })
             .def_property_readonly("null_count", [](const Type &c) { return c.null_count; })

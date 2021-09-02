@@ -41,7 +41,7 @@ struct NaNish<bool> {
 
 const int64_t bucket_size = 1024 * 64;
 
-template <class Derived, class T, template <typename, typename> typename Hashmap>
+template <class Derived, class T, template <typename, typename> class Hashmap>
 class hash_base : public hash_common<Derived, T, Hashmap<T, int64_t>> {
   public:
     using Base = hash_common<Derived, T, Hashmap<T, int64_t>>;
@@ -316,7 +316,7 @@ class hash_base : public hash_common<Derived, T, Hashmap<T, int64_t>> {
     }
 };
 
-template <class U, template <typename, typename> typename Hashmap2>
+template <class U, template <typename, typename> class Hashmap2>
 class counter : public hash_base<counter<U, Hashmap2>, U, Hashmap2>, public counter_mixin<U, int64_t, counter<U, Hashmap2>> {
   public:
     using Base = hash_base<counter<U, Hashmap2>, U, Hashmap2>;
@@ -405,7 +405,7 @@ class counter : public hash_base<counter<U, Hashmap2>, U, Hashmap2>, public coun
     }
 };
 
-template <class T2, template <typename, typename> typename Hashmap2>
+template <class T2, template <typename, typename> class Hashmap2>
 class ordered_set : public hash_base<ordered_set<T2, Hashmap2>, T2, Hashmap2> {
   public:
     using Base = hash_base<ordered_set<T2, Hashmap2>, T2, Hashmap2>;
@@ -608,7 +608,7 @@ class ordered_set : public hash_base<ordered_set<T2, Hashmap2>, T2, Hashmap2> {
     // }
 };
 
-template <class T2, template <typename, typename> typename Hashmap2>
+template <class T2, template <typename, typename> class Hashmap2>
 class index_hash : public hash_base<index_hash<T2, Hashmap2>, T2, Hashmap2> {
   public:
     using Base = hash_base<index_hash<T2, Hashmap2>, T2, Hashmap2>;

@@ -23,7 +23,7 @@ void bind_common(Cls &cls) {
 }
 
 namespace vaex {
-template <class T, class M, template <typename, typename> typename Hashmap>
+template <class T, class M, template <typename, typename> class Hashmap>
 void init_hash_(M m, std::string name, std::string suffix) {
     {
         typedef counter<T, Hashmap> Type;

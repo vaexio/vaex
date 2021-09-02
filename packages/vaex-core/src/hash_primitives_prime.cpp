@@ -19,5 +19,5 @@ void init_hash_primitives_prime(py::module &m) {
     init_hash_pg<float>(m, "float32");
     init_hash_pg<double>(m, "float64");
 }
-};
+}
 
