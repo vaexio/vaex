@@ -770,7 +770,7 @@ def _ensure_string_from_expression(expression):
     elif isinstance(expression, six.string_types):
         return expression
     elif isinstance(expression, vaex.expression.Expression):
-        return expression.expression
+        return expression._label
     else:
         raise ValueError('%r is not of string or Expression type, but %r' % (expression, type(expression)))
 
