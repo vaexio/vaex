@@ -560,3 +560,82 @@ def test_kbinsdiscretizer(tmpdir, strategy):
     assert df_test.shape == (6, 4)
     assert df_test.binned_x.tolist() == expected_result_test_x
     assert df_test.binned_y.tolist() == expected_result_test_y
+
+
+def test_multihot_encoder(tmpdir, df_factory):
+    a = ['cat', 'dog', 'mouse']
+    b = ['red', 'blue', 'green', 'yellow', 'purple', 'orange', 'violet', 'magenta', 'lime', 'grey', 'white', 'black']
+
+    x_train = np.random.choice(a, size=100, replace=True)
+    y_train = np.random.choice(b, size=100, replace=True)
+
+    x_test = np.random.choice(a, size=100, replace=True)
+    y_test = np.random.choice(b, size=100, replace=True)
+
+    df_train = df_factory(animals=x_train, colors=y_train)
+    df_test = df_factory(animals=x_test, colors=y_test)
+
+    encoder = vaex.ml.MultiHotEncoder(features=['animals', 'colors'])
+    encoder.fit(df_train)
+    df_train = encoder.transform(df_train)
+
+    df_train.state_write(str(tmpdir.join('test.json')))
+    df_test.state_load(str(tmpdir.join('test.json')))
+
+    # Verify dogs
+    # 'dog' binary code is '010'
+    dogs = df_train[df_train.animals == 'dog'][df_train.get_column_names(regex='^animals_')]
+    assert dogs.animals_0.unique() == [0]
+    assert dogs.animals_1.unique() == [1]
+    assert dogs.animals_2.unique() == [0]
+    dogs = df_test[df_test.animals == 'dog'][df_test.get_column_names(regex='^animals_')]
+    assert dogs.animals_0.unique() == [0]
+    assert dogs.animals_1.unique() == [1]
+    assert dogs.animals_2.unique() == [0]
+
+    # Verify cats
+    # 'cat' binary code is '001'
+    cats = df_train[df_train.animals == 'cat'][df_train.get_column_names(regex='^animals_')]
+    assert cats.animals_0.unique() == [0]
+    assert cats.animals_1.unique() == [0]
+    assert cats.animals_2.unique() == [1]
+    cats = df_test[df_test.animals == 'cat'][df_test.get_column_names(regex='^animals_')]
+    assert cats.animals_0.unique() == [0]
+    assert cats.animals_1.unique() == [0]
+    assert cats.animals_2.unique() == [1]
+
+    # Verify mice
+    # mouse binary code is '011'
+    mice = df_train[df_train.animals == 'mouse'][df_train.get_column_names(regex='^animals_')]
+    assert mice.animals_0.unique() == [0]
+    assert mice.animals_1.unique() == [1]
+    assert mice.animals_2.unique() == [1]
+    mice = df_test[df_test.animals == 'mouse'][df_test.get_column_names(regex='^animals_')]
+    assert mice.animals_0.unique() == [0]
+    assert mice.animals_1.unique() == [1]
+    assert mice.animals_2.unique() == [1]
+
+
+    # Verify Red
+    # 'red' binary code is '1001'
+    clr = df_test[df_test.colors == 'red'][df_test.get_column_names(regex='^colors_')]
+    assert clr.colors_0.unique() == [1]
+    assert clr.colors_1.unique() == [0]
+    assert clr.colors_2.unique() == [0]
+    assert clr.colors_3.unique() == [1]
+
+    # Verity white
+    # 'white' binary code is '1011'
+    clr = df_test[df_test.colors == 'white'][df_test.get_column_names(regex='^colors_')]
+    assert clr.colors_0.unique() == [1]
+    assert clr.colors_1.unique() == [0]
+    assert clr.colors_2.unique() == [1]
+    assert clr.colors_3.unique() == [1]
+
+    # Verify blue
+    # 'blue' binary code is '0010'
+    clr = df_test[df_test.colors == 'blue'][df_test.get_column_names(regex='^colors_')]
+    assert clr.colors_0.unique() == [0]
+    assert clr.colors_1.unique() == [0]
+    assert clr.colors_2.unique() == [1]
+    assert clr.colors_3.unique() == [0]

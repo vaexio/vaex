@@ -94,7 +94,7 @@ if os.path.exists(filename_spec):
 
 from .transformations import PCA, PCAIncremental, RandomProjections
 from .transformations import StandardScaler, MinMaxScaler, MaxAbsScaler, RobustScaler
-from .transformations import LabelEncoder, OneHotEncoder, FrequencyEncoder
+from .transformations import LabelEncoder, OneHotEncoder, MultiHotEncoder, FrequencyEncoder
 from .transformations import CycleTransformer
 from .transformations import BayesianTargetEncoder
 from .transformations import WeightOfEvidenceEncoder
