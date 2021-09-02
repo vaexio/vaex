@@ -496,7 +496,8 @@ class DataFrame(object):
     def _set(self, expression, progress=False, selection=None, flatten=True, delay=False, unique_limit=None):
         if selection is not None:
             selection = str(selection)
-        task = vaex.tasks.TaskSetCreate(self, str(expression), flatten, unique_limit=unique_limit, selection=selection)
+        expression = _ensure_string_from_expression(expression)
+        task = vaex.tasks.TaskSetCreate(self, expression, flatten, unique_limit=unique_limit, selection=selection)
         task = self.executor.schedule(task)
         return self._delay(delay, task)
 

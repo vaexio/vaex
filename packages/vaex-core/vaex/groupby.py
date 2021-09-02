@@ -7,6 +7,7 @@ import collections
 import six
 
 import pyarrow as pa
+from vaex.utils import _ensure_string_from_expression
 
 try:
     collections_abc = collections.abc
@@ -103,7 +104,7 @@ class Grouper(BinnerBase):
         self.sort = sort
         self.expression = expression
         # make sure it's an expression
-        self.expression = self.df[str(self.expression)]
+        self.expression = self.df[_ensure_string_from_expression(self.expression)]
         self.label = self.expression._label
         set = df_original._set(self.expression, unique_limit=row_limit)
         keys = set.keys()
@@ -276,9 +277,9 @@ class GroupByBase(object):
         for by_value in by:
             if not isinstance(by_value, BinnerBase):
                 if df.is_category(by_value):
-                    by_value = GrouperCategory(df[str(by_value)], sort=sort, row_limit=row_limit)
+                    by_value = GrouperCategory(df[_ensure_string_from_expression(by_value)], sort=sort, row_limit=row_limit)
                 else:
-                    by_value = Grouper(df[str(by_value)], sort=sort, row_limit=row_limit, df_original=df_original)
+                    by_value = Grouper(df[_ensure_string_from_expression(by_value)], sort=sort, row_limit=row_limit, df_original=df_original)
             self.by.append(by_value)
         if combine is True and  len(self.by) >= 2:
             self.by = [_combine(self.df, self.by, sort=sort, row_limit=row_limit)]
