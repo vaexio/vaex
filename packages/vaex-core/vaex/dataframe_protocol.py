@@ -561,27 +561,18 @@ class _VaexColumn:
             dtype = self.dtype
         elif self.dtype[0] == _k.CATEGORICAL: 
             # TODO: Use expression.codes (https://github.com/vaexio/vaex/pull/1503), when merged
-            bool_c = False # If it is external (call from_dataframe) _dtype_from_vaexdtype must give data dtype
             if isinstance(self._col.values, (pa.DictionaryArray)):
-                # If indices from arrow dict are used something funny comes out from the buffer
-                # I have to create a separate Vaex dataframe containing the indices column
-                # and then transfer it through the buffer
-                # TODO: try to optimize this (maybe expressions.codes (#1503) will solve this)
-                name = self._col.expression
-                some_dict = {}
-                some_dict[name] = self._col.evaluate().indices
-                between = vaex.from_arrays(**some_dict)
-                buffer = _VaexBuffer(between[name].to_numpy())
-                dtype = self._dtype_from_vaexdtype(between[name].dtype)
+                buffer = _VaexBuffer(self._col.index_values().to_numpy())
+                dtype = self._dtype_from_vaexdtype(self._col.index_values().dtype)
             else:
                 codes = self._col.values
-                # In case of Vaex categorize
-                # if codes are not real codes but values (= labels)
-                if min(codes)!=0: 
+                # In case of Vaex categorize - if codes are equal to labels
+                labels = self._col.df.category_labels(self._col)
+                if self._col.values[0] in labels:
                     for i in self._col.values:
-                        codes[np.where(codes==i)] = np.where(self._col.df.category_labels(self._col) == i) 
+                        codes[np.where(codes==i)] = np.where(labels == i) 
+                buffer = _VaexBuffer(self._col.values)
                 dtype = self._dtype_from_vaexdtype(self._col.dtype)
-                buffer = _VaexBuffer(codes)
         #elif self.dtype[0] == _k.STRING:
             # TODO
         else:
