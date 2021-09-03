@@ -4,7 +4,7 @@ Implementation of the dataframe exchange protocol.
 Public API
 ----------
 
-from_dataframe_to_vaex : construct a vaex.dataframe.DataFrame from an input data frame which
+from_dataframe : construct a vaex.dataframe.DataFrame from an input data frame which
                  implements the exchange protocol
                  
 Notes
@@ -87,7 +87,6 @@ def _from_dataframe_to_vaex(df : DataFrameObject) -> vaex.dataframe.DataFrame:
     if df.num_chunks() == 1:
         _buffers = _buffers[0]
     
-    # Join the chunks into tuple for now
     df_new = vaex.concat(dataframe)
     df_new._buffers = _buffers
     return df_new
@@ -456,7 +455,7 @@ class _VaexColumn:
         kind = self.dtype[0]
         value = None
         if kind in (_k.INT, _k.UINT, _k.FLOAT, _k.BOOL, _k.CATEGORICAL):
-            null = 3 # or is it 4 (byte mask?)
+            null = 3
             value = 1
         else:    
             raise NotImplementedError(f'Data type {self.dtype} not yet supported')
@@ -676,7 +675,7 @@ class _VaexDataFrame:
     def select_columns(self, indices: Sequence[int]) -> '_VaexDataFrame':
         if not isinstance(indices, collections.Sequence):
             raise ValueError("`indices` is not a sequence")
-
+        
         names = []
         for i in indices:
             names.append(self._df[:,i].expression)
