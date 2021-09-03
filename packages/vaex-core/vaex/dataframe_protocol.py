@@ -4,7 +4,7 @@ Implementation of the dataframe exchange protocol.
 Public API
 ----------
 
-from_dataframe : construct a vaex.dataframe.DataFrame from an input data frame which
+from_dataframe_to_vaex : construct a vaex.dataframe.DataFrame from an input data frame which
                  implements the exchange protocol
                  
 Notes
@@ -216,11 +216,6 @@ def __dataframe__(cls, nan_as_null : bool = False,
     """
     return _VaexDataFrame(
         cls, nan_as_null=nan_as_null, allow_copy=allow_copy)
-
-
-# Monkeypatch the Vaex DataFrame class to support the interchange protocol
-vaex.dataframe.DataFrame.__dataframe__ = __dataframe__
-vaex.dataframe.DataFrame._buffers = []
 
 
 # Implementation of interchange protocol
