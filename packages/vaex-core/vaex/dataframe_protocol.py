@@ -167,25 +167,24 @@ def convert_categorical_column(col : ColumnObject) -> pa.DictionaryArray:
     categories = np.asarray(list(mapping.values()))
     codes_buffer, codes_dtype = col.get_buffers()["data"]
     codes = buffer_to_ndarray(codes_buffer, codes_dtype)
-
-    if col.describe_null[0] == 2:  # sentinel value
-        codes = pd.Series(codes) # TODO: can we do without Pandas?
-        sentinel = col.describe_null[1]
-        codes[codes == sentinel] = None 
-    
-    indices = pa.array(codes, type=pa.int16())
-    dictionary = pa.array(categories)
-  
-    if col.describe_null[0] in (3, 4) and col.null_count>0: # masked missing values
+ 
+    if col.describe_null[0] == 2: # sentinel value
+        sentinel = [col.describe_null[1]] * col.size
+        mask = codes == sentinel
+        indices = pa.array(codes, mask=mask)
+    elif col.describe_null[0] in (3, 4) and col.null_count>0: # masked missing values
         mask_buffer, mask_dtype = col._get_validity_buffer()
         mask = buffer_to_ndarray(mask_buffer, mask_dtype)
-        values = pa.DictionaryArray.from_arrays((pa.array(codes, mask=mask)), dictionary)
+        indices = pa.array(codes, mask=mask)
     else:
-        values = pa.DictionaryArray.from_arrays(indices, dictionary)
+        indices = pa.array(codes)
         
     if not col.describe_null[0] in (2, 3, 4):
         raise NotImplementedError("Only categorical columns with sentinel "
                                   "value and masks supported at the moment")
+    
+    dictionary = pa.array(categories)
+    values = pa.DictionaryArray.from_arrays(indices, dictionary)
     
     return values, codes_buffer
 
