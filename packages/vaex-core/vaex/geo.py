@@ -401,7 +401,7 @@ def geo_inside_polygon(x, y, px, py):
     y = as_flat_array(y, np.float64)
     px = as_flat_array(np.asarray(px), np.float64)
     py = as_flat_array(np.asarray(py), np.float64)
-    mask = np.zeros(len(x), dtype=np.bool)
+    mask = np.zeros(len(x), dtype=bool)
     meanx = px.mean()
     meany = py.mean()
     radius = np.sqrt((meanx - px)**2 + (meany - py)**2).max()
@@ -437,10 +437,10 @@ def geo_inside_polygons(x, y, pxs, pys, any=True):
     """
     x = as_flat_array(x, np.float64)
     y = as_flat_array(y, np.float64)
-    mask = np.zeros(len(x), dtype=np.bool)
+    mask = np.zeros(len(x), dtype=bool)
 
     N = len(pxs)
-    submask = np.zeros(len(x), dtype=np.bool)
+    submask = np.zeros(len(x), dtype=bool)
     if N > 0:
         pxs = [vaex.arrow.numpy_dispatch.unwrap(k) for k in pxs]
         pys = [vaex.arrow.numpy_dispatch.unwrap(k) for k in pys]
@@ -492,10 +492,10 @@ def geo_inside_which_polygon(x, y, pxs, pys):
     pxs = as_flat_array(np.asarray(pxs), np.float64)
     pys = as_flat_array(np.asarray(pys), np.float64)
     polygon_indices = np.zeros(len(x), dtype=np.int32)
-    polygon_mask = np.ones(len(x), dtype=np.bool)
+    polygon_mask = np.ones(len(x), dtype=bool)
     polygon_indices = np.ma.array(polygon_indices, mask=polygon_mask)
     indices = np.arange(len(x), dtype=np.uint32)
-    inside_mask = np.zeros(len(x), dtype=np.bool)
+    inside_mask = np.zeros(len(x), dtype=bool)
 
     meanx = pxs.mean()
     meany = pys.mean()
@@ -526,10 +526,10 @@ def geo_inside_which_polygons(x, y, pxss, pyss, meanxss, meanyss, radiii, any):
     x = as_flat_array(x, np.float64)
     y = as_flat_array(y, np.float64)
     polygon_indices = np.zeros(len(x), dtype=np.int32)
-    polygon_mask = np.ones(len(x), dtype=np.bool)
+    polygon_mask = np.ones(len(x), dtype=bool)
     polygon_indices = np.ma.array(polygon_indices, mask=polygon_mask)
     indices = np.arange(len(x), dtype=np.uint32)
-    inside_mask = np.zeros(len(x), dtype=np.bool)
+    inside_mask = np.zeros(len(x), dtype=bool)
     N = len(pxss)
     for i in range(N):
         pxs = pxss[i]
@@ -543,7 +543,7 @@ def geo_inside_which_polygons(x, y, pxss, pyss, meanxss, meanyss, radiii, any):
         if M > 0:
             vaex.vaexfast.pnpoly(pxs[0], pys[0], x, y, inside_mask, meanxs[0], meanys[0], radii[0])
         if M > 1:
-            inside_sub_mask = np.zeros(len(x), dtype=np.bool)
+            inside_sub_mask = np.zeros(len(x), dtype=bool)
             for j in range(1, M):
                 vaex.vaexfast.pnpoly(pxs[j], pys[j], x, y, inside_sub_mask, meanxs[j], meanys[j], radii[j])
                 if any:

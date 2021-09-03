@@ -221,12 +221,12 @@ def ismissing(x):
             x = _to_string_sequence(x)
             mask = x.mask()
             if mask is None:
-                mask = np.zeros(x.length, dtype=np.bool)
+                mask = np.zeros(x.length, dtype=bool)
             return mask
         elif isinstance(x, np.ndarray) and x.dtype.kind in 'O':
             return x == None
         else:
-            return np.zeros(len(x), dtype=np.bool)
+            return np.zeros(len(x), dtype=bool)
 
 
 @register_function()
@@ -248,7 +248,7 @@ def isnan(x):
         else:
             return x != x
     else:
-        return np.zeros(len(x), dtype=np.bool)
+        return np.zeros(len(x), dtype=bool)
 
 
 @register_function()
