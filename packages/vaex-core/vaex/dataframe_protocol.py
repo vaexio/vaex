@@ -686,13 +686,17 @@ class _VaexDataFrame:
         if not isinstance(indices, collections.Sequence):
             raise ValueError("`indices` is not a sequence")
 
-        return {} # TODO
+        names = []
+        for i in indices:
+            names.append(self._df[:,i].expression)
+
+        return self.select_columns_by_name(names)
 
     def select_columns_by_name(self, names: Sequence[str]) -> '_VaexDataFrame':
         if not isinstance(names, collections.Sequence):
             raise ValueError("`names` is not a sequence")
             
-        return _VaexColumn(
+        return _VaexDataFrame(
             self._df[names], allow_copy=self._allow_copy)
 
     def get_chunks(self, n_chunks : Optional[int] = None) -> Iterable['_VaexDataFrame']:

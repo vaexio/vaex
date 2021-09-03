@@ -146,3 +146,13 @@ def test_virtual_column():
 	df.add_virtual_column("r", "sqrt(y**2 + z**2)")
 	df2 = _from_dataframe_to_vaex(df.__dataframe__())
 	assert  df2.r.tolist() == df.r.tolist()
+
+def test_select_columns():
+	df = vaex.from_arrays(
+		x=np.array([True, True, False]),
+		y=np.array([1, 2, 0]),
+		z=np.array([9.2, 10.5, 11.8]))
+
+	df2 = df.__dataframe__()
+	assert df2.select_columns((0,2))._df[:,0].tolist() == df2.select_columns_by_name(('x','z'))._df[:,0].tolist()
+	assert df2.select_columns((0,2))._df[:,1].tolist() == df2.select_columns_by_name(('x','z'))._df[:,1].tolist()
