@@ -527,7 +527,7 @@ class GroupBy(GroupByBase):
                     assert value.ndim == 1
                     columns[key] = value
         dataset_arrays = vaex.dataset.DatasetArrays(columns)
-        dataset = DatasetGroupby(dataset_arrays, self.df, self.by_original, actions, combine=self.combine, expand=self.expand)
+        dataset = DatasetGroupby(dataset_arrays, self.df, self.by_original, actions, combine=self.combine, expand=self.expand, sort=self.sort)
         df_grouped = vaex.from_dataset(dataset)
         return df_grouped
 
@@ -536,12 +536,13 @@ class GroupBy(GroupByBase):
 class DatasetGroupby(vaex.dataset.DatasetDecorator):
     '''Wraps a resulting dataset from a dataframe groupby, so the groupby can be serialized'''
     snake_name = 'groupby'
-    def __init__(self, original, df, by, agg, combine, expand):
+    def __init__(self, original, df, by, agg, combine, expand, sort):
         assert isinstance(original, vaex.dataset.DatasetArrays)
         super().__init__(original)
         self.df = df
         self.by = by
         self.agg = agg
+        self.sort = sort
         self.combine = combine
         self.expand = expand
         self._row_count = self.original.row_count
@@ -563,7 +564,7 @@ class DatasetGroupby(vaex.dataset.DatasetDecorator):
         yield from self.original.chunk_iterator(*args, **kwargs)
 
     def hashed(self):
-        return type(self)(self.original.hashed(), df=self.df, by=self.by, agg=self.agg, combine=self.combine, expand=self.expand)
+        return type(self)(self.original.hashed(), df=self.df, by=self.by, agg=self.agg, combine=self.combine, expand=self.expand, sort=self.sort)
 
     def _encode(self, encoding):
         by = self.by
@@ -574,6 +575,7 @@ class DatasetGroupby(vaex.dataset.DatasetDecorator):
             'aggregation': encoding.encode_collection('aggregation', self.agg),
             'combine': self.combine,
             'expand': self.expand,
+            'sort': self.sort,
         }
         return spec
 
@@ -582,8 +584,9 @@ class DatasetGroupby(vaex.dataset.DatasetDecorator):
         df = encoding.decode('dataframe', spec.pop('dataframe'))
         by = spec.pop('by')
         agg = encoding.decode_collection('aggregation', spec.pop('aggregation'))
-        dfg = df.groupby(by, agg=agg)
-        return DatasetGroupby(dfg.dataset.original, df, by, agg, **spec)
+        sort = spec.pop('sort')
+        dfg = df.groupby(by, agg=agg, sort=sort)
+        return DatasetGroupby(dfg.dataset.original, df, by, agg, sort=sort, **spec)
 
     def __getstate__(self):
         state = self.__dict__.copy()
@@ -592,7 +595,7 @@ class DatasetGroupby(vaex.dataset.DatasetDecorator):
 
     def __setstate__(self, state):
         self.__dict__.update(state)
-        self.original = self.df.groupby(self.by, agg=self.agg).dataset.original
+        self.original = self.df.groupby(self.by, agg=self.agg, sort=self.sort).dataset.original
         # self._create_columns()
 
     def slice(self, start, end):

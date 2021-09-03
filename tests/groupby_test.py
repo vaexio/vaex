@@ -409,7 +409,6 @@ def test_groupby_datetime():
 def test_groupby_state(df_factory, rebuild_dataframe):
     df = df_factory(g=[0, 0, 0, 1, 1, 2], x=[1, 2, 3, 4, 5, 6])._future()
     dfg = df.groupby(by=df.g, agg={'count': vaex.agg.count(), 'sum': vaex.agg.sum('x')}, sort=True)
-    dfg.sort('g')  # TODO: sort it not yet implemented in the dataset state
     assert dfg.g.tolist() == [0, 1, 2]
     assert dfg['count'].tolist() == [3, 2, 1]
     assert dfg['sum'].tolist() == [1+2+3, 4+5, 6]
@@ -421,7 +420,6 @@ def test_groupby_state(df_factory, rebuild_dataframe):
 
     df = df_factory(g=[0, 0, 0, 1, 1, 2], x=[2, 3, 4, 5, 6, 7])._future()
     df.state_set(dfg.state_get())
-    # import pdb; pdb.set_trace()
     assert df.g.tolist() == [0, 1, 2]
     assert df['count'].tolist() == [3, 2, 1]
     assert df['sum'].tolist() == [1+2+3, 4+5, 6]
