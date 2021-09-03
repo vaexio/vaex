@@ -98,7 +98,7 @@ def test_groupby_1d(ds_local):
     ds = ds_local.extract()
     g = np.array([0, 0, 0, 0, 1, 1, 1, 1, 2, 2])
     ds.add_column('g', g)
-    dfg = ds.groupby(by=ds.g, agg={'count': vaex.agg.count()}).sort('g')
+    dfg = ds.groupby(by=ds.g, agg={'count': vaex.agg.count()}, sort=True)
     assert dfg.g.tolist() == [0, 1, 2]
     assert dfg['count'].tolist() == [4, 4, 2]
 
@@ -196,7 +196,7 @@ def test_groupby_2d(ds_local):
     h = np.array([5, 5, 5, 6, 5, 5, 5, 5, 6, 6])
     ds['g'] = g
     ds['h'] = h
-    dfg = ds.groupby(by=[ds.g, ds.h], agg={'count': vaex.agg.count()}).sort('g')
+    dfg = ds.groupby(by=[ds.g, ds.h], agg={'count': vaex.agg.count()}, sort=True)
     assert dfg.g.tolist() == [0, 0, 1, 2]
     assert dfg['count'].tolist() == [3, 1, 4, 2]
 
