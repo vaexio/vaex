@@ -60,7 +60,7 @@ def test_f1_score(df):
 
     vaex_score = df.ml.metrics.f1_score(df.x, df.y, average=average)
     sklearn_score = metrics.f1_score(df.x.values, df.y.values, average=average)
-    assert vaex_score == sklearn_score
+    np.testing.assert_almost_equal(vaex_score, sklearn_score)
 
 
 @pytest.mark.parametrize('df', [df_binary, df_multi_class, df_multi_class_strings])
