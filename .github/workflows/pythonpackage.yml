@@ -155,6 +155,7 @@ jobs:
       run: |
         conda activate vaex-dev
         mkdir dist
+        (cd packages/vaex-core && python setup.py bdist_wheel); cp packages/vaex-core/dist/* dist
         (cd packages/vaex-graphql && python setup.py bdist_wheel); cp packages/vaex-graphql/dist/* dist
         (cd packages/vaex-jupyter && python setup.py bdist_wheel); cp packages/vaex-jupyter/dist/* dist
         (cd packages/vaex-ml && python setup.py bdist_wheel); cp packages/vaex-ml/dist/* dist
