@@ -1,7 +1,9 @@
-from common import *
-import vaex
 import numpy as np
 import pyarrow as pa
+import pytest
+
+import vaex
+from common import *
 from vaex.dataframe_protocol import _from_dataframe_to_vaex, _DtypeKind, _VaexBuffer, _VaexColumn, _VaexDataFrame
 
 
@@ -33,6 +35,19 @@ def test_mixed_intfloatbool(df_factory):
 	assert df2.__dataframe__().get_column_by_name('x').null_count == 0
 	assert df2.__dataframe__().get_column_by_name('y').null_count == 0
 	assert df2.__dataframe__().get_column_by_name('z').null_count == 0
+
+	# Additionl tests for _VaexColumn
+	assert df2.__dataframe__().get_column_by_name('x')._allow_copy == True
+	assert df2.__dataframe__().get_column_by_name('x').size == 3
+	assert df2.__dataframe__().get_column_by_name('x').offset == 0
+
+	assert df2.__dataframe__().get_column_by_name('z').dtype[0]==2 # 2: float64
+	assert df2.__dataframe__().get_column_by_name('z').dtype[1] == 64 # 64: float64
+	assert df2.__dataframe__().get_column_by_name('z').dtype == (2, 64, '<f8', '=')
+
+	with pytest.raises(TypeError):
+	    assert df2.__dataframe__().get_column_by_name('y').describe_categorical
+	assert df2.__dataframe__().get_column_by_name('y').describe_null == (3, 1)
 
 def test_mixed_missing(df_factory_arrow):
 	df = df_factory_arrow(
@@ -98,9 +113,13 @@ def test_categorical_ordinal():
 	col = df.__dataframe__().get_column_by_name('weekday')
 	assert col.dtype[0] == _DtypeKind.CATEGORICAL
 	assert col.describe_categorical == (False, True, {0: 'Mon', 1: 'Tue', 2: 'Wed', 3: 'Thu', 4: 'Fri', 5: 'Sat', 6: 'Sun'})
+	assert col.describe_null == (3, 1)
+	assert col.dtype == (23, 64, 'u', '=')
 	col2 = df.__dataframe__().get_column_by_name('colors')
 	assert col2.dtype[0] == _DtypeKind.CATEGORICAL
 	assert col2.describe_categorical == (False, True, {0: 'red', 1: 'green', 2: 'blue'})
+	assert col2.describe_null == (3, 1)
+	assert col2.dtype == (23, 64, 'u', '=')
 
 	df2 = _from_dataframe_to_vaex(df.__dataframe__())
 	assert  df2['colors'].tolist() == ['red', 'blue', 'green', 'blue']
@@ -137,6 +156,30 @@ def test_arrow_dictionary_missing():
 	assert  df2.x.tolist() == df.x.tolist()
 	assert df2.__dataframe__().get_column_by_name('x').null_count == 2
 	assert df['x'].dtype.index_type == df2['x'].dtype.index_type
+
+def test_string():
+	df = vaex.from_dict({"A": ["a", "b", "cdef", "", "g"]})
+	col = df.__dataframe__().get_column_by_name('A')
+
+	assert col._col.tolist() == df.A.tolist()
+	assert col.size == 5
+
+	with pytest.raises(NotImplementedError):
+	    assert col.dtype
+	with pytest.raises(NotImplementedError):
+	    assert col.describe_null
+
+def test_object():
+	df = vaex.from_arrays(x=np.array([None, True, False]))
+	col = df.__dataframe__().get_column_by_name('x')
+
+	assert col._col.tolist() == df.x.tolist()
+	assert col.size == 3
+
+	with pytest.raises(NotImplementedError):
+	    assert col.dtype
+	with pytest.raises(NotImplementedError):
+	    assert col.describe_null
 
 def test_virtual_column():
 	df = vaex.from_arrays(

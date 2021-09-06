@@ -359,13 +359,13 @@ class _VaexColumn:
         #       datetime, timedelta not implemented yet
         _k = _DtypeKind
         _np_kinds = {'i': _k.INT, 'u': _k.UINT, 'f': _k.FLOAT, 'b': _k.BOOL,
-                     'U': _k.STRING,
+                     'O': _k.STRING,
                      'M': _k.DATETIME, 'm': _k.DATETIME}
         kind = _np_kinds.get(dtype.kind, None)
         
         if kind is None:
             # Check if it's a an Arrow dictonary
-            if isinstance(self._col.values.type, pa.DictionaryType):
+            if not isinstance(self._col.values, np.ndarray) and isinstance(self._col.values.type, pa.DictionaryType):
                 kind = 23
             else:
                 raise ValueError(f"Data type {dtype} not supported by exchange"
