@@ -217,4 +217,4 @@ jobs:
     - name: Use the Vaex server
       run: |
         python -c "import vaex; df = vaex.open('ws://localhost:9999/example'); df.x.sum()"
-        curl -i https://localhost:9999/histogram/example/x
+        curl -i http://localhost:9999/histogram/example/x
