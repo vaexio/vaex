@@ -2,7 +2,7 @@ from common import *
 import vaex
 import numpy as np
 import pyarrow as pa
-from vaex.dataframe_protocol import _from_dataframe_to_vaex, _DtypeKind
+from vaex.dataframe_protocol import _from_dataframe_to_vaex, _DtypeKind, _VaexBuffer, _VaexColumn, _VaexDataFrame
 
 
 def test_float_only(df_factory):
@@ -62,8 +62,8 @@ def test_mixed_missing(df_factory_arrow):
 def test_missing_from_masked(df_factory_numpy):
 	df = df_factory_numpy(
 		x=np.ma.array([1, 2, 3, 4, 0], mask=[0, 0, 0, 1, 1], dtype=int),
-    	y=np.ma.array([1.5, 2.5, 3.5, 4.5, 0], mask=[False, True, True, True, False], dtype=float),
-    	z=np.ma.array([True, False, True, True, True], mask=[1, 0, 0, 1, 0], dtype=bool))
+		y=np.ma.array([1.5, 2.5, 3.5, 4.5, 0], mask=[False, True, True, True, False], dtype=float),
+		z=np.ma.array([True, False, True, True, True], mask=[1, 0, 0, 1, 0], dtype=bool))
 	
 	df2 = _from_dataframe_to_vaex(df.__dataframe__())
 
@@ -87,9 +87,9 @@ def test_missing_from_masked(df_factory_numpy):
 def test_categorical_ordinal():
 	colors = ['red', 'blue', 'green', 'blue']
 	ds = vaex.from_arrays(
-	    colors=colors, 
-	    year=[2012, 2013, 2015, 2019], 
-	    weekday=[0, 1, 4, 6])
+		colors=colors, 
+		year=[2012, 2013, 2015, 2019], 
+		weekday=[0, 1, 4, 6])
 	df = ds.ordinal_encode('colors', ['red', 'green', 'blue'])
 	df = df.categorize('year', min_value=2012, max_value=2019)
 	df = df.categorize('weekday', labels=['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'])
@@ -156,3 +156,15 @@ def test_select_columns():
 	df2 = df.__dataframe__()
 	assert df2.select_columns((0,2))._df[:,0].tolist() == df2.select_columns_by_name(('x','z'))._df[:,0].tolist()
 	assert df2.select_columns((0,2))._df[:,1].tolist() == df2.select_columns_by_name(('x','z'))._df[:,1].tolist()
+
+def test_VaexBuffer():
+	x = np.ndarray(shape=(5,), dtype=float, order='F')
+	x_buffer = _VaexBuffer(x)
+
+	assert x_buffer.bufsize == 5*x.itemsize
+	assert x_buffer.ptr == x.__array_interface__['data'][0]
+	assert x_buffer.__dlpack_device__() == (1, None)
+	assert x_buffer.__repr__() == f"VaexBuffer({{'bufsize': {5*x.itemsize}, 'ptr': {x.__array_interface__['data'][0]}, 'device': 'CPU'}})"
+
+	with pytest.raises(NotImplementedError):
+		assert x_buffer.__dlpack__()
