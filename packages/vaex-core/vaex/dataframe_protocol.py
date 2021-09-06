@@ -195,27 +195,6 @@ def convert_string_column(col : ColumnObject) -> np.ndarray:
     #TODO
     
 
-def __dataframe__(cls, nan_as_null : bool = False,
-                  allow_copy : bool = True) -> dict:
-    """
-    The public method to attach to pd.DataFrame.
-    We'll attach it via monkey-patching here for demo purposes. If Pandas adopts
-    the protocol, this will be a regular method on pandas.DataFrame.
-    ``nan_as_null`` is a keyword intended for the consumer to tell the
-    producer to overwrite null values in the data with ``NaN`` (or ``NaT``).
-    This currently has no effect; once support for nullable extension
-    dtypes is added, this value should be propagated to columns.
-    ``allow_copy`` is a keyword that defines whether or not the library is
-    allowed to make a copy of the data. For example, copying data would be
-    necessary if a library supports strided buffers, given that this protocol
-    specifies contiguous buffers.
-    Currently, if the flag is set to ``False`` and a copy is needed, a
-    ``RuntimeError`` will be raised.
-    """
-    return _VaexDataFrame(
-        cls, nan_as_null=nan_as_null, allow_copy=allow_copy)
-
-
 # Implementation of interchange protocol
 # --------------------------------------
 
