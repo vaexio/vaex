@@ -563,24 +563,42 @@ class DataFrame(object):
                 def reduce(a, b):
                     pass
                 self.map_reduce(map, reduce, [expression], delay=delay, name='unique_return_inverse', info=True, to_numpy=False, selection=selection)
-            ordered_set.seal()
+            # ordered_set.seal()
             # if array_type == 'python':
-            keys = ordered_set.key_array()
-            deletes = []
-            if dropmissing and ordered_set.has_null:
-                deletes.append(ordered_set.null_value)
-            if dropnan and ordered_set.has_nan:
-                deletes.append(ordered_set.nan_value)
-            if isinstance(keys, (vaex.strings.StringList32, vaex.strings.StringList64)):
-                keys = vaex.strings.to_arrow(keys)
-                indices = np.delete(np.arange(len(keys)), deletes)
-                keys = keys.take(indices)
+            if data_type_item.is_object:
+                key_values = ordered_set.extract()
+                keys = list(key_values.keys())
+                counts = list(key_values.values())
+                if ordered_set.has_nan and not dropnan:
+                    keys = [np.nan] + keys
+                    counts = [ordered_set.nan_count] + counts
+                if ordered_set.has_null and not dropmissing:
+                    keys = [None] + keys
+                    counts = [ordered_set.null_count] + counts
+                if dropmissing and None in keys:
+                    # we still can have a None in the values
+                    index = keys.index(None)
+                    keys.pop(index)
+                    counts.pop(index)
+                counts = np.array(counts)
+                keys = np.array(keys)
             else:
-                keys = np.delete(keys, deletes)
-                if not dropmissing and ordered_set.has_null:
-                    mask = np.zeros(len(keys), dtype=np.uint8)
-                    mask[ordered_set.null_value] = 1
-                    keys = np.ma.array(keys, mask=mask)
+                keys = ordered_set.key_array()
+                deletes = []
+                if dropmissing and ordered_set.has_null:
+                    deletes.append(ordered_set.null_value)
+                if dropnan and ordered_set.has_nan:
+                    deletes.append(ordered_set.nan_value)
+                if isinstance(keys, (vaex.strings.StringList32, vaex.strings.StringList64)):
+                    keys = vaex.strings.to_arrow(keys)
+                    indices = np.delete(np.arange(len(keys)), deletes)
+                    keys = keys.take(indices)
+                else:
+                    keys = np.delete(keys, deletes)
+                    if not dropmissing and ordered_set.has_null:
+                        mask = np.zeros(len(keys), dtype=np.uint8)
+                        mask[ordered_set.null_value] = 1
+                        keys = np.ma.array(keys, mask=mask)
         keys = vaex.array_types.convert(keys, array_type)
         if return_inverse:
             return keys, inverse

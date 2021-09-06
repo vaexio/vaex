@@ -57,12 +57,12 @@ def test_unique_nan(df_factory):
         # assert indices.tolist() == [0, 1, 2, 0, 3, 0]
 
 # TODO: dtype=object
-# def test_unique_missing(df_factory):
-#     # Create test databn
-#     x = np.array([None, 'A', 'B', -1, 0, 2, '', '', None, None, None, np.nan, np.nan, np.nan, np.nan])
-#     df = df_factory(x=x)
-#     uniques = df.x.unique(dropnan=True)
-#     assert set(uniques) == set(['', 'A', 'B', -1, 0, 2, None])
+def test_unique_missing(df_factory):
+    # Create test databn
+    x = np.array([None, 'A', 'B', -1, 0, 2, '', '', None, None, None, np.nan, np.nan, np.nan, np.nan])
+    df = df_factory(x=x)
+    uniques = df.x.unique(dropnan=True)
+    assert set(uniques) == set(['', 'A', 'B', -1, 0, 2, None])
 
 
 def test_unique_missing_numeric(array_factory):
