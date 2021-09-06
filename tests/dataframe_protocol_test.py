@@ -190,16 +190,6 @@ def test_virtual_column():
 	df2 = _from_dataframe_to_vaex(df.__dataframe__())
 	assert  df2.r.tolist() == df.r.tolist()
 
-def test_select_columns():
-	df = vaex.from_arrays(
-		x=np.array([True, True, False]),
-		y=np.array([1, 2, 0]),
-		z=np.array([9.2, 10.5, 11.8]))
-
-	df2 = df.__dataframe__()
-	assert df2.select_columns((0,2))._df[:,0].tolist() == df2.select_columns_by_name(('x','z'))._df[:,0].tolist()
-	assert df2.select_columns((0,2))._df[:,1].tolist() == df2.select_columns_by_name(('x','z'))._df[:,1].tolist()
-
 def test_VaexBuffer():
 	x = np.ndarray(shape=(5,), dtype=float, order='F')
 	x_buffer = _VaexBuffer(x)
@@ -211,3 +201,26 @@ def test_VaexBuffer():
 
 	with pytest.raises(NotImplementedError):
 		assert x_buffer.__dlpack__()
+
+def test_VaexDataFrame():
+	df = vaex.from_arrays(
+		x=np.array([True, True, False]),
+		y=np.array([1, 2, 0]),
+		z=np.array([9.2, 10.5, 11.8]))
+
+	df2 = df.__dataframe__()
+
+	assert df2._allow_copy == True
+	assert df2.num_columns() == 3
+	assert df2.num_rows() == 3
+	assert df2.num_chunks() == 1
+
+	assert df2.column_names() == ['x', 'y', 'z']
+	assert df2.get_column(0)._col.tolist() == df.x.tolist()
+	assert df2.get_column_by_name('y')._col.tolist() == df.y.tolist()
+
+	for col in df2.get_columns():
+		assert col._col.tolist() == df[col._col.expression].tolist()
+
+	assert df2.select_columns((0,2))._df[:,0].tolist() == df2.select_columns_by_name(('x','z'))._df[:,0].tolist()
+	assert df2.select_columns((0,2))._df[:,1].tolist() == df2.select_columns_by_name(('x','z'))._df[:,1].tolist()
