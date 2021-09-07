@@ -151,6 +151,13 @@ jobs:
         conda activate vaex-dev
         pip install -e 'packages/vaex-contrib[gcp]'
         ./ci/06-run-contrib-tests.sh
+    - name: Copy dll
+      if: (matrix.os == 'windows-latest')
+      shell: bash
+      run: |
+        ls /c/Program\ Files\ \(x86\)/Microsoft\ Visual\ Studio/2019/Enterprise/VC/Redist/
+        ls /c/Program\ Files\ \(x86\)/Microsoft\ Visual\ Studio/2019/Enterprise/VC/Redist/MSVC/
+        cp /c/Program\ Files\ \(x86\)/Microsoft\ Visual\ Studio/2019/Enterprise/VC/Redist/MSVC/14.29.*/x64/Microsoft.VC142.CRT/vcruntime140_1.dll packages/vaex-core/vaex/
     - name: Build Python packages
       run: |
         conda activate vaex-dev
