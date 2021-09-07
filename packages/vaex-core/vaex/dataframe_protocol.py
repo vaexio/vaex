@@ -377,7 +377,10 @@ class _VaexColumn:
             raise NotImplementedError(f"Data type {dtype} not handled yet")
 
         bitwidth = dtype.numpy.itemsize * 8
-        format_str = dtype.numpy.str
+        if not isinstance(self._col.values, np.ndarray) and isinstance(self._col.values.type, pa.DictionaryType):
+            format_str = self._col.index_values().dtype.numpy.str
+        else:
+            format_str = dtype.numpy.str 
         endianness = dtype.byteorder if not kind == _k.CATEGORICAL else '='
         return (kind, bitwidth, format_str, endianness)
 
