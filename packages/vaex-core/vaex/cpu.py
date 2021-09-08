@@ -163,6 +163,8 @@ class TaskPartSetCreate(TaskPart):
         if self.selection:
             selection_mask = self.df.evaluate_selection_mask(self.selection, i1=i1, i2=i2, cache=True)
             ar = filter(ar, selection_mask)
+        if len(ar) == 0:
+            return
         if self.dtype.is_list and self.flatten:
             ar = ar.values
         if self.dtype_item.is_string:

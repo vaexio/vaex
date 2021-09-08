@@ -76,6 +76,12 @@ def test_groupby_long_name(df_local):
     assert 'long_name_mean' in dfg
 
 
+def test_groupby_empty(df_local):
+    df = df_local
+    dff = df[df.x > 1000]
+    dff.groupby('x', agg='count')
+
+
 def test_groupby_space_in_name(df_local):
     df = df_local.extract()
     g = np.array([0, 0, 0, 0, 1, 1, 1, 1, 2, 2])

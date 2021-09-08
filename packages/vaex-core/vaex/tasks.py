@@ -142,6 +142,9 @@ class TaskMapReduce(Task):
                 'skip_masked': self.skip_masked, 'ignore_filter': self.ignore_filter, 'selection': self.selection, 'pre_filter': self.pre_filter,
                 }
 
+    def __repr__(self) -> str:
+        return f'TaskMapReduce(map={self._map}, reduce={self._reduce}'
+
 
 class StatOp(object):
     def __init__(self, code, fields, reduce_function=np.nansum, dtype=None):
