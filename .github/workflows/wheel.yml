@@ -19,15 +19,9 @@ jobs:
       with:
         submodules: true
 
-    - name: debug
+    - name: Copy dll
       if: (matrix.os == 'windows-latest')
-      shell: bash
-      run: |
-        ls /c/Program\ Files\ \(x86\)/Microsoft\ Visual\ Studio/2019/Enterprise/VC/Redist/
-        ls /c/Program\ Files\ \(x86\)/Microsoft\ Visual\ Studio/2019/Enterprise/VC/Redist/MSVC/
-        ls /c/Program\ Files\ \(x86\)/Microsoft\ Visual\ Studio/2019/Enterprise/VC/Redist/MSVC/14.29.30036/
-        ls /c/Program\ Files\ \(x86\)/Microsoft\ Visual\ Studio/2019/Enterprise/VC/Redist/MSVC/14.29.30036/x64/Microsoft.VC142.CRT
-        cp /c/Program\ Files\ \(x86\)/Microsoft\ Visual\ Studio/2019/Enterprise/VC/Redist/MSVC/14.29.30036/x64/Microsoft.VC142.CRT/vcruntime140_1.dll packages/vaex-core/vaex/
+      uses: ./ci/actions/windll
 
     - uses: actions/setup-python@v2
       name: Install Python
@@ -48,19 +42,6 @@ jobs:
         mkdir dist
         mkdir packages/vaex-core/bin
         cp bin/install_pcre.sh packages/vaex-core/bin/
-
-    - name: chores
-      if: matrix.os == 'windows-latest'
-      shell: bash
-      run: |
-        mkdir dist
-        mkdir packages/vaex-core/vendor/pcre
-        cd packages/vaex-core/vendor/pcre
-        curl https://anaconda.org/conda-forge/pcre/8.44/download/win-64/pcre-8.44-h6538335_0.tar.bz2 -Lo pcre.tar.bz2
-        tar jxfv pcre.tar.bz2
-        cd ../../
-        cp vendor/pcre/Library/bin/*.dll vaex/
-        cd ../../
 
     - name: Build vaex-core (windows)
       if: (matrix.os == 'windows-latest')

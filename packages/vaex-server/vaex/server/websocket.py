@@ -2,6 +2,11 @@ import asyncio
 import logging
 
 import vaex
+import vaex.asyncio
+import vaex.core._version
+import vaex.server._version
+import vaex.server.dataframe
+
 from vaex.encoding import serialize, deserialize, Encoding
 from .utils import exception
 

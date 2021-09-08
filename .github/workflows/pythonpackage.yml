@@ -14,7 +14,7 @@ defaults:
     shell: bash -l {0}
 
 jobs:
-  build:
+  main:
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -151,3 +151,73 @@ jobs:
         conda activate vaex-dev
         pip install -e 'packages/vaex-contrib[gcp]'
         ./ci/06-run-contrib-tests.sh
+    - name: Copy dll
+      if: (matrix.os == 'windows-latest')
+      uses: ./ci/actions/windll
+    - name: Build Python packages
+      run: |
+        conda activate vaex-dev
+        mkdir dist
+        (cd packages/vaex-core && python setup.py bdist_wheel); cp packages/vaex-core/dist/* dist
+        (cd packages/vaex-graphql && python setup.py bdist_wheel); cp packages/vaex-graphql/dist/* dist
+        (cd packages/vaex-jupyter && python setup.py bdist_wheel); cp packages/vaex-jupyter/dist/* dist
+        (cd packages/vaex-ml && python setup.py bdist_wheel); cp packages/vaex-ml/dist/* dist
+        (cd packages/vaex-viz && python setup.py bdist_wheel); cp packages/vaex-viz/dist/* dist
+        (cd packages/vaex-astro && python setup.py bdist_wheel); cp packages/vaex-astro/dist/* dist
+        (cd packages/vaex-hdf5 && python setup.py bdist_wheel); cp packages/vaex-hdf5/dist/* dist
+        (cd packages/vaex-server && python setup.py bdist_wheel); cp packages/vaex-server/dist/* dist
+        (cd packages/vaex-meta && python setup.py bdist_wheel); cp packages/vaex-server/dist/* dist
+
+    - name: Upload builds
+      uses: actions/upload-artifact@v2
+      with:
+        name: dist-${{ github.run_number }}-${{ matrix.python-version }}-${{ matrix.os }}
+        path: ./dist
+
+
+  install:
+    runs-on: ${{ matrix.os }}
+    needs: [main]
+
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macOS-latest]
+        python-version: [3.7, 3.8, 3.9]
+
+    steps:
+    - uses: actions/download-artifact@v2
+      with:
+        name: dist-${{ github.run_number }}-${{ matrix.python-version }}-${{ matrix.os }}
+        path: ./dist
+
+    - name: Install conda with Python ${{ matrix.python-version }}
+      uses: conda-incubator/setup-miniconda@v2
+      with:
+        python-version: ${{ matrix.python-version }}
+        mamba-version: "*"
+        auto-activate-base: true
+        channels: conda-forge
+
+    - name: Install the packages
+      run: |
+        pip install -vv dist/*
+
+    - name: Test import
+      run: |
+        python -c "import vaex; df = vaex.example()"
+
+    - name: Test server
+      run: |
+        vaex server --add-example --port 9999&
+
+    - name: Wait for Vaex server
+      uses: ifaxity/wait-on-action@v1
+      with:
+        resource: http-get://localhost:9999/hello
+        timeout: 5000
+
+    - name: Use the Vaex server
+      run: |
+        python -c "import vaex; df = vaex.open('ws://localhost:9999/example'); df.x.sum()"
+        curl -i http://localhost:9999/histogram/example/x
