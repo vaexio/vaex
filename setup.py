@@ -76,6 +76,7 @@ setup(
             'gcsfs',
             's3fs',
             'graphviz',
+            'myst_parser',
             # For generating the documentation
             'sphinx',
             'nbsphinx',

@@ -2122,6 +2122,9 @@ static struct PyModuleDef moduledef = {
 #define INITERROR return
 #endif
 
+#ifndef _WIN32
+__attribute__((visibility("default")))
+#endif
 #if PY_MAJOR_VERSION >= 3
 extern "C" PyObject *
 PyInit_vaexfast(void)

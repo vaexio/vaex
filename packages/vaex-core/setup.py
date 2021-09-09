@@ -76,7 +76,7 @@ if sys.platform == 'darwin':
 
 
 # on windows (Conda-forge builds), the dirname is an absolute path
-extension_vaexfast = Extension("vaex.vaexfast", [os.path.relpath(os.path.join(dirname, "src/vaexfast.cpp"))],
+extension_vaexfast = Pybind11Extension("vaex.vaexfast", [os.path.relpath(os.path.join(dirname, "src/vaexfast.cpp"))],
                                include_dirs=[get_numpy_include()],
                                extra_compile_args=extra_compile_args)
 

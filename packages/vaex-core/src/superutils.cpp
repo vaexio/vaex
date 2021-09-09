@@ -169,7 +169,7 @@ PYBIND11_MODULE(superutils, m) {
         }))
         .def_buffer([](Mask &mask) -> py::buffer_info {
             std::vector<ssize_t> strides = {1};
-            std::vector<ssize_t> shapes = {mask.length};
+            std::vector<ssize_t> shapes = {static_cast<ssize_t>(mask.length)};
             return py::buffer_info((void *)mask.mask_data,                /* Pointer to buffer */
                                    sizeof(bool),                          /* Size of one scalar */
                                    py::format_descriptor<bool>::format(), /* Python struct-style format descriptor */
