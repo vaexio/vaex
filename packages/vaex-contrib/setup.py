@@ -11,7 +11,7 @@ name        = 'vaex'
 license     = 'MIT'
 version     = version.__version__
 url         = 'https://www.github.com/vaexio/vaex'
-install_requires_contrib = ['vaex-core>=4.0.0,<5']
+install_requires_contrib = ['vaex-core>=5.0.0-alpha.1,<6']
 
 setup(name=name + '-contrib',
       version=version,
