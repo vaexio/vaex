@@ -27,6 +27,7 @@ def add_version_replace(package):
             'packages/vaex-ml/setup.py',
             'packages/vaex-server/setup.py',
             'packages/vaex-viz/setup.py',
+            'packages/vaex-contrib/setup.py',
         ], pattern='{name}(?P<cmp>[^0-9]*)' + str(package.version_source), ))
 def add_meta_version_replace(package):
     # always bump the meta package
@@ -42,7 +43,7 @@ core.release_targets.append(ReleaseTargetSourceDist(core))
 #core.release_targets.append(gitpush)
 core.release_targets.append(ReleaseTargetCondaForge(core, '../feedstocks/vaex-core-feedstock'))
 
-packages = ['vaex-core', 'vaex-meta', 'vaex-viz', 'vaex-hdf5', 'vaex-server', 'vaex-astro', 'vaex-ui', 'vaex-jupyter', 'vaex-ml', 'vaex-graphql']
+packages = ['vaex-core', 'vaex-meta', 'vaex-viz', 'vaex-hdf5', 'vaex-server', 'vaex-astro', 'vaex-ui', 'vaex-jupyter', 'vaex-ml', 'vaex-graphql', 'vaex-contrib']
 names = [k[5:] for k in packages[1:]]
 
 for name in names:

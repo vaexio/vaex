@@ -1,4 +1,35 @@
-# vaex 4.4.0 (unreleased)
+# vaex 4.5.0
+## vaex-core 4.5.0
+   * Features
+      * Protect file creation parts with lock files [#1541](https://github.com/vaexio/vaex/pull/1541)
+      * Expression.str.extract to extract parts of strings using regex to a struct [#1423](https://github.com/vaexio/vaex/pull/1423)
+   * Performance
+      * We now cache Expression.nunique() [#1565](https://github.com/vaexio/vaex/pull/1565)
+      * Hashmaps memory is shared among threads (does not scale linear with number of threads), and avoids a merge phase [#1525](https://github.com/vaexio/vaex/pull/1525)
+      * Avoid falling back to eval to get the dtype [#1514](https://github.com/vaexio/vaex/pull/1514)
+
+## vaex-hdf5 0.10.0
+    * Features
+         * Write higher dimensional arrays to hdf5 files [#1563](https://github.com/vaexio/vaex/pull/1563)
+
+## vaex-ml 0.14.0
+   * Features
+      * MultiHotEncoder [#1537](https://github.com/vaexio/vaex/pull/1537)
+      * Various ML metrics [#1529](https://github.com/vaexio/vaex/pull/1529)
+
+## vaex-astro 0.9
+   Requires vaex 4.5.0 due to private API change.
+
+## vaex-server 0.6.1
+   * Fixes
+      * Missing imports (now checked in CI) [#1516](https://github.com/vaexio/vaex/pull/1516)
+
+## vaex-contrib 0.1.0
+   * Features
+
+
+
+# vaex 4.4.0
 ## vaex-core 4.4.0
    * Performance
       * Reuse filter data when slicing a dataframe [#1287](https://github.com/vaexio/vaex/pull/1287)
