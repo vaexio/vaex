@@ -6,11 +6,12 @@
    * Performance
       * We now cache Expression.nunique() [#1565](https://github.com/vaexio/vaex/pull/1565)
       * Hashmaps memory is shared among threads (does not scale linear with number of threads), and avoids a merge phase [#1525](https://github.com/vaexio/vaex/pull/1525)
+      * Hashmaps serialize efficiently [#1525](https://github.com/vaexio/vaex/pull/1525)
       * Avoid falling back to eval to get the dtype [#1514](https://github.com/vaexio/vaex/pull/1514)
 
 ## vaex-hdf5 0.10.0
-    * Features
-         * Write higher dimensional arrays to hdf5 files [#1563](https://github.com/vaexio/vaex/pull/1563)
+   * Features
+      * Write higher dimensional arrays to hdf5 files [#1563](https://github.com/vaexio/vaex/pull/1563)
 
 ## vaex-ml 0.14.0
    * Features
@@ -26,7 +27,7 @@
 
 ## vaex-contrib 0.1.0
    * Features
-
+      * Import from and export to Google BigQuery [#1470](https://github.com/vaexio/vaex/pull/1470)
 
 
 # vaex 4.4.0
