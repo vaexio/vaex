@@ -54,6 +54,8 @@ def _format_value(value):
         return value
     elif isinstance(value, numbers.Number):
         value = str(value)
+    if isinstance(value, np.ndarray):
+        value = str(value)
     else:
         value = repr(value)
         value = _trim_string(value)
