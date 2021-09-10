@@ -369,7 +369,7 @@ def test_agg_selections_equal():
     df = vaex.from_arrays(x=x, y=y, z=z, w=w)
 
 
-    df_grouped = df.groupby(df.x).agg({'counts': vaex.agg.count(),
+    df_grouped = df.groupby(df.x, sort=True).agg({'counts': vaex.agg.count(),
                                       'sel_counts': vaex.agg.count(selection=df.y==1.)
                                       })
     assert df_grouped['counts'].tolist() == [3, 2, 2]
@@ -383,7 +383,7 @@ def test_agg_selection_nodata():
 
     df = vaex.from_arrays(x=x, y=y, z=z, w=w)
 
-    df_grouped = df.groupby(df.x).agg({'counts': vaex.agg.count(),
+    df_grouped = df.groupby(df.x, sort=True).agg({'counts': vaex.agg.count(),
                                       'dog_counts': vaex.agg.count(selection=df.w == 'dog')
                                       })
 

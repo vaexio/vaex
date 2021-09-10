@@ -210,11 +210,12 @@ class ExecutorLocal(Executor):
                 chunk_size = self.chunk_size_for(row_count)
                 run.block_scopes = [run.df._block_scope(0, chunk_size) for i in range(self.thread_pool.nthreads)]
                 encoding = vaex.encoding.Encoding()
+                nthreads = self.thread_pool.nthreads
                 for task in tasks:
                     spec = encoding.encode('task', task)
                     spec['task-part-cpu-type'] = spec.pop('task-type')
                     def create_task_part():
-                        return encoding.decode('task-part-cpu', spec, df=run.df)
+                        return encoding.decode('task-part-cpu', spec, df=run.df, nthreads=nthreads)
                     # We want at least 1 task part (otherwise we cannot do any work)
                     # then we ask for the task part how often we should split
                     # This means that we can have 100 threads, but only 2 task parts
@@ -223,15 +224,16 @@ class ExecutorLocal(Executor):
                     task_part_0 = create_task_part()
                     ideal_task_splits = task_part_0.ideal_splits(self.thread_pool.nthreads)
                     assert ideal_task_splits <= self.thread_pool.nthreads, f'Cannot have more splits {ideal_task_splits} then threads {self.thread_pool.nthreads}'
-                    if ideal_task_splits == self.thread_pool.nthreads:
+                    if ideal_task_splits == self.thread_pool.nthreads or task.see_all:
                         # in the simple case, we just use a list
-                        task._parts = [task_part_0] + [create_task_part() for i in range(1, self.thread_pool.nthreads)]
+                        task._parts = [task_part_0] + [create_task_part() for i in range(1, ideal_task_splits)]
                     else:
                         # otherwise a queue
                         task._parts = queue.Queue()
                         task._parts.put(task_part_0)
                         for i in range(1, ideal_task_splits):
                             task._parts.put(create_task_part())
+
                 length = run.df.active_length()
                 if vaex.cache.is_on():
                     key_df = run.df.fingerprint()
@@ -351,19 +353,26 @@ class ExecutorLocal(Executor):
             for task in run.tasks:
                 blocks = [block_dict[expression] for expression in task.expressions_all]
                 if not run.cancelled:
-                    # simple case, ntreads=nparts
-                    if isinstance(task._parts, list):
-                        task_part = task._parts[thread_index]
+                    if task.see_all:
+                        assert isinstance(task._parts, list)
+                        task_parts = task._parts
                     else:
-                        task_part = task._parts.get()
-                    try:
-                        task_part.process(thread_index, i1, i2, filter_mask, *blocks)
-                    except Exception as e:
-                        task.reject(e)
-                        run.cancelled = True
-                        raise
-                    finally:
-                        if not isinstance(task._parts, list):
-                            task._parts.put(task_part)
+                        if isinstance(task._parts, list):
+                            task_parts = [task._parts[thread_index]]
+                        else:
+                            task_parts = [task._parts.get()]
+                    for task_index, task_part in enumerate(task_parts):
+                        try:
+                            if task.see_all:
+                                task_part.process(task_index, i1, i2, filter_mask, *blocks)
+                            else:
+                                task_part.process(thread_index, i1, i2, filter_mask, *blocks)
+                        except Exception as e:
+                            task.reject(e)
+                            run.cancelled = True
+                            raise
+                        finally:
+                            if not isinstance(task._parts, list):
+                                task._parts.put(task_part)
 
         return i2 - i1

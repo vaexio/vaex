@@ -25,7 +25,7 @@ def test_encoding():
 
 
 def test_encoding_arrow(array_factory_arrow):
-    x = array_factory_arrow(np.arange(10, dtype='f4'))
+    x = array_factory_arrow(np.arange(10, dtype='i1'))
     encoding = vaex.encoding.Encoding()
     data = encoding.encode('arrow-array', x)
     wiredata = vaex.encoding.serialize(data, encoding)
@@ -33,6 +33,7 @@ def test_encoding_arrow(array_factory_arrow):
     encoding = vaex.encoding.Encoding()
     data = vaex.encoding.deserialize(wiredata, encoding)
     value = encoding.decode('arrow-array', data)
+    assert value.type == pa.int8()
     assert value.to_pylist() == x.to_pylist()
 
 

@@ -49,8 +49,16 @@ public:
             Py_DECREF(key);
         }    
     }
+    size_t bytes_used() const {
+        int64_t buffer_size = 0;
+        size_t bytes = 0;
+        size_t buckets = map.size();
+        bytes += buckets * (buffer_size + sizeof(value_type));
+        return bytes;
+    }
 
-    void update(py::buffer object_array) {
+    // keep function signature the same
+    void update(py::buffer &object_array, int64_t start_index = 0, int64_t chunk_size = 1024 * 16, int64_t bucket_size = 1024 * 128, bool return_values = false) {
         py::buffer_info info = object_array.request();
         if(info.ndim != 1) {
             throw std::runtime_error("Expected a 1d byte buffer");
@@ -118,6 +126,16 @@ public:
         }
         return  py::reinterpret_steal<py::object>(dict);
     }
+    int64_t length() {
+        int64_t l = map.size();
+        if (nan_count > 0) {
+            l++;
+        }
+        if (null_count > 0) {
+            l++;
+        }
+        return l;
+    }
     hashmap<storage_type, int64_t, std::hash<storage_type>, CompareObjects> map;
     int64_t count;
     int64_t nan_count;
@@ -129,6 +147,7 @@ class counter : public hash_base<counter<T, A>, T, A> {
 public:
     using typename hash_base<counter<T, A>, T, A>::value_type;
     using typename hash_base<counter<T, A>, T, A>::storage_type;
+    counter(int ignore) {}
 
     void add(storage_type& storage_value) {
         Py_IncRef(storage_value);
@@ -159,6 +178,7 @@ template<class T=PyObject*>
 class ordered_set : public hash_base<ordered_set<T>, T, T> {
 public:
     using typename hash_base<ordered_set<T>, T, T>::value_type;
+    ordered_set(int ignore) {}
     using typename hash_base<ordered_set<T>,T, T>::storage_type;
     py::array_t<bool> isin(py::buffer object_array) {
         py::buffer_info info = object_array.request();
@@ -260,8 +280,9 @@ public:
     void add(Bucket& position, storage_type& storage_value) {
         // we can do nothing here
     }
-    void merge(const ordered_set & other) {
-        for (auto & elem : other.map) {
+    void merge(std::vector<const ordered_set*> & others) {
+        for (auto &other : others) {
+        for (auto & elem : other->map) {
             const value_type& value = elem.first;
             auto search = this->map.find(value);
             auto end = this->map.end();
@@ -273,8 +294,9 @@ public:
                 // if already in, it's fine
             }
         }
-        this->nan_count += other.nan_count;
-        this->null_count += other.null_count;
+        this->nan_count += other->nan_count;
+        this->null_count += other->null_count;
+        }
     }
     py::object keys() {
         PyObject* list = PyList_New(this->map.size());
@@ -292,11 +314,14 @@ void init_hash_object(py::module &m) {
         typedef counter<> Type;
         std::string countername = "counter_object";
         py::class_<Type>(m, countername.c_str())
-            .def(py::init<>())
-            .def("update", &Type::update)
+            .def(py::init<int>())
+            .def("update", &Type::update, "add values", py::arg("values"), py::arg("start_index") = 0, py::arg("chunk_size") = 1024 * 128, py::arg("bucket_size") = 1024 * 128,
+                 py::arg("return_values") = false)
             .def("update", &Type::update_with_mask)
             .def("merge", &Type::merge)
             .def("extract", &Type::extract)
+            .def("__len__", &Type::length)
+            .def("__sizeof__", &Type::bytes_used)
             .def_property_readonly("count", [](const Type &c) { return c.count; })
             .def_property_readonly("nan_count", [](const Type &c) { return c.nan_count; })
             .def_property_readonly("null_count", [](const Type &c) { return c.null_count; })
@@ -308,15 +333,18 @@ void init_hash_object(py::module &m) {
         std::string ordered_setname = "ordered_set_object";
         typedef ordered_set<> Type;
         py::class_<Type>(m, ordered_setname.c_str())
-            .def(py::init<>())
+            .def(py::init<int>())
             .def("isin", &Type::isin)
-            .def("update", &Type::update)
+            .def("update", &Type::update, "add values", py::arg("values"), py::arg("start_index") = 0, py::arg("chunk_size") = 1024 * 128, py::arg("bucket_size") = 1024 * 128,
+                 py::arg("return_values") = false)
             .def("update", &Type::update_with_mask)
+            .def("__len__", &Type::length)
             .def("merge", &Type::merge)
             .def("extract", &Type::extract)
             .def("keys", &Type::keys)
             .def("map_ordinal", &Type::map_ordinal)
             .def("map_ordinal", &Type::map_ordinal_with_mask)
+            .def("__sizeof__", &Type::bytes_used)
             .def_property_readonly("count", [](const Type &c) { return c.count; })
             .def_property_readonly("nan_count", [](const Type &c) { return c.nan_count; })
             .def_property_readonly("null_count", [](const Type &c) { return c.null_count; })

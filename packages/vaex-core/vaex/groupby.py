@@ -96,7 +96,7 @@ class BinnerTime(BinnerBase):
 
 class Grouper(BinnerBase):
     """Bins an expression to a set of unique bins."""
-    def __init__(self, expression, df=None, sort=False, pre_sort=True, row_limit=None, df_original=None):
+    def __init__(self, expression, df=None, sort=False, pre_sort=True, row_limit=None, df_original=None, materialize_experimental=False):
         self.df = df or expression.ds
         # we prefer to calculate the set the original dataframe to have better cache hits, and modify df
         if df_original is None:
@@ -106,42 +106,65 @@ class Grouper(BinnerBase):
         # make sure it's an expression
         self.expression = self.df[_ensure_string_from_expression(self.expression)]
         self.label = self.expression._label
-        set = df_original._set(self.expression, unique_limit=row_limit)
-        keys = set.keys()
-        if self.sort:
-            if pre_sort:
-                sort_indices = np.argsort(keys)
-                keys = np.array(keys)[sort_indices].tolist()
-                set_dict = dict(zip(keys, range(len(keys))))
-                set = type(set)(set_dict, set.count, set.nan_count, set.null_count)
-                self.sort_indices = None
-            else:
-                self.sort_indices = np.argsort(keys)
-                keys = np.array(keys)[self.sort_indices].tolist()
-        else:
+        if materialize_experimental:
+            set, values = df_original._set(self.expression, unique_limit=row_limit, return_inverse=True)
+            # TODO: add column should have a unique argument
+            self.df.add_column(f'__materialized_{self.label}', values)
+
+            self.bin_values = set.key_array()
+            if isinstance(self.bin_values, vaex.superstrings.StringList64):
+                self.bin_values = pa.array(self.bin_values.to_numpy())
+            self.binby_expression = 'bla'
+            self.N = len(self.bin_values)
+            self.min_value = 0
+            self.binner = self.df._binner_ordinal('bla', self.N, self.min_value)
             self.sort_indices = None
-        self.set = set
+        else:
+            set = df_original._set(self.expression, unique_limit=row_limit)
+            self.bin_values = set.key_array()
 
-        # TODO: we modify the dataframe in place, this is not nice
-        basename = 'set_%s' % vaex.utils._python_save_name(str(expression))
-        self.setname = self.df.add_variable(basename, self.set, unique=True)
+            if isinstance(self.bin_values, vaex.superstrings.StringList64):
+                # TODO: find out why this more efficient path does not work
+                # col = vaex.column.ColumnStringArrow.from_string_sequence(self.bin_values)
+                # self.bin_values = pa.array(col)
+                self.bin_values = pa.array(self.bin_values.to_numpy())
+            if vaex.dtype_of(self.bin_values).kind == 'i':
+                max_value = self.bin_values.max()
+                self.bin_values = self.bin_values.astype(vaex.utils.required_dtype_for_max(max_value))
+            logger.debug('Constructed grouper for expression %s with %i values', str(expression), len(self.bin_values))
 
-        self.bin_values = keys
-        self.binby_expression = '_ordinal_values(%s, %s)' % (self.expression, self.setname)
-        self.N = len(self.bin_values)
-        if self.set.has_null:
-            self.N += 1
-            self.bin_values = [None] + self.bin_values
-        if self.set.has_nan:
-            self.N += 1
-            self.bin_values = [np.nan] + self.bin_values
-        if self.sort_indices is not None:
-            if self.set.has_null and self.set.has_nan:
-                self.sort_indices = np.concatenate([[0, 1], self.sort_indices + 2])
-            elif self.set.has_null or self.set.has_nan:
-                self.sort_indices = np.concatenate([[0], self.sort_indices + 1])
-        self.bin_values = self.expression.dtype.create_array(self.bin_values)
-        self.binner = self.df._binner_ordinal(self.binby_expression, self.N)
+            # since nan and null are at the start, we skip them with sorting
+            if self.sort:
+                dtype = self.expression.dtype
+                indices = pa.compute.sort_indices(self.bin_values)#[offset:])
+                if pre_sort:
+                    self.bin_values = pa.compute.take(self.bin_values, indices)
+                    # arrow sorts with null last
+                    null_value = -1 if not set.has_null else len(self.bin_values)-1
+                    if dtype.is_string:
+                        bin_values = vaex.column.ColumnStringArrow.from_arrow(self.bin_values)
+                        string_sequence = bin_values.string_sequence
+                        set = type(set)(string_sequence, null_value, set.nan_count, set.null_count)
+                    else:
+                        set = type(set)(self.bin_values, null_value, set.nan_count, set.null_count)
+                    self.sort_indices = None
+                else:
+                    # TODO: skip first or first two values (null and/or nan)
+                    self.sort_indices = vaex.array_types.to_numpy(indices)
+                    # the bin_values will still be pre sorted, maybe that is confusing (implementation detail)
+                    self.bin_values = pa.compute.take(self.bin_values, self.sort_indices)
+            else:
+                self.sort_indices = None
+            self.set = set
+
+            # TODO: we modify the dataframe in place, this is not nice
+            basename = 'set_%s' % vaex.utils._python_save_name(str(expression))
+            self.setname = self.df.add_variable(basename, self.set, unique=True)
+
+            self.binby_expression = '_ordinal_values(%s, %s)' % (self.expression, self.setname)
+            self.N = len(self.bin_values)
+            self.bin_values = self.expression.dtype.create_array(self.bin_values)
+            self.binner = self.df._binner_ordinal(self.binby_expression, self.N)
 
 
 class GrouperCombined(Grouper):
@@ -167,15 +190,25 @@ class GrouperCombined(Grouper):
             df[f'leftover_{i}'] = df[f'leftover_{i-1}'] % multipliers[i]
         columns = [f'index_{i}' for i in range(len(multipliers))]
         indices_parents = df.evaluate(columns)
+        def compress(ar):
+            if vaex.dtype_of(ar).kind == 'i':
+                ar = vaex.array_types.to_numpy(ar)
+                max_value = ar.max()
+                ar = ar.astype(vaex.utils.required_dtype_for_max(max_value))
+                return ar
+        indices_parents = [compress(ar) for ar in indices_parents]
         bin_values = {}
+        # NOTE: we can also use dict encoding instead of take
         for indices, parent in zip(indices_parents, parents):
             dtype = vaex.dtype_of(parent.bin_values)
             if dtype.is_struct:
                 # collapse parent struct into our flat struct
                 for field, ar in zip(parent.bin_values.type, parent.bin_values.flatten()):
                     bin_values[field.name] = ar.take(indices)
+                    # bin_values[field.name] = pa.DictionaryArray.from_arrays(indices, ar)
             else:
                 bin_values[parent.label] = parent.bin_values.take(indices)
+                # bin_values[parent.label] = pa.DictionaryArray.from_arrays(indices, parent.bin_values)
         self.bin_values = pa.StructArray.from_arrays(bin_values.values(), bin_values.keys())
 
 
@@ -191,13 +224,8 @@ class GrouperCategory(BinnerBase):
 
         self.bin_values = self.df.category_labels(self.expression_original, aslist=False)
         if self.sort:
-            # None will always be the first value
-            if self.bin_values[0] is None:
-                self.sort_indices = np.concatenate([[0], 1 + np.argsort(self.bin_values[1:])])
-                self.bin_values = np.array(self.bin_values)[self.sort_indices].tolist()
-            else:
-                self.sort_indices = np.argsort(self.bin_values)
-                self.bin_values = np.array(self.bin_values)[self.sort_indices].tolist()
+            self.sort_indices = pa.compute.sort_indices(self.bin_values)#[offset:])
+            self.bin_values = pa.compute.take(self.bin_values, self.sort_indices)
         else:
             self.sort_indices = None
         if isinstance(self.bin_values, list):
@@ -415,8 +443,8 @@ class GroupByBase(object):
 
 class BinBy(GroupByBase):
     """Implementation of the binning and aggregation of data, see :method:`binby`."""
-    def __init__(self, df, by):
-        super(BinBy, self).__init__(df, by)
+    def __init__(self, df, by, sort=False):
+        super(BinBy, self).__init__(df, by, sort=sort)
 
     def agg(self, actions, merge=False):
         import xarray as xr
@@ -499,7 +527,7 @@ class GroupBy(GroupByBase):
                     assert value.ndim == 1
                     columns[key] = value
         dataset_arrays = vaex.dataset.DatasetArrays(columns)
-        dataset = DatasetGroupby(dataset_arrays, self.df, self.by_original, actions, combine=self.combine, expand=self.expand)
+        dataset = DatasetGroupby(dataset_arrays, self.df, self.by_original, actions, combine=self.combine, expand=self.expand, sort=self.sort)
         df_grouped = vaex.from_dataset(dataset)
         return df_grouped
 
@@ -508,12 +536,13 @@ class GroupBy(GroupByBase):
 class DatasetGroupby(vaex.dataset.DatasetDecorator):
     '''Wraps a resulting dataset from a dataframe groupby, so the groupby can be serialized'''
     snake_name = 'groupby'
-    def __init__(self, original, df, by, agg, combine, expand):
+    def __init__(self, original, df, by, agg, combine, expand, sort):
         assert isinstance(original, vaex.dataset.DatasetArrays)
         super().__init__(original)
         self.df = df
         self.by = by
         self.agg = agg
+        self.sort = sort
         self.combine = combine
         self.expand = expand
         self._row_count = self.original.row_count
@@ -535,7 +564,7 @@ class DatasetGroupby(vaex.dataset.DatasetDecorator):
         yield from self.original.chunk_iterator(*args, **kwargs)
 
     def hashed(self):
-        return type(self)(self.original.hashed(), df=self.df, by=self.by, agg=self.agg, combine=self.combine, expand=self.expand)
+        return type(self)(self.original.hashed(), df=self.df, by=self.by, agg=self.agg, combine=self.combine, expand=self.expand, sort=self.sort)
 
     def _encode(self, encoding):
         by = self.by
@@ -546,6 +575,7 @@ class DatasetGroupby(vaex.dataset.DatasetDecorator):
             'aggregation': encoding.encode_collection('aggregation', self.agg),
             'combine': self.combine,
             'expand': self.expand,
+            'sort': self.sort,
         }
         return spec
 
@@ -554,8 +584,9 @@ class DatasetGroupby(vaex.dataset.DatasetDecorator):
         df = encoding.decode('dataframe', spec.pop('dataframe'))
         by = spec.pop('by')
         agg = encoding.decode_collection('aggregation', spec.pop('aggregation'))
-        dfg = df.groupby(by, agg=agg)
-        return DatasetGroupby(dfg.dataset.original, df, by, agg, **spec)
+        sort = spec.pop('sort')
+        dfg = df.groupby(by, agg=agg, sort=sort)
+        return DatasetGroupby(dfg.dataset.original, df, by, agg, sort=sort, **spec)
 
     def __getstate__(self):
         state = self.__dict__.copy()
@@ -564,7 +595,7 @@ class DatasetGroupby(vaex.dataset.DatasetDecorator):
 
     def __setstate__(self, state):
         self.__dict__.update(state)
-        self.original = self.df.groupby(self.by, agg=self.agg).dataset.original
+        self.original = self.df.groupby(self.by, agg=self.agg, sort=self.sort).dataset.original
         # self._create_columns()
 
     def slice(self, start, end):

@@ -2471,10 +2471,12 @@ def _map(ar, value_to_index, choices, default_value=None, use_missing=False, axi
     else:
         ar = vaex.array_types.to_numpy(ar)
         indices = value_to_index.map_ordinal(ar) + 1
-        if np.ma.isMaskedArray(ar):
-            mask = np.ma.getmaskarray(ar)
-            indices[mask] = 1  # missing values are at offset 1 (see expression.map)
     values = choices.take(indices)
+    if np.ma.isMaskedArray(ar):
+        mask = np.ma.getmaskarray(ar).copy()
+        # also mask out the missing (which had -1 and was moved to 0)
+        mask = mask | (indices == 0)
+        values = np.ma.array(values, mask=mask)
     if flatten:
         values = wrapper(values)
     return values

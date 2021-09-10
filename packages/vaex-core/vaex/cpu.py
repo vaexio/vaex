@@ -5,11 +5,11 @@ import logging
 import sys
 
 import numpy as np
+import pyarrow as pa
 
 import vaex
 import vaex.encoding
 from .utils import as_flat_float, as_flat_array, _issequence, _ensure_list
-from . import array_types
 from .array_types import filter
 
 
@@ -109,7 +109,7 @@ class TaskPartFilterFill(TaskPart):
         pass
 
     @classmethod
-    def decode(cls, encoding, spec, df):
+    def decode(cls, encoding, spec, df, nthreads):
         assert spec == {}
         return cls()
 
@@ -118,8 +118,9 @@ class TaskPartFilterFill(TaskPart):
 class TaskPartSetCreate(TaskPart):
     snake_name = "set_create"
 
-    def __init__(self, df, expression, dtype, dtype_item, flatten, unique_limit, selection):
+    def __init__(self, df, expression, dtype, dtype_item, flatten, unique_limit, selection, nthreads, return_inverse):
         expression = str(expression)
+        self.nthreads = nthreads
         self.df = df
         self.dtype = dtype
         self.dtype_item = dtype_item
@@ -127,6 +128,9 @@ class TaskPartSetCreate(TaskPart):
         self.expression = expression
         self.unique_limit = unique_limit
         self.selection = selection
+        self.return_inverse = return_inverse
+        self.chunks = []
+        self.values = None
 
         transient = False
         # TODO: revive non-transient optimization
@@ -146,53 +150,84 @@ class TaskPartSetCreate(TaskPart):
         return [self.expression]
 
     def get_result(self):
-        return self.set
+        if self.return_inverse:
+            return self.set, self.values
+        else:
+            return self.set
 
     def process(self, thread_index, i1, i2, filter_mask, ar):
         from vaex.column import _to_string_sequence
         if self.set is None:
-            self.set = self.ordered_set_type()
+            # *7 is arbitrary, but we can have more maps than threads to avoid locks`q
+            self.set = self.ordered_set_type(self.nthreads*7)
         if self.selection:
             selection_mask = self.df.evaluate_selection_mask(self.selection, i1=i1, i2=i2, cache=True)
             ar = filter(ar, selection_mask)
+        if len(ar) == 0:
+            return
         if self.dtype.is_list and self.flatten:
             ar = ar.values
         if self.dtype_item.is_string:
             ar = _to_string_sequence(ar)
         else:
             ar = vaex.array_types.to_numpy(ar)
+            if ar.strides != (1,):
+                ar = ar.copy()
+        chunk_size = 1024*1024
+
         if np.ma.isMaskedArray(ar):
             mask = np.ma.getmaskarray(ar)
-            self.set.update(ar, mask)
+            if self.return_inverse:
+                values, map_index = self.set.update(ar, mask, -1, chunk_size=chunk_size, bucket_size=chunk_size*4, return_values=self.return_inverse)
+                self.chunks.append((i1, i2, values, map_index))
+            else:
+                self.set.update(ar, mask,  -1, chunk_size=chunk_size, bucket_size=chunk_size*4)
         else:
-            self.set.update(ar)
+            if self.return_inverse:
+                values, map_index = self.set.update(ar, -1, chunk_size=chunk_size, bucket_size=chunk_size*4, return_values=self.return_inverse)
+                self.chunks.append((i1, i2, values, map_index))
+            else:
+                self.set.update(ar, -1, chunk_size=chunk_size, bucket_size=chunk_size*4)
+        if logger.level >= logging.DEBUG:
+            logger.debug(f"set uses {sys.getsizeof(self.set):,} bytes (offset {i1:,}, length {i2-i1:,})")
         if self.unique_limit is not None:
-            count = self.set.count
-            # we skip null and nan here, since this is just an early bail out
-            if count > self.unique_limit:
+            if len(self.set) > self.unique_limit:
                 raise vaex.RowLimitException(f'Resulting set would have >= {self.unique_limit} unique combinations')
 
+    def ideal_splits(self, nthreads):
+        # TODO, we want to configure this
+        return 1 # nthreads
+
     def reduce(self, others):
-        set_merged = self.set
-        for other in others:
-            if set_merged is None and other.set is not None:
-                set_merged = other.set
-            elif other.set is not None:
-                set_merged.merge(other.set)
+        all = [self] + others
+        all = [k.set for k in all if k.set is not None]
+        set_merged, *others = all
+        import time
+        t0 = time.time()
+        set_merged.merge(others)
+        logger.info(f'merge took {time.time()-t0} seconds, size {len(set_merged):,}, byte_size {sys.getsizeof(set_merged):,}')
+
+        if self.return_inverse:
+            # sort by row index
+            self.chunks.sort(key=lambda x: x[0])
+            length = 0
+            for i1, i2, values, map_index in self.chunks:
+                length += len(values)
+            self.values = np.empty(length, vaex.dtype_of(self.chunks[0][2]).numpy)
+            # TODO: we could do this parallel, but overhead is small
+            for i1, i2, values, map_index in self.chunks:
+                set_merged.flatten_values(values, map_index, self.values[i1:i2])
+
         if self.unique_limit is not None:
-            count = set_merged.count
-            if set_merged.has_nan:
-                count += 1
-            if set_merged.has_null:
-                count += 1
+            count = len(set_merged)
             if count > self.unique_limit:
                 raise vaex.RowLimitException(f'Resulting set has {count:,} unique combinations, which is larger than the allowed value of {self.unique_limit:,}')
         self.set = set_merged
 
     @classmethod
-    def decode(cls, encoding, spec, df):
+    def decode(cls, encoding, spec, df, nthreads):
         return cls(df, spec['expression'], encoding.decode('dtype', spec['dtype']), encoding.decode('dtype', spec['dtype_item']),
-                   flatten=spec['flatten'], unique_limit=spec['unique_limit'], selection=spec['selection'])
+                   flatten=spec['flatten'], unique_limit=spec['unique_limit'], selection=spec['selection'], return_inverse=spec['return_inverse'], nthreads=nthreads)
 
 
 
@@ -266,7 +301,7 @@ class TaskPartMapReduce(TaskPart):
         return self.values
 
     @classmethod
-    def decode(cls, encoding, spec, df):
+    def decode(cls, encoding, spec, df, nthreads):
         spec = spec.copy()
         return cls(df, **spec)
 
@@ -397,7 +432,7 @@ class TaskPartStatistic(TaskPart):
         return self.grid if self.selection_waslist else self.grid[0]
 
     @classmethod
-    def decode(cls, encoding, spec, df):
+    def decode(cls, encoding, spec, df, nthreads):
         spec = spec.copy()
         spec['op'] = encoding.decode('_op', spec['op'])
         spec['dtype'] = encoding.decode('dtype', spec['dtype'])
@@ -408,7 +443,7 @@ class TaskPartStatistic(TaskPart):
 class TaskPartAggregation(TaskPart):
     snake_name = "aggregations"
 
-    def __init__(self, df, binners, aggregation_descriptions, dtypes, initial_values=None):
+    def __init__(self, df, binners, aggregation_descriptions, dtypes, initial_values=None, nthreads=None):
         self.df = df
         self.has_values = False
         self.dtypes = dtypes
@@ -454,7 +489,7 @@ class TaskPartAggregation(TaskPart):
         if self.nbytes >= 1e7:
             splits = splits//2
         logger.info(f'Estimate for ideal number of splits: {splits:,}')
-        return max(2, splits)
+        return max(min(nthreads, 2), splits)
 
     def process(self, thread_index, i1, i2, filter_mask, *blocks):
         # self.check()
@@ -476,7 +511,7 @@ class TaskPartAggregation(TaskPart):
                 N = len(blocks[0])
             else:
                 N = filter_mask.sum()
-        blocks = [array_types.to_numpy(block, strict=False) for block in blocks]
+        blocks = [vaex.array_types.to_numpy(block, strict=False) for block in blocks]
         for block in blocks:
             assert len(block) == N, f'Oops, got a block of length {len(block)} while it is expected to be of length {N} (at {i1}-{i2}, filter={filter_mask is not None})'
         block_map = {expr: block for expr, block in zip(self.expressions, blocks)}
@@ -574,7 +609,7 @@ class TaskPartAggregation(TaskPart):
 
 
     @classmethod
-    def decode(cls, encoding, spec, df):
+    def decode(cls, encoding, spec, df, nthreads):
         # aggs = [vaex.agg._from_spec(agg_spec) for agg_spec in spec['aggregations']]
         aggs = encoding.decode_list('aggregation', spec['aggregations'])
         dtypes = encoding.decode_dict('dtype', spec['dtypes'])

@@ -145,7 +145,7 @@ def hash_array_data(ar):
                     # or possible patch the blake module to accept a memoryview https://github.com/oconnor663/blake3-py/issues/9
                     # or feed in the buffer in batches
                     # blake.update(buffer)
-                    blake.update(memoryview((buffer)).tobytes())
+                    blake.update(memoryview(buffer))
                     buffer_hashes.append(blake.hexdigest())
                 else:
                     buffer_hashes.append(None)

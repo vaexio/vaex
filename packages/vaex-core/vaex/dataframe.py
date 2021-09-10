@@ -458,11 +458,11 @@ class DataFrame(object):
             pass
         return self.map_reduce(map, reduce, expressions, delay=delay, progress=progress, name='nop', to_numpy=False)
 
-    def _set(self, expression, progress=False, selection=None, flatten=True, delay=False, unique_limit=None):
+    def _set(self, expression, progress=False, selection=None, flatten=True, delay=False, unique_limit=None, return_inverse=False):
         if selection is not None:
             selection = str(selection)
         expression = _ensure_string_from_expression(expression)
-        task = vaex.tasks.TaskSetCreate(self, expression, flatten, unique_limit=unique_limit, selection=selection)
+        task = vaex.tasks.TaskSetCreate(self, expression, flatten, unique_limit=unique_limit, selection=selection, return_inverse=return_inverse)
         task = self.executor.schedule(task)
         return self._delay(delay, task)
 
@@ -497,7 +497,7 @@ class DataFrame(object):
         def map(thread_index, i1, i2, ar):
             index = indices.get()
             if index is None:
-                index = index_type()
+                index = index_type(1)
                 if hasattr(index, 'reserve'):
                     index.reserve(capacity_initial)
             if vaex.array_types.is_string_type(dtype):
@@ -563,11 +563,42 @@ class DataFrame(object):
                 def reduce(a, b):
                     pass
                 self.map_reduce(map, reduce, [expression], delay=delay, name='unique_return_inverse', info=True, to_numpy=False, selection=selection)
-            keys = ordered_set.keys()
-            if not dropnan and ordered_set.has_nan:
-                keys = [math.nan] + keys
-            if not dropmissing and ordered_set.has_null:
-                keys = [None] + keys
+            # ordered_set.seal()
+            # if array_type == 'python':
+            if data_type_item.is_object:
+                key_values = ordered_set.extract()
+                keys = list(key_values.keys())
+                counts = list(key_values.values())
+                if ordered_set.has_nan and not dropnan:
+                    keys = [np.nan] + keys
+                    counts = [ordered_set.nan_count] + counts
+                if ordered_set.has_null and not dropmissing:
+                    keys = [None] + keys
+                    counts = [ordered_set.null_count] + counts
+                if dropmissing and None in keys:
+                    # we still can have a None in the values
+                    index = keys.index(None)
+                    keys.pop(index)
+                    counts.pop(index)
+                counts = np.array(counts)
+                keys = np.array(keys)
+            else:
+                keys = ordered_set.key_array()
+                deletes = []
+                if dropmissing and ordered_set.has_null:
+                    deletes.append(ordered_set.null_value)
+                if dropnan and ordered_set.has_nan:
+                    deletes.append(ordered_set.nan_value)
+                if isinstance(keys, (vaex.strings.StringList32, vaex.strings.StringList64)):
+                    keys = vaex.strings.to_arrow(keys)
+                    indices = np.delete(np.arange(len(keys)), deletes)
+                    keys = keys.take(indices)
+                else:
+                    keys = np.delete(keys, deletes)
+                    if not dropmissing and ordered_set.has_null:
+                        mask = np.zeros(len(keys), dtype=np.uint8)
+                        mask[ordered_set.null_value] = 1
+                        keys = np.ma.array(keys, mask=mask)
         keys = vaex.array_types.convert(keys, array_type)
         if return_inverse:
             return keys, inverse
@@ -6638,7 +6669,7 @@ class DataFrameLocal(DataFrame):
         else:
             return groupby.agg(agg)
 
-    def binby(self, by=None, agg=None):
+    def binby(self, by=None, agg=None, sort=False):
         """Return a :class:`BinBy` or :class:`DataArray` object when agg is not None
 
         The binby operation does not return a 'flat' DataFrame, instead it returns an N-d grid
@@ -6651,7 +6682,7 @@ class DataFrameLocal(DataFrame):
         :return: :class:`DataArray` or :class:`BinBy` object.
         """
         from .groupby import BinBy
-        binby = BinBy(self, by=by)
+        binby = BinBy(self, by=by, sort=sort)
         if agg is None:
             return binby
         else:

@@ -76,6 +76,12 @@ def test_groupby_long_name(df_local):
     assert 'long_name_mean' in dfg
 
 
+def test_groupby_empty(df_local):
+    df = df_local
+    dff = df[df.x > 1000]
+    dff.groupby('x', agg='count')
+
+
 def test_groupby_space_in_name(df_local):
     df = df_local.extract()
     g = np.array([0, 0, 0, 0, 1, 1, 1, 1, 2, 2])
@@ -98,7 +104,7 @@ def test_groupby_1d(ds_local):
     ds = ds_local.extract()
     g = np.array([0, 0, 0, 0, 1, 1, 1, 1, 2, 2])
     ds.add_column('g', g)
-    dfg = ds.groupby(by=ds.g, agg={'count': vaex.agg.count()}).sort('g')
+    dfg = ds.groupby(by=ds.g, agg={'count': vaex.agg.count()}, sort=True)
     assert dfg.g.tolist() == [0, 1, 2]
     assert dfg['count'].tolist() == [4, 4, 2]
 
@@ -120,8 +126,8 @@ def test_groupby_sort_string(df_factory, as_category):
     if as_category:
         df = df.ordinal_encode('g')
     dfg = df.groupby(by='g', sort=True, agg={'count': vaex.agg.count()})
-    assert dfg.g.tolist() == [None, 'a', 'b', 'c']
-    assert dfg['count'].tolist() == [4, 3, 1, 2]
+    assert dfg.g.tolist() == ['a', 'b', 'c', None]
+    assert dfg['count'].tolist() == [3, 1, 2, 4]
 
 
 @pytest.mark.parametrize("auto_encode", [False, True])
@@ -153,7 +159,7 @@ def test_binby_1d(ds_local):
     ds = ds_local.extract()
     g = np.array([0, 0, 0, 0, 1, 1, 1, 1, 2, 2])
     ds.add_column('g', g)
-    ar = ds.binby(by=ds.g, agg={'count': vaex.agg.count()})
+    ar = ds.binby(by=ds.g, agg={'count': vaex.agg.count()}, sort=True)
 
     assert ar.coords['g'].values.tolist() == [0, 1, 2]
     assert ar.coords['statistic'].values.tolist() == ["count"]
@@ -178,14 +184,14 @@ def test_binby_2d(ds_local):
     h = np.array([5, 5, 5, 6, 5, 5, 5, 5, 6, 6])
     ds['g'] = g
     ds['h'] = h
-    ar = ds.binby(by=[ds.g, ds.h], agg={'count': vaex.agg.count()})
+    ar = ds.binby(by=[ds.g, ds.h], agg={'count': vaex.agg.count()}, sort=True)
     assert ar.coords['g'].values.tolist() == [0, 1, 2]
     assert ar.coords['h'].values.tolist() == [5, 6]
     assert ar.coords['statistic'].values.tolist() == ["count"]
     assert ar.dims == ('statistic', 'g', 'h')
     assert ar.data.tolist() == [[[3, 1], [4, 0], [0, 2]]]
 
-    ar = ds.binby(by=[ds.g, ds.h], agg=vaex.agg.count())
+    ar = ds.binby(by=[ds.g, ds.h], agg=vaex.agg.count(), sort=True)
     assert ar.dims == ('g', 'h')
     assert ar.data.tolist() == [[3, 1], [4, 0], [0, 2]]
 
@@ -196,7 +202,7 @@ def test_groupby_2d(ds_local):
     h = np.array([5, 5, 5, 6, 5, 5, 5, 5, 6, 6])
     ds['g'] = g
     ds['h'] = h
-    dfg = ds.groupby(by=[ds.g, ds.h], agg={'count': vaex.agg.count()}).sort('g')
+    dfg = ds.groupby(by=[ds.g, ds.h], agg={'count': vaex.agg.count()}, sort=True)
     assert dfg.g.tolist() == [0, 0, 1, 2]
     assert dfg['count'].tolist() == [3, 1, 4, 2]
 
@@ -292,7 +298,7 @@ def test_groupby_std():
     g = np.array([9, 2, 3, 4, 0, 1, 2, 3, 2, 5], dtype='int32')
     s = np.array(list(map(str, [0, 0, 0, 0, 1, 1, 1, 1, 2, 2])))
     df = vaex.from_arrays(g=g, s=s)
-    groupby = df.groupby('s')
+    groupby = df.groupby('s', sort=True)
     dfg = groupby.agg({'g': 'std'})
     assert dfg.s.tolist() == ['0', '1', '2']
     pandas_g = df.to_pandas_df(array_type='numpy').groupby('s').std(ddof=0).g.tolist()
@@ -303,7 +309,7 @@ def test_groupby_count_string():
     g = np.array([0, 0, 0, 0, 1, 1, 1, 1, 2, 2])
     s = np.array(list(map(str, [0, 0, 0, 0, 1, 1, 1, 1, 2, 2])))
     df = vaex.from_arrays(g=g, s=s)
-    groupby = df.groupby('s')
+    groupby = df.groupby('s', sort=True)
     dfg = groupby.agg({'m': vaex.agg.count('s')})
     assert dfg.s.tolist() == ['0', '1', '2']
     assert dfg.m.tolist() == [4, 4, 2]
@@ -398,7 +404,7 @@ def test_groupby_datetime():
             }
 
     df = vaex.from_dict(data)
-    dfg = df.groupby(by='t').agg({'z': 'mean'})
+    dfg = df.groupby(by='t', sort=True).agg({'z': 'mean'})
 
     assert dfg.column_count() == 2
     assert dfg.z.tolist() == [3, 9]
@@ -408,8 +414,7 @@ def test_groupby_datetime():
 
 def test_groupby_state(df_factory, rebuild_dataframe):
     df = df_factory(g=[0, 0, 0, 1, 1, 2], x=[1, 2, 3, 4, 5, 6])._future()
-    dfg = df.groupby(by=df.g, agg={'count': vaex.agg.count(), 'sum': vaex.agg.sum('x')})
-    dfg.sort('g')  # TODO: sort it not yet implemented in the dataset state
+    dfg = df.groupby(by=df.g, agg={'count': vaex.agg.count(), 'sum': vaex.agg.sum('x')}, sort=True)
     assert dfg.g.tolist() == [0, 1, 2]
     assert dfg['count'].tolist() == [3, 2, 1]
     assert dfg['sum'].tolist() == [1+2+3, 4+5, 6]
@@ -421,7 +426,6 @@ def test_groupby_state(df_factory, rebuild_dataframe):
 
     df = df_factory(g=[0, 0, 0, 1, 1, 2], x=[2, 3, 4, 5, 6, 7])._future()
     df.state_set(dfg.state_get())
-    # import pdb; pdb.set_trace()
     assert df.g.tolist() == [0, 1, 2]
     assert df['count'].tolist() == [3, 2, 1]
     assert df['sum'].tolist() == [1+2+3, 4+5, 6]
