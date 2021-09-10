@@ -66,6 +66,9 @@ disk_size_limit = vaex.utils.get_env_type(str, 'VAEX_CACHE_DISK_SIZE_LIMIT', '1G
 dask.base.normalize_token.register(pa.DataType, repr)
 
 cache = None
+# used for testing
+_cache_hit = 0
+_cache_miss = 0
 
 class _cleanup:
     def __init__(self, gen, result):
@@ -262,8 +265,16 @@ def get(key, default=None, type=None):
     :param default: Return when cache is on, but key not in cache
     :param type: Currently unused.
     '''
+    global _cache_miss, _cache_hit
     if is_on():
-        return cache.get(key, default)
+        value = cache.get(key, default)
+        # this might not be the best way to check for a cache hit or miss
+        # but it is sufficient for testing
+        if value is default:
+            _cache_miss += 1
+        else:
+            _cache_hit += 1
+        return value
 
 
 class _ThreadLocalCallablePatch:

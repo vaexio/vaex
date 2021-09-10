@@ -115,6 +115,19 @@ def test_cache_set():
         df._set('x')
         assert passes(df) == passes0 + 1
 
+def test_nunique():
+    df = vaex.from_arrays(x=[0, 1, 2, 2])
+    with vaex.cache.memory_infinite(clear=True):
+        hit = vaex.cache._cache_hit
+        miss = vaex.cache._cache_miss
+        df.x.nunique()
+        # twice in the exector for the set, 1 time in nunique
+        assert vaex.cache._cache_miss == miss + 3
+        assert vaex.cache._cache_hit == hit
+        df.x.nunique()
+        assert vaex.cache._cache_miss == miss + 3
+        assert vaex.cache._cache_hit == hit + 1
+
 
 def test_cache_groupby():
     df = vaex.from_arrays(x=[0, 1, 2, 2], y=['a', 'b', 'c', 'd'])
