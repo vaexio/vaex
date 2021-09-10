@@ -84,19 +84,29 @@ class ThreadPoolIndex(concurrent.futures.ThreadPoolExecutor):
             iterator = (loop.run_in_executor(self, lambda value=value: wrapped(value)) for value in iterator)
 
         total = 0
-        for i, value in buffer(enumerate(iterator), self._max_workers + 3):
-            value = await value
-            if value != None:
-                total += value
-            progress_value = (total) / count
-            time_now = time.time()
-            if progress_value == 1 or (time_now - time_last) > min_delta_t:
-                time_last = time_now
-                if progress(progress_value) is False:
-                    cancelled = True
-                    cancel()
-                    break
-            yield value
+        iterator = iter(buffer(iterator, self._max_workers + 3))
+        try:
+            for value in iterator:
+                value = await value
+                if value != None:
+                    total += value
+                progress_value = (total) / count
+                time_now = time.time()
+                if progress_value == 1 or (time_now - time_last) > min_delta_t:
+                    time_last = time_now
+                    if progress(progress_value) is False:
+                        cancelled = True
+                        cancel()
+                        break
+                yield value
+        finally:
+            # consume the rest of the iterators and await them to avoid un-awaited exceptions, which trigger a
+            # 'Future exception was never retrieved' printout
+            for value in iterator:
+                try:
+                    await value
+                except:
+                    pass
 
     def _map_async(self, callable, iterator):
         for i in iterator:

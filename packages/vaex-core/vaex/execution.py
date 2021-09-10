@@ -318,7 +318,6 @@ class ExecutorLocal(Executor):
                     self.signal_end.emit()
         except:  # noqa
             self.signal_cancel.emit()
-            logger.exception("error in task, flush task queue")
             raise
         finally:
             self.local.executing = False
