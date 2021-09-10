@@ -2,6 +2,7 @@ import ast
 import copy
 import os
 import base64
+import time
 import cloudpickle as pickle
 import functools
 import operator
@@ -1078,6 +1079,16 @@ class Expression(with_metaclass(Meta)):
         :param dropna: short for any of the above, (see :func:`Expression.isna`)
         :param bool axis: Axis over which to determine the unique elements (None will flatten arrays or lists)
         """
+        if delay is False and vaex.cache.is_on():
+            fp = vaex.cache.fingerprint(self.fingerprint(), dropna, dropnan, dropmissing, selection, axis)
+            key = f'nunique-{fp}'
+            value = vaex.cache.get(key, type='computed')
+            if value is None:
+                t0 = time.time()
+                value = len(self.unique(dropna=dropna, dropnan=dropnan, dropmissing=dropmissing, selection=selection, axis=axis))
+                duration_wallclock = time.time() - t0
+                vaex.cache.set(key, value, type='computed', duration_wallclock=duration_wallclock)
+            return value
         return len(self.unique(dropna=dropna, dropnan=dropnan, dropmissing=dropmissing, selection=selection, axis=axis, delay=delay))
 
     def countna(self):
