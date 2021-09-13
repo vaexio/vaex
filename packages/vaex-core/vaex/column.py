@@ -79,10 +79,9 @@ class ColumnVirtualConstant(Column):
         return self.length
 
     def __getitem__(self, slice):
-        template = pa.array([self.value] * self.chunk_size, type=self.dtype)
+        template = pa.array([self.value] * self.chunk_size, type=self.dtype.arrow)
         n_chunks = (self.length + self.chunk_size - 1) // self.chunk_size
-        ar = pa.chunked_array([template] * n_chunks)
-        ar = ar.slice(length=self.length)
+        ar = pa.chunked_array([template] * n_chunks)[slice]
         return ar
 
     def _fingerprint(self):
@@ -91,9 +90,9 @@ class ColumnVirtualConstant(Column):
 
     def _get_dtype(self, dtype):
         if dtype is None:
-            return pa.array([self.value]).type
+            return vaex.datatype.DataType(pa.array([self.value]).type)
         else:
-            vaex.datatype.DataType(dtype).arrow
+            return vaex.datatype.DataType(dtype)
 
     def trim(self, i1, i2):
         length = i2 - i1
