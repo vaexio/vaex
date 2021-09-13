@@ -18,6 +18,8 @@ Opening/reading in your data.
     vaex.from_ascii
     vaex.from_pandas
     vaex.from_astropy_table
+    vaex.vrange
+    vaex.vconstant
 
 Visualization.
 ~~~~~~~~~~~~~~
@@ -58,7 +60,7 @@ vaex-core
 ---------
 
 .. automodule:: vaex
-    :members: open, concat, from_arrays, from_dict, from_items, from_arrow_table, from_csv, from_ascii, from_pandas, from_astropy_table, from_samp, open_many, register_function, server, example, app, delayed
+    :members: open, concat, from_arrays, from_dict, from_items, from_arrow_table, from_csv, from_ascii, from_pandas, from_astropy_table, from_samp, open_many, register_function, server, example, app, delayed, vrange, vconstant
     :undoc-members:
     :show-inheritance:
 
