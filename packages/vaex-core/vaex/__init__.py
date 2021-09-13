@@ -777,6 +777,11 @@ def vrange(start, stop, step=1, dtype='f8'):
     from .column import ColumnVirtualRange
     return ColumnVirtualRange(start, stop, step, dtype)
 
+def vconstant(value, length, dtype=None, chunk_size=1024):
+    """Creates a virtual column with constant values. This uses 0 memory."""
+    from .column import ColumnVirtualConstant
+    return ColumnVirtualConstant(value=value, length=length, dtype=dtype, chunk_size=chunk_size)
+
 def string_column(strings):
     import pyarrow as pa
     return pa.array(strings)

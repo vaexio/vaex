@@ -68,6 +68,38 @@ class ColumnVirtualRange(Column):
         return ColumnVirtualRange(self.start + i1 * self.step, self.start + i2 * self.step, self.step, self.dtype)
 
 
+class ColumnVirtualConstant(Column):
+    def __init__(self, value, length, dtype=None, chunk_size=1024):
+        self.value = value
+        self.length = length
+        self.dtype = self._get_dtype(dtype)
+        self.chunk_size = chunk_size
+
+    def __len__(self):
+        return self.length
+
+    def __getitem__(self, slice):
+        template = pa.array([self.value] * self.chunk_size, type=self.dtype)
+        n_chunks = (self.length + self.chunk_size - 1) // self.chunk_size
+        ar = pa.chunked_array([template] * n_chunks)
+        ar = ar.slice(length=self.length)
+        return ar
+
+    def _fingerprint(self):
+        fp = vaex.cache.fingerprint(self.value, self.length, self.dtype, self.chunk_size)
+        return f'column-vconstant-{fp}'
+
+    def _get_dtype(self, dtype):
+        if dtype is None:
+            return pa.array([self.value]).type
+        else:
+            vaex.datatype.DataType(dtype).arrow
+
+    def trim(self, i1, i2):
+        length = i2 - i1
+        return ColumnVirtualConstant(value=self.value, length=length)
+
+
 class ColumnMaskedNumpy(Column):
     def __init__(self, data, mask):
         self.data = data
