@@ -143,7 +143,8 @@ class TaskPartSetCreate(TaskPart):
         # self.dtype = self.df.data_type(str(expression))
         # self.dtype_item = self.data_type(expression, axis=-1 if flatten else 0)
         self.ordered_set_type = vaex.hash.ordered_set_type_from_dtype(dtype_item, transient)
-        self.set = None
+        # *7 is arbitrary, but we can have more maps than threads to avoid locks
+        self.set = self.ordered_set_type(self.nthreads*7)
 
     @property
     def expressions(self):
@@ -157,9 +158,6 @@ class TaskPartSetCreate(TaskPart):
 
     def process(self, thread_index, i1, i2, filter_mask, ar):
         from vaex.column import _to_string_sequence
-        if self.set is None:
-            # *7 is arbitrary, but we can have more maps than threads to avoid locks`q
-            self.set = self.ordered_set_type(self.nthreads*7)
         if self.selection:
             selection_mask = self.df.evaluate_selection_mask(self.selection, i1=i1, i2=i2, cache=True)
             ar = filter(ar, selection_mask)
