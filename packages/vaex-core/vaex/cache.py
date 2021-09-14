@@ -323,12 +323,12 @@ def output_file(callable=None, path_input=None, fs_options_input={}, fs_input=No
                         f.write(f"# this file exists so that we know when not to do the\n# {path_input} → {path_output} conversion\n")
                         vaex.utils.yaml_dump(f, {'fingerprint': fp})
 
-                if not vaex.file.exists(path_output, fs_options=fs_options_output_, fs=fs_output):
-                    log.info('file %s does not exist yet, running conversion %s → %s', path_output_meta, path_input, path_output)
-                    with FileLock(f"{fp}.lock"):
+                with FileLock(f"vaex-convert-{fp}.lock"):
+                    if not vaex.file.exists(path_output, fs_options=fs_options_output_, fs=fs_output):
+                        log.info('file %s does not exist yet, running conversion %s → %s', path_output_meta, path_input, path_output)
                         value = callable(*args, **kwargs)
-                    write_fingerprint()
-                    return value
+                        write_fingerprint()
+                        return value
 
                 if not vaex.file.exists(path_output_meta, fs_options=fs_options_output_, fs=fs_output):
                     log.info('file including fingerprint not found (%) or does not exist yet, running conversion %s → %s', path_output_meta, path_input, path_output)
