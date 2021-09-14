@@ -349,7 +349,7 @@ class ordered_set : public hash_base<ordered_set<T>, T, T, V> {
     }
 
     template <class SL>
-    static ordered_set *create(SL *keys, int64_t null_value, int64_t nan_count, int64_t null_count) {
+    static ordered_set *create(SL *keys, int64_t null_value, int64_t nan_count, int64_t null_count, std::string* fingerprint) {
         ordered_set *set = new ordered_set(1);
         {
             size_t size = keys->length;
@@ -390,6 +390,9 @@ class ordered_set : public hash_base<ordered_set<T>, T, T, V> {
         set->null_count = null_count;
         set->nan_count = nan_count;
         set->sealed = true;
+        if(fingerprint) {
+            set->fingerprint = *fingerprint;
+        }
         return set;
     }
     // virtual value_type

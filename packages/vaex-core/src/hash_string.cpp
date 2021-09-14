@@ -84,7 +84,8 @@ void init_hash_string(py::module &m) {
                        .def("isin", &Type::isin)
                        .def("flatten_values", &Type::flatten_values)
                        .def("map_ordinal", &Type::map_ordinal)
-                       .def_property_readonly("null_value", [](const Type &c) { return c.null_value; });
+                       .def_property_readonly("null_value", [](const Type &c) { return c.null_value; })
+                       .def_readwrite("fingerprint", &Type::fingerprint);
         bind_common<Type>(cls);
     }
     {

@@ -45,7 +45,8 @@ void init_hash_(M m, std::string name, std::string suffix) {
                        .def("flatten_values", &Type::flatten_values)
                        .def("map_ordinal", &Type::map_ordinal)
                        .def_property_readonly("null_value", [](const Type &c) { return c.null_value; })
-                       .def_property_readonly("nan_value", [](const Type &c) { return c.nan_value; });
+                       .def_property_readonly("nan_value", [](const Type &c) { return c.nan_value; })
+                       .def_readwrite("fingerprint", &Type::fingerprint);
         bind_common<Type>(cls);
     }
     {

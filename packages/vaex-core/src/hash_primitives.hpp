@@ -465,7 +465,7 @@ class ordered_set : public hash_base<ordered_set<T2, Hashmap2>, T2, Hashmap2> {
         return bucket->second;
     }
 
-    static ordered_set *create(py::array_t<key_type> keys, int64_t null_value, int64_t nan_count, int64_t null_count) {
+    static ordered_set *create(py::array_t<key_type> keys, int64_t null_value, int64_t nan_count, int64_t null_count, std::string* fingerprint) {
         ordered_set *set = new ordered_set(1);
         const key_type *keys_ptr = keys.data(0);
         size_t size = keys.size();
@@ -509,6 +509,9 @@ class ordered_set : public hash_base<ordered_set<T2, Hashmap2>, T2, Hashmap2> {
         set->null_count = null_count;
         set->nan_count = nan_count;
         set->sealed = true;
+        if(fingerprint) {
+            set->fingerprint = *fingerprint;
+        }
         return set;
     }
 

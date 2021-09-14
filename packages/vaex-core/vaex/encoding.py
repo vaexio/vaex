@@ -335,7 +335,8 @@ class ordered_set_encoding:
                 'keys': keys,
                 'null_value': obj.null_value,
                 'nan_count': obj.nan_count,
-                'missing_count': obj.null_count
+                'missing_count': obj.null_count,
+                'fingerprint': obj.fingerprint,
             }
         }
 
@@ -348,7 +349,7 @@ class ordered_set_encoding:
         dtype = vaex.dtype_of(keys)
         if dtype.is_string:
             keys = vaex.strings.to_string_sequence(keys)
-        value = cls(keys, obj_spec['data']['null_value'], obj_spec['data']['nan_count'], obj_spec['data']['missing_count'])
+        value = cls(keys, obj_spec['data']['null_value'], obj_spec['data']['nan_count'], obj_spec['data']['missing_count'], obj_spec['data']['fingerprint'])
         return value
 
 

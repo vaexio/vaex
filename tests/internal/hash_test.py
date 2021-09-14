@@ -111,7 +111,7 @@ def test_set_float(repickle, nan, missing, nmaps):
 
     # tests extraction and constructor
     keys = oset.key_array()
-    set_copy = ordered_set_float64(keys, oset.null_value, oset.nan_count, oset.null_count)
+    set_copy = ordered_set_float64(keys, oset.null_value, oset.nan_count, oset.null_count, '')
     keys = set_copy.key_array().tolist()
     if missing:
         keys[oset.null_value] = None
@@ -175,7 +175,7 @@ def test_set_string(repickle, missing, nmaps):
 
     # tests extraction and constructor
     keys = oset.key_array()
-    set_copy = ordered_set_string(keys, oset.null_value, oset.nan_count, oset.null_count)
+    set_copy = ordered_set_string(keys, oset.null_value, oset.nan_count, oset.null_count, '')
     keys = set_copy.key_array()
     assert set(keys.tolist()) == set(keys_expected)
     ordinals = set_copy.map_ordinal(keys).tolist()

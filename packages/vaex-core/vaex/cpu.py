@@ -122,6 +122,8 @@ class TaskPartSetCreate(TaskPart):
         expression = str(expression)
         self.nthreads = nthreads
         self.df = df
+        # since a df is mutable, store it beforehand
+        self.df_fp = self.df.fingerprint()
         self.dtype = dtype
         self.dtype_item = dtype_item
         self.flatten = flatten
@@ -221,6 +223,8 @@ class TaskPartSetCreate(TaskPart):
             if count > self.unique_limit:
                 raise vaex.RowLimitException(f'Resulting set has {count:,} unique combinations, which is larger than the allowed value of {self.unique_limit:,}')
         self.set = set_merged
+        fp = vaex.cache.fingerprint(self.expression, self.dtype, self.dtype_item, self.flatten, self.selection)
+        self.set.fingerprint = f'set-df-{self.df_fp}-{fp}'
 
     @classmethod
     def decode(cls, encoding, spec, df, nthreads):
