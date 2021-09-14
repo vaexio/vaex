@@ -158,6 +158,7 @@ class TaskPartSetCreate(TaskPart):
 
     def process(self, thread_index, i1, i2, filter_mask, ar):
         from vaex.column import _to_string_sequence
+        self._check_row_limit()
         if self.selection:
             selection_mask = self.df.evaluate_selection_mask(self.selection, i1=i1, i2=i2, cache=True)
             ar = filter(ar, selection_mask)
@@ -173,6 +174,7 @@ class TaskPartSetCreate(TaskPart):
                 ar = ar.copy()
         chunk_size = 1024*1024
 
+        self._check_row_limit()
         if np.ma.isMaskedArray(ar):
             mask = np.ma.getmaskarray(ar)
             if self.return_inverse:
@@ -188,6 +190,9 @@ class TaskPartSetCreate(TaskPart):
                 self.set.update(ar, -1, chunk_size=chunk_size, bucket_size=chunk_size*4)
         if logger.level >= logging.DEBUG:
             logger.debug(f"set uses {sys.getsizeof(self.set):,} bytes (offset {i1:,}, length {i2-i1:,})")
+        self._check_row_limit()
+
+    def _check_row_limit(self):
         if self.unique_limit is not None:
             if len(self.set) > self.unique_limit:
                 raise vaex.RowLimitException(f'Resulting set would have >= {self.unique_limit} unique combinations')
