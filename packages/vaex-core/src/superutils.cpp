@@ -192,7 +192,7 @@ PYBIND11_MODULE(superutils, m) {
     m.def("hash", hash_func<uint64_t>);
 
     vaex::init_hash_primitives_power_of_two(m);
-    // vaex::init_hash_primitives_prime(m);
+    vaex::init_hash_primitives_prime(m);
     vaex::init_hash_string(m);
     vaex::init_hash_object(m);
 }

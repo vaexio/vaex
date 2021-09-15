@@ -84,26 +84,26 @@ struct hash<double> {
 #pragma GCC diagnostic pop
 
 #ifdef VAEX_USE_TSL
-template <class Key, class Value, class Hash = std::hash<Key>, class Compare = std::equal_to<Key>>
+template <class Key, class Value, class Hash = vaex::hash<Key>, class Compare = std::equal_to<Key>>
 using hashmap = tsl::hopscotch_map<Key, Value, Hash, Compare>;
-template <class Key, class Value, class Hash = std::hash<Key>, class Compare = std::equal_to<Key>>
+template <class Key, class Value, class Hash = vaex::hash<Key>, class Compare = std::equal_to<Key>>
 using hashmap_pg = tsl::hopscotch_pg_map<Key, Value, Hash, Compare>;
 
-template <class Key, class Value, class Hash = std::hash<Key>, class Compare = std::equal_to<Key>>
+template <class Key, class Value, class Hash = vaex::hash<Key>, class Compare = std::equal_to<Key>>
 using hashmap_store = tsl::hopscotch_map<Key, Value, Hash, Compare, std::allocator<std::pair<Key, Value>>, 30, true>;
-template <class Key, class Value, class Hash = std::hash<Key>, class Compare = std::equal_to<Key>>
+template <class Key, class Value, class Hash = vaex::hash<Key>, class Compare = std::equal_to<Key>>
 using hashmap_pg_store = tsl::hopscotch_pg_map<Key, Value, Hash, Compare, std::allocator<std::pair<Key, Value>>, 30, true>;
 #endif
 
 #ifdef VAEX_USE_ABSL
-template <class Key, class Value, class Hash = std::hash<Key>, class Compare = std::equal_to<Key>>
+template <class Key, class Value, class Hash = vaex::hash<Key>, class Compare = std::equal_to<Key>>
 using hashmap = absl::flat_hash_map<Key, Value, Hash, Compare>;
-template <class Key, class Value, class Hash = std::hash<Key>, class Compare = std::equal_to<Key>>
+template <class Key, class Value, class Hash = vaex::hash<Key>, class Compare = std::equal_to<Key>>
 using hashmap_pg = absl::flat_hash_map<Key, Value, Hash, Compare>;
 
-template <class Key, class Value, class Hash = std::hash<Key>, class Compare = std::equal_to<Key>>
+template <class Key, class Value, class Hash = vaex::hash<Key>, class Compare = std::equal_to<Key>>
 using hashmap_store = absl::flat_hash_map<Key, Value, Hash, Compare>;
-template <class Key, class Value, class Hash = std::hash<Key>, class Compare = std::equal_to<Key>>
+template <class Key, class Value, class Hash = vaex::hash<Key>, class Compare = std::equal_to<Key>>
 using hashmap_pg_store = absl::flat_hash_map<Key, Value, Hash, Compare>;
 #endif
 

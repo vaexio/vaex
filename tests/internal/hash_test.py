@@ -50,19 +50,6 @@ def test_set_bool():
     assert len(keys) == 2
     assert set(keys.tolist()) == {True, False}
 
-def test_set_int_multiple_maps():
-    x = np.arange(5, dtype='i4')
-    set0 = ordered_set_int32(2)
-    set0.update(x)
-    set0.seal()
-    # we're not guaranteed an order due to different hash functions on different
-    # platforms
-    values = {}
-    dicts = set0.extract()
-    for dict in dicts:
-        values.update(dict)
-    assert values == {0: 0, 2: 1, 4:2, 1:0, 3:1}
-
 
 @pytest.mark.parametrize("nan", [False, True])
 @pytest.mark.parametrize("missing", [False, True])
