@@ -14,6 +14,9 @@ import pyarrow as pa
 import vaex
 from .datatype import DataType
 
+import blake3
+
+
 registry = {}
 
 
@@ -431,7 +434,8 @@ class Encoding:
 
     def add_blob(self, buffer):
         bytes = memoryview(buffer).tobytes()
-        blob_id = vaex.cache.fingerprint(bytes)
+        blake = blake3.blake3(bytes, multithreading=True)
+        blob_id = blake.hexdigest()
         self.blobs[blob_id] = bytes
         return f'blob:{blob_id}'
 
