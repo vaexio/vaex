@@ -6,7 +6,8 @@ import pyarrow as pa
 from vaex import datatype, struct
 
 MAX_LENGTH = 50
-
+ARRAY_TRESHHOLD = 100
+PRECISION = 3
 
 def _trim_string(value):
     if len(value) > MAX_LENGTH:
@@ -54,8 +55,9 @@ def _format_value(value):
         return value
     elif isinstance(value, numbers.Number):
         value = str(value)
-    if isinstance(value, np.ndarray):
-        value = str(value)
+    elif isinstance(value, np.ndarray) and value.ndim > 0:
+        with np.printoptions(threshold=ARRAY_TRESHHOLD, precision=PRECISION):
+            value = str(value)
     else:
         value = repr(value)
         value = _trim_string(value)
