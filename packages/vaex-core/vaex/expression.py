@@ -1085,7 +1085,7 @@ class Expression(with_metaclass(Meta)):
             value = vaex.cache.get(key, type='computed')
             if value is None:
                 t0 = time.time()
-                value = len(self.unique(dropna=dropna, dropnan=dropnan, dropmissing=dropmissing, selection=selection, axis=axis))
+                value = len(self.unique(dropna=dropna, dropnan=dropnan, dropmissing=dropmissing, selection=selection, axis=axis, array_type=None))
                 duration_wallclock = time.time() - t0
                 vaex.cache.set(key, value, type='computed', duration_wallclock=duration_wallclock)
             return value
