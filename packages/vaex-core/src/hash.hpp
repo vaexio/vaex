@@ -253,6 +253,7 @@ class hash_common {
     int64_t nan_count;
     int64_t null_count;
     bool sealed;
+    std::string fingerprint;
 };
 
 template <class K, class V, class Derived>

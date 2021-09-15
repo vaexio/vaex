@@ -140,6 +140,7 @@ public:
     int64_t count;
     int64_t nan_count;
     int64_t null_count;
+    std::string fingerprint;
 };
 
 template<class T=PyObject*, class A=T>
@@ -350,6 +351,7 @@ void init_hash_object(py::module &m) {
             .def_property_readonly("null_count", [](const Type &c) { return c.null_count; })
             .def_property_readonly("has_nan", [](const Type &c) { return c.nan_count > 0; })
             .def_property_readonly("has_null", [](const Type &c) { return c.null_count > 0; })
+            .def_readwrite("fingerprint", &Type::fingerprint);
         ;
 
     }

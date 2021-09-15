@@ -222,7 +222,20 @@ class DataFrame(object):
         :param bool treeshake: Get rid of unused variables before calculating the fingerprint.
         '''
         df = self.copy(treeshake=True) if treeshake else self
-        state = df._state_get_vaex_5(skip=[df.dataset])
+        # we only use the state parts that affect data (no metadata)
+        encoding = vaex.encoding.Encoding()
+        state = dict(
+            column_names=list(self.column_names),
+            # variables go unencoded
+            variables=self.variables,
+            # for functions it should be fast enough (not large amounts of data)
+            functions={name: encoding.encode("function", value) for name, value in self.functions.items()},
+            active_range=[self._index_start, self._index_end]
+        )
+        selections = {name: self.get_selection(name) for name, history in self.selection_histories.items() if self.has_selection(name)}
+        selections = {name: selection.to_dict() if selection is not None else None for name, selection in selections.items()}
+        # selections can affect the filter, so put them all in
+        state['selections'] = selections
         fp = vaex.cache.fingerprint(state, df.dataset.fingerprint)
         return f'dataframe-{fp}'
 

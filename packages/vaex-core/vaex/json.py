@@ -128,7 +128,8 @@ class OrdererSetSerializer:
                 'keys': keys,
                 'null_value': obj.null_value,
                 'nan_count': obj.nan_count,
-                'missing_count': obj.null_count
+                'missing_count': obj.null_count,
+                'fingerprint': obj.fingerprint,
             }
         }
 
@@ -143,7 +144,7 @@ class OrdererSetSerializer:
         keys = data['data']['keys']
         if "string" in clsname:
             keys = vaex.strings.to_string_sequence(keys)
-        value = cls(keys, data['data']['null_value'], data['data']['nan_count'], data['data']['missing_count'])
+        value = cls(keys, data['data']['null_value'], data['data']['nan_count'], data['data']['missing_count'], data['data']['fingerprint'])
         return value
 
 

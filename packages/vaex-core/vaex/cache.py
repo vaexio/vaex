@@ -63,8 +63,6 @@ log = logging.getLogger('vaex.cache')
 _cache_tasks_type = vaex.utils.get_env_type(str, 'VAEX_CACHE', None)  # disk/redis/memory_infinite
 disk_size_limit = vaex.utils.get_env_type(str, 'VAEX_CACHE_DISK_SIZE_LIMIT', '1GB')
 
-dask.base.normalize_token.register(pa.DataType, repr)
-
 cache = None
 # used for testing
 _cache_hit = 0
@@ -353,6 +351,14 @@ def output_file(callable=None, path_input=None, fs_options_input={}, fs_input=No
             return call
         return wrapper2
     return wrapper1()
+
+dask.base.normalize_token.register(pa.DataType, repr)
+
+
+@dask.base.normalize_token.register(pa.Array)
+def _normalize(ar):
+    return vaex.dataset.hash_array_data(ar)
+
 
 if _cache_tasks_type:
     on(_cache_tasks_type)

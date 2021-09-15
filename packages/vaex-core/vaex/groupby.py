@@ -141,12 +141,13 @@ class Grouper(BinnerBase):
                     self.bin_values = pa.compute.take(self.bin_values, indices)
                     # arrow sorts with null last
                     null_value = -1 if not set.has_null else len(self.bin_values)-1
+                    fingerprint = set.fingerprint + "-sorted"
                     if dtype.is_string:
                         bin_values = vaex.column.ColumnStringArrow.from_arrow(self.bin_values)
                         string_sequence = bin_values.string_sequence
-                        set = type(set)(string_sequence, null_value, set.nan_count, set.null_count)
+                        set = type(set)(string_sequence, null_value, set.nan_count, set.null_count, fingerprint)
                     else:
-                        set = type(set)(self.bin_values, null_value, set.nan_count, set.null_count)
+                        set = type(set)(self.bin_values, null_value, set.nan_count, set.null_count, fingerprint)
                     self.sort_indices = None
                 else:
                     # TODO: skip first or first two values (null and/or nan)
