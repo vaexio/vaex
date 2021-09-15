@@ -74,15 +74,20 @@ class ThreadPoolIndex(concurrent.futures.ThreadPoolExecutor):
                     # print("SLEEP", self._debug_sleep)
                     time.sleep(self._debug_sleep)
                 return callable(self.local.index, *args, **kwargs, **kwargs_extra)
-        # convert to list so we can count
         time_last = time.time() - 100
         min_delta_t = 1. / 10  # max 10 per second
+        # we don't want to keep consuming the chunk iterator when we cancel
+        chunk_iterator = iterator
+        def cancellable_iter():
+            for value in chunk_iterator:
+                yield value
+                if cancelled:
+                    break
         if self.nthreads == 1:  # when using 1 thread, it makes debugging easier (better stacktrace)
-            iterator = self._map_async(wrapped, iterator)
+            iterator = self._map_async(wrapped, cancellable_iter())
         else:
             loop = asyncio.get_event_loop()
-            iterator = (loop.run_in_executor(self, lambda value=value: wrapped(value)) for value in iterator)
-
+            iterator = (loop.run_in_executor(self, lambda value=value: wrapped(value)) for value in cancellable_iter())
         total = 0
         iterator = iter(buffer(iterator, self._max_workers + 3))
         try:
@@ -100,6 +105,8 @@ class ThreadPoolIndex(concurrent.futures.ThreadPoolExecutor):
                         break
                 yield value
         finally:
+            if not cancelled:
+                cancelled = True
             # consume the rest of the iterators and await them to avoid un-awaited exceptions, which trigger a
             # 'Future exception was never retrieved' printout
             for value in iterator:
