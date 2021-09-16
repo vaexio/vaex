@@ -58,10 +58,12 @@ from filelock import FileLock
 import vaex.utils
 diskcache = vaex.utils.optional_import('diskcache')
 _redis = vaex.utils.optional_import('redis')
+cachetools = vaex.utils.optional_import('cachetools')
 
 log = logging.getLogger('vaex.cache')
 _cache_tasks_type = vaex.utils.get_env_type(str, 'VAEX_CACHE', None)  # disk/redis/memory_infinite
 disk_size_limit = vaex.utils.get_env_type(str, 'VAEX_CACHE_DISK_SIZE_LIMIT', '1GB')
+memory_size_limit = vaex.utils.get_env_type(str, 'VAEX_CACHE_MEMORY_SIZE_LIMIT', '1GB')
 
 cache = None
 # used for testing
@@ -115,8 +117,35 @@ def memory_infinite(clear=False):
 
 
 @_with_cleanup
-def disk(clear=False, size_limit=disk_size_limit, eviction_policy='least-recently-stored'):
-    '''Stored cached values using the diskcache library.
+def memory(maxsize=memory_size_limit, classname="LRUCache", clear=False):
+    """Sets a memory cache using cachetools (https://cachetools.readthedocs.io/).
+
+    Calling multiple times with clear=False will keep the current cache (useful in notebook usage).
+
+    :param int or str maxsize: Max size of cache in bytes (or use a string like '128MB')
+    :param str classname: classname in the cachetools library used for the cache (e.g. LRUCache, MRUCache).
+    :param bool clear: If False, will always set a new cache, when true, it will keep the cache when it is of the same type.
+    """
+    global cache
+    from dask.utils import parse_bytes
+
+    maxsize = parse_bytes(maxsize)
+    log.debug("set cache to memory (cachetools)")
+    old_cache = cache
+    if isinstance(classname, str):
+        cls = getattr(cachetools, classname)
+    else:
+        cls = classname
+    if clear or type(cache) != cls:
+        cache = cls(maxsize=maxsize)
+    yield
+    log.debug("restore old cache")
+    cache = old_cache
+
+
+@_with_cleanup
+def disk(clear=False, size_limit=disk_size_limit, eviction_policy="least-recently-stored"):
+    """Stored cached values using the diskcache library.
 
     The path to store the cache is: ~/.vaex/cache/diskcache
 
@@ -125,7 +154,7 @@ def disk(clear=False, size_limit=disk_size_limit, eviction_policy='least-recentl
     :param str eviction_policy: Eviction policy,
         See http://www.grantjenks.com/docs/diskcache/tutorial.html?highlight=eviction#tutorial-eviction-policies
     :param bool clear: Remove all disk space used for caching before turning on cache.
-    '''
+    """
     from dask.utils import parse_bytes
     size_limit = parse_bytes(size_limit)
     global cache
