@@ -1,3 +1,4 @@
+import pytest
 import numpy as np
 import vaex.cache
 
@@ -33,6 +34,13 @@ def test_on():
         assert isinstance(vaex.cache.cache, dict)
         vaex.cache.off()
         assert vaex.cache.cache is None
+
+    with vaex.cache.on("memory_infinite,disk"):
+        import diskcache
+        assert isinstance(vaex.cache.cache, vaex.cache.MultiLevelCache)
+        assert isinstance(vaex.cache.cache.maps[0], dict)
+        assert isinstance(vaex.cache.cache.maps[1], diskcache.Cache)
+    assert not vaex.cache.is_on()
 
 
 
@@ -174,3 +182,23 @@ def test_cache_groupby():
         assert passes(df) == passes0 + 7 + 1 + 3
         assert df.fingerprint() == fp
 
+def test_multi_level_cache():
+    l1 = {}
+    l2 = {}
+    cache = vaex.cache.MultiLevelCache(l1, l2)
+    with pytest.raises(KeyError):
+        value = cache['key1']
+    assert l1 == {}
+    assert l2 == {}
+    # setting should fill all caches
+    cache['key1'] = 1
+    assert l1 == {'key1': 1}
+    assert l2 == {'key1': 1}
+    assert cache['key1'] == 1
+    del l1['key1']
+    assert l1 == {}
+    assert l2 == {'key1': 1}
+    # reading should fill l1 as well
+    assert cache['key1'] == 1
+    assert l1 == {'key1': 1}
+    assert l2 == {'key1': 1}

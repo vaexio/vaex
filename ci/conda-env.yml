@@ -1,5 +1,7 @@
 astropy
 cython
+cachetools
+diskcache
 fsspec <0.9
 geopandas
 graphviz
