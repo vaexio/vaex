@@ -57,7 +57,10 @@ def test_mixed_intfloatbool(df_factory):
 
     with pytest.raises(TypeError):
         assert df2.__dataframe__().get_column_by_name("y").describe_categorical
-    assert df2.__dataframe__().get_column_by_name("y").describe_null == (3, 1)
+    if df2['y'].dtype.is_arrow:
+        assert df2.__dataframe__().get_column_by_name("y").describe_null == (3, 0)
+    else:
+        assert df2.__dataframe__().get_column_by_name("y").describe_null == (0, None)
 
     assert_dataframe_equal(df.__dataframe__(), df)
 
@@ -127,17 +130,17 @@ def test_categorical_ordinal():
     col = df.__dataframe__().get_column_by_name("colors")
     assert col.dtype[0] == _DtypeKind.CATEGORICAL
     assert col.describe_categorical == (False, True, {0: "red", 1: "green", 2: "blue"})
-    assert col.describe_null == (3, 1)
+    assert col.describe_null == (0, None)
     assert col.dtype == (23, 64, "u", "=")
     col2 = df.__dataframe__().get_column_by_name("year")
     assert col2.dtype[0] == _DtypeKind.CATEGORICAL
     assert col2.describe_categorical == (False, True, {0: 2012, 1: 2013, 2: 2014, 3: 2015, 4: 2016, 5: 2017, 6: 2018, 7: 2019})
-    assert col2.describe_null == (3, 1)
+    assert col2.describe_null == (0, None)
     assert col2.dtype == (23, 64, "u", "=")
     col3 = df.__dataframe__().get_column_by_name("weekday")
     assert col3.dtype[0] == _DtypeKind.CATEGORICAL
     assert col3.describe_categorical == (False, True, {0: "Mon", 1: "Tue", 2: "Wed", 3: "Thu", 4: "Fri", 5: "Sat", 6: "Sun"})
-    assert col3.describe_null == (3, 1)
+    assert col3.describe_null == (0, None)
     assert col3.dtype == (23, 64, "u", "=")
 
     df2 = _from_dataframe_to_vaex(df.__dataframe__())
@@ -158,7 +161,10 @@ def test_arrow_dictionary():
     col = df.__dataframe__().get_column_by_name("x")
     assert col.dtype[0] == _DtypeKind.CATEGORICAL
     assert col.describe_categorical == (False, True, {0: "foo", 1: "bar", 2: "baz"})
-    assert col.describe_null == (3, 1)
+    if df['x'].dtype.is_arrow:
+        assert col.describe_null == (3, 0)
+    else:
+        assert col.describe_null == (0, None)
     assert col.dtype == (23, 64, "u", "=")
 
     df2 = _from_dataframe_to_vaex(df.__dataframe__())

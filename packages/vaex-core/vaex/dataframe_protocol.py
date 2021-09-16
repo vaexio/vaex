@@ -422,8 +422,19 @@ class _VaexColumn:
         kind = self.dtype[0]
         value = None
         if kind in (_k.INT, _k.UINT, _k.FLOAT, _k.BOOL, _k.CATEGORICAL):
-            null = 3
-            value = 1
+            if self._col.dtype.is_arrow:
+                # arrow arrays always allow for null values
+                # where 0 encodes a null/missing value
+                null = 3
+                value = 0
+            elif self._col.is_masked:
+                # masked arrays are always numpy.ma arrays
+                null = 4
+                value = 1
+            else:
+                # otherwise we have a normal numpy array
+                null = 0
+                value = None
         else:
             raise NotImplementedError(f"Data type {self.dtype} not yet supported")
 
