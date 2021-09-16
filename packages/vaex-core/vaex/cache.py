@@ -40,10 +40,15 @@ Especially when using the `vaex server <server.html>`_ it can be useful to turn 
 
 Will enable caching using :func:`vaex.cache.disk` and configure it to use at max 10 GB of disk space.
 
+When using Vaex in combination with Flask or Plotly Dash, and using gunicorn for scaling, it can be useful
+to use a multilevel cache, where the first cache is small but low latency (and private for each progress),
+and a second higher latency disk cache that is shared among all processes.
+
+    $ VAEX_CACHE="memory,disk" VAEX_CACHE_DISK_SIZE_LIMIT="10GB" VAEX_CACHE_MEMORY_SIZE_LIMIT="1GB" gunicorn -w 16 app:server
 
 '''
 import functools
-from typing import MutableMapping
+from typing import ChainMap, MutableMapping
 import logging
 import shutil
 import uuid
@@ -98,6 +103,52 @@ def _with_cleanup(f):
         result = next(gen) # run up to the yield
         return _cleanup(gen, result)
     return wrapper
+
+
+class MultiLevelCache(ChainMap):
+    """Use multiple caches, where we assume the first is the fastest"""
+
+    def __getitem__(self, key):
+        for level, mapping in enumerate(self.maps):
+            try:
+                value = mapping[key]
+                # write back to lower levels
+                for i in range(level):
+                    self.maps[i][key] = value
+                return value
+            except KeyError:
+                pass
+        return self.__missing__(key)
+
+    def __setitem__(self, key, value):
+        for cache in self.maps:
+            cache[key] = value
+
+    def __delitem__(self, key):
+        for cache in self.maps:
+            del cache[key]
+
+
+@_with_cleanup
+def multilevel_cache(*caches):
+    """Sets a multilevel cache, where the first caches should be the fastest (low latency)
+
+    This is useful when using multiple processes (requiring a persistent disk cache) in combination
+    with a low latency memory cache.
+
+    >>> import cachetools
+    >>> import diskcache
+    >>> l1 = cachetools.LRUCache(1_000_000_000)
+    >>> l2 = diskcache.Cache()
+    >>> vaex.cache.multilevel_cache(l1, l2)
+    """
+    global cache
+    log.debug("set cache to multilevel")
+    old_cache = cache
+    cache = MultiLevelCache(*caches)
+    yield
+    log.debug("restore old cache")
+    cache = old_cache
 
 
 @_with_cleanup
@@ -217,15 +268,27 @@ def redis(client=None):
 
 @_with_cleanup
 def on(type="memory_infinite", **kwargs):
-    log.debug("Set cache to %r", type)
-    if type == "memory_infinite":
-        c = memory_infinite(**kwargs)
-    elif type == "disk":
-        c = disk(**kwargs)
-    elif type == "redis":
-        c = redis(**kwargs)
+    if "," in type:
+        cache_names = type.split(",")
+        log.debug("Set multilevel cache to %r", cache_names)
+        caches = []
+        with off():  # so we don't change the cache global
+            for name in cache_names:
+                on(name)
+                caches.append(cache)
+        c = multilevel_cache(*caches)
     else:
-        raise ValueError(f'Unknown type of cache {type}')
+        log.debug("Set cache to %r", type)
+        if type == "memory":
+            c = memory(**kwargs)
+        elif type == "memory_infinite":
+            c = memory_infinite(**kwargs)
+        elif type == "disk":
+            c = disk(**kwargs)
+        elif type == "redis":
+            c = redis(**kwargs)
+        else:
+            raise ValueError(f"Unknown type of cache {type}")
     yield
     c.__exit__()
 
