@@ -567,18 +567,19 @@ class _VaexColumn:
         null, invalid = self.describe_null
 
         _k = _DtypeKind
-        if null == 3:
+        if null == 3 or null == 4: #arrow
             mask = self._col.ismissing()
-            if isinstance(self._col.values, (pa.Array, pa.ChunkedArray)):
-                data = np.array(mask.tolist())
-            else:
-                data = mask.to_numpy()
+
+            # if arrow use .tolist and then turn it into np.array
+            # if numpy masked turn the mask into numpy
+            data = np.array(mask.tolist()) if null == 3 else mask.to_numpy()
+
             buffer = _VaexBuffer(data)
             dtype = self._dtype_from_vaexdtype(mask.dtype)
 
             return buffer, dtype
 
-        if null == 0:
+        elif null == 0:
             msg = "This column is non-nullable so does not have a mask"
         elif null == 1:
             msg = "This column uses NaN as null so does not have a separate mask"
