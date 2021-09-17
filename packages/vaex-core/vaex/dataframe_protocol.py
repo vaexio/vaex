@@ -6,6 +6,10 @@ Public API
 
 from_dataframe : construct a vaex.dataframe.DataFrame from an input data frame which
                  implements the exchange protocol
+
+For a background and spec, see:
+   * https://data-apis.org/blog/dataframe_protocol_rfc/
+   * https://data-apis.org/dataframe-protocol/latest/index.html
                  
 Notes
 -----
