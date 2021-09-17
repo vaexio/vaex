@@ -692,12 +692,12 @@ class _VaexDataFrame:
             for i1, i2, chunk in i:
                 iterator.append(_VaexDataFrame(self._df[i1:i2]))
             return iterator
-        elif self.num_chunks == 1:
+        elif self.num_chunks() == 1:
             size = self.num_rows()
             i = self._df.evaluate_iterator(self.get_column(0)._col, chunk_size=size // n_chunks)
             iterator = []
             for i1, i2, chunk in i:
-                iterator.append(_VaexColumn(self._df[i1:i2]))
+                iterator.append(_VaexDataFrame(self._df[i1:i2]))
             return iterator
         else:
-            raise ValueError("Column `self._col.expression` is already chunked.")
+            raise ValueError("Dataframe is already chunked.")
