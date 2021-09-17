@@ -160,6 +160,9 @@ def convert_categorical_column(col: ColumnObject) -> pa.DictionaryArray:
     if not is_dict:
         raise NotImplementedError("Non-dictionary categoricals not supported yet")
 
+    if not col.describe_null[0] in (0, 2, 3, 4):
+        raise NotImplementedError("Only categorical columns with sentinel " "value and masks supported at the moment")
+
     categories = np.asarray(list(mapping.values()))
     codes_buffer, codes_dtype = col.get_buffers()["data"]
     codes = buffer_to_ndarray(codes_buffer, codes_dtype)
@@ -174,9 +177,6 @@ def convert_categorical_column(col: ColumnObject) -> pa.DictionaryArray:
         indices = pa.array(codes, mask=mask)
     else:
         indices = pa.array(codes)
-
-    if not col.describe_null[0] in (2, 3, 4):
-        raise NotImplementedError("Only categorical columns with sentinel " "value and masks supported at the moment")
 
     dictionary = pa.array(categories)
     values = pa.DictionaryArray.from_arrays(indices, dictionary)
@@ -421,7 +421,7 @@ class _VaexColumn:
         _k = _DtypeKind
         kind = self.dtype[0]
         value = None
-        if kind in (_k.INT, _k.UINT, _k.FLOAT, _k.BOOL, _k.CATEGORICAL):
+        if kind in (_k.INT, _k.UINT, _k.FLOAT, _k.BOOL):
             if self._col.dtype.is_arrow:
                 # arrow arrays always allow for null values
                 # where 0 encodes a null/missing value
@@ -435,6 +435,16 @@ class _VaexColumn:
                 # otherwise we have a normal numpy array
                 null = 0
                 value = None
+        elif kind == _k.CATEGORICAL:
+            if self._col.dtype.is_arrow:
+                # arrow dictionary allows for null values
+                # where 0 encodes a null/missing value
+                null = 3
+                value = 0
+            else:
+                # otherwise we have categorize() with a normal numpy array
+                null = 0
+                value = None                
         else:
             raise NotImplementedError(f"Data type {self.dtype} not yet supported")
 

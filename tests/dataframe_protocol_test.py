@@ -119,32 +119,24 @@ def test_missing_from_masked(df_factory_numpy):
     assert_dataframe_equal(df.__dataframe__(), df)
 
 
-def test_categorical_ordinal():
-    colors = ["red", "blue", "green", "blue"]
-    ds = vaex.from_arrays(colors=colors, year=[2012, 2013, 2015, 2019], weekday=[0, 1, 4, 6])
-    df = ds.ordinal_encode("colors", ["red", "green", "blue"])
+def test_categorical():
+    df = vaex.from_arrays(year=[2012, 2013, 2015, 2019], weekday=[0, 1, 4, 6])
     df = df.categorize("year", min_value=2012, max_value=2019)
     df = df.categorize("weekday", labels=["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"])
 
     # Some detailed testing for correctness of dtype and null handling:
-    col = df.__dataframe__().get_column_by_name("colors")
+    col = df.__dataframe__().get_column_by_name("year")
     assert col.dtype[0] == _DtypeKind.CATEGORICAL
-    assert col.describe_categorical == (False, True, {0: "red", 1: "green", 2: "blue"})
+    assert col.describe_categorical == (False, True, {0: 2012, 1: 2013, 2: 2014, 3: 2015, 4: 2016, 5: 2017, 6: 2018, 7: 2019})
     assert col.describe_null == (0, None)
     assert col.dtype == (23, 64, "u", "=")
-    col2 = df.__dataframe__().get_column_by_name("year")
+    col2 = df.__dataframe__().get_column_by_name("weekday")
     assert col2.dtype[0] == _DtypeKind.CATEGORICAL
-    assert col2.describe_categorical == (False, True, {0: 2012, 1: 2013, 2: 2014, 3: 2015, 4: 2016, 5: 2017, 6: 2018, 7: 2019})
+    assert col2.describe_categorical == (False, True, {0: "Mon", 1: "Tue", 2: "Wed", 3: "Thu", 4: "Fri", 5: "Sat", 6: "Sun"})
     assert col2.describe_null == (0, None)
     assert col2.dtype == (23, 64, "u", "=")
-    col3 = df.__dataframe__().get_column_by_name("weekday")
-    assert col3.dtype[0] == _DtypeKind.CATEGORICAL
-    assert col3.describe_categorical == (False, True, {0: "Mon", 1: "Tue", 2: "Wed", 3: "Thu", 4: "Fri", 5: "Sat", 6: "Sun"})
-    assert col3.describe_null == (0, None)
-    assert col3.dtype == (23, 64, "u", "=")
 
     df2 = _from_dataframe_to_vaex(df.__dataframe__())
-    assert df2["colors"].tolist() == ["red", "blue", "green", "blue"]
     assert df2["year"].tolist() == [2012, 2013, 2015, 2019]
     assert df2["weekday"].tolist() == ["Mon", "Tue", "Fri", "Sun"]
 
