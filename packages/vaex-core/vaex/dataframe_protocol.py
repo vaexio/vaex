@@ -251,17 +251,7 @@ class _VaexBuffer:
         return (Device.CPU, None)
 
     def __repr__(self) -> str:
-        return (
-            "VaexBuffer("
-            + str(
-                {
-                    "bufsize": self.bufsize,
-                    "ptr": self.ptr,
-                    "device": self.__dlpack_device__()[0].name,
-                }
-            )
-            + ")"
-        )
+        return "VaexBuffer(" + str({"bufsize": self.bufsize, "ptr": self.ptr, "device": self.__dlpack_device__()[0].name}) + ")"
 
 
 class _VaexColumn:
@@ -351,12 +341,7 @@ class _VaexColumn:
         # If it is internal, kind must be categorical (23)
         # If it is external (call from_dataframe), dtype must give type of the data
         if self._col.df.is_category(self._col):
-            return (
-                _DtypeKind.CATEGORICAL,
-                64,
-                "u",
-                "=",
-            )  # what should be the default??
+            return (_DtypeKind.CATEGORICAL, 64, "u", "=")  # what should be the default??
 
         return self._dtype_from_vaexdtype(dtype)
 
@@ -368,15 +353,7 @@ class _VaexColumn:
         #       'b', 'B' (bytes), 'S', 'a', (old-style string) 'V' (void) not handled
         #       datetime, timedelta not implemented yet
         _k = _DtypeKind
-        _np_kinds = {
-            "i": _k.INT,
-            "u": _k.UINT,
-            "f": _k.FLOAT,
-            "b": _k.BOOL,
-            "O": _k.STRING,
-            "M": _k.DATETIME,
-            "m": _k.DATETIME,
-        }
+        _np_kinds = {"i": _k.INT, "u": _k.UINT, "f": _k.FLOAT, "b": _k.BOOL, "O": _k.STRING, "M": _k.DATETIME, "m": _k.DATETIME}
         kind = _np_kinds.get(dtype.kind, None)
 
         if kind is None:
@@ -471,7 +448,7 @@ class _VaexColumn:
             else:
                 # otherwise we have categorize() with a normal numpy array
                 null = 0
-                value = None
+                value = None                
         else:
             raise NotImplementedError(f"Data type {self.dtype} not yet supported")
 
@@ -560,9 +537,7 @@ class _VaexColumn:
 
         return buffers
 
-    def _get_data_buffer(
-        self,
-    ) -> Tuple[_VaexBuffer, Any]:  # Any is for self.dtype tuple
+    def _get_data_buffer(self) -> Tuple[_VaexBuffer, Any]:  # Any is for self.dtype tuple
         """
         Return the buffer containing the data and the buffer's associated dtype.
         """
@@ -606,7 +581,7 @@ class _VaexColumn:
         null, invalid = self.describe_null
 
         _k = _DtypeKind
-        if null == 3 or null == 4:  # arrow
+        if null == 3 or null == 4: #arrow
             mask = self._col.ismissing()
 
             # if arrow use .tolist and then turn it into np.array
@@ -647,12 +622,7 @@ class _VaexDataFrame:
     attributes defined on this class.
     """
 
-    def __init__(
-        self,
-        df: vaex.dataframe.DataFrame,
-        nan_as_null: bool = False,
-        allow_copy: bool = True,
-    ) -> None:
+    def __init__(self, df: vaex.dataframe.DataFrame, nan_as_null: bool = False, allow_copy: bool = True) -> None:
         """
         Constructor - an instance of this (private) class is returned from
         `vaex.dataframe.DataFrame.__dataframe__`.
