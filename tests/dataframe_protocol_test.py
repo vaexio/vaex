@@ -186,16 +186,20 @@ def test_arrow_dictionary_missing():
 
 
 def test_string():
-    df = vaex.from_dict({"A": ["a", "b", "cdef", "", "g"]})
+    df = vaex.from_dict({"A": ["a", None, "cdef", "", "g"]})
     col = df.__dataframe__().get_column_by_name("A")
 
     assert col._col.tolist() == df.A.tolist()
     assert col.size == 5
+    assert col.null_count == 1
+    assert col.dtype[0] == _DtypeKind.STRING
+    assert col.describe_null == (3,0)
 
-    with pytest.raises(NotImplementedError):
-        assert col.dtype
-    with pytest.raises(NotImplementedError):
-        assert col.describe_null
+    df2 = _from_dataframe_to_vaex(df.__dataframe__())
+    assert df2.A.tolist() == df.A.tolist()
+    assert df2.__dataframe__().get_column_by_name("A").null_count == 1
+    assert df2.__dataframe__().get_column_by_name("A").describe_null == (3,0)
+    assert df2.__dataframe__().get_column_by_name("A").dtype[0] == _DtypeKind.STRING
 
 
 def test_object():
@@ -205,9 +209,9 @@ def test_object():
     assert col._col.tolist() == df.x.tolist()
     assert col.size == 3
 
-    with pytest.raises(NotImplementedError):
+    with pytest.raises(ValueError):
         assert col.dtype
-    with pytest.raises(NotImplementedError):
+    with pytest.raises(ValueError):
         assert col.describe_null
 
 

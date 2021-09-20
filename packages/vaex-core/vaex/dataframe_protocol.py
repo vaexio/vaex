@@ -75,9 +75,8 @@ def _from_dataframe_to_vaex(df: DataFrameObject) -> vaex.dataframe.DataFrame:
                 columns[name], _buf = convert_column_to_ndarray(col)
             elif col.dtype[0] == _k.CATEGORICAL:
                 columns[name], _buf = convert_categorical_column(col)
-            # TODO
-            # elif col.dtype[0] == _k.STRING:
-            #    columns[name], _buf = convert_string_column(col)
+            elif col.dtype[0] == _k.STRING:
+                columns[name], _buf = convert_string_column(col)
             else:
                 raise NotImplementedError(f"Data type {col.dtype[0]} not handled yet")
 
@@ -188,11 +187,50 @@ def convert_categorical_column(col: ColumnObject) -> pa.DictionaryArray:
     return values, codes_buffer
 
 
-def convert_string_column(col: ColumnObject) -> np.ndarray:
+def convert_string_column(col: ColumnObject) -> pa.Array:
     """
-    Convert a string column to a NumPy array.
+    Convert a string column to a Arrow array.
     """
-    # TODO
+    # Retrieve the data buffers
+    buffers = col.get_buffers()
+
+    dbuffer, bdtype = buffers["data"] # buffer containing the UTF-8 code units
+    obuffer, odtype = buffers["offsets"] #  buffer containing the index offsets demarcating the beginning and end of each string
+    mbuffer, mdtype = buffers["validity"] # buffer indicating the presence of missing values
+
+    # Convert the buffers to NumPy arrays
+    dt = (_DtypeKind.UINT, 8, None, None)  # note: in order to go from STRING to an equivalent ndarray, we claim that the buffer is uint8 (i.e., a byte array)
+    dbuf = buffer_to_ndarray(dbuffer, dt)
+
+    obuf = buffer_to_ndarray(obuffer, odtype)
+    mbuf = buffer_to_ndarray(mbuffer, mdtype)
+
+    # Assemble the strings from the code units
+    str_list = []
+    for i in range(obuf.size - 1):
+        # Extract a range of code units
+        units = dbuf[obuf[i] : obuf[i + 1]]
+
+        # Convert the list of code units to bytes
+        b = bytes(units)
+
+        # Create the string
+        s = b.decode(encoding="utf-8")
+
+        # Add to our list of strings
+        str_list.append(s)
+
+    # Apply missing values from validity buffer and convert string list to Arrow array
+    if col.describe_null[0] in (3, 4) and col.null_count > 0:  # masked missing values
+        mask = buffer_to_ndarray(mbuffer, mdtype)
+        if mask.dtype == "uint8":  # Pandas uint string mask
+            arrow_list = pa.array(str_list, mask=np.invert(np.asarray(mask, dtype="bool")))
+        else:
+            arrow_list = pa.array(str_list, mask=mask)
+    else:
+        arrow_list = pa.array(str_list)
+
+    return arrow_list, buffers
 
 
 # Implementation of interchange protocol
@@ -353,19 +391,20 @@ class _VaexColumn:
         #       'b', 'B' (bytes), 'S', 'a', (old-style string) 'V' (void) not handled
         #       datetime, timedelta not implemented yet
         _k = _DtypeKind
-        _np_kinds = {"i": _k.INT, "u": _k.UINT, "f": _k.FLOAT, "b": _k.BOOL, "O": _k.STRING, "M": _k.DATETIME, "m": _k.DATETIME}
+        _np_kinds = {"i": _k.INT, "u": _k.UINT, "f": _k.FLOAT, "b": _k.BOOL, "U": _k.STRING, "M": _k.DATETIME, "m": _k.DATETIME}
         kind = _np_kinds.get(dtype.kind, None)
 
         if kind is None:
             # Check if it's a an Arrow dictonary
             if not isinstance(self._col.values, np.ndarray) and isinstance(self._col.values.type, pa.DictionaryType):
                 kind = 23
+            # Check if it's a string dtype (dtype.kind == 'O')
+            elif dtype == "string":
+                kind = 21
             else:
                 raise ValueError(f"Data type {dtype} not supported by exchange" "protocol")
 
-        # TODO
-        # if kind not in (_k.INT, _k.UINT, _k.FLOAT, _k.BOOL, _k.CATEGORICAL, _k.STRING):
-        if kind not in (_k.INT, _k.UINT, _k.FLOAT, _k.BOOL, _k.CATEGORICAL):
+        if kind not in (_k.INT, _k.UINT, _k.FLOAT, _k.BOOL, _k.CATEGORICAL, _k.STRING):
             raise NotImplementedError(f"Data type {dtype} not handled yet")
 
         bitwidth = dtype.numpy.itemsize * 8
@@ -425,7 +464,7 @@ class _VaexColumn:
         _k = _DtypeKind
         kind = self.dtype[0]
         value = None
-        if kind in (_k.INT, _k.UINT, _k.FLOAT, _k.BOOL):
+        if kind in (_k.INT, _k.UINT, _k.FLOAT, _k.BOOL, _k.STRING):
             if self._col.dtype.is_arrow:
                 # arrow arrays always allow for null values
                 # where 0 encodes a null/missing value
@@ -448,7 +487,7 @@ class _VaexColumn:
             else:
                 # otherwise we have categorize() with a normal numpy array
                 null = 0
-                value = None                
+                value = None
         else:
             raise NotImplementedError(f"Data type {self.dtype} not yet supported")
 
@@ -564,8 +603,21 @@ class _VaexColumn:
                         codes[np.where(codes == i)] = np.where(labels == i)
                 buffer = _VaexBuffer(self._col.values)
                 dtype = self._dtype_from_vaexdtype(self._col.dtype)
-        # elif self.dtype[0] == _k.STRING:
-        # TODO
+        elif self.dtype[0] == _k.STRING:
+            # Marshal the strings from a NumPy object array into a byte array
+            buf = self._col.to_numpy()
+            b = bytearray()
+
+            # TODO: this for-loop is slow; can be implemented in Cython/C/C++ later
+            for i in range(buf.size):
+                if type(buf[i]) == str:
+                    b.extend(buf[i].encode(encoding="utf-8"))
+
+            # Convert the byte array to a Vaex "buffer" using a NumPy array as the backing store
+            buffer = _VaexBuffer(np.frombuffer(b, dtype="uint8"))
+
+            # Define the dtype for the returned buffer
+            dtype = (_k.STRING, 8, "u", "=")  # note: currently only support native endianness
         else:
             raise NotImplementedError(f"Data type {self._col.dtype} not handled yet")
 
@@ -581,7 +633,7 @@ class _VaexColumn:
         null, invalid = self.describe_null
 
         _k = _DtypeKind
-        if null == 3 or null == 4: #arrow
+        if null == 3 or null == 4:  # arrow
             mask = self._col.ismissing()
 
             # if arrow use .tolist and then turn it into np.array
@@ -606,10 +658,38 @@ class _VaexColumn:
         """
         Return the buffer containing the offset values for variable-size binary
         data (e.g., variable-length strings) and the buffer's associated dtype.
+
         Raises RuntimeError if the data buffer does not have an associated
         offsets buffer.
         """
-        return {}
+        _k = _DtypeKind
+        if self.dtype[0] == _k.STRING:
+            # For each string, we need to manually determine the next offset
+            values = self._col.to_numpy()
+
+            ptr = 0
+            offsets = [ptr]
+            for v in values:
+                # For missing values (in this case, `np.nan` values), we don't increment the pointer)
+                if type(v) == str:
+                    b = v.encode(encoding="utf-8")
+                    ptr += len(b)
+
+                offsets.append(ptr)
+
+            # Convert the list of offsets to a NumPy array of signed 64-bit integers
+            # (note: Arrow allows the offsets array to be either `int32` or `int64`; here, we default to the latter)
+            buf = np.asarray(offsets, dtype="int64")
+
+            # Convert the offsets to a Vaex "buffer" using the NumPy array as the backing store
+            buffer = _VaexBuffer(buf)
+
+            # Assemble the buffer dtype info
+            dtype = (_k.INT, 64, "l", "=")  # note: currently only support native endianness
+        else:
+            raise RuntimeError("This column has a fixed-length dtype so does not have an offsets buffer")
+
+        return buffer, dtype
 
 
 class _VaexDataFrame:
