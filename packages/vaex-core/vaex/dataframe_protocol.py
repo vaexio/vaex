@@ -438,8 +438,11 @@ class _VaexColumn:
             raise TypeError("`describe_categorical only works on a column with " "categorical dtype!")
 
         ordered = False
-        is_dictionary = True
-        categories = self._col.df.category_labels(self._col)
+        is_dictionary = True        
+        if not isinstance(self._col.values, np.ndarray) and isinstance(self._col.values.type, pa.DictionaryType):
+            categories = self._col.values.dictionary.tolist()
+        else:
+            categories = self._col.df.category_labels(self._col)  
         mapping = {ix: val for ix, val in enumerate(categories)}
         return ordered, is_dictionary, mapping
 
