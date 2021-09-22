@@ -159,3 +159,12 @@ def test_non_ns_units():
     dates = np.array([date1, date2], dtype='M8[ms]')
     df = vaex.from_arrays(dates=pa.array(dates))
     assert np.all(df.dates.to_numpy() == dates)
+
+def test_datetime_operations_after_astype():
+    x =  ['2009-10-12T03:31:00',
+          '2016-02-11T10:17:34',
+          '2015-11-12T11:34:22']
+    df = vaex.from_arrays(x=x)
+    df['x_dt'] = df.x.astype('datetime64')
+    df['x_hour'] = df.x_dt.dt.hour
+    assert df.x_hour.tolist() == [3, 10, 11]

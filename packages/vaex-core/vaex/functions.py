@@ -274,6 +274,8 @@ def notna(x):
 def _pandas_dt_fix(x):
     # see https://github.com/pandas-dev/pandas/issues/23276
     # not sure which version this is fixed in
+    if isinstance(x, pa.lib.TimestampArray):
+        return x.to_pandas()
     if not x.flags['WRITEABLE']:
         x = x.copy()
     return x
@@ -281,7 +283,8 @@ def _pandas_dt_fix(x):
 def _to_pandas_series(x):
     import pandas as pd
     # pandas seems to eager to infer dtype=object for v1.2
-    return pd.Series(_pandas_dt_fix(x), dtype=x.dtype)
+    x = _pandas_dt_fix(x)
+    return pd.Series(x, dtype=x.dtype)
 
 @register_function(scope='dt', as_property=True)
 def dt_date(x):
