@@ -264,44 +264,49 @@ class DataFrame(object):
 
     @property
     def func(self):
+        df = self
         class Functions(object):
-            pass
+            def __dir__(self):
+                names = []
+                for name, value in expression_namespace.items():
+                    if name not in names:
+                        names.append(name)
+                for name, value in df.functions.items():
+                    if name not in names:
+                        names.append(name)
+                return names
+            def __getattr__(self, name):
+                value = expression_namespace.get(name)
+                def closure(name=name, value=value):
+                    local_name = name
+                    def wrap(*args, **kwargs):
+                        def myrepr(k):
+                            if isinstance(k, Expression):
+                                return str(k)
+                            elif isinstance(k, np.ndarray) and k.ndim == 0:
+                                # to support numpy scalars
+                                return myrepr(k.item())
+                            elif isinstance(k, np.ndarray):
+                                # to support numpy arrays
+                                var = df.add_variable('arg_numpy_array', k, unique=True)
+                                return var
+                            elif isinstance(k, list):
+                                # to support numpy scalars
+                                return '[' + ', '.join(myrepr(i) for i in k) + ']'
+                            else:
+                                return repr(k)
+                        arg_string = ", ".join([myrepr(k) for k in args] + ['{}={}'.format(name, myrepr(value)) for name, value in kwargs.items()])
+                        expression = "{}({})".format(local_name, arg_string)
+                        return vaex.expression.Expression(df, expression)
+                    return wrap
+                if value is not None:
+                    f = closure()
+                    return f
+                if name in df.functions:
+                    return df.functions[name]
 
-        functions = Functions()
-        for name, value in expression_namespace.items():
-            # f = vaex.expression.FunctionBuiltin(self, name)
-            def closure(name=name, value=value):
-                local_name = name
-                def wrap(*args, **kwargs):
-                    def myrepr(k):
-                        if isinstance(k, Expression):
-                            return str(k)
-                        elif isinstance(k, np.ndarray) and k.ndim == 0:
-                            # to support numpy scalars
-                            return myrepr(k.item())
-                        elif isinstance(k, np.ndarray):
-                            # to support numpy arrays
-                            var = self.add_variable('arg_numpy_array', k, unique=True)
-                            return var
-                        elif isinstance(k, list):
-                            # to support numpy scalars
-                            return '[' + ', '.join(myrepr(i) for i in k) + ']'
-                        else:
-                            return repr(k)
-                    arg_string = ", ".join([myrepr(k) for k in args] + ['{}={}'.format(name, myrepr(value)) for name, value in kwargs.items()])
-                    expression = "{}({})".format(local_name, arg_string)
-                    return vaex.expression.Expression(self, expression)
-                return wrap
-            f = closure()
-            try:
-                f = functools.wraps(value)(f)
-            except AttributeError:
-                pass # python2 quicks.. ?
-            setattr(functions, name, f)
-        for name, value in self.functions.items():
-            setattr(functions, name, value)
+        return Functions()
 
-        return functions
 
     @_hidden
     @vaex.utils.deprecated('use is_category')
