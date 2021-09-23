@@ -129,11 +129,12 @@ class Meta(type):
                             assert b.ds == a.ds
                             b = b.expression
                         elif isinstance(b, (np.timedelta64)):
-                            df = a.ds
-                            b = df.add_variable('var_time_delta', b, unique=True)
+                            unit, step = np.datetime_data(b)
+                            assert step == 1
+                            b = b.astype(np.uint64).item()
+                            b = f'scalar_timedelta({b}, {unit!r})'
                         elif isinstance(b, (np.datetime64)):
-                            df = a.ds
-                            b = df.add_variable('var_date_time', b, unique=True)
+                            b = f'scalar_datetime("{b}")'
                         expression = '({0} {1} {2})'.format(a.expression, op['code'], b)
                     return Expression(self.ds, expression=expression)
                 attrs['__%s__' % op['name']] = f

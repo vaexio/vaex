@@ -270,6 +270,15 @@ def notna(x):
 
 ########## datetime operations ##########
 
+@register_function(on_expression=False)
+def scalar_datetime(datetime_str):
+    return np.datetime64(datetime_str)
+
+
+@register_function(on_expression=False)
+def scalar_timedelta(amount, unit):
+    return np.timedelta64(amount, unit)
+
 
 def _pandas_dt_fix(x):
     # see https://github.com/pandas-dev/pandas/issues/23276
