@@ -168,3 +168,14 @@ def test_datetime_operations_after_astype():
     df['x_dt'] = df.x.astype('datetime64')
     df['x_hour'] = df.x_dt.dt.hour
     assert df.x_hour.tolist() == [3, 10, 11]
+
+
+def test_no_change_fingerprint():
+    # before this would introduce a variable into the dataframe, thus mutate it
+    x = np.array(['2019-01-04T21:23:00', '2019-02-04T05:00:10'], dtype=np.datetime64)
+    sample_date = np.datetime64('2019-03-15')
+    df = vaex.from_arrays(x=x)
+    fp = df.fingerprint()
+
+    answer = df.x > sample_date
+    assert df.fingerprint() == fp

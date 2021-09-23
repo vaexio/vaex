@@ -83,8 +83,6 @@ def test_state_variables(df_local_non_arrow, tmpdir):
 
     # this virtual column will add a variable (the timedelta)
     df['seconds'] = df.timedelta / np.timedelta64(1, 's')
-    assert len(df.variables) == len(variables) + 1
-    var_name = list(set(df.variables) - set(variables))[0]
 
     # an array
     df.add_variable('some_array', np.arange(10))
@@ -92,7 +90,6 @@ def test_state_variables(df_local_non_arrow, tmpdir):
     df.state_write(filename)
 
     df_copy.state_load(filename)
-    assert isinstance(df_copy.variables[var_name], np.timedelta64)
     assert df.seconds.tolist() == df_copy.seconds.tolist()
     assert df_copy.variables['dt_var'] == t_test
     assert df_copy.variables['some_array'].tolist() == df.variables['some_array'].tolist()
