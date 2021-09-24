@@ -773,9 +773,26 @@ def concat(dfs, resolver='flexible') -> vaex.dataframe.DataFrame:
     return df.concat(*tail, resolver=resolver)
 
 def vrange(start, stop, step=1, dtype='f8'):
-    """Creates a virtual column which is the equivalent of numpy.arange, but uses 0 memory"""
+    """Creates a virtual column which is the equivalent of numpy.arange, but uses 0 memory
+
+    :param int start: Start of interval. The interval includes this value.
+    :param int stop: End of interval. The interval does not include this value,
+    :param int step: Spacing between values.
+    :dtype: The preferred dtype for the column.
+    """
     from .column import ColumnVirtualRange
     return ColumnVirtualRange(start, stop, step, dtype)
+
+def vconstant(value, length, dtype=None, chunk_size=1024):
+    """Creates a virtual column with constant values, which uses 0 memory.
+
+    :param value: The value with which to fill the column
+    :param length: The length of the column, i.e. the number of rows it should contain.
+    :param dtype: The preferred dtype for the column.
+    :param chunk_size: Could be used to optimize the performance (evaluation) of this column.
+    """
+    from .column import ColumnVirtualConstant
+    return ColumnVirtualConstant(value=value, length=length, dtype=dtype, chunk_size=chunk_size)
 
 def string_column(strings):
     import pyarrow as pa
