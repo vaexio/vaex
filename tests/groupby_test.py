@@ -520,3 +520,33 @@ def test_delay_non_ordinal_2d():
     df2 = df.groupby('s', agg='count', delay=True)
     df.execute()
     assert df.executor.passes == 2
+
+
+def test_binner_1d(df_factory):
+    df = df_factory(x=[0.1, 1.1, 1.2, 2.2, 2.5, 2.7])
+    binner = vaex.groupby.Binner(df.x, 0, 3, bins=3)
+    dfg = df.groupby(binner, agg='count')
+
+    assert dfg.x.tolist() == [0.5, 1.5, 2.5]
+    assert dfg['count'].tolist() == [1, 2, 3]
+    xar = df.binby(binner, agg='count')
+    assert xar.data.tolist() == [1, 2, 3]
+
+
+def test_binner_2d(df_factory):
+    df = df_factory(x=[0.1, 1.1, 1.2, 2.2, 2.5, 2.7, 100], g=[0, 0, 1, 0, 1, 1, 1])
+    binner = vaex.groupby.Binner(df.x, 0, 3, bins=3)
+    grouper = vaex.groupby.Grouper(df.g, sort=True)
+    dfg = df.groupby([binner, grouper], agg='count', assume_sparse=False)
+    assert dfg.x.tolist() == [0.5, 1.5, 1.5, 2.5, 2.5]
+    assert dfg.g.tolist() == [0, 0, 1, 0, 1]
+    assert dfg['count'].tolist() == [1, 1, 1, 1, 2]
+
+    with pytest.raises(NotImplementedError):
+        dfg = df.groupby([binner, grouper], agg='count', assume_sparse=True)
+    assert dfg['count'].tolist() == [1, 1, 1, 1, 2]
+
+    xar = df.binby([binner, grouper], agg='count')
+    assert xar.coords['x'].data.tolist() == [0.5, 1.5, 2.5]
+    assert xar.coords['g'].data.tolist() == [0, 1]
+    assert xar.data.tolist() == [[1, 0], [1, 1], [1, 2]]
