@@ -563,69 +563,74 @@ class DataFrame(object):
             raise ValueError('only axis=None is supported')
         expression = _ensure_string_from_expression(expression)
         if self._future_behaviour and self.is_category(expression):
-            keys = self.category_labels(expression)
+            keys = pa.array(self.category_labels(expression))
+            keys = vaex.array_types.convert(keys, array_type)
+            return self._delay(delay, vaex.promise.Promise.fulfilled(keys))
         else:
-            ordered_set = self._set(expression, progress=progress, selection=selection, flatten=axis is None)
-            transient = True
-            data_type_item = self.data_type(expression, axis=-1)
-            if return_inverse:
-                # inverse type can be smaller, depending on length of set
-                inverse = np.zeros(self._length_unfiltered, dtype=np.int64)
-                dtype = self.data_type(expression)
-                from vaex.column import _to_string_sequence
-                def map(thread_index, i1, i2, selection_mask, blocks):
-                    ar = blocks[0]
-                    if vaex.array_types.is_string_type(dtype):
-                        previous_ar = ar
-                        ar = _to_string_sequence(ar)
-                        if not transient:
-                            assert ar is previous_ar.string_sequence
-                    # TODO: what about masked values?
-                    inverse[i1:i2] = ordered_set.map_ordinal(ar)
-                def reduce(a, b):
-                    pass
-                self.map_reduce(map, reduce, [expression], delay=delay, name='unique_return_inverse', info=True, to_numpy=False, selection=selection)
-            # ordered_set.seal()
-            # if array_type == 'python':
-            if data_type_item.is_object:
-                key_values = ordered_set.extract()
-                keys = list(key_values.keys())
-                counts = list(key_values.values())
-                if ordered_set.has_nan and not dropnan:
-                    keys = [np.nan] + keys
-                    counts = [ordered_set.nan_count] + counts
-                if ordered_set.has_null and not dropmissing:
-                    keys = [None] + keys
-                    counts = [ordered_set.null_count] + counts
-                if dropmissing and None in keys:
-                    # we still can have a None in the values
-                    index = keys.index(None)
-                    keys.pop(index)
-                    counts.pop(index)
-                counts = np.array(counts)
-                keys = np.array(keys)
-            else:
-                keys = ordered_set.key_array()
-                deletes = []
-                if dropmissing and ordered_set.has_null:
-                    deletes.append(ordered_set.null_value)
-                if dropnan and ordered_set.has_nan:
-                    deletes.append(ordered_set.nan_value)
-                if isinstance(keys, (vaex.strings.StringList32, vaex.strings.StringList64)):
-                    keys = vaex.strings.to_arrow(keys)
-                    indices = np.delete(np.arange(len(keys)), deletes)
-                    keys = keys.take(indices)
+            @delayed
+            def process(ordered_set):
+                transient = True
+                data_type_item = self.data_type(expression, axis=-1)
+                if return_inverse:
+                    # inverse type can be smaller, depending on length of set
+                    inverse = np.zeros(self._length_unfiltered, dtype=np.int64)
+                    dtype = self.data_type(expression)
+                    from vaex.column import _to_string_sequence
+                    def map(thread_index, i1, i2, selection_mask, blocks):
+                        ar = blocks[0]
+                        if vaex.array_types.is_string_type(dtype):
+                            previous_ar = ar
+                            ar = _to_string_sequence(ar)
+                            if not transient:
+                                assert ar is previous_ar.string_sequence
+                        # TODO: what about masked values?
+                        inverse[i1:i2] = ordered_set.map_ordinal(ar)
+                    def reduce(a, b):
+                        pass
+                    self.map_reduce(map, reduce, [expression], delay=delay, name='unique_return_inverse', info=True, to_numpy=False, selection=selection)
+                # ordered_set.seal()
+                # if array_type == 'python':
+                if data_type_item.is_object:
+                    key_values = ordered_set.extract()
+                    keys = list(key_values.keys())
+                    counts = list(key_values.values())
+                    if ordered_set.has_nan and not dropnan:
+                        keys = [np.nan] + keys
+                        counts = [ordered_set.nan_count] + counts
+                    if ordered_set.has_null and not dropmissing:
+                        keys = [None] + keys
+                        counts = [ordered_set.null_count] + counts
+                    if dropmissing and None in keys:
+                        # we still can have a None in the values
+                        index = keys.index(None)
+                        keys.pop(index)
+                        counts.pop(index)
+                    counts = np.array(counts)
+                    keys = np.array(keys)
                 else:
-                    keys = np.delete(keys, deletes)
-                    if not dropmissing and ordered_set.has_null:
-                        mask = np.zeros(len(keys), dtype=np.uint8)
-                        mask[ordered_set.null_value] = 1
-                        keys = np.ma.array(keys, mask=mask)
-        keys = vaex.array_types.convert(keys, array_type)
-        if return_inverse:
-            return keys, inverse
-        else:
-            return keys
+                    keys = ordered_set.key_array()
+                    deletes = []
+                    if dropmissing and ordered_set.has_null:
+                        deletes.append(ordered_set.null_value)
+                    if dropnan and ordered_set.has_nan:
+                        deletes.append(ordered_set.nan_value)
+                    if isinstance(keys, (vaex.strings.StringList32, vaex.strings.StringList64)):
+                        keys = vaex.strings.to_arrow(keys)
+                        indices = np.delete(np.arange(len(keys)), deletes)
+                        keys = keys.take(indices)
+                    else:
+                        keys = np.delete(keys, deletes)
+                        if not dropmissing and ordered_set.has_null:
+                            mask = np.zeros(len(keys), dtype=np.uint8)
+                            mask[ordered_set.null_value] = 1
+                            keys = np.ma.array(keys, mask=mask)
+                keys = vaex.array_types.convert(keys, array_type)
+                if return_inverse:
+                    return keys, inverse
+                else:
+                    return keys
+            return self._delay(delay, process(self._set(expression, progress=progress, selection=selection, flatten=axis is None, delay=delay)))
+
 
     @docsubst
     def mutual_information(self, x, y=None, mi_limits=None, mi_shape=256, binby=[], limits=None, shape=default_shape, sort=False, selection=False, delay=False):
