@@ -393,7 +393,7 @@ class _VaexColumn:
             elif dtype == "string":
                 kind = 21
             else:
-                raise ValueError(f"Data type {dtype} not supported by exchange" "protocol")
+                raise ValueError(f"Data type {dtype} not supported by exchange protocol")
 
         if kind not in (_k.INT, _k.UINT, _k.FLOAT, _k.BOOL, _k.CATEGORICAL, _k.STRING):
             raise NotImplementedError(f"Data type {dtype} not handled yet")
