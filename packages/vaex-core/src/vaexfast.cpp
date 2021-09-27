@@ -2122,11 +2122,21 @@ static struct PyModuleDef moduledef = {
 #define INITERROR return
 #endif
 
-PyMODINIT_FUNC __attribute__ ((visibility ("default")))
-PyInit_vaexfast()
+
+#if PY_MAJOR_VERSION >= 3
+extern "C" PyObject *
+PyInit_vaexfast(void)
+#else
+PyMODINIT_FUNC
+initvaexfast(void)
+#endif
 {
 	import_array();
+#if PY_MAJOR_VERSION >= 3
     PyObject *module = PyModule_Create(&moduledef);
+#else
+	PyObject *module = Py_InitModule("vaex.vaexfast", pyvaex_functions);
+#endif
 
     if (module == NULL)
         INITERROR;
@@ -2138,5 +2148,7 @@ PyInit_vaexfast()
         INITERROR;
     }
 
+#if PY_MAJOR_VERSION >= 3
     return module;
+#endif
 }

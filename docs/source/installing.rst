@@ -44,15 +44,7 @@ If you want to work on vaex for a Pull Request from the source, use the followin
 * make sure the dev versions of pcre are installed (e.g. ``conda install -c conda-forge pcre``)
 * install using (note: if you're on Windows, make sure that your command line/terminal has administrator privileges):
 
- * Create and activate a virtualenv/venv
- * ``make init`` or ``pip install -e .[dev]``
-
-* If you get errors - Common issues
-
- * Did you clone with `--recursive`? If not, run `git submodule update --init`.
-
-Did nothing work for you? Contact one of the repo's contributors for help.
-If you have encountered and solved another installation issue, you are very welcome to add it do the documentation here and submit a PR.
+ * ``make init`` or ``pip install -e .[dev]``  (again, use (ana)conda or virtualenv/venv)
 
 * If you want to do a PR
 
