@@ -205,32 +205,23 @@ def convert_string_column(col: ColumnObject) -> pa.Array:
     obuf = buffer_to_ndarray(obuffer, odtype)
     mbuf = buffer_to_ndarray(mbuffer, mdtype)
 
-    # Assemble the strings from the code units
-    str_list = []
-    for i in range(obuf.size - 1):
-        # Extract a range of code units
-        units = dbuf[obuf[i] : obuf[i + 1]]
-
-        # Convert the list of code units to bytes
-        b = bytes(units)
-
-        # Create the string
-        s = b.decode(encoding="utf-8")
-
-        # Add to our list of strings
-        str_list.append(s)
-
     # Apply missing values from validity buffer and convert string list to Arrow array
-    if col.describe_null[0] in (3, 4) and col.null_count > 0:  # masked missing values
-        mask = buffer_to_ndarray(mbuffer, mdtype)
-        if mask.dtype == "uint8":  # Pandas uint string mask
-            arrow_list = pa.array(str_list, mask=np.invert(np.asarray(mask, dtype="bool")))
-        else:
-            arrow_list = pa.array(str_list, mask=mask)
+    if col.null_count > 0:
+        if col.describe_null[0] != (3, 0):
+            raise TypeError('Only support arrow style mask data')
+    # not sure what the best way to communicate the two types of strings is
+    if obuffer._x.dtype == 'int64':
+        arrow_type = pa.large_utf8()
+    elif obuffer._x.dtype == 'int32':
+        arrow_type = pa.utf8()
     else:
-        arrow_list = pa.array(str_list)
+        raise TypeError(f'oops')
+    length = obuf.size - 1
+    # TODO: support mask
+    buffers = [None, pa.py_buffer(obuf), pa.py_buffer(dbuf)]
+    arrow_array = pa.Array.from_buffers(arrow_type, length, buffers)
 
-    return arrow_list, buffers
+    return arrow_array, buffers
 
 
 # Implementation of interchange protocol
