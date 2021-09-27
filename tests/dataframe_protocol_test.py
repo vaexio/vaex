@@ -215,6 +215,32 @@ def test_string():
     assert df2.__dataframe__().get_column_by_name("A").dtype[0] == _DtypeKind.STRING
 
 
+def test_no_mem_copy():
+    strings = ["a", "", "cdef", "", "g"]
+    # data for above string array
+    dbuf = np.array([ 97,  99, 100, 101, 102, 103], dtype='uint8')
+    obuf = np.array([0, 1, 1, 5, 5, 6], dtype='int64')
+    length = 5
+    buffers = [None, pa.py_buffer(obuf), pa.py_buffer(dbuf)]
+    s = pa.Array.from_buffers(pa.large_utf8(), length, buffers)
+    x = np.arange(0, 5)
+    df = vaex.from_arrays(x=x, s=s)
+    df2 = _from_dataframe_to_vaex(df.__dataframe__())
+
+    # primitive data
+    x[0] = 999
+    assert df2.x.tolist() == [999, 1, 2, 3, 4]
+
+    # strings
+    assert df.s.tolist() == strings
+    assert df2.s.tolist() == strings
+    # mutate the buffer data (which actually arrow and vaex both don't support/want)
+    strings[0] = "b"
+    dbuf[0] += 1
+    assert df.s.tolist() == strings
+    assert df2.s.tolist() == strings
+
+
 def test_object():
     df = vaex.from_arrays(x=np.array([None, True, False]))
     col = df.__dataframe__().get_column_by_name("x")
