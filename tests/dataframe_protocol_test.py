@@ -201,6 +201,19 @@ def test_string():
     assert df2.__dataframe__().get_column_by_name("A").describe_null == (3,0)
     assert df2.__dataframe__().get_column_by_name("A").dtype[0] == _DtypeKind.STRING
 
+    df_sliced = df[1:]
+    col = df_sliced.__dataframe__().get_column_by_name("A")
+    assert col.size == 4
+    assert col.null_count == 1
+    assert col.dtype[0] == _DtypeKind.STRING
+    assert col.describe_null == (3,0)
+
+    df2 = _from_dataframe_to_vaex(df_sliced.__dataframe__())
+    assert df2.A.tolist() == df_sliced.A.tolist()
+    assert df2.__dataframe__().get_column_by_name("A").null_count == 1
+    assert df2.__dataframe__().get_column_by_name("A").describe_null == (3,0)
+    assert df2.__dataframe__().get_column_by_name("A").dtype[0] == _DtypeKind.STRING
+
 
 def test_object():
     df = vaex.from_arrays(x=np.array([None, True, False]))
