@@ -76,7 +76,12 @@ def test_cached_result(df_local):
         reset(df)
         # now it should be cached
         sum1b_filtered = df.sum('x')
-        passes1b = passes(df)
+        assert passes(df) == 0
+        assert sum1b_filtered == total
+
+        # and it should not care if we add a virtual column we do not use
+        df['foo'] = df.x * 2
+        sum1b_filtered = df.sum('x')
         assert passes(df) == 0
         assert sum1b_filtered == total
 

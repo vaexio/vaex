@@ -455,6 +455,7 @@ class Dataset(collections.abc.Mapping):
         if not isinstance(rhs, Dataset):
             return NotImplemented
         # simple case, if fingerprints are equal, the data is equal
+        
         if self.fingerprint == rhs.fingerprint:
             return True
         # but no the other way around
@@ -462,12 +463,12 @@ class Dataset(collections.abc.Mapping):
         keys_hashed = set(self._ids)
         missing = keys ^ keys_hashed
         if missing:
-            raise ValueError(f'Comparing datasets where the left hand side is missing hashes for columns: {missing} (tip: use dataset.hashed())')
+            return self.fingerprint == rhs.fingerprint
         keys = set(rhs)
         keys_hashed = set(rhs._ids)
         missing = keys ^ keys_hashed
         if missing:
-            raise ValueError(f'Comparing datasets where the right hand side is missing hashes for columns: {missing} (tip: use dataset.hashed())')
+            return self.fingerprint == rhs.fingerprint
         return self._ids == rhs._ids
 
     def __hash__(self):
@@ -475,7 +476,8 @@ class Dataset(collections.abc.Mapping):
         keys_hashed = set(self._ids)
         missing = keys ^ keys_hashed
         if missing:
-            raise ValueError(f'Trying to hash a dataset with unhashed columns: {missing} (tip: use dataset.hashed())')
+            # if we don't have hashes for all columns, we just use the fingerprint
+            return hash(self.fingerprint)
         return hash(tuple(self._ids.items()))
 
     def _default_lazy_chunk_iterator(self, array_map, columns, chunk_size, reverse=False):
@@ -1327,7 +1329,13 @@ class DatasetArrays(Dataset):
 
     @property
     def _fingerprint(self):
-        self.__hash__()  # invoke just to check we don't have missing hashes
+        keys = set(self)
+        keys_hashed = set(self._ids)
+        missing = keys ^ keys_hashed
+        if missing:
+            # if we don't have hashes for all columns, we do it like id
+            return f'dataset-{self.snake_name}-uuid4-{self._id}'
+        # self.__hash__()  # invoke just to check we don't have missing hashes
         # but Python's hash functions are not deterministic (cross processs)
         fp = vaex.cache.fingerprint(tuple(self._ids.items()))
         return f'dataset-{self.snake_name}-hashed-{fp}'

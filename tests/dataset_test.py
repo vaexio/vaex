@@ -46,13 +46,10 @@ def test_no_hash():
     y2 = x2**2
     ds2 = dataset.DatasetArrays(x=x2, y=y2, hashed=False)
 
-    with pytest.raises(ValueError, match='.*hash.*'):
-        ds1 == ds2
-    with pytest.raises(ValueError, match='.*hash.*'):
-        ds1 == ds2.hashed()
-    with pytest.raises(ValueError, match='.*hash.*'):
-        ds1.hashed() == ds2
-    ds1.hashed() == ds2.hashed()
+    assert ds1 != ds2
+    assert ds1 != ds2.hashed()
+    assert ds1.hashed() != ds2
+    assert ds1.hashed() == ds2.hashed()
 
 
 def test_merge_array():
