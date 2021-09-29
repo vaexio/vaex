@@ -7,6 +7,7 @@ import collections
 import six
 
 import pyarrow as pa
+from vaex.delayed import delayed_args, delayed_dict, delayed_list
 from vaex.utils import _ensure_string_from_expression
 
 try:
@@ -55,6 +56,7 @@ class BinnerTime(BinnerBase):
         self.resolution = resolution
         self.expression = expression
         self.df = df or expression.ds
+        self.every = every
         self.sort_indices = None
         # make sure it's an expression
         self.expression = self.df[str(self.expression)]
@@ -67,11 +69,16 @@ class BinnerTime(BinnerBase):
         # divide by every, and round up
         self.N = (self.N + every - 1) // every
         self.bin_values = np.arange(self.tmin.astype(self.resolution_type), self.tmax.astype(self.resolution_type)+1, every)
+        self._promise = vaex.promise.Promise.fulfilled(None)
+    
+    def _create_binner(self, df):
         # TODO: we modify the dataframe in place, this is not nice
-        self.begin_name = self.df.add_variable('t_begin', self.tmin.astype(self.resolution_type), unique=True)
+        assert df.dataset == self.df.dataset, "you passed a dataframe with a different dataset to the grouper/binned"
+        self.df = df
+        self.begin_name = df.add_variable('t_begin', self.tmin.astype(self.resolution_type), unique=True)
         # TODO: import integer from future?
-        self.binby_expression = str(self.df['%s - %s' % (self.expression.astype(self.resolution_type), self.begin_name)].astype('int') // every)
-        self.binner = self.df._binner_ordinal(self.binby_expression, self.N)
+        self.binby_expression = str(df['%s - %s' % (self.expression.astype(self.resolution_type), self.begin_name)].astype('int') // self.every)
+        self.binner = df._binner_ordinal(self.binby_expression, self.N)
 
     @classmethod
     def per_day(cls, expression, df=None):
@@ -95,7 +102,7 @@ class BinnerTime(BinnerBase):
 
 
 class Grouper(BinnerBase):
-    """Bins an expression to a set of unique bins."""
+    """Bins an expression to a set of unique bins, like an SQL like groupby."""
     def __init__(self, expression, df=None, sort=False, pre_sort=True, row_limit=None, df_original=None, materialize_experimental=False):
         self.df = df or expression.ds
         # we prefer to calculate the set the original dataframe to have better cache hits, and modify df
@@ -120,52 +127,59 @@ class Grouper(BinnerBase):
             self.binner = self.df._binner_ordinal('bla', self.N, self.min_value)
             self.sort_indices = None
         else:
-            set = df_original._set(self.expression, unique_limit=row_limit)
-            self.bin_values = set.key_array()
+            @vaex.delayed
+            def process(set):
+                self.bin_values = set.key_array()
 
-            if isinstance(self.bin_values, vaex.superstrings.StringList64):
-                # TODO: find out why this more efficient path does not work
-                # col = vaex.column.ColumnStringArrow.from_string_sequence(self.bin_values)
-                # self.bin_values = pa.array(col)
-                self.bin_values = pa.array(self.bin_values.to_numpy())
-            if vaex.dtype_of(self.bin_values).kind == 'i':
-                max_value = self.bin_values.max()
-                self.bin_values = self.bin_values.astype(vaex.utils.required_dtype_for_max(max_value))
-            logger.debug('Constructed grouper for expression %s with %i values', str(expression), len(self.bin_values))
+                if isinstance(self.bin_values, vaex.superstrings.StringList64):
+                    # TODO: find out why this more efficient path does not work
+                    # col = vaex.column.ColumnStringArrow.from_string_sequence(self.bin_values)
+                    # self.bin_values = pa.array(col)
+                    self.bin_values = pa.array(self.bin_values.to_numpy())
+                if vaex.dtype_of(self.bin_values).kind == 'i':
+                    max_value = self.bin_values.max()
+                    self.bin_values = self.bin_values.astype(vaex.utils.required_dtype_for_max(max_value))
+                logger.debug('Constructed grouper for expression %s with %i values', str(expression), len(self.bin_values))
 
-            # since nan and null are at the start, we skip them with sorting
-            if self.sort:
-                dtype = self.expression.dtype
-                indices = pa.compute.sort_indices(self.bin_values)#[offset:])
-                if pre_sort:
-                    self.bin_values = pa.compute.take(self.bin_values, indices)
-                    # arrow sorts with null last
-                    null_value = -1 if not set.has_null else len(self.bin_values)-1
-                    fingerprint = set.fingerprint + "-sorted"
-                    if dtype.is_string:
-                        bin_values = vaex.column.ColumnStringArrow.from_arrow(self.bin_values)
-                        string_sequence = bin_values.string_sequence
-                        set = type(set)(string_sequence, null_value, set.nan_count, set.null_count, fingerprint)
+                # since nan and null are at the start, we skip them with sorting
+                if self.sort:
+                    dtype = self.expression.dtype
+                    indices = pa.compute.sort_indices(self.bin_values)#[offset:])
+                    if pre_sort:
+                        self.bin_values = pa.compute.take(self.bin_values, indices)
+                        # arrow sorts with null last
+                        null_value = -1 if not set.has_null else len(self.bin_values)-1
+                        fingerprint = set.fingerprint + "-sorted"
+                        if dtype.is_string:
+                            bin_values = vaex.column.ColumnStringArrow.from_arrow(self.bin_values)
+                            string_sequence = bin_values.string_sequence
+                            set = type(set)(string_sequence, null_value, set.nan_count, set.null_count, fingerprint)
+                        else:
+                            set = type(set)(self.bin_values, null_value, set.nan_count, set.null_count, fingerprint)
+                        self.sort_indices = None
                     else:
-                        set = type(set)(self.bin_values, null_value, set.nan_count, set.null_count, fingerprint)
-                    self.sort_indices = None
+                        # TODO: skip first or first two values (null and/or nan)
+                        self.sort_indices = vaex.array_types.to_numpy(indices)
+                        # the bin_values will still be pre sorted, maybe that is confusing (implementation detail)
+                        self.bin_values = pa.compute.take(self.bin_values, self.sort_indices)
                 else:
-                    # TODO: skip first or first two values (null and/or nan)
-                    self.sort_indices = vaex.array_types.to_numpy(indices)
-                    # the bin_values will still be pre sorted, maybe that is confusing (implementation detail)
-                    self.bin_values = pa.compute.take(self.bin_values, self.sort_indices)
-            else:
-                self.sort_indices = None
-            self.set = set
+                    self.sort_indices = None
+                self.set = set
 
-            # TODO: we modify the dataframe in place, this is not nice
-            basename = 'set_%s' % vaex.utils._python_save_name(str(expression))
-            self.setname = self.df.add_variable(basename, self.set, unique=True)
+                self.basename = 'set_%s' % vaex.utils._python_save_name(str(self.expression))
 
-            self.binby_expression = '_ordinal_values(%s, %s)' % (self.expression, self.setname)
-            self.N = len(self.bin_values)
-            self.bin_values = self.expression.dtype.create_array(self.bin_values)
-            self.binner = self.df._binner_ordinal(self.binby_expression, self.N)
+                self.N = len(self.bin_values)
+                self.bin_values = self.expression.dtype.create_array(self.bin_values)
+            self._promise = process(df_original._set(self.expression, unique_limit=row_limit, delay=True))
+
+    def _create_binner(self, df):
+        # TODO: we modify the dataframe in place, this is not nice
+        assert df.dataset == self.df.dataset, "you passed a dataframe with a different dataset to the grouper/binned"
+        self.df = df
+        self.setname = df.add_variable(self.basename, self.set, unique=True)
+        self.binby_expression = '_ordinal_values(%s, %s)' % (self.expression, self.setname)
+        self.binner = self.df._binner_ordinal(self.binby_expression, self.N)
+
 
 
 class GrouperCombined(Grouper):
@@ -183,37 +197,42 @@ class GrouperCombined(Grouper):
         self.expression = expression
         # efficient way to find the original bin values (parent.bin_value) from the 'compressed'
         # self.bin_values
-        df = vaex.from_dict({'row': vaex.vrange(0, self.N, dtype='i8'), 'bin_value': self.bin_values})
-        df[f'index_0'] = df['bin_value'] // multipliers[0]
-        df[f'leftover_0'] = df[f'bin_value'] % multipliers[0]
-        for i in range(1, len(multipliers)):
-            df[f'index_{i}'] = df[f'leftover_{i-1}'] // multipliers[i]
-            df[f'leftover_{i}'] = df[f'leftover_{i-1}'] % multipliers[i]
-        columns = [f'index_{i}' for i in range(len(multipliers))]
-        indices_parents = df.evaluate(columns)
-        def compress(ar):
-            if vaex.dtype_of(ar).kind == 'i':
-                ar = vaex.array_types.to_numpy(ar)
-                max_value = ar.max()
-                ar = ar.astype(vaex.utils.required_dtype_for_max(max_value))
-                return ar
-        indices_parents = [compress(ar) for ar in indices_parents]
-        bin_values = {}
-        # NOTE: we can also use dict encoding instead of take
-        for indices, parent in zip(indices_parents, parents):
-            dtype = vaex.dtype_of(parent.bin_values)
-            if dtype.is_struct:
-                # collapse parent struct into our flat struct
-                for field, ar in zip(parent.bin_values.type, parent.bin_values.flatten()):
-                    bin_values[field.name] = ar.take(indices)
-                    # bin_values[field.name] = pa.DictionaryArray.from_arrays(indices, ar)
-            else:
-                bin_values[parent.label] = parent.bin_values.take(indices)
-                # bin_values[parent.label] = pa.DictionaryArray.from_arrays(indices, parent.bin_values)
-        self.bin_values = pa.StructArray.from_arrays(bin_values.values(), bin_values.keys())
+        @vaex.delayed
+        def process(_ignore):
+            df = vaex.from_dict({'row': vaex.vrange(0, self.N, dtype='i8'), 'bin_value': self.bin_values})
+            df[f'index_0'] = df['bin_value'] // multipliers[0]
+            df[f'leftover_0'] = df[f'bin_value'] % multipliers[0]
+            for i in range(1, len(multipliers)):
+                df[f'index_{i}'] = df[f'leftover_{i-1}'] // multipliers[i]
+                df[f'leftover_{i}'] = df[f'leftover_{i-1}'] % multipliers[i]
+            columns = [f'index_{i}' for i in range(len(multipliers))]
+            indices_parents = df.evaluate(columns)
+            def compress(ar):
+                if vaex.dtype_of(ar).kind == 'i':
+                    ar = vaex.array_types.to_numpy(ar)
+                    max_value = ar.max()
+                    ar = ar.astype(vaex.utils.required_dtype_for_max(max_value))
+                    return ar
+            indices_parents = [compress(ar) for ar in indices_parents]
+            bin_values = {}
+            # NOTE: we can also use dict encoding instead of take
+            for indices, parent in zip(indices_parents, parents):
+                dtype = vaex.dtype_of(parent.bin_values)
+                if dtype.is_struct:
+                    # collapse parent struct into our flat struct
+                    for field, ar in zip(parent.bin_values.type, parent.bin_values.flatten()):
+                        bin_values[field.name] = ar.take(indices)
+                        # bin_values[field.name] = pa.DictionaryArray.from_arrays(indices, ar)
+                else:
+                    bin_values[parent.label] = parent.bin_values.take(indices)
+                    # bin_values[parent.label] = pa.DictionaryArray.from_arrays(indices, parent.bin_values)
+            self.bin_values = pa.StructArray.from_arrays(bin_values.values(), bin_values.keys())
+        self._promise_parent = self._promise
+        self._promise = process(self._promise_parent)
 
 
 class GrouperCategory(BinnerBase):
+    """Faster grouper that will use the fact that a column is categorical."""
     def __init__(self, expression, df=None, sort=False, row_limit=None):
         self.df = df or expression.ds
         self.sort = sort
@@ -241,8 +260,13 @@ class GrouperCategory(BinnerBase):
         # if self.set.has_null:
         #     self.N += 1
         #     keys += ['null']
-        self.binner = self.df._binner_ordinal(self.expression, self.N, self.min_value)
         self.binby_expression = str(self.expression)
+        self._promise = vaex.promise.Promise.fulfilled(None)
+
+    def _create_binner(self, df):
+        assert df.dataset == self.df.dataset, "you passed a dataframe with a different dataset to the grouper/binned"
+        self.df = df
+        self.binner = self.df._binner_ordinal(self.expression, self.N, self.min_value)
 
 
 def _combine(df, groupers, sort, row_limit=None):
@@ -283,9 +307,15 @@ def _combine(df, groupers, sort, row_limit=None):
     expression = reduce(operator.add, binby_expressions)
     grouper = GrouperCombined(expression, df, multipliers=cumulative_counts[1:], parents=combine_now, sort=sort, row_limit=row_limit)
     if combine_later:
-        # recursively add more of the groupers (because of 64 bit overflow)
-        grouper = _combine(df, [grouper] + combine_later, sort=sort)
-    return grouper
+        @vaex.delayed
+        def combine(_ignore):
+            # recursively add more of the groupers (because of 64 bit overflow)
+            # return 1
+            grouper._create_binner(df)
+            new_grouper = _combine(df, [grouper] + combine_later, sort=sort)
+            return new_grouper
+        return combine(grouper._promise)
+    return grouper._promise.then(lambda x: grouper)
 
 
 class GroupByBase(object):
@@ -310,39 +340,54 @@ class GroupByBase(object):
                 else:
                     by_value = Grouper(df[_ensure_string_from_expression(by_value)], sort=sort, row_limit=row_limit, df_original=df_original)
             self.by.append(by_value)
-        if combine is True and  len(self.by) >= 2:
-            self.by = [_combine(self.df, self.by, sort=sort, row_limit=row_limit)]
-            self.combine = True
-        elif combine == 'auto' and len(self.by) >= 2:
-            cells = product([grouper.N for grouper in self.by])
-            dim = len(self.by)
-            rows = df.length_unfiltered()  # we don't want to trigger a computation
-            occupancy = rows/cells
-            logger.debug('%s rows and %s grid cells => occupancy=%s', rows, cells, occupancy)
-            # we want each cell to have a least 10x occupacy
-            if occupancy < 10:
-                logger.info(f'Combining {len(self.by)} groupers into 1')
-                self.by = [_combine(self.df, self.by, sort=sort, row_limit=row_limit)]
+        @vaex.delayed
+        def possible_combine(*binner_promises):
+            # because binners can be created from other dataframes (we make a copy)
+            # we let it mutate *our* dataframe
+            for binner in self.by:
+                binner._create_binner(self.df)
+            @vaex.delayed
+            def set_combined(combined):
+                combined._create_binner(self.df)
+                self.by = [combined]
                 self.combine = True
+            if combine is True and len(self.by) >= 2:
+                promise = set_combined(_combine(self.df, self.by, sort=sort, row_limit=row_limit))
+            elif combine == 'auto' and len(self.by) >= 2:
+                cells = product([grouper.N for grouper in self.by])
+                dim = len(self.by)
+                rows = df.length_unfiltered()  # we don't want to trigger a computation
+                occupancy = rows/cells
+                logger.debug('%s rows and %s grid cells => occupancy=%s', rows, cells, occupancy)
+                # we want each cell to have a least 10x occupacy
+                if occupancy < 10:
+                    logger.info(f'Combining {len(self.by)} groupers into 1')
+                    promise = set_combined(_combine(self.df, self.by, sort=sort, row_limit=row_limit))
+                    self.combine = True
+                else:
+                    self.combine = False
+                    promise = vaex.promise.Promise.fulfilled(None)
             else:
                 self.combine = False
-        else:
-            self.combine = False
+                promise = vaex.promise.Promise.fulfilled(None)
+            @vaex.delayed
+            def process(_ignore):
+                self.groupby_expression = [str(by.expression) for by in self.by]
+                self.binners = tuple(by.binner for by in self.by)
+                self.shape = [by.N for by in self.by]
+                self.dims = self.groupby_expression[:]
+            return process(promise)
 
-
-        # binby may be an expression based on self.by.expression
-        # if we want to have all columns, minus the columns grouped by
-        # we should keep track of the original expressions, but binby
-        self.groupby_expression = [str(by.expression) for by in self.by]
-        self.binners = tuple(by.binner for by in self.by)
-        self.shape = [by.N for by in self.by]
-        self.dims = self.groupby_expression[:]
+        self._promise_by = possible_combine(*[by._promise for by in self.by])
 
     @property
     def _coords1d(self):
         return [k.bin_values for k in self.by]
 
     def _agg(self, actions):
+        return self._promise_by.then(lambda x: self._agg_impl(actions))
+
+    def _agg_impl(self, actions):
         df = self.df
         if isinstance(actions, collections_abc.Mapping):
             actions = list(actions.items())
@@ -447,90 +492,109 @@ class BinBy(GroupByBase):
     def __init__(self, df, by, sort=False):
         super(BinBy, self).__init__(df, by, sort=sort)
 
-    def agg(self, actions, merge=False):
+    def agg(self, actions, merge=False, delay=False):
         import xarray as xr
-        arrays = super(BinBy, self)._agg(actions)
-        self.df.execute()
-        if _USE_DELAY:
-            arrays = {key: value.get() for key, value in arrays.items()}
-        # take out the edges
-        arrays = {key: vaex.utils.extract_central_part(value) for key, value in arrays.items()}
+        @vaex.delayed
+        def aggregate(promise_by):
+            arrays = super(BinBy, self)._agg(actions)
+            return delayed_dict(arrays)
 
-        # make sure we respect the sorting
-        sorting = tuple(by.sort_indices if by.sort_indices is not None else slice(None) for by in self.by)
-        arrays = {key: value[sorting] for key, value in arrays.items()}
+        @vaex.delayed
+        def process(arrays):
+            # take out the edges
+            arrays = {key: vaex.utils.extract_central_part(value) for key, value in arrays.items()}
+            # make sure we respect the sorting
+            sorting = tuple(by.sort_indices if by.sort_indices is not None else slice(None) for by in self.by)
+            arrays = {key: value[sorting] for key, value in arrays.items()}
 
-        keys = list(arrays.keys())
-        key0 = keys[0]
-        if not isinstance(actions, collections_abc.Iterable)\
-            or isinstance(actions, six.string_types):
-            assert len(keys) == 1
-            final_array = arrays[key0]
-            coords = self._coords1d
-            return xr.DataArray(final_array, coords=coords, dims=self.dims)
+            keys = list(arrays.keys())
+            key0 = keys[0]
+            if not isinstance(actions, collections_abc.Iterable)\
+                or isinstance(actions, six.string_types):
+                assert len(keys) == 1
+                final_array = arrays[key0]
+                coords = self._coords1d
+                return xr.DataArray(final_array, coords=coords, dims=self.dims)
+            else:
+                final_array = np.zeros((len(arrays), ) + arrays[key0].shape)
+                for i, value in enumerate(arrays.values()):
+                    final_array[i] = value
+                coords = [list(arrays.keys())] + self._coords1d
+                dims = ['statistic'] + self.dims
+                return xr.DataArray(final_array, coords=coords, dims=dims)
+
+        result = process(aggregate(self._promise_by))
+        if delay:
+            return result
         else:
-            final_array = np.zeros((len(arrays), ) + arrays[key0].shape)
-            for i, value in enumerate(arrays.values()):
-                final_array[i] = value
-            coords = [list(arrays.keys())] + self._coords1d
-            dims = ['statistic'] + self.dims
-            return xr.DataArray(final_array, coords=coords, dims=dims)
+            self.df.execute()
+            return result.get()
 
 class GroupBy(GroupByBase):
     """Implementation of the binning and aggregation of data, see :method:`groupby`."""
     def __init__(self, df, by, sort=False, combine=False, expand=True, row_limit=None):
         super(GroupBy, self).__init__(df, by, sort=sort, combine=combine, expand=expand, row_limit=row_limit)
 
-    def agg(self, actions):
+    def agg(self, actions, delay=False):
         # TODO: this basically forms a cartesian product, we can do better, use a
         # 'multistage' hashmap
-        arrays = super(GroupBy, self)._agg(actions)
-        has_non_existing_pairs = len(self.by) > 1
-        # we don't want non-existing pairs (e.g. Amsterdam in France does not exist)
-        counts = self.counts
-         # nobody wanted to know count*, but we need it if we included non-existing pairs
-        if has_non_existing_pairs and counts is None:
-            # TODO: it seems this path is never tested
-            count_agg = vaex.agg.count(edges=True)
-            counts = self.df._agg(count_agg, self.binners, delay=_USE_DELAY)
-        self.df.execute()
-        if _USE_DELAY:
-            arrays = {key: value.get() for key, value in arrays.items()}
-            if has_non_existing_pairs:
-                counts = counts.get()
-        # take out the edges
-        arrays = {key: vaex.utils.extract_central_part(value) for key, value in arrays.items()}
-        if has_non_existing_pairs:
-            counts = vaex.utils.extract_central_part(counts)
+        @vaex.delayed
+        def aggregate(promise_by):
+            arrays = super(GroupBy, self)._agg(actions)
+            has_non_existing_pairs = len(self.by) > 1
+            # we don't want non-existing pairs (e.g. Amsterdam in France does not exist)
+            counts = self.counts
+            # nobody wanted to know count*, but we need it if we included non-existing pairs
+            if has_non_existing_pairs and counts is None:
+                # TODO: it seems this path is never tested
+                count_agg = vaex.agg.count(edges=True)
+                counts = self.df._agg(count_agg, self.binners, delay=_USE_DELAY)
+            arrays = delayed_dict(arrays)
+            return counts, arrays, has_non_existing_pairs
 
-        # make sure we respect the sorting
-        sorting = tuple(by.sort_indices if by.sort_indices is not None else slice(None) for by in self.by)
-        arrays = {key: value[sorting] for key, value in arrays.items()}
-
-        if self.combine and self.expand and isinstance(self.by[0], GrouperCombined):
-            assert len(self.by) == 1
-            values = self.by[0].bin_values
-            columns = {field.name: ar for field, ar in zip(values.type, values.flatten())}
-            for key, value in arrays.items():
-                assert value.ndim == 1
-                columns[key] = value
-        else:
+        @vaex.delayed
+        def process(args):
+            counts, arrays, has_non_existing_pairs = args
+            # arrays = {key: value.get() for key, value in arrays.items()}
+            # take out the edges
+            arrays = {key: vaex.utils.extract_central_part(value) for key, value in arrays.items()}
             if has_non_existing_pairs:
-                counts = counts[sorting]
-                mask = counts > 0
-                coords = [coord[mask] for coord in np.meshgrid(*self._coords1d, indexing='ij')]
-                columns = {by.label: coord for by, coord in zip(self.by, coords)}
-                for key, value in arrays.items():
-                    columns[key] = value[mask]
-            else:
-                columns = {by.label: coord for by, coord in zip(self.by, self._coords1d)}
+                counts = vaex.utils.extract_central_part(counts)
+
+            # make sure we respect the sorting
+            sorting = tuple(by.sort_indices if by.sort_indices is not None else slice(None) for by in self.by)
+            arrays = {key: value[sorting] for key, value in arrays.items()}
+
+            if self.combine and self.expand and isinstance(self.by[0], GrouperCombined):
+                assert len(self.by) == 1
+                values = self.by[0].bin_values
+                columns = {field.name: ar for field, ar in zip(values.type, values.flatten())}
                 for key, value in arrays.items():
                     assert value.ndim == 1
                     columns[key] = value
-        dataset_arrays = vaex.dataset.DatasetArrays(columns)
-        dataset = DatasetGroupby(dataset_arrays, self.df, self.by_original, actions, combine=self.combine, expand=self.expand, sort=self.sort)
-        df_grouped = vaex.from_dataset(dataset)
-        return df_grouped
+            else:
+                if has_non_existing_pairs:
+                    counts = counts[sorting]
+                    mask = counts > 0
+                    coords = [coord[mask] for coord in np.meshgrid(*self._coords1d, indexing='ij')]
+                    columns = {by.label: coord for by, coord in zip(self.by, coords)}
+                    for key, value in arrays.items():
+                        columns[key] = value[mask]
+                else:
+                    columns = {by.label: coord for by, coord in zip(self.by, self._coords1d)}
+                    for key, value in arrays.items():
+                        assert value.ndim == 1
+                        columns[key] = value
+            dataset_arrays = vaex.dataset.DatasetArrays(columns)
+            dataset = DatasetGroupby(dataset_arrays, self.df, self.by_original, actions, combine=self.combine, expand=self.expand, sort=self.sort)
+            df_grouped = vaex.from_dataset(dataset)
+            return df_grouped
+        result = process(delayed_list(aggregate(self._promise_by)))
+        if delay:
+            return result
+        else:
+            self.df.execute()
+            return result.get()
 
 
 @vaex.dataset.register
