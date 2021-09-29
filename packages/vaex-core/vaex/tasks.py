@@ -32,6 +32,12 @@ class Task(vaex.promise.Promise):
         self.pre_filter = pre_filter
         self.result = None
 
+    def dependencies(self):
+        variables = set()
+        for expression in self.expressions_all:
+            variables |= self.df._expr(expression).expand().variables(ourself=True)
+        return variables
+
     def fingerprint(self):
         if self._fingerprint is None:
             self._fingerprint = vaex.encoding.fingerprint('task', self)

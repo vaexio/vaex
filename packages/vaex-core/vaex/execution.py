@@ -72,6 +72,7 @@ def _merge(tasks, df):
         tasks_merged.append(task_merged)
     return tasks_non_mergable + tasks_merged
 
+
 class Executor:
     """An executor is responsible to executing tasks, they are not reentrant, but thread safe"""
     def __init__(self):
@@ -95,9 +96,10 @@ class Executor:
 
             if vaex.cache.is_on() and task.cacheable:
                 key_task = task.fingerprint()
-                key_df = task.df.fingerprint()
+                key_df = task.df.fingerprint(dependencies=task.dependencies())
                 # WARNING tasks' fingerprints don't include the dataframe
                 key = f'{key_task}-{key_df}'
+                task.key = key
 
                 logger.debug("task fingerprint: %r", key)
                 result = vaex.cache.get(key, type="task")
@@ -293,9 +295,7 @@ class ExecutorLocal(Executor):
                                     # we only want to store the original task results into the cache
                                     tasks_cachable = task.original_tasks if isinstance(task, vaex.tasks.TaskAggregations) else [task]
                                     for task_cachable in tasks_cachable:
-                                        key_task = task_cachable.fingerprint()
-                                        # tasks' fingerprints don't include the dataframe
-                                        key = f'{key_task}-{key_df}'
+                                        key = task_cachable.key
                                         previous_result = vaex.cache.get(key, type='task')
                                         if (previous_result is not None):# and (previous_result != task_cachable.get()):
                                             try:

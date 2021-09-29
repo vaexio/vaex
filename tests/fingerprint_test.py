@@ -94,11 +94,34 @@ def test_dataset_arrays():
     assert ds.fingerprint == 'dataset-arrays-hashed-88244cf38fe91c6bf435caa6160b089b'
 
 
+df_fingerprint_xy = 'dataframe-943761acaa2ff2060d21ef519c77e1b9'
+
+
 def test_df():
     x = np.arange(10, dtype='i4')
     y = x**2
     df = vaex.from_arrays(x=x, y=y, z=x+y)
-    assert df.fingerprint() == 'dataframe-3c300290d09727dbb1c093611c4ea050'
+    assert df.fingerprint() == df_fingerprint_xy
+
+
+def test_df_different_virtual_columns():
+    x = np.arange(10, dtype='i4')
+    y = x**2
+    df1 = vaex.from_arrays(x=x, y=y, z=x+y)
+    df1['z'] = df1.x + df1.z
+    assert df1.fingerprint() == 'dataframe-8f2202e2b4e7845c8ace767db5a49bc4'
+    df2 = vaex.from_arrays(x=x, y=y, z=x+y)
+    df2['z'] = df2.x - df2.z
+    assert df2.fingerprint() == 'dataframe-81043a3c5b32eaa4b18bf4a915492e23'
+
+
+def test_df_with_dependencies():
+    x = np.arange(10, dtype='i4')
+    y = x**2
+    df = vaex.from_arrays(x=x, y=y, z=x+y)
+    df['q'] = df.x + df.y
+    assert df.fingerprint() != df_fingerprint_xy
+    assert df.fingerprint(dependencies={'x', 'y', 'z'}) == df_fingerprint_xy
 
 
 def test_df_project():
@@ -109,4 +132,4 @@ def test_df_project():
     df_a = df[['x', 'y']]
     df_b = df[['x', 'y']]
     assert df_a.fingerprint() == df_b.fingerprint()
-    assert df_a.fingerprint() == 'dataframe-ddcd1a0edff12d24b98351354883ad57'
+    assert df_a.fingerprint() == 'dataframe-c13a4ab588272f03855ae5627731f7e5'

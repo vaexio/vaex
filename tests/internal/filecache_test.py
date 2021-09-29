@@ -15,7 +15,7 @@ def test_hdf5(tmpdir):
         with open(path, 'rb') as fp:
             fp.seek(0, 2)
             cache = vaex.file.cache.CachedFile(vaex.file.dup(fp), fake_path, str(tmpdir), block_size=2)
-            ds = vaex.hdf5.dataset.Hdf5MemoryMapped(cache)
+            ds = vaex.hdf5.dataset.Hdf5MemoryMapped(cache, _fingerprint="fake-fp")
             df = vaex.dataframe.DataFrameLocal(ds)
             assert df.x.tolist() == [1, 2]
             assert df.y.tolist() == [3, 4]

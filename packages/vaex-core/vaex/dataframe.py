@@ -216,20 +216,27 @@ class DataFrame(object):
         # like the ExecutorLocal.local.executing, this needs to be thread local
         self.local._aggregator_nest_count = 0
 
-    def fingerprint(self, treeshake=False):
+    def fingerprint(self, dependencies=None, treeshake=False):
         '''Id that uniquely identifies a dataframe (cross runtime).
 
+        :param set[str] dependencies: set of column, virtual column, function or selection names to be used.
         :param bool treeshake: Get rid of unused variables before calculating the fingerprint.
         '''
         df = self.copy(treeshake=True) if treeshake else self
         # we only use the state parts that affect data (no metadata)
         encoding = vaex.encoding.Encoding()
+        def dep_filter(d : dict):
+            if dependencies is None:
+                return d
+            return {k: v for k, v in d.items() if k in dependencies}
+
         state = dict(
-            column_names=list(self.column_names),
+            column_names=[k for k in list(self.column_names) if dependencies is None or k in dependencies],
+            virtual_columns=dep_filter(self.virtual_columns),
             # variables go unencoded
-            variables=self.variables,
+            variables=dep_filter(self.variables),
             # for functions it should be fast enough (not large amounts of data)
-            functions={name: encoding.encode("function", value) for name, value in self.functions.items()},
+            functions={name: encoding.encode("function", value) for name, value in dep_filter(self.functions).items()},
             active_range=[self._index_start, self._index_end]
         )
         selections = {name: self.get_selection(name) for name, history in self.selection_histories.items() if self.has_selection(name)}
