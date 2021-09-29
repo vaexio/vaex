@@ -6629,7 +6629,8 @@ class DataFrameLocal(DataFrame):
     #     self._has_selection = mask is not None
     #     # self.signal_selection_changed.emit(self)
 
-    def groupby(self, by=None, agg=None, sort=False, assume_sparse='auto', row_limit=None):
+    @docsubst
+    def groupby(self, by=None, agg=None, sort=False, assume_sparse='auto', row_limit=None, delay=False):
         """Return a :class:`GroupBy` or :class:`DataFrame` object when agg is not None
 
         Examples:
@@ -6652,7 +6653,7 @@ class DataFrameLocal(DataFrame):
         1    4          2        16
         2    1          3         1
         3    2          1         4
-        >>> df.groupby(df.x, agg={'z': [vaex.agg.count('y'), vaex.agg.mean('y')]})
+        >>> df.groupby(df.x, agg={{'z': [vaex.agg.count('y'), vaex.agg.mean('y')]}})
         #    x    z_count    z_mean
         0    3          4         9
         1    4          2        16
@@ -6666,7 +6667,7 @@ class DataFrameLocal(DataFrame):
         >>> t = np.arange('2015-01-01', '2015-02-01', dtype=np.datetime64)
         >>> y = np.arange(len(t))
         >>> df = vaex.from_arrays(t=t, y=y)
-        >>> df.groupby(vaex.BinnerTime.per_week(df.t)).agg({'y' : 'sum'})
+        >>> df.groupby(vaex.BinnerTime.per_week(df.t)).agg({{'y' : 'sum'}})
         #  t                      y
         0  2015-01-01 00:00:00   21
         1  2015-01-08 00:00:00   70
@@ -6683,16 +6684,21 @@ class DataFrameLocal(DataFrame):
             combinations, and will save another pass over the data)
         :param int row_limit: Limits the resulting dataframe to the number of rows (default is not to check, only works when assume_sparse is True).
             Throws a :py:`vaex.RowLimitException` when the condition is not met.
+        :param bool delay: {delay}
         :return: :class:`DataFrame` or :class:`GroupBy` object.
         """
         from .groupby import GroupBy
         groupby = GroupBy(self, by=by, sort=sort, combine=assume_sparse, row_limit=row_limit)
-        if agg is None:
-            return groupby
-        else:
-            return groupby.agg(agg)
+        @vaex.delayed
+        def next(_ignore):
+            if agg is None:
+                return groupby
+            else:
+                return groupby.agg(agg, delay=delay)
+        return self._delay(delay, next(groupby._promise_by))
 
-    def binby(self, by=None, agg=None, sort=False):
+    @docsubst
+    def binby(self, by=None, agg=None, sort=False, delay=False):
         """Return a :class:`BinBy` or :class:`DataArray` object when agg is not None
 
         The binby operation does not return a 'flat' DataFrame, instead it returns an N-d grid
@@ -6702,14 +6708,18 @@ class DataFrameLocal(DataFrame):
         :param dict, list or agg agg: Aggregate operation in the form of a string, vaex.agg object, a dictionary
             where the keys indicate the target column names, and the values the operations, or the a list of aggregates.
             When not given, it will return the binby object.
+        :param bool delay: {delay}
         :return: :class:`DataArray` or :class:`BinBy` object.
         """
         from .groupby import BinBy
         binby = BinBy(self, by=by, sort=sort)
-        if agg is None:
-            return binby
-        else:
-            return binby.agg(agg)
+        @vaex.delayed
+        def next(_ignore):
+            if agg is None:
+                return binby
+            else:
+                return binby.agg(agg, delay=delay)
+        return self._delay(delay, next(binby._promise_by))
 
     def _selection(self, create_selection, name, executor=None, execute_fully=False):
         def create_wrapper(current):
