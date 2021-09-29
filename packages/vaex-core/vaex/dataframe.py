@@ -777,8 +777,9 @@ class DataFrame(object):
             # it invalid that expressions are evaluate with filtered data. Sklearn for instance may
             # give errors when evaluated with NaN's present.
             # TODO: GET RID OF THIS
-            len(self) # fill caches and masks
-            # pass
+            # TODO: temporary disabled
+            # len(self) # fill caches and masks
+            pass
         binners = self._create_binners(binby, limits, shape, selection=selection, delay=True)
         @delayed
         def compute(expression, binners, selection, edges, progressbar):
