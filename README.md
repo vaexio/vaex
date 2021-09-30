@@ -75,6 +75,10 @@ Vaex doesn't copy/materialize the 'right' table when joining, saving gigabytes o
  * [Machine Learning without (explicit) pipelines](https://vaex.readthedocs.io/en/latest/tutorial_ml.html)
 
 
+## Contributing
+
+See [contributing](CONTRIBUTING.md) page.
+
 # Learn more about Vaex
  * Articles
    * [Beyond Pandas: Spark, Dask, Vaex and other big data technologies battling head to head](https://towardsdatascience.com/beyond-pandas-spark-dask-vaex-and-other-big-data-technologies-battling-head-to-head-a453a1f8cc13) (includes benchmarks)
