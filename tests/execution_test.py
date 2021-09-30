@@ -5,104 +5,145 @@ import platform
 import threading
 
 import pytest
+import numpy as np
 
 from common import small_buffer
 import vaex
 
 
-def test_signals(df):
-    mock_begin = MagicMock()
-    mock_progress = MagicMock()
-    mock_end = MagicMock()
-    len(df)  # ensure we have the filter precomputed
-    df.executor.signal_begin.connect(mock_begin)
-    df.executor.signal_progress.connect(mock_progress)
-    df.executor.signal_end.connect(mock_end)
-    df.sum(df.x, delay=True)
-    df.sum(df.y, delay=True)
+def test_merge_aggregation_tasks():
+    df = vaex.from_arrays(x=[1, 2], y=[2, 3])
+    binners = df._create_binners('x', [0.5, 2.5], 2)
+    binners2 = df._create_binners('x', [0.5, 2.5], 2)
+    assert len(binners) == 1
+    vaex.agg.count().add_tasks(df, binners)
+    assert len(df.executor.tasks) == 1
+    assert binners is not binners2
+    assert binners[0] is not binners2[0]
+    assert binners == binners2
+    assert binners[0] == binners2[0]
+    vaex.agg.sum('y').add_tasks(df, binners)
+    assert len(df.executor.tasks) == 2
+    tasks = df.executor._pop_tasks()
+    assert len(tasks) == 2
+    tasks = vaex.execution._merge(tasks, df)
+    assert len(tasks) == 1
+    assert isinstance(tasks[0], vaex.tasks.TaskAggregations)
+
+
+def test_merge_same_aggregation_tasks():
+    df = vaex.from_arrays(x=[1, 2], y=[2, 3])
+    binners = df._create_binners('x', [0.5, 2.5], 2)
+    binners2 = df._create_binners('x', [0.5, 2.5], 2)
+    assert len(binners) == 1
+    # these two aggregations should be merged into 1 subtask
+    [task1], result1 = vaex.agg.count().add_tasks(df, binners)
+    [task2], result2 = vaex.agg.count().add_tasks(df, binners)
+    assert len(df.executor.tasks) == 1
     df.execute()
-    mock_begin.assert_called_once()
-    mock_progress.assert_called_with(1.0)
-    mock_end.assert_called_once()
+    assert task1 is task2
+    assert np.all(result1.get() == result2.get())
+
+
+def test_signals(df):
+    with vaex.cache.off():
+        mock_begin = MagicMock()
+        mock_progress = MagicMock()
+        mock_end = MagicMock()
+        len(df)  # ensure we have the filter precomputed
+        df.executor.signal_begin.connect(mock_begin)
+        df.executor.signal_progress.connect(mock_progress)
+        df.executor.signal_end.connect(mock_end)
+        df.sum(df.x, delay=True)
+        df.sum(df.y, delay=True)
+        df.execute()
+        mock_begin.assert_called_once()
+        mock_progress.assert_called_with(1.0)
+        mock_end.assert_called_once()
 
 
 def test_reentrant_catch(df_local):
-    df = df_local
+    with vaex.cache.off():
+        df = df_local
 
-    # a 'worker' thread should not be allowed to trigger a new computation
-    def progress(fraction):
-        print('progress', fraction)
-        df.count(df.x)  # enters the executor again
+        # a 'worker' thread should not be allowed to trigger a new computation
+        def progress(fraction):
+            print('progress', fraction)
+            df.count(df.x)  # enters the executor again
 
-    with pytest.raises(RuntimeError) as exc:
-        df.count(df.x, progress=progress)
-    assert 'nested' in str(exc.value)
+        with pytest.raises(RuntimeError) as exc:
+            df.count(df.x, progress=progress)
+        assert 'nested' in str(exc.value)
 
 
 @pytest.mark.skipif(platform.system().lower() == 'windows', reason="hangs appveyor very often, bug?")
 def test_thread_safe(df_local):
-    df = df_local
+    with vaex.cache.off():
+        df = df_local
 
-    # but an executor should be thread save
-    def do():
-        return df_local.count(df.x)  # enters the executor from a thread
+        # but an executor should be thread save
+        def do():
+            return df_local.count(df.x)  # enters the executor from a thread
 
-    count = df_local.count(df.x)
-    tpe = ThreadPoolExecutor(4)
-    futures = []
+        count = df_local.count(df.x)
+        tpe = ThreadPoolExecutor(4)
+        futures = []
 
-    passes = df.executor.passes
-    N = 100
-    with small_buffer(df):
-        for i in range(N):
-            futures.append(tpe.submit(do))
+        passes = df.executor.passes
+        N = 100
+        with small_buffer(df):
+            for i in range(N):
+                futures.append(tpe.submit(do))
 
-    done, not_done = concurrent.futures.wait(futures, return_when=concurrent.futures.FIRST_EXCEPTION)
-    for future in done:
-        assert count == future.result()
-    assert df.executor.passes <= passes + N
+        done, not_done = concurrent.futures.wait(futures, return_when=concurrent.futures.FIRST_EXCEPTION)
+        for future in done:
+            assert count == future.result()
+        assert df.executor.passes <= passes + N
 
 
 def test_delayed(df):
-    @vaex.delayed
-    def add(a, b):
-        return a + b
-    total_promise = add(df.sum(df.x, delay=True), 1)
-    df.execute()
-    assert total_promise.get() == df.sum(df.x) + 1
+    with vaex.cache.off():
+        @vaex.delayed
+        def add(a, b):
+            return a + b
+        total_promise = add(df.sum(df.x, delay=True), 1)
+        df.execute()
+        assert total_promise.get() == df.sum(df.x) + 1
 
 
 def test_nested_task(df):
-    @vaex.delayed
-    def add(a, b):
-        return a + b
-    total_promise = add(df.sum(df.x, delay=True))
+    with vaex.cache.off():
+        @vaex.delayed
+        def add(a, b):
+            return a + b
+        total_promise = add(df.sum(df.x, delay=True))
 
-    @vaex.delayed
-    def next(value):
-        # during the handling of the sum task, we add a new task
-        sumy_promise = df.sum(df.y, delay=True)
-        if df.is_local():
-            assert df.executor.local.executing
-        # without callling the exector, since it should still be running its main loop
-        return add(sumy_promise, value)
-    total_promise = next(df.sum(df.x, delay=True))
-    df.execute()
-    assert total_promise.get() == df.sum(df.x) + df.sum(df.y)
+        @vaex.delayed
+        def next(value):
+            # during the handling of the sum task, we add a new task
+            sumy_promise = df.sum(df.y, delay=True)
+            if df.is_local():
+                assert df.executor.local.executing
+            # without callling the exector, since it should still be running its main loop
+            return add(sumy_promise, value)
+        total_promise = next(df.sum(df.x, delay=True))
+        df.execute()
+        assert total_promise.get() == df.sum(df.x) + df.sum(df.y)
 
 
 def test_executor_from_other_thread():
-    df = vaex.from_arrays(x=[1, 2])
-    def execute():
-        # but call execute from a different thread
-        df.execute()
-    # we add a tasks from the main thread, we use binby without limits to force
-    # a double computation.
-    c = df.count('x', binby='x', delay=True, edges=True)
-    thread = threading.Thread(target=execute)
-    thread.start()
-    thread.join()
-    assert sum(c.get()) == 2
+    with vaex.cache.off():
+        df = vaex.from_arrays(x=[1, 2])
+        def execute():
+            # but call execute from a different thread
+            df.execute()
+        # we add a tasks from the main thread, we use binby without limits to force
+        # a double computation.
+        c = df.count('x', binby='x', delay=True, edges=True)
+        thread = threading.Thread(target=execute)
+        thread.start()
+        thread.join()
+        assert sum(c.get()) == 2
 # def test_add_and_cancel_tasks(df_executor):
 #     df = df_executor
 

@@ -623,7 +623,7 @@ def slices(expression):
 
 def parse_expression(expression_string):
     expr = ast.parse(expression_string).body[0]
-    assert isinstance(expr, ast.Expr), "not an expression"
+    assert isinstance(expr, ast.Expr), f"not an expression {str(expr)}"
     return expr.value
 
 

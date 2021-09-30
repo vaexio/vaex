@@ -19,6 +19,21 @@ def test_vrange():
     assert df[1:11].y.tolist()== (np.arange(1, 11)**2).tolist()
 
 
+@pytest.mark.parametrize('value', [10, 'word', [1, 2]])
+def test_vconstant(value):
+    length = 100
+    df = vaex.from_arrays(x=vaex.vconstant(value=value, length=length),
+                          y=vaex.vrange(0, length))
+
+
+    assert len(df.columns['x']) == length
+    assert df.x[:3].tolist() == [value] * 3
+
+    df_filter = df[df.y < 31]
+    assert len(df_filter) == 31
+    assert df_filter.x[:3].tolist() == [value] * 3
+
+
 def test_arrow_strings():
     N = 4
     x = ['a', 'bb', 'ccc', 'dddd']

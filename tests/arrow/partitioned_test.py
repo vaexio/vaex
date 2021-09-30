@@ -55,10 +55,10 @@ def test_partitioning_write_hdf5():
     shutil.rmtree(data_path / 'parquet_dataset_partitioned_vaex', ignore_errors=True)
     df = vaex.from_arrow_table(table)
     df.export_partitioned(data_path / 'parquet_dataset_partitioned_vaex_my_choice/{subdir}/{i}.hdf5', ['country'])
-    assert len(glob.glob(str(data_path / 'parquet_dataset_partitioned_vaex_my_choice/*/*.hdf5'))) == 3  # 5 unique values
-    assert len(glob.glob(str(data_path / 'parquet_dataset_partitioned_vaex_my_choice/country=US/0.hdf5'))) == 1
-    assert len(glob.glob(str(data_path / 'parquet_dataset_partitioned_vaex_my_choice/country=NL/1.hdf5'))) == 1
-    assert len(glob.glob(str(data_path / 'parquet_dataset_partitioned_vaex_my_choice/country=FR/2.hdf5'))) == 1
+    assert len(glob.glob(str(data_path / 'parquet_dataset_partitioned_vaex_my_choice/*/*.hdf5'))) == 3  # 3 unique values
+    assert len(glob.glob(str(data_path / 'parquet_dataset_partitioned_vaex_my_choice/country=US/[012].hdf5'))) == 1
+    assert len(glob.glob(str(data_path / 'parquet_dataset_partitioned_vaex_my_choice/country=NL/[012].hdf5'))) == 1
+    assert len(glob.glob(str(data_path / 'parquet_dataset_partitioned_vaex_my_choice/country=FR/[012].hdf5'))) == 1
 
 
 def test_partitioning_write_directory():

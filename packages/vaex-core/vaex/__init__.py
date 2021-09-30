@@ -40,7 +40,8 @@ import six
 
 import vaex.dataframe
 import vaex.dataset
-from vaex.functions import register_function
+from vaex.registry import register_function
+from vaex import functions, struct
 from . import stat
 # import vaex.file
 # import vaex.export
@@ -115,6 +116,7 @@ def open(path, convert=False, shuffle=False, fs_options={}, fs=None, *args, **kw
         * Google Cloud Storage
             * :py:class:`gcsfs.core.GCSFileSystem`
         In addition you can pass the boolean "cache" option.
+    :param group: (optional) Specify the group to be read from and HDF5 file. By default this is set to "/table".
     :param fs: Apache Arrow FileSystem object, or FSSpec FileSystem object, if specified, fs_options should be empty.
     :param args: extra arguments for file readers that need it
     :param kwargs: extra keyword arguments
@@ -247,7 +249,7 @@ def open(path, convert=False, shuffle=False, fs_options={}, fs=None, *args, **kw
             raise IOError('Unknown error opening: {}'.format(path))
         return df
     except:
-        logging.getLogger("vaex").error("error opening %r" % path)
+        logging.getLogger("vaex").exception("error opening %r" % path)
         raise
 
 
@@ -592,44 +594,59 @@ def zeldovich(dim=2, N=256, n=-2.5, t=None, scale=1, seed=None):
     return vaex.file.other.Zeldovich(dim=dim, N=N, n=n, t=t, scale=scale)
 
 
-def set_log_level_debug():
+# create named logger, for all loglevels
+logger = logging.getLogger('vaex')
+logger.setLevel(logging.DEBUG)
+
+# create console handler and accept all loglevels
+ch = logging.StreamHandler()
+ch.setLevel(logging.DEBUG)
+
+# create formatter
+formatter = logging.Formatter('%(levelname)s:%(threadName)s:%(name)s:%(message)s')
+
+# add formatter to console handler
+ch.setFormatter(formatter)
+
+# add console handler to logger
+logger.addHandler(ch)
+
+
+def set_log_level_debug(loggers=["vaex"]):
     """set log level to debug"""
-    import logging
-    logging.getLogger("vaex").setLevel(logging.DEBUG)
+    for logger in loggers:
+        logging.getLogger(logger).setLevel(logging.DEBUG)
 
 
 def set_log_level_info():
     """set log level to info"""
-    import logging
     logging.getLogger("vaex").setLevel(logging.INFO)
 
 
 def set_log_level_warning():
     """set log level to warning"""
-    import logging
     logging.getLogger("vaex").setLevel(logging.WARNING)
 
 
 def set_log_level_exception():
     """set log level to exception"""
-    import logging
-    logging.getLogger("vaex").setLevel(logging.FATAL)
+    logging.getLogger("vaex").setLevel(logging.ERROR)
 
 
 def set_log_level_off():
     """Disabled logging"""
-    import logging
-    logging.disable(logging.CRITICAL)
+    logging.getLogger('vaex').removeHandler(ch)
+    logging.getLogger('vaex').addHandler(logging.NullHandler())
 
 
-format = "%(levelname)s:%(threadName)s:%(name)s:%(message)s"
-logging.basicConfig(level=logging.INFO, format=format)
-DEBUG_MODE = bool(os.environ.get('VAEX_DEBUG', ''))
+DEBUG_MODE = os.environ.get('VAEX_DEBUG', '')
 if DEBUG_MODE:
-    logging.basicConfig(level=logging.DEBUG)
-    set_log_level_debug()
+    set_log_level_warning()
+    if DEBUG_MODE.startswith('vaex'):
+        set_log_level_debug(DEBUG_MODE.split(","))
+    else:
+        set_log_level_debug()
 else:
-    # logging.basicConfig(level=logging.DEBUG)
     set_log_level_warning()
 
 import_script = os.path.expanduser("~/.vaex/vaex_import.py")
@@ -641,9 +658,6 @@ if os.path.exists(import_script):
     except:
         import traceback
         traceback.print_stack()
-
-
-logger = logging.getLogger('vaex')
 
 
 def register_dataframe_accessor(name, cls=None, override=False):
@@ -759,9 +773,26 @@ def concat(dfs, resolver='flexible') -> vaex.dataframe.DataFrame:
     return df.concat(*tail, resolver=resolver)
 
 def vrange(start, stop, step=1, dtype='f8'):
-    """Creates a virtual column which is the equivalent of numpy.arange, but uses 0 memory"""
+    """Creates a virtual column which is the equivalent of numpy.arange, but uses 0 memory
+
+    :param int start: Start of interval. The interval includes this value.
+    :param int stop: End of interval. The interval does not include this value,
+    :param int step: Spacing between values.
+    :dtype: The preferred dtype for the column.
+    """
     from .column import ColumnVirtualRange
     return ColumnVirtualRange(start, stop, step, dtype)
+
+def vconstant(value, length, dtype=None, chunk_size=1024):
+    """Creates a virtual column with constant values, which uses 0 memory.
+
+    :param value: The value with which to fill the column
+    :param length: The length of the column, i.e. the number of rows it should contain.
+    :param dtype: The preferred dtype for the column.
+    :param chunk_size: Could be used to optimize the performance (evaluation) of this column.
+    """
+    from .column import ColumnVirtualConstant
+    return ColumnVirtualConstant(value=value, length=length, dtype=dtype, chunk_size=chunk_size)
 
 def string_column(strings):
     import pyarrow as pa
@@ -780,3 +811,7 @@ def dtype_of(ar):
         return dtype(ar.dtype)
     else:
         raise TypeError(f'{ar} is not a an Arrow or NumPy array')
+
+
+class RowLimitException(ValueError):
+    pass

@@ -6,7 +6,7 @@ def test_from_json(ds_local):
     df = ds_local
 
     # Create temporary json files
-    pandas_df = df.to_pandas_df(virtual=True)
+    pandas_df = df.to_pandas_df(virtual=True, array_type='numpy')
     tmp = tempfile.mktemp('.json')
     with open(tmp, 'w') as f:
         f.write(pandas_df.to_json())

@@ -11,6 +11,7 @@ on:
       - viz-*
       - hdf5-*
       - server-*
+      - contrib-*
 
 jobs:
   build_wheels:
@@ -91,6 +92,20 @@ jobs:
         TWINE_PASSWORD: ${{ secrets.pypi_password_vaex_ml }}
       run: |
         twine upload dist/vaex-ml* dist/vaex_ml*
+
+    - name: Build vaex-contrib
+      if: startsWith(github.ref, 'refs/tags/contrib')
+      run: |
+        (cd packages/vaex-contrib && python setup.py sdist bdist_wheel); cp packages/vaex-contrib/dist/* dist
+
+    - name: Publish a Python distribution to PyPI
+      if: startsWith(github.ref, 'refs/tags/contrib')
+      env:
+        TWINE_USERNAME: __token__
+        TWINE_PASSWORD: ${{ secrets.pypi_password_vaex_contrib }}
+      run: |
+        twine upload dist/vaex-contrib* dist/vaex_contrib*
+
 
 
     - name: Build vaex-viz

@@ -1,6 +1,8 @@
 __author__ = 'maartenbreddels'
 from collections import defaultdict
 import logging
+from typing import List
+from frozendict import frozendict
 
 import numpy as np
 import pyarrow as pa
@@ -22,7 +24,6 @@ class DatasetArrowBase(vaex.dataset.Dataset):
         super().__init__()
         self.max_rows_read = max_rows_read
         self._create_columns()
-        self._ids = {}
 
     def _create_columns(self):
         self._create_dataset()
@@ -40,8 +41,8 @@ class DatasetArrowBase(vaex.dataset.Dataset):
             # TODO: make int32 dependant on the data?
             self._columns[name] = vaex.dataset.ColumnProxy(self, name, pa.dictionary(pa.int32(), dictionary.type))
 
-    def hashed(self):
-        raise NotImplementedError
+    def leafs(self) -> List[vaex.dataset.Dataset]:
+        return [self]
 
     def slice(self, start, end):
         # TODO: we can be smarter here, and trim off some fragments
@@ -184,7 +185,9 @@ class DatasetArrowBase(vaex.dataset.Dataset):
             i1 = i2
 
 
+@vaex.dataset.register
 class DatasetParquet(DatasetArrowBase):
+    snake_name = "arrow-parquet"
     def __init__(self, path, fs_options, fs=None, max_rows_read=1024**2*10, partitioning=None, kwargs=None):
         self.path = path
         self.fs_options = fs_options
@@ -192,6 +195,36 @@ class DatasetParquet(DatasetArrowBase):
         self.partitioning = partitioning
         self.kwargs = kwargs or {}
         super().__init__(max_rows_read=max_rows_read)
+
+    @property
+    def _fingerprint(self):
+        if isinstance(self.path, (list, tuple)):
+            paths = self.path
+        else:
+            paths = [self.path]
+        fingerprints = [vaex.file.fingerprint(path, fs_options=self.fs_options, fs=self.fs) for path in paths]
+        return vaex.cache.fingerprint(*fingerprints)
+
+    def hashed(self):
+        return self
+
+    def _encode(self, encoding):
+        if self.fs:
+            raise ValueError('Serializing filesystem not supported yet')
+        spec = {'path': self.path, 'fs_options': self.fs_options, 'partitioning': self.partitioning,
+                'max_rows_read': self.max_rows_read}
+        if self.kwargs:
+            spec['extra_options'] = self.kwargs
+        return spec
+
+    @classmethod
+    def _decode(cls, encoding, spec):
+        kwargs = spec.pop('extra_options', None)
+        return cls(**spec, kwargs=kwargs)
+
+    def _create_columns(self):
+        super()._create_columns()
+        self._ids = frozendict({name: vaex.cache.fingerprint(self._fingerprint, name) for name in self._columns})
 
     def _create_dataset(self):
         file_system, source = vaex.file.parse(self.path, self.fs_options, fs=self.fs, for_arrow=True)
@@ -224,7 +257,25 @@ class DatasetArrowFileBase(vaex.dataset.Dataset):
         self.path = path
         self._create_columns()
         self._set_row_count()
-        self._ids = {}
+        self._ids = frozendict({name: vaex.cache.fingerprint(self._fingerprint, name) for name in self._columns})
+
+    @property
+    def _fingerprint(self):
+        fingerprint = vaex.file.fingerprint(self.path, fs_options=self.fs_options, fs=self.fs)
+        return f'dataset-{self.snake_name}-{fingerprint}'
+
+    def leafs(self) -> List[vaex.dataset.Dataset]:
+        return [self]
+
+    def _encode(self, encoding):
+        if self.fs:
+            raise ValueError('Serializing filesystem not supported yet')
+        spec = {'path': self.path, 'fs_options': self.fs_options}
+        return spec
+
+    @classmethod
+    def _decode(cls, encoding, spec):
+        return cls(**spec)
 
     def __getstate__(self):
         state = self.__dict__.copy()
@@ -239,7 +290,7 @@ class DatasetArrowFileBase(vaex.dataset.Dataset):
         self._source.close()
 
     def hashed(self):
-        raise NotImplementedError
+        return self
 
     def shape(self, column):
         return tuple()
@@ -252,7 +303,9 @@ class DatasetArrowFileBase(vaex.dataset.Dataset):
             return self
         return DatasetSlicedArrays(self, start=start, end=end)
 
+@vaex.dataset.register
 class DatasetArrowIPCFile(DatasetArrowFileBase):
+    snake_name = "arrow-ipc-file"
     def _create_columns(self):
         self._source = vaex.file.open(path=self.path, mode='rb', fs_options=self.fs_options, fs=self.fs, mmap=True, for_arrow=True)
         reader = pa.ipc.open_file(self._source)
@@ -261,7 +314,9 @@ class DatasetArrowIPCFile(DatasetArrowFileBase):
         self._columns = dict(zip(table.schema.names, table.columns))
 
 
+@vaex.dataset.register
 class DatasetArrowIPCStream(DatasetArrowFileBase):
+    snake_name = "arrow-ipc-stream"
     def _create_columns(self):
         self._source = vaex.file.open(path=self.path, mode='rb', fs_options=self.fs_options, fs=self.fs, mmap=True, for_arrow=True)
         reader = pa.ipc.open_stream(self._source)

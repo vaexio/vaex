@@ -4,6 +4,7 @@ import numpy as np
 import logging
 from vaex.dataframe import DataFrame
 import vaex
+from frozendict import frozendict
 
 
 logger = logging.getLogger("vaex.server.dataframe")
@@ -24,11 +25,93 @@ def _rmi(f=None):
     else:
         return decorator(f)
 
+class ColumnProxyRemote(vaex.column.Column):
+    '''To give the Dataset._columns object useful containers for debugging'''
+    ds: vaex.dataset.Dataset
+
+    def __init__(self, ds, name, type):
+        self.ds = ds
+        self.name = name
+        self.dtype = type
+
+    def _fingerprint(self):
+        fp = vaex.cache.fingerprint(self.ds.fingerprint, self.name)
+        return f'column-remote-{fp}'
+
+    def __len__(self):
+        return self.ds.row_count
+
+    def to_numpy(self):
+        values = self[:]
+        return np.array(values)
+
+    def __getitem__(self, item):
+        if isinstance(item, slice):
+            array_chunks = []
+            ds = self.ds.__getitem__(item)
+            for chunk_start, chunk_end, chunks in ds.chunk_iterator([self.name]):
+                ar = chunks[self.name]
+                if isinstance(ar, pa.ChunkedArray):
+                    array_chunks.extend(ar.chunks)
+                else:
+                    array_chunks.append(ar)
+            if len(array_chunks) == 1:
+                return array_chunks[0]
+            return vaex.array_types.concat(array_chunks)
+        else:
+            raise NotImplementedError
+
+@vaex.dataset.register
+class DatasetRemote(vaex.dataset.Dataset):
+    snake_name = "remote"
+    def __init__(self, name, column_names, dtypes, row_count):
+        super().__init__()
+        self._name = name
+        self.column_names = column_names
+        self.dtypes = dtypes
+        self._row_count = row_count
+        self._ids = frozendict({name: vaex.cache.fingerprint(self.name, name, dtype, row_count) for name, dtype in zip(column_names, dtypes)})
+        self._columns = frozendict({name: ColumnProxyRemote(self, name, dtype) for name, dtype in zip(column_names, dtypes)})
+
+    @property
+    def id(self):
+        id = self._name
+        return f'dataset-{self.snake_name}-{id}'
+
+    @property
+    def _fingerprint(self):
+        return self.id  # TODO: this should be an id from the server
+
+    def _create_columns(self):
+        pass
+
+    def chunk_iterator(self):
+        raise RuntimeError('Remote')
+
+    def close(self):
+        pass
+
+    def hashed(self):
+        return self
+
+    def is_masked(self):
+        pass
+
+    def leafs(self):
+        return [self]
+
+    def shape(self):
+        pass
+
+    def slice(self):
+        pass
+
 
 # TODO: we should not inherit from local
 class DataFrameRemote(DataFrame):
     def __init__(self, name, column_names, dtypes, length_original):
         super(DataFrameRemote, self).__init__(name)
+        self.dataset = DatasetRemote(name, column_names, dtypes, length_original)
         self.column_names = column_names
         self._dtypes = dtypes
         for column_name in self.get_column_names(virtual=True, strings=True):
@@ -38,6 +121,10 @@ class DataFrameRemote(DataFrame):
         self._index_end = length_original
         self._dtype_cache = {}
         self.fraction = 1
+
+    def hashed(self, inplace=False) -> DataFrame:
+        # we're always hashed
+        return self if inplace else self.copy()
 
     def __getstate__(self):
         return {

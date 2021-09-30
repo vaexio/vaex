@@ -15,7 +15,7 @@ class Signal(object):
         self.extra_args = {}
 
     def connect(self, callback, prepend=False, *args, **kwargs):
-        logger.debug("(%s) connected %s", self.name, callback)
+        # logger.debug("(%s) connected %s", self.name, callback)
         # insert first, otherwise emit may get a keyerror in multithreaded cases
         self.extra_args[callback] = (args, kwargs)
         if prepend:
@@ -33,7 +33,7 @@ class Signal(object):
             final_kwargs.update(extra_kwargs)
             final_kwargs.update(kwargs)
             try:
-                logger.debug("(%s) calling %r with arguments %r and kwargs %r", self.name, callback, final_args, final_kwargs)
+                # logger.debug("(%s) calling %r with arguments %r and kwargs %r", self.name, callback, final_args, final_kwargs)
                 value = callback(*final_args, **final_kwargs)
                 results.append(value)
             except Exception:

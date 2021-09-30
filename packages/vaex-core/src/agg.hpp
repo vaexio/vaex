@@ -41,6 +41,7 @@ public:
     virtual ~Aggregator() {}
     virtual void aggregate(default_index_type* indices1d, size_t length, uint64_t offset) = 0;
     virtual void reduce(std::vector<Aggregator*>) = 0;
+    virtual size_t bytes_used() = 0;
     virtual bool can_release_gil() {
         return true;
     };
@@ -156,6 +157,10 @@ public:
     }
     virtual ~AggregatorBase() {
         free(grid_data);
+    }
+
+    virtual size_t bytes_used() {
+        return sizeof(grid_type) * grid->length1d;
     }
 
     py::buffer_info buffer_info() {

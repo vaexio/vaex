@@ -74,6 +74,30 @@ def test_export_basic(ds_local, tmpdir):
         ds.export(path)
         df = vaex.open(path)
 
+
+def test_export_hdf5_2d(tmpdir):
+    x = np.arange((2*3*4)).reshape((2, 3, 4))
+    df = vaex.from_arrays(x=x)
+    path = str(tmpdir.join('test.hdf5'))
+    df.export_hdf5(path)
+    df2 = vaex.open(path)
+    assert df.x.tolist() == df2.x.tolist()
+    assert df2.x.shape == (2, 3, 4)
+
+
+def test_export_hdf5_2d_masked(tmpdir):
+    x = np.arange((2*3*4)).reshape((2, 3, 4))
+    mask = x == 5
+    x = np.ma.array(x, mask=mask)
+    df = vaex.from_arrays(x=x)
+    path = str(tmpdir.join('test.hdf5'))
+    df.export_hdf5(path)
+    df2 = vaex.open(path)
+    assert df.x.tolist() == df2.x.tolist()
+    assert df2.x.shape == (2, 3, 4)
+
+
+
 def test_export_open_hdf5(ds_local):
     ds = ds_local
     ds = ds.drop(ds.obj)
@@ -116,6 +140,16 @@ def test_export_string_mask(tmpdir):
     df_arrow = vaex.open(path)
     assert df.s.tolist() == df_arrow.s.tolist()
 
+def test_export_unicode_column_name_hdf5(tmpdir):
+    # prepare many columns for multithreaded export
+    src_dict = {"あ": [1, 2, 3], "a": [1, 2, 3], "b": [1, 2, 3], 
+            "c": [1, 2, 3], "d": [1, 2, 3], "a1": [1, 2, 3], 
+            "b2": [1, 2, 3], "c3": [1, 2, 3], "d4": [1, 2, 3]}
+    path = str(tmpdir.join('test.hdf5'))
+    df = vaex.from_dict(src_dict)
+    df.export(path)
+    df_open = vaex.open(path)
+    assert df_open["あ"].tolist() == [1, 2, 3]
 
 # N = 2**32+2
 # @pytest.mark.skipif(not os.environ.get('VAEX_EXPORT_BIG', False),

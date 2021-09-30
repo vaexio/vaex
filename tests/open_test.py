@@ -1,3 +1,4 @@
+from concurrent.futures import ThreadPoolExecutor
 import glob
 import tempfile
 import os
@@ -36,6 +37,20 @@ def test_open_convert_kwargs():
 def test_open_convert_non_hdf5():
     csv2 = os.path.join(path, 'data', 'smæll2.csv')
     df = vaex.open(csv2, convert='smæll2.parquet')
+
+
+def test_open_convert_multithreaded():
+    def do(i):
+        fn = os.path.join(path, 'data', 'smæll2.csv')
+        df = vaex.open(csv2, convert='smæll2.hdf5')
+        df = vaex.open(csv2, convert='smæll2.parquet')
+        df = vaex.open(csv2, convert='smæll2.arrow')
+    for i in range(10):
+        with ThreadPoolExecutor(4) as tpe:
+            values = list(tpe.map(do, range(5)))
+            assert values == [None] * 5
+        for ext in ['hdf5', 'parquet', 'arrow']:
+            os.remove(os.path.join(f'smæll2.{ext}'))
 
 
 def test_open_convert_explicit_path():
@@ -106,12 +121,40 @@ def test_open_list():
     assert df.x.tolist() == (df2.x.tolist() + df3.x.tolist())
 
 
+def test_open_nonstandard_extension(tmpdir):
+    df = vaex.from_scalars(x=1, s='Hello')
+    df.export_hdf5(tmpdir / 'this_is_hdf5.xyz')
+    df = vaex.open(tmpdir / 'this_is_hdf5.xyz')
+    assert df.x.tolist() == [1]
+    assert df.s.tolist() == ['Hello']
+
+
+def test_open_export_hdf5_groups(tmpdir):
+    df1 = vaex.from_arrays(s=['Groningen', 'Ohrid'])
+    df2 = vaex.from_arrays(z=[10, -10])
+    df3 = vaex.from_arrays(first_name=['Reggie', 'Michael'], last_name=['Miller', 'Jordan'])
+
+    df1.export_hdf5(tmpdir / 'hdf5_with_groups.hdf5', mode='a', group='my/table/cities')
+    df2.export_hdf5(tmpdir / 'hdf5_with_groups.hdf5', mode='a', group='my/table/coords')
+    df3.export_hdf5(tmpdir / 'hdf5_with_groups.hdf5', mode='a', group='my/table/players')
+
+    df1_open = vaex.open(tmpdir / 'hdf5_with_groups.hdf5', group='my/table/cities')
+    assert df1_open.s.tolist() == ['Groningen', 'Ohrid']
+    df2_open = vaex.open(tmpdir / 'hdf5_with_groups.hdf5', group='my/table/coords')
+    assert df2_open.z.tolist() == [10, -10]
+    df3_open = vaex.open(tmpdir / 'hdf5_with_groups.hdf5', group='my/table/players')
+    assert df3_open.first_name.tolist() == ['Reggie', 'Michael']
+    assert df3_open.last_name.tolist() == ['Miller', 'Jordan']
+
+
 def _cleanup_generated_files():
     for hdf5_file in glob.glob(os.path.join(path, 'data', '*.yaml')):
         os.remove(hdf5_file)
     for hdf5_file in glob.glob(os.path.join(path, 'data', 'output', '*.yaml')):
         os.remove(hdf5_file)
-    for hdf5_file in glob.glob(os.path.join(path, 'data', 'small*.hdf5')):
+    for hdf5_file in glob.glob(os.path.join(path, 'data', 's*.hdf5')):
         os.remove(hdf5_file)
     for hdf5_file in glob.glob(os.path.join(path, 'data', 'output', '*.hdf5')):
+        os.remove(hdf5_file)
+    for hdf5_file in glob.glob(os.path.join(path, '..', 'smæll2*')):
         os.remove(hdf5_file)

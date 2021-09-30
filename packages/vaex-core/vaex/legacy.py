@@ -1061,7 +1061,7 @@ class SubspaceLocal(Subspace):
                     callback = self.executor.signal_progress.connect(update)
                 elif progressbar:
                     callback = self.executor.signal_progress.connect(progressbar)
-                self.executor.schedule(task)
+                task = self.executor.schedule(task)
                 self.df.execute()
                 result = task.get()
                 if progressbar == True:

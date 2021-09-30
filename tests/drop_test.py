@@ -50,3 +50,21 @@ def test_drop_autocomplete(ds_local):
     assert callable(ds.drop)
     del ds['columns']
     assert 'm' in ds.columns or 'm' in ds.virtual_columns
+
+
+def test_drop_invalid_identifier():
+    df = vaex.from_scalars(x=1, y=2)
+    df['bla()'] = df.x + df.y
+    df.drop(['x', 'y'], inplace=True)
+    assert df['bla()'].tolist() == [3]
+
+
+def test_drop_double():
+    df = vaex.from_scalars(x=1, y=2, z=3)
+    assert isinstance(df.dataset, vaex.dataset.DatasetArrays)
+    df = df.drop('x')
+    assert isinstance(df.dataset.original, vaex.dataset.DatasetArrays)
+    assert df.dataset._dropped_names == ('x',)
+    df = df.drop('y')
+    assert isinstance(df.dataset.original, vaex.dataset.DatasetArrays)
+    assert df.dataset._dropped_names == ('x', 'y')

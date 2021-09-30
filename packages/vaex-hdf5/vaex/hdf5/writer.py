@@ -17,35 +17,37 @@ max_int32 = 2**31-1
 
 
 class Writer:
-    def __init__(self, path, byteorder="="):
+    def __init__(self, path, group="/table", mode="w", byteorder="="):
         self.path = path
         self.byteorder = byteorder
-        self.h5 = h5py.File(path, "w")
+        self.h5 = h5py.File(path, mode)
         self.fs_options = {}
-        self.table = self.h5.require_group("/table")
+        self.table = self.h5.require_group(group)
         self.table.attrs["type"] = "table"
-        self.columns = self.h5.require_group("/table/columns")
+        self.columns = self.h5.require_group(f"{group}/columns")
         self.mmap = None
+        self._layout_called = False
 
     def close(self):
-        self.h5.close()
         if self.mmap is not None:
             self.mmap.close()
             self.file.close()
-
+        self.h5.close()
+        
     def __enter__(self):
         return self
 
     def __exit__(self, *args):
         self.close()
-    
-    def write(self, df, chunk_size=int(1e5), parallel=True, progress=None, column_count=1, export_threads=0):
+
+    def layout(self, df):
+        assert not self._layout_called, "Layout called twice"
         N = len(df)
         if N == 0:
-            raise ValueError("Cannot export empty table")
+            raise ValueError("Cannot layout empty table")
         column_names = df.get_column_names()
 
-        logger.debug("exporting columns(hdf5): %r" % column_names)
+        logger.debug("layout columns(hdf5): %r" % column_names)
 
         self.column_writers = {}
         dtypes = df.schema()
@@ -74,6 +76,15 @@ class Writer:
 
         # flush out the content
         self.h5.flush()
+        self._layout_called = True
+
+    def write(self, df, chunk_size=int(1e5), parallel=True, progress=None, column_count=1, export_threads=0):
+        assert self._layout_called, "call .layout() first"
+        N = len(df)
+        if N == 0:
+            raise ValueError("Cannot export empty table")
+
+        column_names = list(self.column_writers)
         # now that the file has the final size, we can mmap it
         self.file = open(self.path, "rb+")
         self.fileno = self.file.fileno()
@@ -88,6 +99,7 @@ class Writer:
         for name in list(column_names):
             self.column_writers[name].mmap(self.mmap, self.file)
 
+        logger.debug("writing columns(hdf5): %r" % column_names)
         # actual writing part
         progressbar = vaex.utils.progressbars(progress)
         progressbar(0)
@@ -119,7 +131,7 @@ class ColumnWriterPrimitive:
         self.dtype = dtype
         self.to_offset = 0
         self.to_array = None
-        
+
         self.h5group = h5parent.require_group(name)
         if dtype.kind in 'mM':
             self.array = self.h5group.require_dataset('data', shape=shape, dtype=np.int64)

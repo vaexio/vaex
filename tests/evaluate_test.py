@@ -10,13 +10,15 @@ def test_evaluate_iterator(df_local, chunk_size, prefetch, parallel):
         x = df.x.to_numpy()
         z = df.z.to_numpy()
         total = 0
-        for i1, i2, chunk in df_local.evaluate_iterator('x', chunk_size=chunk_size, prefetch=prefetch, parallel=parallel, array_type='numpy-arrow'):
+        for i1, i2, chunk in df_local.evaluate_iterator('x', chunk_size=chunk_size, prefetch=prefetch,
+                                                        parallel=parallel, array_type='numpy-arrow'):
             assert x[i1:i2].tolist() == chunk.tolist()
             total += chunk.sum()
         assert total == x.sum()
 
         total = 0
-        for i1, i2, chunk in df_local.evaluate_iterator('z', chunk_size=chunk_size, prefetch=prefetch, parallel=parallel, array_type='numpy-arrow'):
+        for i1, i2, chunk in df_local.evaluate_iterator('z', chunk_size=chunk_size, prefetch=prefetch,
+                                                        parallel=parallel, array_type='numpy-arrow'):
             assert z[i1:i2].tolist() == chunk.tolist()
             total += chunk.sum()
         assert total == z.sum()
@@ -50,6 +52,20 @@ def test_to_dict(df_local, chunk_size, parallel, array_type):
 
 @pytest.mark.parametrize("chunk_size", [2, 5])
 @pytest.mark.parametrize("parallel", [True, False])
+@pytest.mark.parametrize("array_type", ['numpy', 'list', 'python'])
+def test_to_records(df_local, chunk_size, parallel, array_type):
+    df = df_local
+    for i1, i2, chunk in df.to_records(chunk_size=chunk_size, parallel=parallel, array_type=array_type):
+        assert isinstance(chunk, list)
+        assert len(chunk) <= chunk_size
+        assert isinstance(chunk[0], dict)
+    record = df.to_records(0)
+    assert isinstance(record, dict)
+    assert isinstance(df.to_records(chunk_size=None, parallel=parallel, array_type=array_type), list)
+
+
+@pytest.mark.parametrize("chunk_size", [2, 5])
+@pytest.mark.parametrize("parallel", [True, False])
 @pytest.mark.parametrize("array_type", ['numpy', 'list', 'xarray'])
 def test_to_arrays(df_local, chunk_size, parallel, array_type):
     df = df_local
@@ -64,10 +80,11 @@ def test_to_arrays(df_local, chunk_size, parallel, array_type):
 def test_evaluate_function_filtered_df():
     # Custom function to be applied to a filtered DataFrame
     def custom_func(x):
-        assert 4 not in x; return x**2
+        assert 4 not in x;
+        return x ** 2
 
     df = vaex.from_arrays(x=np.arange(10))
-    df_filtered = df[df.x!=4]
+    df_filtered = df[df.x != 4]
     df_filtered.add_function('custom_function', custom_func)
     df_filtered['y'] = df_filtered.func.custom_function(df_filtered.x)
     assert df_filtered.y.tolist() == [0, 1, 4, 9, 25, 36, 49, 64, 81]
@@ -75,7 +92,7 @@ def test_evaluate_function_filtered_df():
     # sliced exactly at the start of where we are going to filter
     # this used to trigger a bug in df.dtype, which would evaluate the first row
     df_sliced = df[4:]
-    df_filtered = df_sliced[df_sliced.x!=4]
+    df_filtered = df_sliced[df_sliced.x != 4]
     df_filtered.add_function('custom_function', custom_func)
     df_filtered['y'] = df_filtered.func.custom_function(df_filtered.x)
     assert df_filtered.y.tolist() == [25, 36, 49, 64, 81]
@@ -91,13 +108,13 @@ def test_bool(df_trimmed):
 
 
 def test_aliased():
-    df = vaex.from_dict({'1': [1, 2], '#': [2,3]})
+    df = vaex.from_dict({'1': [1, 2], '#': [2, 3]})
     assert df.evaluate('#').tolist() == [2, 3]
 
 
 def test_evaluate_types():
     x = np.arange(2)
-    y = pa.array(x**2)
+    y = pa.array(x ** 2)
     s = pa.array(["foo", "bars"])
     df = vaex.from_arrays(x=x, y=y, s=s)
     assert isinstance(df.columns['x'], np.ndarray)
@@ -122,7 +139,7 @@ def test_evaluate_types():
 @pytest.mark.parametrize('parallel', [True, False])
 def test_arrow_evaluate(parallel):
     x = np.arange(2)
-    l = pa.array([[1,2], [2,3,4]])
+    l = pa.array([[1, 2], [2, 3, 4]])
     df = vaex.from_arrays(s=["foo", "bars"], l=l)
     assert df.evaluate(df.s.as_arrow(), array_type='numpy', parallel=parallel).dtype == object
     assert df.evaluate(df.s.as_arrow(), array_type='arrow', parallel=parallel).type == pa.string()

@@ -5,7 +5,7 @@ import sys
 def check_ipython():
     IPython = sys.modules.get('IPython')
     if IPython:
-        IPython_version = tuple(map(int, IPython.__version__.split('.')))
+        IPython_version = tuple(map(int, IPython.__version__.split('.')[:3]))
         if IPython_version < (7, 0, 0):
             raise RuntimeError(f'You are using IPython {IPython.__version__} while we require 7.0.0, please update IPython')
 

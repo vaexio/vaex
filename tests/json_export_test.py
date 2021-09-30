@@ -19,9 +19,10 @@ def test_export_json():
     assert data['B'][0] == '1'
 
 
-def test_export_json_arrow(tmpdir):
-    temp_path = str(tmpdir / './temp.json')
-    ar = pa.array([1, 2, None])
-    vaex.utils.write_json_or_yaml(temp_path, {'ar': ar})
-    data = vaex.utils.read_json_or_yaml(temp_path)
-    assert data['ar'].equals(ar)
+# no need to test this anymore, since we now using the vaex.encoding framework
+# def test_export_json_arrow(tmpdir):
+#     temp_path = str(tmpdir / './temp.json')
+#     ar = pa.array([1, 2, None])
+#     vaex.utils.write_json_or_yaml(temp_path, {'ar': ar})
+#     data = vaex.utils.read_json_or_yaml(temp_path)
+#     assert data['ar'].equals(ar)

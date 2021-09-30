@@ -329,15 +329,15 @@ class TestDataset(unittest.TestCase):
 		test_equal(self.dataset, ds2, ucds=False, units=False, description=False, descriptions=False)
 
 		# as pandas
-		ds2 = vx.from_pandas(self.dataset.to_pandas_df())
+		ds2 = vx.from_pandas(self.dataset.to_pandas_df(array_type='numpy'))
 		# skip masked arrays, pandas doesn't understand that, converts it to nan, so we can't compare
 		test_equal(self.dataset, ds2, ucds=False, units=False, description=False, descriptions=False, skip=['m', 'mi'])
 
-		df = self.dataset.to_pandas_df(index_name="name")
+		df = self.dataset.to_pandas_df(index_name="name", array_type='numpy')
 		ds2 = vx.from_pandas(df, index_name="name", copy_index=True)
 		test_equal(self.dataset, ds2, ucds=False, units=False, description=False, descriptions=False, skip=['m', 'mi'])
 
-		ds2 = vx.from_pandas(self.dataset.to_pandas_df(index_name="name"))
+		ds2 = vx.from_pandas(self.dataset.to_pandas_df(index_name="name", array_type='numpy'))
 		assert "name" not in ds2.get_column_names()
 
 		# as astropy table

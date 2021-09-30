@@ -1,3 +1,4 @@
+import asyncio
 import builtins
 import logging
 from urllib.parse import urlparse
@@ -7,7 +8,7 @@ import tornado.websocket
 
 import vaex
 import vaex.asyncio
-import asyncio
+import vaex.server.utils
 from vaex.server import client
 from .executor import Executor
 
@@ -131,6 +132,7 @@ def connect(url, **kwargs):
     port = url.port
     base_path = url.path
     hostname = url.hostname
+    hostname = vaex.server.utils.hostname_override(hostname)
     if websocket:
         secure = "wss" in url.scheme
         return ClientWebsocket(hostname, base_path=base_path, port=port, secure=secure, **kwargs)

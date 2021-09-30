@@ -1,4 +1,4 @@
-from abc import  abstractmethod
+from abc import  abstractmethod, abstractproperty
 import os
 from pathlib import Path
 import collections.abc
@@ -6,6 +6,8 @@ import logging
 import pkg_resources
 import uuid
 from urllib.parse import urlparse
+from typing import Set, List
+import threading
 
 import numpy as np
 from frozendict import frozendict
@@ -16,6 +18,7 @@ import vaex.utils
 from vaex.array_types import data_type
 from .column import Column, ColumnIndexed, supported_column_types
 from . import array_types
+from vaex import encoding
 
 
 blake3 = vaex.utils.optional_import('blake3')
@@ -24,19 +27,44 @@ logger = logging.getLogger('vaex.dataset')
 
 opener_classes = []
 HASH_VERSION = "1"
+HASH_VERSION_KEY = "version"
+
+
+_dataset_types = {}
+lock = threading.Lock()
+
+
+def register(cls, name=None):
+    name = name or getattr(cls, 'snake_name') or cls.__name__
+    _dataset_types[name] = cls
+    return cls
+
+@encoding.register('dataset')
+class dataset_encoding:
+    @staticmethod
+    def encode(encoding, dataset):
+        return dataset.encode(encoding)
+
+    @staticmethod
+    def decode(encoding, dataset_spec):
+        dataset_spec = dataset_spec.copy()
+        type = dataset_spec.pop('dataset_type')
+        cls = _dataset_types[type]
+        return cls.decode(encoding, dataset_spec)
 
 
 def open(path, fs_options={}, fs=None, *args, **kwargs):
     failures = []
-    if not opener_classes:
-        for entry in pkg_resources.iter_entry_points(group='vaex.dataset.opener'):
-            logger.debug('trying opener: ' + entry.name)
-            try:
-                opener = entry.load()
-                opener_classes.append(opener)
-            except Exception as e:
-                logger.exception('issue loading ' + entry.name)
-                failures.append((e, entry))
+    with lock:  # since we cache, make this thread save
+        if not opener_classes:
+            for entry in pkg_resources.iter_entry_points(group='vaex.dataset.opener'):
+                logger.debug('trying opener: ' + entry.name)
+                try:
+                    opener = entry.load()
+                    opener_classes.append(opener)
+                except Exception as e:
+                    logger.exception('issue loading ' + entry.name)
+                    failures.append((e, entry))
 
     # first the quick path
     for opener in opener_classes:
@@ -102,25 +130,29 @@ def hash_array_data(ar):
                 byte_ar = ar.copy().view(np.uint8)
             blake = blake3.blake3(byte_ar, multithreading=True)
             hash_data = {"type": "numpy", "data": blake.hexdigest(), "mask": None}
-    else:
-        if not isinstance(ar, pa.Array):
-            try:
-                ar = pa.array(ar)
-            except Exception as e:
-                raise ValueError(f'Cannot convert array {ar} to arrow array for hashing') from e
+    elif isinstance(ar, (pa.Array, pa.ChunkedArray)):
         blake = blake3.blake3(multithreading=True)
         buffer_hashes = []
         hash_data = {"type": "arrow", "buffers": buffer_hashes}
-        for buffer in ar.buffers():
-            if buffer is not None:
-                # TODO: we need to make a copy here, a memoryview would be better
-                # or possible patch the blake module to accept a memoryview https://github.com/oconnor663/blake3-py/issues/9
-                # or feed in the buffer in batches
-                # blake.update(buffer)
-                blake.update(memoryview((buffer)).tobytes())
-                buffer_hashes.append(blake.hexdigest())
-            else:
-                buffer_hashes.append(None)
+        if isinstance(ar, pa.ChunkedArray):
+            chunks = ar.chunks
+        else:
+            chunks = [ar]
+        for chunk in chunks:
+            for buffer in chunk.buffers():
+                if buffer is not None:
+                    # TODO: we need to make a copy here, a memoryview would be better
+                    # or possible patch the blake module to accept a memoryview https://github.com/oconnor663/blake3-py/issues/9
+                    # or feed in the buffer in batches
+                    # blake.update(buffer)
+                    blake.update(memoryview(buffer))
+                    buffer_hashes.append(blake.hexdigest())
+                else:
+                    buffer_hashes.append(None)
+    elif isinstance(ar, vaex.column.Column):
+        hash_data = {"type": "column", "fingerprint": ar.fingerprint()}
+    else:
+        raise TypeError
     return hash_data
 
 
@@ -129,6 +161,8 @@ def hash_array(ar, hash_info=None, return_info=False):
     # (hash_array_data), so we can cheaply calculate new hashes if we pass on hash_info
     if hash_info is None:
         hash_info = hash_array_data(ar)
+    if hash_info.get(HASH_VERSION_KEY) == HASH_VERSION:  # TODO: semver check?
+        return hash_info['hash'], hash_info
     if isinstance(ar, np.ndarray):
         if ar.dtype == np.object_:
             return hash_info['data']  # uuid, so always unique
@@ -146,11 +180,18 @@ def hash_array(ar, hash_info=None, return_info=False):
             hash_info = hash_array_data(ar)
         keys = [HASH_VERSION]
         keys.extend(["NO_BUFFER" if not b else b for b in hash_info['buffers']])
+    elif isinstance(ar, vaex.column.Column):
+        if not (hash_info['type'] == 'column'):
+            hash_info = hash_array_data(ar)
+        keys = [HASH_VERSION]
+        keys.append(hash_info['fingerprint'])
     blake = blake3.blake3(multithreading=False)  # small amounts of data
     for key in keys:
         blake.update(key.encode('ascii'))
     hash = blake.hexdigest()
     if return_info:
+        hash_info['hash'] = hash
+        hash_info[HASH_VERSION_KEY] = HASH_VERSION
         return hash, hash_info
     else:
         return hash
@@ -234,10 +275,10 @@ def _slice_of_chunks(chunks_ready_list, chunk_size):
     return chunks_current_list, current_row_count
 
 
-def _rechunk(chunk_iter, chunk_size):
+def chunk_rechunk(chunk_iter, chunk_size):
     chunks_ready_list = []
     i1 = i2 = 0
-    for chunks in chunk_iter:
+    for _, _, chunks in chunk_iter:
         chunks_ready_list.append(chunks)
         total_row_count = sum([len(list(k.values())[0]) for k in chunks_ready_list])
         if total_row_count > chunk_size:
@@ -254,11 +295,74 @@ def _rechunk(chunk_iter, chunk_size):
         yield i1, i2, chunks
         i1 = i2
 
+
+def _rechunk(chunk_iter, chunk_size):
+    def wrapper():
+        i1 = i2 = 0
+        for chunks in chunk_iter:
+            i2 += len(list(chunks.values())[0])
+            yield i1, i2, chunks
+            i1 = i2
+    yield from chunk_rechunk(wrapper(), chunk_size)
+
+
 class Dataset(collections.abc.Mapping):
     def __init__(self):
         super().__init__()
         self._columns = frozendict()
         self._row_count = None
+        self._id = str(uuid.uuid4())
+        self._cached_fingerprint = None
+
+    def __repr__(self):
+        import yaml
+        data = self.__repr_data__()
+        return yaml.dump(data, sort_keys=False, indent=4)
+
+    def __repr_data__(self):
+        state = self.__getstate__()
+        def normalize(v):
+            if isinstance(v, Dataset):
+                return v.__repr_data__()
+            if isinstance(v, frozendict):
+                return dict(v)
+            if isinstance(v, vaex.dataframe.DataFrame):
+                return {'type': 'dataframe', 'repr': repr(v)}
+            if isinstance(v, np.ndarray):
+                return v.tolist()
+            return v
+        return {'type': self.snake_name, **{k: normalize(v) for k, v in state.items() if not k.startswith('_')}}
+
+    @property
+    def id(self):
+        '''id that uniquely identifies a dataset at runtime'''
+        return self.fingerprint
+
+    @property
+    def fingerprint(self):
+        '''id that uniquely identifies a dataset cross runtime, might be more expensive and require hasing'''
+        if self._cached_fingerprint is None:
+            self._cached_fingerprint = self._fingerprint
+        return self._cached_fingerprint
+
+    @abstractproperty
+    def _fingerprint(self):
+        pass
+
+    def encode(self, encoding):
+        if not encoding.has_object_spec(self.id):
+            spec = self._encode(encoding)
+            encoding.set_object_spec(self.id, spec)
+        return {'dataset_type': self.snake_name, 'object-id': self.id}
+
+    @classmethod
+    def decode(cls, encoding, spec):
+        id = spec['object-id']
+        if not encoding.has_object(id):
+            spec = encoding.get_object_spec(id)
+            ds = cls._decode(encoding, spec)
+            encoding.set_object(id, ds)
+        return encoding.get_object(id)
 
     @abstractmethod
     def _create_columns(self):
@@ -272,10 +376,12 @@ class Dataset(collections.abc.Mapping):
     def __getstate__(self):
         state = self.__dict__.copy()
         del state['_columns']
+        del state['_cached_fingerprint']
         return state
 
     def __setstate__(self, state):
         self.__dict__.update(state)
+        self._cached_fingerprint = None
         self._create_columns()
 
     def schema(self, array_type=None):
@@ -300,6 +406,9 @@ class Dataset(collections.abc.Mapping):
     def project(self, *names):
         all = set(self)
         drop = all - set(names)
+        # we want a deterministic order for fingerprints
+        drop = list(drop)
+        drop.sort()
         return self.dropped(*list(drop))
 
     def concat(self, *others, resolver='flexible'):
@@ -345,6 +454,10 @@ class Dataset(collections.abc.Mapping):
     def __eq__(self, rhs):
         if not isinstance(rhs, Dataset):
             return NotImplemented
+        # simple case, if fingerprints are equal, the data is equal
+        if self.fingerprint == rhs.fingerprint:
+            return True
+        # but no the other way around
         keys = set(self)
         keys_hashed = set(self._ids)
         missing = keys ^ keys_hashed
@@ -363,7 +476,7 @@ class Dataset(collections.abc.Mapping):
         missing = keys ^ keys_hashed
         if missing:
             raise ValueError(f'Trying to hash a dataset with unhashed columns: {missing} (tip: use dataset.hashed())')
-        return hash(self._ids)
+        return hash(tuple(self._ids.items()))
 
     def _default_lazy_chunk_iterator(self, array_map, columns, chunk_size, reverse=False):
         chunk_size = chunk_size or 1024**2
@@ -411,6 +524,28 @@ class Dataset(collections.abc.Mapping):
     def hashed(self):
         pass
 
+    @abstractmethod
+    def leafs(self) -> List["Dataset"]:
+        pass
+
+
+class DatasetDecorator(Dataset):
+    def __init__(self, original):
+        super().__init__()
+        self.original = original
+
+    def leafs(self) -> List[Dataset]:
+        return self.original.leafs()
+
+    def close(self):
+        self.original.close()
+
+    def is_masked(self, column):
+        return self.original.is_masked(column)
+
+    def shape(self, column):
+        return self.original.shape(column)
+
 
 class ColumnProxy(vaex.column.Column):
     '''To give the Dataset._columns object useful containers for debugging'''
@@ -420,6 +555,10 @@ class ColumnProxy(vaex.column.Column):
         self.ds = ds
         self.name = name
         self.dtype = type
+
+    def _fingerprint(self):
+        fp = vaex.cache.fingerprint(self.ds.fingerprint, self.name)
+        return f'column-proxy-{fp}'
 
     def __len__(self):
         return self.ds.row_count
@@ -445,10 +584,11 @@ class ColumnProxy(vaex.column.Column):
             raise NotImplementedError
 
 
-class DatasetRenamed(Dataset):
+@register
+class DatasetRenamed(DatasetDecorator):
+    snake_name = 'rename'
     def __init__(self, original, renaming):
-        super().__init__()
-        self.original = original
+        super().__init__(original)
         self.renaming = renaming
         self.reverse = {v: k for k, v in renaming.items()}
         self._create_columns()
@@ -473,9 +613,22 @@ class DatasetRenamed(Dataset):
         resulting.update(renaming)
         return DatasetRenamed(self.original, resulting)
 
+    @property
+    def _fingerprint(self):
+        id = vaex.cache.fingerprint(self.original.fingerprint, self.renaming)
+        return f'dataset-{self.snake_name}-{self.original.fingerprint}'
 
     def _create_columns(self):
         self._columns = frozendict({self.renaming.get(name, name): ar for name, ar in self.original.items()})
+
+    def _encode(self, encoding):
+        dataset_spec = encoding.encode('dataset', self.original)
+        return {'renaming': dict(self.renaming), 'dataset': dataset_spec}
+
+    @classmethod
+    def _decode(cls, encoding, spec):
+        dataset = encoding.decode('dataset', spec['dataset'])
+        return cls(dataset, spec['renaming'])
 
     def chunk_iterator(self, columns, chunk_size=None, reverse=False):
         for name in columns:
@@ -492,9 +645,6 @@ class DatasetRenamed(Dataset):
     def shape(self, column):
         return self.original.shape(self.reverse.get(column, column))
 
-    def close(self):
-        self.original.close()
-
     def slice(self, start, end):
         if start == 0 and end == self.row_count:
             return self
@@ -506,8 +656,11 @@ class DatasetRenamed(Dataset):
         return type(self)(self.original.hashed(), self.renaming)
 
 
+@register
 class DatasetConcatenated(Dataset):
+    snake_name = "concat"
     def __init__(self, datasets, resolver):
+        super().__init__()
         self.datasets = datasets
         self.resolver = resolver
         if self.resolver == 'strict':
@@ -518,6 +671,14 @@ class DatasetConcatenated(Dataset):
                     diff = l ^ r
                     raise NameError(f'Concatenating datasets with different names: {l} and {r} (difference: {diff})')
             self._schema = datasets[0].schema()
+            self._shapes = datasets[0].shapes()
+            for dataset in datasets[1:]:
+                if dataset.shapes() != self._shapes:
+                    raise ValueError(f'Cannot concatenate with different shapes: {self._shapes} != {dataset.shapes()}')
+            for dataset in datasets[1:]:
+                schema = dataset.schema()
+                if dataset.schema() != self._schema:
+                    raise ValueError(f'Cannot concatenate with different schemas: {self._shapes} != {dataset.shapes()}')
         elif self.resolver == 'flexible':
             schemas = [ds.schema() for ds in datasets]
             shapes = [ds.shapes() for ds in datasets]
@@ -554,6 +715,12 @@ class DatasetConcatenated(Dataset):
         self._create_columns()
         self._set_row_count()
 
+    @property
+    def _fingerprint(self):
+        ids = [ds.fingerprint for ds in self.datasets]
+        id = vaex.cache.fingerprint(*ids)
+        return f'dataset-{self.snake_name}-{id}'
+
     def _create_columns(self):
         columns = {}
         hashes = {}
@@ -563,6 +730,17 @@ class DatasetConcatenated(Dataset):
                 hashes[name] = hash_combine(*[ds._ids[name] for ds in self.datasets])
         self._columns = frozendict(columns)
         self._ids = frozendict(hashes)
+
+    def _encode(self, encoding, skip=set()):
+        datasets = encoding.encode_list('dataset', self.datasets)
+        spec = {'dataset_type': self.snake_name, 'datasets': datasets, 'resolver': self.resolver}
+        return spec
+
+    @classmethod
+    def _decode(cls, encoding, spec):
+        datasets = encoding.decode_list('dataset', spec['datasets'])
+        ds = cls(datasets, spec['resolver'])
+        return ds
 
     def is_masked(self, column):
         return any(k.is_masked(column) for k in self.datasets)
@@ -660,18 +838,32 @@ class DatasetConcatenated(Dataset):
     def hashed(self):
         if set(self._ids) == set(self):
             return self
-        return type(self)([dataset.hashed() for dataset in self.datasets])
+        return type(self)([dataset.hashed() for dataset in self.datasets], resolver=self.resolver)
 
+    def leafs(self) -> List[Dataset]:
+        return [self]
 
-class DatasetTake(Dataset):
+    # def leafs(self) -> List[Dataset]:
+    #     leafs = list()
+    #     for ds in self.datasets:
+    #         leafs.extend(ds.leafs())
+    #     return leafs
+
+@register
+class DatasetTake(DatasetDecorator):
+    snake_name = "take"
     def __init__(self, original, indices, masked):
-        super().__init__()
-        self.original = original
+        super().__init__(original)
         self.indices = indices
         self.masked = masked
         self._lazy_hash_index = None
         self._create_columns()
         self._set_row_count()
+
+    @property
+    def _fingerprint(self):
+        id = vaex.cache.fingerprint(self.original.fingerprint, self._hash_index, self.masked)
+        return f'dataset-{self.snake_name}-{id}'
 
     @property
     def _hash_index(self):
@@ -693,6 +885,20 @@ class DatasetTake(Dataset):
                 hashes[name] = hash_combine(self._hash_index, self.original._ids[name])
         self._columns = frozendict(columns)
         self._ids = frozendict(hashes)
+
+    def _encode(self, encoding, skip=set()):
+        dataset_spec = encoding.encode('dataset', self.original)
+        spec = {'dataset_type': self.snake_name, 'dataset': dataset_spec}
+        spec['indices'] = encoding.encode('array', self.indices)
+        spec['masked'] = self.masked
+        return spec
+
+    @classmethod
+    def _decode(cls, encoding, spec):
+        dataset = encoding.decode('dataset', spec['dataset'])
+        indices = encoding.decode('array', spec['indices'])
+        ds = cls(dataset, indices, spec['masked'])
+        return ds
 
     def is_masked(self, column):
         return self.original.is_masked(column)
@@ -719,17 +925,25 @@ class DatasetTake(Dataset):
         self.original.close()
 
 
-class DatasetFiltered(Dataset):
-    def __init__(self, original, filter, expected_length=None):
-        super().__init__()
-        self.original = original
+@register
+class DatasetFiltered(DatasetDecorator):
+    snake_name = 'filter'
+    def __init__(self, original, filter, expected_length=None, state=None, selection=None):
+        super().__init__(original)
         self._filter = filter
         self._lazy_hash_filter = None
         self._create_columns()
-        self._row_count = np.sum(self._filter)
+        self._row_count = np.sum(self._filter).item()
+        self.state = state
+        self.selection = selection
         if expected_length is not None:
             if expected_length != self._row_count:
                 raise ValueError(f'Expected filter to have {expected_length} true values, but counted {self._row_count}')
+
+    @property
+    def _fingerprint(self):
+        id = vaex.cache.fingerprint(self.original.id, self._hash_index, self.state, self.selection)
+        return f'dataset-{self.snake_name}-{id}'
 
     @property
     def _hash_index(self):
@@ -745,6 +959,32 @@ class DatasetFiltered(Dataset):
                 hashes[name] = hash_combine(self._hash_index, self.original._ids[name])
         self._columns = frozendict(columns)
         self._ids = frozendict(hashes)
+
+    def _encode(self, encoding, skip=set()):
+        dataset_spec = encoding.encode('dataset', self.original)
+        spec = {'dataset': dataset_spec}
+        if self.state is not None and self.selection is not None:
+            spec['state'] = encoding.encode('dataframe-state', self.state)
+            spec['selection'] = encoding.encode('selection', self.selection)
+        spec['filter_array'] = encoding.encode('array', self._filter)
+        return spec
+
+    @classmethod
+    def _decode(cls, encoding, spec):
+        dataset = encoding.decode('dataset', spec['dataset'])
+        if 'filter_array' in spec:
+            filter = encoding.decode('array', spec['filter_array'])
+            ds = cls(dataset, filter)
+        else:
+            state = encoding.decode('dataframe-state', spec['state'])
+            selection = encoding.decode('selection', spec['selection'])
+            df = vaex.from_dataset(dataset)
+            df.state_set(state)
+            df.set_selection(vaex.dataframe.FILTER_SELECTION_NAME, selection)
+            df._push_down_filter()
+            filter = df.dataset.filter
+            ds = cls(dataset, filter, state=state, selection=selection)
+        return ds
 
     def chunk_iterator(self, columns, chunk_size=None, reverse=False):
         chunk_size = chunk_size or 1024**2
@@ -763,12 +1003,6 @@ class DatasetFiltered(Dataset):
                 chunks_filtered = {name: vaex.array_types.filter(ar, self._filter[i1:i2]) for name, ar in chunks.items()}
                 yield chunks_filtered
         yield from _rechunk(filtered_chunks(), chunk_size)
-
-    def is_masked(self, column):
-        return self.original.is_masked(column)
-
-    def shape(self, column):
-        return self.original.shape(column)
 
     def hashed(self):
         if set(self._ids) == set(self):
@@ -789,16 +1023,35 @@ class DatasetFiltered(Dataset):
         assert filter.sum() == expected_length
         return type(self)(self.original.slice(start, end), filter)
 
-
-class DatasetSliced(Dataset):
+@register
+class DatasetSliced(DatasetDecorator):
+    snake_name = "slice"
     def __init__(self, original, start, end):
-        super().__init__()
-        self.original = original
+        super().__init__(original)
         self.start = start
         self.end = end
         self._row_count = end - start
         self._create_columns()
-        self._ids = {}
+        # self._ids = {}
+        self._ids = frozendict({name: hash_slice(hash, start, end) for name, hash in original._ids.items()})
+
+    @property
+    def _fingerprint(self):
+        id = vaex.cache.fingerprint(self.original.fingerprint, self.start, self.end)
+        return f'dataset-{self.snake_name}-{id}'
+
+    def leafs(self) -> List[Dataset]:
+        # we don't want to propagate slicing
+        return [self]
+
+    def _encode(self, encoding, skip=set()):
+        dataset_spec = encoding.encode('dataset', self.original)
+        return {'dataset': dataset_spec, 'start': self.start, 'end': self.end}
+
+    @classmethod
+    def _decode(cls, encoding, spec):
+        dataset = encoding.decode('dataset', spec['dataset'])
+        return cls(dataset, spec['start'], spec['end'])
 
     def _create_columns(self):
         self._columns = {name: vaex.dataset.ColumnProxy(self, name, data_type(col)) for name, col in self.original._columns.items()}
@@ -813,7 +1066,9 @@ class DatasetSliced(Dataset):
         return self.original.shape(column)
 
     def hashed(self):
-        raise NotImplementedError
+        if set(self._ids) == set(self):
+            return self
+        return type(self)(self.original.hashed(), self.start, self.end)
 
     def close(self):
         self.original.close()
@@ -827,11 +1082,12 @@ class DatasetSliced(Dataset):
         return type(self)(self.original, start, end)
 
 
-class DatasetSlicedArrays(Dataset):
+@register
+class DatasetSlicedArrays(DatasetDecorator):
+    snake_name = 'slice_arrays'
     def __init__(self, original, start, end):
-        super().__init__()
+        super().__init__(original)
         # maybe we want to avoid slicing twice, and collapse it to 1?
-        self.original = original
         self.start = start
         self.end = end
         # TODO: this is the old dataframe.trim method, we somehow need to test/capture that
@@ -843,6 +1099,15 @@ class DatasetSlicedArrays(Dataset):
         self._ids = frozendict({name: hash_slice(hash, start, end) for name, hash in original._ids.items()})
         self._set_row_count()
 
+    @property
+    def _fingerprint(self):
+        id = vaex.cache.fingerprint(self.original.fingerprint, self.start, self.end)
+        return f'dataset-{self.snake_name}-{id}'
+
+    def leafs(self) -> List[Dataset]:
+        # we don't want to propagate slicing
+        return [self]
+
     def _create_columns(self):
         columns = {}
         for name, column in self.original.items():
@@ -852,6 +1117,15 @@ class DatasetSlicedArrays(Dataset):
                 column = column.trim(self.start, self.end)
             columns[name] = column
         self._columns = frozendict(columns)
+
+    def _encode(self, encoding, skip=set()):
+        dataset_spec = encoding.encode('dataset', self.original)
+        return {'dataset': dataset_spec, 'start': self.start, 'end': self.end}
+
+    @classmethod
+    def _decode(cls, encoding, spec):
+        dataset = encoding.decode('dataset', spec['dataset'])
+        return cls(dataset, spec['start'], spec['end'])
 
     def chunk_iterator(self, columns, chunk_size=None, reverse=False):
         yield from self._default_chunk_iterator(self._columns, columns, chunk_size, reverse=reverse)
@@ -881,17 +1155,36 @@ class DatasetSlicedArrays(Dataset):
         return type(self)(self.original, start, end)
 
 
-class DatasetDropped(Dataset):
+@register
+class DatasetDropped(DatasetDecorator):
+    snake_name = "drop"
     def __init__(self, original, names):
-        super().__init__()
-        self.original = original
+        super().__init__(original)
         self._dropped_names = tuple(names)
         self._create_columns()
         self._ids = frozendict({name: ar for name, ar in original._ids.items() if name not in names})
         self._set_row_count()
 
+    def dropped(self, *names):
+        return DatasetDropped(self.original, self._dropped_names + names)
+
+    @property
+    def _fingerprint(self):
+        id = vaex.cache.fingerprint(self.original.fingerprint, self._dropped_names)
+        return f'dataset-{self.snake_name}-{id}'
+
     def _create_columns(self):
         self._columns = frozendict({name: ar for name, ar in self.original.items() if name not in self._dropped_names})
+
+    def _encode(self, encoding):
+        dataset_spec = encoding.encode('dataset', self.original)
+        return {'dataset': dataset_spec, 'names': list(self._dropped_names)}
+
+    @classmethod
+    def _decode(cls, encoding, spec):
+        dataset = encoding.decode('dataset', spec['dataset'])
+        ds = cls(dataset, spec['names'])
+        return ds
 
     def chunk_iterator(self, columns, chunk_size=None, reverse=False):
         for column in columns:
@@ -919,7 +1212,9 @@ class DatasetDropped(Dataset):
         return type(self)(self.original.slice(start, end), self._dropped_names)
 
 
+@register
 class DatasetMerged(Dataset):
+    snake_name = "merge"
     def __init__(self, left, right):
         super().__init__()
         self.left = left
@@ -934,11 +1229,32 @@ class DatasetMerged(Dataset):
         self._ids = frozendict({**left._ids, **right._ids})
         self._set_row_count()
 
+    @property
+    def _fingerprint(self):
+        id = vaex.cache.fingerprint(self.left.fingerprint, self.right.fingerprint)
+        return f'dataset-{self.snake_name}-{id}'
+
+    def leafs(self) -> List[Dataset]:
+        return self.left.leafs() + self.right.leafs()
+
     def _create_columns(self):
         # TODO: for DatasetArray, we might want to just do this?
         # self._columns = frozendict({**left._columns, **right._columns})
         self._columns = {**{name: ColumnProxy(self.left, name, data_type(col)) for name, col in self.left._columns.items()},
                          **{name: ColumnProxy(self.right, name, data_type(col)) for name, col in self.right._columns.items()}}
+
+    def _encode(self, encoding, skip=set()):
+        dataset_spec_left = encoding.encode('dataset', self.left)
+        dataset_spec_right = encoding.encode('dataset', self.right)
+        spec = {'left': dataset_spec_left, 'right': dataset_spec_right}
+        return spec
+
+    @classmethod
+    def _decode(cls, encoding, spec):
+        left = encoding.decode('dataset', spec['left'])
+        right = encoding.decode('dataset', spec['right'])
+        ds = cls(left, right)
+        return ds
 
     def chunk_iterator(self, columns, chunk_size=None, reverse=False):
         columns_left = [k for k in columns if k in self.left]
@@ -984,8 +1300,10 @@ class DatasetMerged(Dataset):
         return type(self)(self.left.slice(start, end), self.right.slice(start, end))
 
 
+@register
 class DatasetArrays(Dataset):
-    def __init__(self, mapping=None, **kwargs):
+    snake_name = "arrays"
+    def __init__(self, mapping=None, hashed=True, **kwargs):
         super().__init__()
         if mapping is None:
             mapping = {}
@@ -993,8 +1311,45 @@ class DatasetArrays(Dataset):
         columns = {key: to_supported_array(ar) for key, ar in columns.items()}
         # TODO: we finally want to get rid of datasets with no columns
         self._columns = frozendict(columns)
-        self._ids = frozendict()
+        if hashed:
+            self._ids = frozendict({key: hash_array(array) for key, array in self._columns.items()})
+        else:
+            self._ids = frozendict()
         self._set_row_count()
+
+    @property
+    def id(self):
+        try:
+            # requires hashing and is expensive
+            return self.fingerprint
+        except ValueError:
+            return f'dataset-{self.snake_name}-uuid4-{self._id}'
+
+    @property
+    def _fingerprint(self):
+        self.__hash__()  # invoke just to check we don't have missing hashes
+        # but Python's hash functions are not deterministic (cross processs)
+        fp = vaex.cache.fingerprint(tuple(self._ids.items()))
+        return f'dataset-{self.snake_name}-hashed-{fp}'
+
+    def leafs(self) -> List[Dataset]:
+        return [self]
+
+    def _encode(self, encoding):
+        arrays = encoding.encode_dict('array', self._columns)
+        spec = {'dataset_type': self.snake_name, 'arrays': arrays}
+        if self._ids:
+            fingerprints = dict(self._ids)
+            spec['fingerprints'] = fingerprints
+        return spec
+
+    @classmethod
+    def _decode(cls, encoding, spec):
+        arrays = encoding.decode_dict('array', spec['arrays'])
+        ds = cls(arrays)
+        if 'fingerprints' in spec:
+            ds._ids = frozendict(spec['fingerprints'])
+        return ds
 
     def __getstate__(self):
         state = self.__dict__.copy()
@@ -1003,8 +1358,7 @@ class DatasetArrays(Dataset):
         return state
 
     def __setstate__(self, state):
-        self.__dict__.update(state)
-        # self._create_columns()
+        super().__setstate__(state)
 
     def _create_columns(self):
         pass
@@ -1062,15 +1416,18 @@ class DatasetFile(Dataset):
     """Datasets that map to a file can keep their ids/hashes in the file itself,
     or keep them in a meta file.
     """
-    def __init__(self, path, write=False):
+    def __init__(self, path, write=False, fs_options={}, fs=None):
         super().__init__()
         self.path = path
+        self.fs_options = fs_options
+        self.fs = fs
         self.write = write
         self._columns = {}
         self._ids = {}
         self._frozen = False
         self._hash_calculations = 0  # track it for testing purposes
         self._hash_info = {}
+        self._hash_cache_needs_write = False
         self._read_hashes()
 
     @property
@@ -1079,6 +1436,18 @@ class DatasetFile(Dataset):
         base = os.path.basename(base)
         return base
 
+    @property
+    def _fingerprint(self):
+        if set(self._ids) == set(self):
+            fingerprint = vaex.cache.fingerprint(dict(self._ids))
+            return f'dataset-{self.snake_name}-hashed-{fingerprint}'
+        else:
+            # TODO: if the dataset is hashed, return a fingerprint based on that
+            fingerprint = vaex.file.fingerprint(self.path, fs_options=self.fs_options, fs=self.fs)
+            return f'dataset-{self.snake_name}-{fingerprint}'
+
+    def leafs(self) -> List[Dataset]:
+        return [self]
 
     def _create_columns(self):
         pass
@@ -1135,6 +1504,16 @@ class DatasetFile(Dataset):
         self._columns = frozendict(self._columns)
         self._set_row_count()
         self._frozen = True
+        if self._hash_cache_needs_write:
+            self._write_hash_info()
+
+    def encode(self, encoding, skip=set()):
+        spec = {'dataset_type': self.snake_name,
+                'write': self.write,
+                'path': self.path,
+                'fs_options': self.fs_options,
+                'fs': self.fs}
+        return spec
 
     def __getstate__(self):
         # we don't have the columns in the state, since we should be able
@@ -1142,16 +1521,19 @@ class DatasetFile(Dataset):
         return {
             'write': self.write,
             'path': self.path,
+            'fs_options': self.fs_options,
+            'fs': self.fs,
             '_ids': dict(self._ids)  # serialize the hases as non-frozen dict
         }
 
     def __setstate__(self, state):
-        self.__dict__.update(state)
+        super().__setstate__(state)
         # 'ctor' like initialization
         self._frozen = False
         self._hash_calculations = 0
         self._columns = {}
         self._hash_info = {}
+        self._hash_cache_needs_write = False
         self._read_hashes()
 
     def add_column(self, name, data):
@@ -1161,7 +1543,10 @@ class DatasetFile(Dataset):
             # the hashes will be done in .freeze()
         hash_info = self._hash_info.get(name)
         if hash_info:
+            hash_info_previous = hash_info.copy()
             hash, hash_info = hash_array(data, hash_info, return_info=True)
+            if hash_info_previous != hash_info:
+                self._hash_cache_needs_write = True
             self._ids[name] = hash
             self._hash_info[name] = hash_info  # always update the information
 
@@ -1201,7 +1586,11 @@ class DatasetFile(Dataset):
         # TODO: without this check, if multiple processes are writing (e.g. tests/execution_test.py::test_task_sum with ray)
         # this leads to a race condition, where we write the file, and while truncated, _read_hases() fails (because the file exists)
         # if new._hash_info != new._ids:
-        if 1:  # TODO: file lock
-            with path_hashes.open('w') as f:
-                vaex.utils.yaml_dump(f, {'columns': dict(new._hash_info)})
+        new._write_hash_info()
         return new
+
+    def _write_hash_info(self):
+        if self._hash_info:  # TODO: file lock
+            path_hashes = self._local_hash_path
+            with path_hashes.open('w') as f:
+                vaex.utils.yaml_dump(f, {'columns': dict(self._hash_info)})

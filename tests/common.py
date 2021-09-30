@@ -55,25 +55,60 @@ def small_buffer(ds, size=3):
     else:
         yield # for remote datasets we don't support this ... or should we?
 
+@pytest.fixture(scope='session')
+def buffer_size():
+    return small_buffer
+
 
 @pytest.fixture(scope='session')
-def webserver():
+def webserver_tornado():
     webserver = vaex.server.tornado_server.WebServer(datasets=[], port=test_port, cache_byte_size=0)
     webserver.serve_threaded()
     yield webserver
     webserver.stop_serving()
-    #return webserver
+
+
+@pytest.fixture(scope='session')
+def webserver_fastapi():
+    import vaex.server.fastapi
+    webserver = vaex.server.fastapi.Server(port=test_port+1)
+    webserver.serve_threaded()
+    webserver.wait_until_serving()
+    yield webserver
+    webserver.stop_serving()
+
+
+if os.environ.get('VAEX_TEST_SERVERS_ALL'):
+    webservers = ['webserver_fastapi', 'webserver_tornado']
+else:
+    webservers = ['webserver_fastapi']
+
+
+@pytest.fixture(scope='session', params=webservers)
+def webserver(request, webserver_fastapi, webserver_tornado, df_server, df_example, df_server_huge):
+    webserver = locals()[request.param]
+    df_example = df_example.copy()
+    df = df_server.copy()
+    df = df.materialize('z')  # in the fastapi we drop the state
+    df.drop('obj', inplace=True)
+    df.drop('datetime', inplace=True)
+    df.drop('timedelta', inplace=True)
+
+    df.name = 'test'
+    df_example.name = 'example'
+    webserver.set_datasets([df, df_server_huge, df_example])
+    return webserver
 
 
 # the dataframe that lives at the server
-@pytest.fixture()
-def df_server(ds_trimmed):
-    df = ds_trimmed.copy()
+@pytest.fixture(scope='session')
+def df_server(ds_trimmed_cache):
+    df = ds_trimmed_cache.copy()
     df.name = 'test'
     return df
 
 
-@pytest.fixture()
+@pytest.fixture(scope='session')
 def df_server_huge():
     df = vaex.from_arrays(x=vaex.vrange(0, int(1e9)))
     df.name = 'huge'
@@ -94,13 +129,8 @@ def event_loop():
 
 
 @pytest.fixture()#scope='module')
-def tornado_client(webserver, df_server, df_server_huge, event_loop):
-    df = df_server
-    df.drop('obj', inplace=True)
-    df.drop('datetime', inplace=True)
-    df.drop('timedelta', inplace=True)
-    webserver.set_datasets([df, df_server_huge])
-    client = vaex.connect("%s://localhost:%d" % (scheme, test_port))
+def tornado_client(webserver, event_loop):
+    client = vaex.connect("%s://localhost:%d" % (scheme, webserver.port))
     yield client
     client.close()
 
@@ -155,7 +185,7 @@ def ds_half(ds_half_cache):
     return ds_half_cache.copy()
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="session")
 def ds_trimmed_cache():
     ds = create_base_ds()
     ds.set_active_range(2, 12)
@@ -194,12 +224,12 @@ def df_executor(request, df_trimmed, df_remote):
 
 
 if os.environ.get('VAEX_TEST_SKIP_REMOTE'):
-    @pytest.fixture(params=['ds_filtered', 'ds_half', 'ds_trimmed', 'df_concat', 'df_arrow', 'df_parquet'])
-    def ds(request, ds_filtered, ds_half, ds_trimmed, ds_remote, df_concat, df_arrow, df_parquet):
+    @pytest.fixture(params=['ds_filtered', 'ds_trimmed', 'df_concat', 'df_arrow', 'df_parquet'])
+    def ds(request, ds_filtered, ds_half, ds_trimmed, df_concat, df_arrow, df_parquet):
         named = dict(ds_filtered=ds_filtered, ds_half=ds_half, ds_trimmed=ds_trimmed, df_concat=df_concat, df_arrow=df_arrow, df_parquet=df_parquet)
         return named[request.param]
 else:
-    @pytest.fixture(params=['ds_filtered', 'ds_half', 'ds_trimmed', 'ds_remote', 'df_concat', 'df_arrow', 'df_parquet'])
+    @pytest.fixture(params=['ds_filtered', 'ds_trimmed', 'ds_remote', 'df_concat', 'df_arrow', 'df_parquet'])
     def ds(request, ds_filtered, ds_half, ds_trimmed, ds_remote, df_concat, df_arrow, df_parquet):
         named = dict(ds_filtered=ds_filtered, ds_half=ds_half, ds_trimmed=ds_trimmed, ds_remote=ds_remote, df_concat=df_concat, df_arrow=df_arrow, df_parquet=df_parquet)
         return named[request.param]
@@ -210,14 +240,14 @@ def df(ds):
     return ds
 
 
-@pytest.fixture(params=['ds_filtered', 'ds_half', 'ds_trimmed', 'df_concat', 'df_arrow'])
+@pytest.fixture(params=['ds_filtered', 'ds_trimmed', 'df_concat', 'df_arrow'])
 def ds_local(request, ds_filtered, ds_half, ds_trimmed, df_concat, df_arrow):
     named = dict(ds_filtered=ds_filtered, ds_half=ds_half, ds_trimmed=ds_trimmed, df_concat=df_concat, df_arrow=df_arrow)
     return named[request.param]
 
 
 # in some cases it is not worth testing with the arrow version
-@pytest.fixture(params=['ds_filtered', 'ds_half', 'ds_trimmed', 'df_concat'])
+@pytest.fixture(params=['ds_filtered', 'ds_trimmed', 'df_concat'])
 def df_local_non_arrow(request, ds_filtered, ds_half, ds_trimmed, df_concat):
     named = dict(ds_filtered=ds_filtered, ds_half=ds_half, ds_trimmed=ds_trimmed, df_concat=df_concat)
     return named[request.param]

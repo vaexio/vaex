@@ -20,6 +20,12 @@ def test_column_names(df_arrow):
     assert '__x' in ds.get_column_names(regex='__x', hidden=True)
 
 
+def test_column_name_and_function_name(tmpdir):
+    df = vaex.from_scalars(foo=1, x=1)
+    df.add_function('foo', lambda x: x+1)
+    assert df.foo.tolist() == [1]
+
+
 def test_add_invalid_name(tmpdir):
     # support invalid names and keywords
     df = vaex.from_dict({'X!1': x, 'class': x*2})

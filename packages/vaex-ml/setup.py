@@ -21,9 +21,12 @@ setup(name=name + '-ml',
       author=author,
       author_email=author_email,
       install_requires=install_requires_ml,
+      extras_require={'all': ['tensorflow>=2.1.0', 'tensorflow-io>=0.12.0']},
       license=license,
       packages=['vaex.ml', 'vaex.ml.incubator', 'vaex.ml.datasets'],
       include_package_data=True,
       zip_safe=False,
-      entry_points={'vaex.dataframe.accessor': ['ml = vaex.ml:DataFrameAccessorML']}
+      entry_points={'vaex.dataframe.accessor': ['ml = vaex.ml:DataFrameAccessorML',
+                                                'ml.tensorflow = vaex.ml.tensorflow:DataFrameAccessorTensorflow',
+                                                'ml.metrics = vaex.ml.metrics:DataFrameAccessorMetrics']}
 )

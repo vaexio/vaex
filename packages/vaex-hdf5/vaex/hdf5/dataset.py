@@ -54,23 +54,26 @@ def _try_unit(unit):
     else:
         return unit
 
-
+@vaex.dataset.register
 class Hdf5MemoryMapped(DatasetMemoryMapped):
+    snake_name = "hdf5"
     """Implements the vaex hdf5 file format"""
 
-    def __init__(self, path, write=False, fs_options={}, fs=None):
-        nommap = not vaex.file.memory_mappable(path)
-        self.fs_options = fs_options
-        self.fs = fs
-        super(Hdf5MemoryMapped, self).__init__(vaex.file.stringyfy(path), write=write, nommap=nommap)
+    def __init__(self, path, write=False, fs_options={}, fs=None, nommap=None, group=None):
+        if nommap is None:
+            nommap = not vaex.file.memory_mappable(path)
+        super(Hdf5MemoryMapped, self).__init__(vaex.file.stringyfy(path), write=write, nommap=nommap, fs_options=fs_options, fs=fs)
         self._all_mmapped = True
         self._open(path)
         self.units = {}
-        self.h5table_root_name = None
+        self.group = group
         self._version = 1
         self._load()
         if not write:  # in write mode, call freeze yourself, so the hashes are computed
             self._freeze()
+        else:
+            # make sure we set the row count, which otherwise freeze would do
+            self._set_row_count()
         if self._all_mmapped:
             self.h5file.close()
 
@@ -85,15 +88,16 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
         self.h5file = h5py.File(file, "r+" if self.write else "r")
 
 
+    @classmethod
+    def decode(cls, encoding, spec):
+        ds = cls(**spec)
+        return ds
+
     def __getstate__(self):
-        return {
-            **super().__getstate__(),
-            'nommap': self.nommap,
-            'fs_options': self.fs_options,
-            'fs': self.fs,
-        }
+        return {'group': self.group, **super().__getstate__()}
 
     def __setstate__(self, state):
+        self.group = state.pop('group')
         super().__setstate__(state)
         self._open(self.path)
         self._load()
@@ -104,7 +108,7 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
          the default :func:`Dataset.write_meta`.
          """
         with h5py.File(self.path, "r+") as h5file_output:
-            h5table_root = h5file_output[self.h5table_root_name]
+            h5table_root = h5file_output[self.group]
             if self.description is not None:
                 h5table_root.attrs["description"] = self.description
             h5columns = h5table_root if self._version == 1 else h5table_root['columns']
@@ -164,9 +168,7 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
         return path.endswith('.hdf5') or path.endswith('.h5')
 
     @classmethod
-    def can_open(cls, path, fs_options={}, fs=None, **kwargs):
-        if not cls.quick_test(path, fs_options=fs_options, fs=fs):
-            return False
+    def can_open(cls, path, fs_options={}, fs=None, group=None, **kwargs):
         with vaex.file.open(path, fs_options=fs_options, fs=fs) as f:
             signature = f.read(4)
             if signature != b"\x89\x48\x44\x46":
@@ -174,7 +176,8 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
             with h5py.File(f, "r") as h5file:
                 root_datasets = [dataset for name, dataset in h5file.items() if isinstance(dataset, h5py.Dataset)]
                 return ("data" in h5file) or ("columns" in h5file) or ("table" in h5file) or \
-                                len(root_datasets) > 0
+                       (group is not None and group in h5file) or \
+                       (len(root_datasets) > 0)
         return False
 
     @classmethod
@@ -189,26 +192,32 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
         self.ucds = {}
         self.descriptions = {}
         self.units = {}
-        if "data" in self.h5file:
-            self._load_columns(self.h5file["/data"])
-            self.h5table_root_name = "/data"
-        if "table" in self.h5file:
-            self._version = 2
-            self._load_columns(self.h5file["/table"])
-            self.h5table_root_name = "/table"
-        root_datasets = [dataset for name, dataset in self.h5file.items() if isinstance(dataset, h5py.Dataset)]
-        if len(root_datasets):
-            # if we have datasets at the root, we assume 'version 1'
-            self._load_columns(self.h5file)
-            self.h5table_root_name = "/"
 
-        # TODO: shall we rename it vaex... ?
-        # if "vaex" in self.h5file:
-        # self.load_columns(self.h5file["/vaex"])
-        # h5table_root = "/vaex"
-        if "columns" in self.h5file:
-            self._load_columns(self.h5file["/columns"])
-            self.h5table_root_name = "/columns"
+        if self.group is None:
+            if "data" in self.h5file:
+                self._load_columns(self.h5file["/data"])
+                self.group = "/data"
+            if "table" in self.h5file:
+                self._version = 2
+                self._load_columns(self.h5file["/table"])
+                self.group = "/table"
+            root_datasets = [dataset for name, dataset in self.h5file.items() if isinstance(dataset, h5py.Dataset)]
+            if len(root_datasets):
+                # if we have datasets at the root, we assume 'version 1'
+                self._load_columns(self.h5file)
+                self.group = "/"
+
+            # TODO: shall we rename it vaex... ?
+            # if "vaex" in self.h5file:
+            # self.load_columns(self.h5file["/vaex"])
+            # h5table_root = "/vaex"
+            if "columns" in self.h5file:
+                self._load_columns(self.h5file["/columns"])
+                self.group = "/columns"
+        else:
+            self._version = 2
+            self._load_columns(self.h5file[self.group])
+
         if "properties" in self.h5file:
             self._load_variables(self.h5file["/properties"])  # old name, kept for portability
         if "variables" in self.h5file:
@@ -253,7 +262,7 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
                     if dtype == 'utf32':
                         dtype = np.dtype('U' + str(data.attrs['dlength']))
             #self.addColumn(column_name, offset, len(data), dtype=dtype)
-            array = self._map_array(offset, dtype=dtype, length=len(data))
+            array = self._map_array(offset, dtype=dtype, shape=shape)
             if mask is not None:
                 mask_array = self._map_hdf5_array(mask)
                 if isinstance(array, np.ndarray):
@@ -284,6 +293,7 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
         # for column_name in column_order:
             # if column_name in h5columns and column_name not in finished:
         for group_name in list(h5columns):
+            logger.debug('loading column: %s', group_name)
             group = h5columns[group_name]
             if 'type' in group.attrs:
                 if group.attrs['type'] in ['csr_matrix']:

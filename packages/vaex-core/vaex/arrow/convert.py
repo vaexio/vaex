@@ -121,7 +121,7 @@ def numpy_array_from_arrow_array(arrow_array):
             raise ValueError('buffer is smaller (%d) than expected (%d)' % (actual_length, expected_length))
         array = np.frombuffer(buffers[-1], dtype, len(arrow_array))# TODO: deal with offset ? [arrow_array.offset:arrow_array.offset + len(arrow_array)]
     else:
-        dtype = arrow_array.type.to_pandas_dtype()
+        dtype = vaex.array_types.to_numpy_type(arrow_array.type)
     if np.bool_ == dtype:
         # TODO: this will also be a copy, we probably want to support bitmasks as well
         bitmap = np.frombuffer(data_buffer, np.uint8, len(data_buffer))

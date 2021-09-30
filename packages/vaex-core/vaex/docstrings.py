@@ -40,3 +40,5 @@ _doc_snippets['array_type'] = 'Type of output array, possible values are None (k
 _doc_snippets['ascii'] = 'Transform only ascii characters (usually faster).'
 _doc_snippets['fs_options'] = 'see :func:`vaex.open` e.g. for S3 {"profile": "myproject"}'
 _doc_snippets['fs'] = 'Pass a file system object directly, see :func:`vaex.open`'
+_doc_snippets['random_state'] = 'Sets a seed or `RandomState` for reproducability. When `None`, a random seed it chosen.'
+_doc_snippets['trim'] = 'Trim off begin or end of dataframe to avoid missing values'

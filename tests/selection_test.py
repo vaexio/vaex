@@ -205,3 +205,10 @@ def test_selection_event_calls(df):
         counts += 1
     df.select(df.x > 3, name='bla')
     assert counts == 1
+
+
+def test_selection_function_name_collision():
+    df = vaex.from_arrays(float=[1, 2, 3,], x=[5, 6, 7])
+    assert 'float' in vaex.expression.expression_namespace
+    assert df.float.tolist() == [1, 2, 3]
+    assert df[df.float > 1].float.tolist() == [2, 3]

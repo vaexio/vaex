@@ -1,34 +1,37 @@
 import vaex.file.cache
+import vaex.hdf5.dataset
 import os
 
 
 def test_hdf5(tmpdir):
-    path = str(tmpdir.join('test.hdf5'))
-    s = ['aap', 'noot']
-    df = vaex.from_arrays(x=[1,2], y=[3,4], s=s)
-    df.export(path)
-    fake_path = 's3://vaex/test.hdf5?profile_name=foo'
-    length = os.stat(path).st_size
-    with open(path, 'rb') as fp:
-        fp.seek(0, 2)
-        cache = vaex.file.cache.CachedFile(vaex.file.dup(fp), fake_path, str(tmpdir), block_size=2)
-        ds = vaex.hdf5.dataset.Hdf5MemoryMapped(cache)
-        df = vaex.dataframe.DataFrameLocal(ds)
-        assert df.x.tolist() == [1, 2]
-        assert df.y.tolist() == [3, 4]
-        assert df.s.tolist() == s
-        assert df.sum('x') == 3
-        cache = vaex.file.dup(cache)
-        cache.seek(0)
-        data_cache = cache.read()
-        # del df
-    with open(path, 'rb') as f:
-        length2 = f.seek(0, 2)
-        length2 = f.tell()
-        assert length == length2
-        f.seek(0, 0)
-        data = f.read()
-        assert data_cache == data
+    # we cannot use this with cache, otherwise the fingerprint code will try to access the s3 path
+    with vaex.cache.off():
+        path = str(tmpdir.join('test.hdf5'))
+        s = ['aap', 'noot']
+        df = vaex.from_arrays(x=[1,2], y=[3,4], s=s)
+        df.export(path)
+        fake_path = 's3://vaex/test.hdf5?profile=foo'
+        length = os.stat(path).st_size
+        with open(path, 'rb') as fp:
+            fp.seek(0, 2)
+            cache = vaex.file.cache.CachedFile(vaex.file.dup(fp), fake_path, str(tmpdir), block_size=2)
+            ds = vaex.hdf5.dataset.Hdf5MemoryMapped(cache)
+            df = vaex.dataframe.DataFrameLocal(ds)
+            assert df.x.tolist() == [1, 2]
+            assert df.y.tolist() == [3, 4]
+            assert df.s.tolist() == s
+            assert df.sum('x') == 3
+            cache = vaex.file.dup(cache)
+            cache.seek(0)
+            data_cache = cache.read()
+            # del df
+        with open(path, 'rb') as f:
+            length2 = f.seek(0, 2)
+            length2 = f.tell()
+            assert length == length2
+            f.seek(0, 0)
+            data = f.read()
+            assert data_cache == data
 
 
 def test_cache(tmpdir):

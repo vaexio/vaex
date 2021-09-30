@@ -19,4 +19,5 @@ void init_hash_primitives_power_of_two(py::module &m) {
     init_hash<float>(m, "float32");
     init_hash<double>(m, "float64");
 }
-};
+
+}

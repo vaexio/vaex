@@ -1,13 +1,22 @@
 from common import *
 import collections
 import numpy as np
+import pyarrow as pa
 import vaex
 import pytest
 
-def test_cat_string():
+
+@pytest.mark.parametrize("auto_encode", [False, True])
+def test_cat_string(auto_encode):
     ds0 = vaex.from_arrays(colors=['red', 'green', 'blue', 'green'])
     ds = ds0.ordinal_encode('colors')#, ['red', 'green'], inplace=True)
+    assert ds.colors.dtype.internal.name == 'int8'
+    ds = ds._future() if auto_encode else ds
     assert ds.is_category('colors')
+    if auto_encode:
+        assert ds.data_type('colors') == str
+    else:
+        assert ds.data_type('colors') == int
     assert ds.limits('colors', shape=128) == ([-0.5, 2.5], 3)
 
     ds = ds0.ordinal_encode('colors', values=['red', 'green'])
@@ -39,6 +48,7 @@ def test_categorize():
     assert ds0.category_labels(ds0.c) == ['a', 'b', 'c', 'd']
     assert ds0.category_count(ds0.c) == 4
 
+
 def test_cat_missing_values():
     colors = ['red', 'green', 'blue', 'green', 'MISSING']
     mask   = [False, False,   False,   False,  True]
@@ -63,3 +73,51 @@ def test_categorize_integers():
     df.categorize('x', inplace=True)  # same, but calculated from data
     assert df.count(binby='x').tolist() == [1] * 10
     assert df.binby('x', 'count').data.tolist() == [1] * 10
+
+
+@pytest.mark.parametrize("auto_encode", [False, True])
+def test_cat_compare(df_factory, auto_encode):
+    df = df_factory(x=np.array([0, 1, 2, 0], dtype='uint8'))
+    df = df.categorize('x', labels=['a', 'b', 'c'])
+    df = df._future() if auto_encode else df
+    if auto_encode:
+        assert df['x'].tolist() == ['a', 'b', 'c', 'a']
+        assert str(df.x == 'a') == '(index_values(x) == 0)'
+        assert df[df.x == 'a'].x.tolist() == ['a', 'a']
+        with pytest.raises(ValueError):
+            assert str(df.x == 'x') == '(x == 0)'
+    else:
+        # assert df['x'].tolist() == [0, 1, 2, 0]
+        # # assert str(df.x == 'a') == '(x == 0)'
+        assert df['x'].tolist() == [0, 1, 2, 0]
+        assert str(df.x == 0) == '(x == 0)'
+        assert df[df.x == 0].x.tolist() == [0, 0]
+
+
+def test_arrow_dict_encoded(df_factory_arrow):
+    indices = pa.array([0, 1, 0, 1, 2, 0, None, 2])
+    dictionary = pa.array(['aap', 'noot', 'mies'])
+    c = pa.DictionaryArray.from_arrays(indices, dictionary)
+    df = df_factory_arrow(c=c)
+    assert df.category_labels('c') == ['aap', 'noot', 'mies']
+    assert df.category_count('c') == 3
+    assert df.category_offset('c') == 0
+
+
+def test_index_values(df_factory_arrow):
+    indices = pa.array([0, 0, 1, 2])
+    dictionary = pa.array(['aap', 'noot', 'mies'])
+    c = pa.DictionaryArray.from_arrays(indices, dictionary)
+    c = pa.chunked_array([c[i:i+1] for i in range(len(c))])
+    df = df_factory_arrow(c=c)
+    df = df._future()
+    # assert df.c.index_values().tolist() == [0, 0, 1, 2]
+    with small_buffer(df, 2):
+        assert df[df.c == 'aap'].c.index_values().tolist() == [0, 0]
+
+
+def test_ordinal_encode_optimize():
+    x = np.random.choice(2, 10, replace=True)
+    df = vaex.from_arrays(x=x)
+    with pytest.warns(UserWarning, match='.*categorize.*'):
+        df.ordinal_encode(df.x)
