@@ -3505,6 +3505,9 @@ class DataFrame(object):
         always_list = kwargs.pop('always_list', False)
         return self[str(expressions[0])] if len(expressions) == 1 and not always_list else [self[str(k)] for k in expressions]
 
+    def _selection_expression(self, expression):
+        return vaex.expression.Expression(self, str(expression), _selection=True)
+
     @_hidden
     def add_virtual_columns_cartesian_velocities_to_polar(self, x="x", y="y", vx="vx", radius_polar=None, vy="vy", vr_out="vr_polar", vazimuth_out="vphi_polar",
                                                           propagate_uncertainties=False,):
@@ -6154,11 +6157,21 @@ class DataFrameLocal(DataFrame):
                 i1, i2 = ni1, ni2
                 i2 = i2+1  # +1 to make it inclusive
             values = []
+
+            dataset = self.dataset
+            if i1 != 0 or i2 != self.dataset.row_count:
+                dataset = dataset[i1:i2]
+
             for expression in expressions:
                 # for both a selection or filtering we have a mask
                 if selection not in [None, False] or (self.filtered and filtered):
                     mask = self.evaluate_selection_mask(selection, i1, i2)
                 scope = scopes._BlockScope(self, i1, i2, mask=mask, **self.variables)
+                deps = self._expr(expression).expand().variables(ourself=True)
+                deps = {k for k in deps if k in dataset}
+                # maybe we should use the chunk_iterator
+                columns = {k: dataset[k][:] for k in deps}
+                scope.values.update(columns)
                 # value = value[mask]
                 if out is not None:
                     scope.buffers[expression] = out

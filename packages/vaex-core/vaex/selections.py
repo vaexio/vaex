@@ -45,6 +45,14 @@ class Selection(object):
         if execute_fully and self.previous_selection:
             self.previous_selection.execute(executor=executor, execute_fully=execute_fully)
 
+    def dependencies(self, df):
+        deps = set()
+        for e in self.expressions:
+            deps |= df._selection_expression(e).dependencies()
+        if self.previous_selection:
+            deps |= self.previous_selection.dependencies(df)
+        return deps
+
     def _depending_columns(self, ds):
         '''Find all columns that this selection depends on for df ds'''
         depending = set()
