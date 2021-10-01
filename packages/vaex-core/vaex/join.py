@@ -183,7 +183,8 @@ def join(df, other, on=None, left_on=None, right_on=None, lprefix='', rprefix=''
         lookup_extra_chunks = []
 
         from vaex.column import _to_string_sequence
-        def map(thread_index, i1, i2, ar):
+        def map(thread_index, i1, i2, selection_masks, blocks):
+            ar = blocks[0]
             if vaex.array_types.is_string_type(dtype):
                 previous_ar = ar
                 ar = _to_string_sequence(ar)

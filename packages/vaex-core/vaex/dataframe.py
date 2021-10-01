@@ -78,7 +78,7 @@ from .utils import (_ensure_strings_from_expressions,
     _is_limit,
     _isnumber,
     _issequence,
-    _is_string,
+    _is_string, _normalize_selection,
     _parse_reduction,
     _parse_n,
     _normalize_selection_name,
@@ -514,7 +514,8 @@ class DataFrame(object):
         # we put None to lazily create them
         for i in range(N_index):
             indices.put(None)
-        def map(thread_index, i1, i2, ar):
+        def map(thread_index, i1, i2, selection_masks, blocks):
+            ar = blocks[0]
             index = indices.get()
             if index is None:
                 index = index_type(1)
@@ -572,7 +573,8 @@ class DataFrame(object):
                 inverse = np.zeros(self._length_unfiltered, dtype=np.int64)
                 dtype = self.data_type(expression)
                 from vaex.column import _to_string_sequence
-                def map(thread_index, i1, i2, ar):
+                def map(thread_index, i1, i2, selection_mask, blocks):
+                    ar = blocks[0]
                     if vaex.array_types.is_string_type(dtype):
                         previous_ar = ar
                         ar = _to_string_sequence(ar)
@@ -1146,6 +1148,7 @@ class DataFrame(object):
         :param progress: {progress}
         :return: {return_stat_scalar}
         """
+        selection = _normalize_selection(selection)
         @delayed
         def corr(cov):
             with np.errstate(divide='ignore', invalid='ignore'):  # these are fine, we are ok with nan's in vaex
@@ -1235,6 +1238,7 @@ class DataFrame(object):
         :return: {return_stat_scalar}, the last dimensions are of shape (2,2)
         """
         selection = _ensure_strings_from_expressions(selection)
+        selection = _normalize_selection(selection)
         if y is None:
             if not _issequence(x):
                 raise ValueError("if y argument is not given, x is expected to be sequence, not %r", x)
@@ -1310,7 +1314,8 @@ class DataFrame(object):
         """
         # vmin  = self._compute_agg('min', expression, binby, limits, shape, selection, delay, edges, progress)
         # vmax =  self._compute_agg('max', expression, binby, limits, shape, selection, delay, edges, progress)
-
+        selection = _ensure_strings_from_expressions(selection)
+        selection = _normalize_selection(selection)
         @delayed
         def calculate(expression, limits):
             task = tasks.TaskStatistic(self, binby, shape, limits, weight=expression, op=tasks.OP_MIN_MAX, selection=selection)
@@ -2842,47 +2847,6 @@ class DataFrame(object):
             return value
         else:
             return self.variables[name]
-
-    def _evaluate_selection_mask(self, name="default", i1=None, i2=None, selection=None, cache=False, filter_mask=None):
-        """Internal use, ignores the filter"""
-        i1 = i1 or 0
-        i2 = i2 or len(self)
-        scope = scopes._BlockScopeSelection(self, i1, i2, selection, cache=cache, filter_mask=filter_mask)
-        mask = scope.evaluate(name)
-        # TODO: can we do without arrow->numpy conversion?
-        mask = vaex.array_types.to_numpy(mask)
-        return vaex.utils.unmask_selection_mask(mask)
-
-    def evaluate_selection_mask(self, name="default", i1=None, i2=None, selection=None, cache=False, filtered=True, pre_filtered=True):
-        i1 = i1 or 0
-        i2 = i2 or self.length_unfiltered()
-        if isinstance(name, vaex.expression.Expression):
-            # make sure if we get passed an expression, it is converted to a string
-            # otherwise the name != <sth> will evaluate to an Expression object
-            name = str(name)
-        if name in [None, False] and self.filtered and filtered:
-            scope_global = scopes._BlockScopeSelection(self, i1, i2, None, cache=cache)
-            mask_global = scope_global.evaluate(FILTER_SELECTION_NAME)
-            return vaex.utils.unmask_selection_mask(mask_global)
-        elif self.filtered and filtered and name != FILTER_SELECTION_NAME:
-            scope_global = scopes._BlockScopeSelection(self, i1, i2, None, cache=cache)
-            mask_global = scope_global.evaluate(FILTER_SELECTION_NAME)
-            if pre_filtered:
-                scope = scopes._BlockScopeSelection(self, i1, i2, selection, filter_mask=vaex.utils.unmask_selection_mask(mask_global))
-                mask = scope.evaluate(name)
-                return vaex.utils.unmask_selection_mask(mask)
-            else:  # only used in legacy.py?
-                scope = scopes._BlockScopeSelection(self, i1, i2, selection)
-                mask = scope.evaluate(name)
-                return vaex.utils.unmask_selection_mask(mask & mask_global)
-        else:
-            if name in [None, False]:
-                # # in this case we can
-                return np.full(i2-i1, True)
-            scope = scopes._BlockScopeSelection(self, i1, i2, selection, cache=cache)
-            return vaex.utils.unmask_selection_mask(scope.evaluate(name))
-
-        # if _is_string(selection):
 
     def evaluate(self, expression, i1=None, i2=None, out=None, selection=None, filtered=True, array_type=None, parallel=True, chunk_size=None):
         """Evaluate an expression, and return a numpy array with the results for the full column or a part of it.
@@ -6033,6 +5997,7 @@ class DataFrameLocal(DataFrame):
         expressions = vaex.utils._ensure_strings_from_expressions(expressions)
         column_names = self.get_column_names(hidden=True)
         expressions = [vaex.utils.valid_expression(column_names, k) for k in expressions]
+        selection = _normalize_selection(selection)
 
 
         selection = _ensure_strings_from_expressions(selection)
@@ -6115,7 +6080,7 @@ class DataFrameLocal(DataFrame):
                         if isinstance(arrays[expression], vaex.column.Column):
                             arrays[expression] = arrays[expression][0:end-start]  # materialize fancy columns (lazy, indexed)
                         expression_to_evaluate.remove(expression)
-            def assign(thread_index, i1, i2, *blocks):
+            def assign(thread_index, i1, i2, selection_masks, blocks):
                 for i, expr in enumerate(expression_to_evaluate):
                     if expr in chunks_map:
                         # for non-primitive arrays we simply keep a reference to the chunk
@@ -6143,14 +6108,15 @@ class DataFrameLocal(DataFrame):
                 result = result[0]
             return result
         else:
+            assert df is self
             if not raw and self.filtered and filtered:
                 self._fill_filter_mask()  # fill caches and masks
                 mask = self._selection_masks[FILTER_SELECTION_NAME]
-                if _DEBUG:
-                    if i1 == 0 and i2 == count_check:
-                        # we cannot check it if we just evaluate a portion
-                        assert not mask.view(self._index_start, self._index_end).is_dirty()
-                        # assert mask.count() == count_check
+                # if _DEBUG:
+                #     if i1 == 0 and i2 == count_check:
+                #         # we cannot check it if we just evaluate a portion
+                #         assert not mask.view(self._index_start, self._index_end).is_dirty()
+                #         # assert mask.count() == count_check
                 ni1, ni2 = mask.indices(i1, i2-1) # -1 since it is inclusive
                 assert ni1 != -1
                 assert ni2 != -1
@@ -6162,25 +6128,28 @@ class DataFrameLocal(DataFrame):
             if i1 != 0 or i2 != self.dataset.row_count:
                 dataset = dataset[i1:i2]
 
+            deps = set()
             for expression in expressions:
-                # for both a selection or filtering we have a mask
-                if selection not in [None, False] or (self.filtered and filtered):
-                    mask = self.evaluate_selection_mask(selection, i1, i2)
-                scope = scopes._BlockScope(self, i1, i2, mask=mask, **self.variables)
-                deps = self._expr(expression).expand().variables(ourself=True)
-                deps = {k for k in deps if k in dataset}
-                # maybe we should use the chunk_iterator
-                columns = {k: dataset[k][:] for k in deps}
-                scope.values.update(columns)
-                # value = value[mask]
-                if out is not None:
-                    scope.buffers[expression] = out
-                value = scope.evaluate(expression)
-                # if isinstance(value, ColumnString) and not internal:
-                #     value = value.to_numpy()
-                # print("before", value)
+                deps |= self._expr(expression).dependencies()
+            deps = {k for k in deps if k in dataset}
+            if self.filtered:
+                filter_deps = df.get_selection(vaex.dataframe.FILTER_SELECTION_NAME).dependencies(df)
+                deps |= filter_deps
+            columns = {k: dataset[k][:] for k in deps if k in dataset}
+
+            if self.filtered:
+                filter_scope = scopes._BlockScope(df, i1, i2, None, selection=True, values={**df.variables, **{k: columns[k] for k in filter_deps if k in columns}})
+                filter_scope.filter_mask = None
+                filter_mask = filter_scope.evaluate(vaex.dataframe.FILTER_SELECTION_NAME)
+                columns = {k:vaex.array_types.filter(v, filter_mask) for k, v, in columns.items()}
+            else:
+                filter_mask = None
+            block_scope = scopes._BlockScope(self, i1, i2, mask=mask, values={**self.variables, **columns})
+            block_scope.mask = filter_mask
+
+            for expression in expressions:
+                value = block_scope.evaluate(expression)
                 value = array_types.convert(value, array_type)
-                # print("after", value)
                 values.append(value)
             if not was_list:
                 return values[0]

@@ -674,6 +674,13 @@ def _normalize_selection_name(name):
         return name
 
 
+def _normalize_selection(selection):
+    if isinstance(selection, (list, tuple)):
+        return type(selection)([_normalize_selection_name(k) for k in selection])
+    else:
+        return _normalize_selection_name(selection)
+
+
 def _parse_n(n):
     if isinstance(n, six.string_types):
         if n == "normalize":
