@@ -353,7 +353,7 @@ class ExecutorLocal(Executor):
                                                     # this can happen with multithreading, where two threads enter the same tasks in parallel (IF using different executors)
                                                     logger.warning("calculated new result: %r, while cache had value: %r", previous_result, task_cachable.get())
                                             except ValueError:  # when comparing numpy results
-                                                if np.array_equal(previous_result, task_cachable.get(), equal_nan=True):
+                                                if not np.array_equal(previous_result, task_cachable.get(), equal_nan=True):
                                                     # this can happen with multithreading, where two threads enter the same tasks in parallel (IF using different executors)
                                                     logger.warning("calculated new result: %r, while cache had value: %r", previous_result, task_cachable.get())
                                         vaex.cache.set(key, task_cachable.get(), type='task', duration_wallclock=duration_wallclock)
