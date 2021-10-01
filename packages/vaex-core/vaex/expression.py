@@ -366,7 +366,7 @@ class StructOperations(collections.abc.Mapping):
 
 class Expression(with_metaclass(Meta)):
     """Expression class"""
-    def __init__(self, ds, expression, ast=None):
+    def __init__(self, ds, expression, ast=None, _selection=False):
         self.ds = ds
         assert not isinstance(ds, Expression)
         if isinstance(expression, Expression):
@@ -377,6 +377,7 @@ class Expression(with_metaclass(Meta)):
         self._expression = expression
         self.df._expressions.append(weakref.ref(self))
         self._ast_names = None
+        self._selection = _selection  # selection have an extra scope
 
     @property
     def _label(self):
@@ -668,6 +669,10 @@ class Expression(with_metaclass(Meta)):
         expr = expresso.translate(self.ast, translate)
         return Expression(self.ds, expr)
 
+    def dependencies(self):
+        '''Get all dependencies of this expression, including ourselves'''
+        return self.variables(ourself=True)
+
     def variables(self, ourself=False, expand_virtual=True, include_virtual=True):
         """Return a set of variables this expression depends on.
 
@@ -680,6 +685,10 @@ class Expression(with_metaclass(Meta)):
         """
         variables = set()
         def record(varname):
+            # always do this for selection
+            if self._selection and self.df.has_selection(varname):
+                selection = self.df.get_selection(varname)
+                variables.update(selection.dependencies(self.df))
             # do this recursively for virtual columns
             if varname in self.ds.virtual_columns and varname not in variables:
                 if (include_virtual and (varname != self.expression)) or (varname == self.expression and ourself):

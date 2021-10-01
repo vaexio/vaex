@@ -60,12 +60,15 @@ class Run:
         for task in tasks:
             dfs.add(task.df)
         for df in dfs:
-            others = set(df.variables) | set(df.virtual_columns)
+            others = set(df.variables) | set(df.virtual_columns) | set(df.selection_histories)
             tasks_df = [task for task in tasks if task.df == df]
             expressions = list(set(expression for task in tasks_df for expression in task.expressions_all))
+            selections = list(set(selection for task in tasks_df for selection in task.selections))
             variables = set()
             for expression in expressions:
                 variables |= df._expr(expression).expand().variables(ourself=True)
+            for selection in selections:
+                variables |= df._selection_expression(selection).dependencies()
             columns = set()
             for var in variables:
                 if var not in self.dataset:

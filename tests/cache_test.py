@@ -187,6 +187,57 @@ def test_cache_groupby():
         assert passes(df) == passes0 + 7 + 1 + 3
         assert df.fingerprint() == fp
 
+
+def test_cache_selections():
+    df = vaex.from_arrays(x=[0, 1, 2, 2], y=['a', 'b', 'c', 'd'])
+    df2 = vaex.from_arrays(x=[0, 1, 2, 2], y=['a', 'b', 'c', 'd'])
+    fp = df.fingerprint()  # we also want to be sure we don't modify the fingerprint
+    with vaex.cache.memory_infinite(clear=True):
+        df.executor.passes = 0
+        assert df.x.sum(selection=df.y=='b') == 1
+        assert passes(df) == 1
+
+        # same data, different dataframe, no extra pass
+        assert df2.x.sum(selection=df2.y=='b') == 1
+        assert passes(df) == 1
+
+        # named selections
+        df.executor.passes = 0
+        df.select(df.y=='c', name="a")
+        assert df.x.sum(selection="a") == 2
+        assert passes(df) == 1
+
+        df2.select(df2.y=='c', name="a")
+        assert df2.x.sum(selection="a") == 2
+        assert passes(df2) == 1
+
+        df['z'] = df.x * 2
+        df2['z'] = df2.x * 2
+
+        # named selection referring to a virtual column
+        df.executor.passes = 0
+        df.select(df.z==4, name="a")
+        assert df.x.sum(selection="a") == 4
+        assert passes(df) == 1
+
+        df2.select(df2.z==4, name="a")
+        assert df2.x.sum(selection="a") == 4
+        assert passes(df2) == 1
+
+        df['z'] = df.x * 3
+        df2['z'] = df2.x * 1  # different virtual column with same name
+        # named selection referring to a virtual column, but different expressions
+        df.executor.passes = 0
+        df.select(df.z==3, name="a")
+        assert df.x.sum(selection="a") == 1
+        assert passes(df) == 1
+
+        # we should not get the cached version now
+        df2.select(df2.z==3, name="a")
+        assert df2.x.sum(selection="a") == 0
+        assert passes(df2) == 2
+
+
 def test_multi_level_cache():
     l1 = {}
     l2 = {}
