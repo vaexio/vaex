@@ -76,8 +76,8 @@ class TaskPartSum(TaskPart):
     def get_result(self):
         return self.total
 
-    def process(self, thread_index, i1, i2, filter_mask, chunk):
-        self.total += chunk.sum()
+    def process(self, thread_index, i1, i2, filter_mask, selection_masks, blocks):
+        self.total += blocks[0].sum()
 
     def reduce(self, others):
         self.total += sum(other.total for other in others)
@@ -102,7 +102,7 @@ class TaskPartFilterFill(TaskPart):
     def get_result(self):
         return None
 
-    def process(self, thread_index, i1, i2, filter_mask):
+    def process(self, thread_index, i1, i2, filter_mask, selection_masks, blocks):
         assert filter_mask is not None, f'{filter_mask}'
 
     def reduce(self, others):
@@ -158,11 +158,12 @@ class TaskPartSetCreate(TaskPart):
         else:
             return self.set
 
-    def process(self, thread_index, i1, i2, filter_mask, ar):
+    def process(self, thread_index, i1, i2, filter_mask, selection_masks, blocks):
+        ar = blocks[0]
         from vaex.column import _to_string_sequence
         self._check_row_limit()
         if self.selection:
-            selection_mask = self.df.evaluate_selection_mask(self.selection, i1=i1, i2=i2, cache=True)
+            selection_mask = selection_masks[0]
             ar = filter(ar, selection_mask)
         if len(ar) == 0:
             return
@@ -172,7 +173,7 @@ class TaskPartSetCreate(TaskPart):
             ar = _to_string_sequence(ar)
         else:
             ar = vaex.array_types.to_numpy(ar)
-            if ar.strides != (1,):
+            if ar.strides != (ar.itemsize,):
                 ar = ar.copy()
         chunk_size = 1024*1024
 
@@ -260,7 +261,8 @@ class TaskPartMapReduce(TaskPart):
         self.selection = selection
         self.values = []
 
-    def process(self, thread_index, i1, i2, filter_mask, *blocks):
+    def process(self, thread_index, i1, i2, filter_mask, selection_masks, blocks):
+        selection_mask = selection_masks[0]
         if self.to_numpy:
             blocks = [block if isinstance(block, np.ndarray) else block.to_numpy() for block in blocks]
         if self.to_float:
@@ -280,16 +282,17 @@ class TaskPartMapReduce(TaskPart):
             selection = self.selection
             if self.pre_filter:
                 if selection:
-                    selection_mask = self.df.evaluate_selection_mask(selection, i1=i1, i2=i2, cache=True)
                     blocks = [filter(block, selection_mask) for block in blocks]
             else:
-                if selection or self.df.filtered:
-                    selection_mask = self.df.evaluate_selection_mask(selection, i1=i1, i2=i2, cache=True, pre_filtered=False)
-                    if filter_mask is not None:
-                        selection_mask = selection_mask & filter_mask
+                if selection and self.df.filtered:
+                    selection_mask = selection_mask & filter_mask
+                    blocks = [filter(block, selection_mask) for block in blocks]
+                elif self.df.filtered:
+                    blocks = [filter(block, filter_mask) for block in blocks]
+                elif selection:
                     blocks = [filter(block, selection_mask) for block in blocks]
         if self.info:
-            self.values.append(self._map(thread_index, i1, i2, *blocks))
+            self.values.append(self._map(thread_index, i1, i2, selection_mask, blocks))
         else:
             self.values.append(self._map(*blocks))
 
@@ -333,7 +336,7 @@ class TaskPartStatistic(TaskPart):
         self.edges = edges
         self.selection_waslist = selection_waslist
 
-    def process(self, thread_index, i1, i2, filter_mask, *blocks):
+    def process(self, thread_index, i1, i2, filter_mask, selection_masks, blocks):
         class Info(object):
             pass
         info = Info()
@@ -372,7 +375,7 @@ class TaskPartStatistic(TaskPart):
         this_thread_grid = self.grid
         for i, selection in enumerate(self.selections):
             if selection:
-                selection_mask = self.df.evaluate_selection_mask(selection, i1=i1, i2=i2, cache=True)  # TODO
+                selection_mask = selection_masks[i]
                 if selection_mask is None:
                     raise ValueError("performing operation on selection while no selection present")
                 if mask is not None:
@@ -498,7 +501,7 @@ class TaskPartAggregation(TaskPart):
         logger.info(f'Estimate for ideal number of splits: {splits:,}')
         return max(min(nthreads, 2), splits)
 
-    def process(self, thread_index, i1, i2, filter_mask, *blocks):
+    def process(self, thread_index, i1, i2, filter_mask, selection_masks, blocks):
         # self.check()
         grid = self.grid
 
@@ -539,20 +542,24 @@ class TaskPartAggregation(TaskPart):
                 binner.clear_data_mask()
                 references.extend([block])
         all_aggregators = []
+
+        selection_index_global = 0
         for agg_desc, selections, aggregation2d, selection_waslist in self.aggregations:
             for selection_index, selection in enumerate(selections):
                 agg = aggregation2d[selection_index]
                 all_aggregators.append(agg)
                 selection_mask = None
                 if not (selection is None or selection is False):
-                    selection_mask = self.df.evaluate_selection_mask(selection, i1=i1, i2=i2, cache=True)  # TODO
+                    selection_mask = selection_masks[selection_index_global] # self.df.evaluate_selection_mask(selection, i1=i1, i2=i2, cache=True)  # TODO
                     # TODO: we probably want a way to avoid a to numpy conversion?
+                    assert selection_mask is not None
                     selection_mask = np.asarray(selection_mask)
                     references.append(selection_mask)
                     # some aggregators make a distiction between missing value and no value
                     # like nunique, they need to know if they should take the value into account or not
                     if hasattr(agg, 'set_selection_mask'):
                         agg.set_selection_mask(selection_mask)
+                selection_index_global += 1
                 if agg_desc.expressions:
                     assert len(agg_desc.expressions) in [1, 2], "only length 1 or 2 supported for now"
                     for i, expression in enumerate(agg_desc.expressions):

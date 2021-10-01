@@ -10,6 +10,28 @@ import numpy as np
 from common import small_buffer
 import vaex
 
+
+def test_evaluate_expression_once():
+    calls = 0
+    def add(a, b):
+        nonlocal calls
+        if len(a) > 1:  # skip dtype calls
+            calls += 1
+        return a + b
+    x = np.arange(5)
+    y = x**2
+    df = vaex.from_arrays(x=x, y=y)
+    df.add_function('add', add)
+    df['z'] = df.func.add(df.x, df.y)
+    df.executor.passes = 0
+    df.z.sum(delay=True)
+    df._set('z', delay=True)
+    calls = 0
+    df.execute()
+    assert df.executor.passes == 1
+    assert calls == 1
+
+
 def test_nested_use_of_executor():
     df = vaex.from_scalars(x=1, y=2)
     @vaex.delayed

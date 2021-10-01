@@ -392,7 +392,10 @@ class TaskAggregations(Task):
 
         self.aggregation_descriptions.append((aggregator_descriptor))
         if aggregator_descriptor.selection is not None:
-            self.selections.append(str(aggregator_descriptor.selection))
+            if isinstance(aggregator_descriptor.selection, (list, tuple)):
+                self.selections.extend([str(selection) if selection is not None else None for selection in aggregator_descriptor.selection])
+            else:
+                self.selections.append(str(aggregator_descriptor.selection))
         else:
             self.selections.append(None)
         # THIS SHOULD BE IN THE SAME ORDER AS THE ABOVE TASKPART

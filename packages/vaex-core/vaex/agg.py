@@ -3,6 +3,7 @@ import numpy as np
 
 import dask.base
 from vaex.expression import Expression
+from vaex.utils import _normalize_selection_name
 
 from .stat import _Statistic
 from vaex import encoding
@@ -62,7 +63,7 @@ class AggregatorDescriptorBasic(AggregatorDescriptor):
         self.expression = str(expression)
         self.agg_args = agg_args
         self.edges = edges
-        self.selection = selection
+        self.selection = _normalize_selection_name(selection)
         if not multi_args:
             if self.expression == '*':
                 self.expressions = []

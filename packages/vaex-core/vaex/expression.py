@@ -985,7 +985,8 @@ class Expression(with_metaclass(Meta)):
 
         counter_type = counter_type_from_dtype(data_type_item, transient)
         counters = [None] * self.ds.executor.thread_pool.nthreads
-        def map(thread_index, i1, i2, ar):
+        def map(thread_index, i1, i2, selection_masks, blocks):
+            ar = blocks[0]
             if counters[thread_index] is None:
                 counters[thread_index] = counter_type(1)
             if data_type.is_list and axis is None:

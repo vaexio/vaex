@@ -69,6 +69,8 @@ class Run:
                 variables |= df._expr(expression).expand().variables(ourself=True)
             for selection in selections:
                 variables |= df._selection_expression(selection).dependencies()
+            if df.filtered:
+                variables |= df.get_selection(vaex.dataframe.FILTER_SELECTION_NAME).dependencies(df)
             columns = set()
             for var in variables:
                 if var not in self.dataset:
@@ -390,10 +392,13 @@ class ExecutorLocal(Executor):
 
             assert df in run.variables
             from .scopes import _BlockScope
-            block_scope = _BlockScope(df, i1, i2, **run.variables[df].copy())
 
             if run.pre_filter:
-                filter_mask = df.evaluate_selection_mask(None, i1=i1, i2=i2, cache=True)
+                # TODO: move detection of dependencies up
+                filter_deps = df.get_selection(vaex.dataframe.FILTER_SELECTION_NAME).dependencies(df)
+                filter_scope = _BlockScope(df, i1, i2, None, selection=True, values={**run.variables[df], **{k: chunks[k] for k in filter_deps if k in chunks}})
+                filter_scope.filter_mask = None
+                filter_mask = filter_scope.evaluate(vaex.dataframe.FILTER_SELECTION_NAME)
                 chunks = {k:vaex.array_types.filter(v, filter_mask) for k, v, in chunks.items()}
             else:
                 filter_mask = None
@@ -402,16 +407,23 @@ class ExecutorLocal(Executor):
                     raise TypeError(f'Evaluated a chunk ({name}) that is not an array of column like object: {chunk!r} (type={type(chunk)}')
             for name, chunk in chunks.items():
                 sanity_check(name, chunk)
-            chunks = {name: df._auto_encode_data(name, ar) for name, ar in chunks.items()}
-            chunks = {name: vaex.arrow.numpy_dispatch.wrap(ar) for name, ar in chunks.items()}
-            block_scope.values.update(chunks)
+            block_scope = _BlockScope(df, i1, i2, values={**run.variables[df], **chunks})
             block_scope.mask = filter_mask
             expressions = list(set(expression for task in tasks for expression in task.expressions_all))
             block_dict = {expression: block_scope.evaluate(expression) for expression in expressions}
+            selection_scope = _BlockScope(df, i1, i2, None, selection=True, values={**block_scope.values})
+            selection_scope.filter_mask = filter_mask
+            if not run.pre_filter and df.filtered:
+                filter_mask = selection_scope.evaluate(vaex.dataframe.FILTER_SELECTION_NAME)
 
             for task in tasks:
                 assert df is task.df
                 blocks = [block_dict[expression] for expression in task.expressions_all]
+                def fix(ar):
+                    if np.ma.isMaskedArray(ar):
+                        ar = vaex.utils.unmask_selection_mask(ar)
+                    return ar
+                selections = [None if s is None else fix(selection_scope.evaluate(s)) for s in task.selections]
                 if not run.cancelled:
                     if task.see_all:
                         assert isinstance(task._parts, list)
@@ -424,9 +436,9 @@ class ExecutorLocal(Executor):
                     for task_index, task_part in enumerate(task_parts):
                         try:
                             if task.see_all:
-                                task_part.process(task_index, i1, i2, filter_mask, *blocks)
+                                task_part.process(task_index, i1, i2, filter_mask, selections, blocks)
                             else:
-                                task_part.process(thread_index, i1, i2, filter_mask, *blocks)
+                                task_part.process(thread_index, i1, i2, filter_mask, selections, blocks)
                         except Exception as e:
                             task.reject(e)
                             run.cancelled = True

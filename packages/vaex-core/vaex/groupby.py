@@ -322,7 +322,8 @@ class GroupByBase(object):
     def __init__(self, df, by, sort=False, combine=False, expand=True, row_limit=None):
         '''Note that row_limit only works in combination with combine=True'''
         df_original = df
-        df = df.copy()  # we're gonna mutate, so create a shallow copy
+        # TODO: make this configurable
+        # df = df.copy()  # we're gonna mutate, so create a shallow copy
         self.df = df
         self.sort = sort
         self.expand = expand  # keep as pyarrow struct?

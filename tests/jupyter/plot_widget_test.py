@@ -65,8 +65,8 @@ def test_widget_histogram(flush_guard, no_vaex_cache):
     check_range = df.count(selection='check')
 
     df.select(df.x > 0)
-    check_positive = df.count(selection=True)
-    histogram = df.widget.histogram('x', selection=[None, True], toolbar=True)
+    check_positive = df.count(selection='default')
+    histogram = df.widget.histogram('x', selection=[None, "default"], toolbar=True)
 
     flush()
     assert histogram.model.grid[1].sum() == check_positive  # for some reason, because 'x' it float32, we don't need -1
@@ -100,8 +100,8 @@ def test_widget_heatmap(flush_guard, no_vaex_cache):
     check_rectangle = df.count(selection='check')
 
     df.select(df.x > 0)
-    check_positive = df.count(selection=True)
-    heatmap = df.widget.heatmap('x', 'y', selection=[None, True])
+    check_positive = df.count(selection="default")
+    heatmap = df.widget.heatmap('x', 'y', selection=[None, "default"])
 
     flush()
     assert heatmap.model.grid[1].sum().item() == check_positive-1
