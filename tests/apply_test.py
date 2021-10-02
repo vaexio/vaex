@@ -18,3 +18,9 @@ def test_apply_select():
     df.state_get()
     df.select('x_ind')
     assert 2 == df.selected_length()
+
+def test_apply_with_invalid_identifier():
+    df = vaex.from_dict({"#": [1], "with space": [2]})
+    def add(a, b):
+        return a + b
+    assert df.apply(add, arguments=[df["#"], df["with space"]]).tolist() == [3]
