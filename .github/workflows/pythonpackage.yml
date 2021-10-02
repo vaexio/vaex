@@ -38,64 +38,64 @@ jobs:
         repository: vaexio/vaex-enterprise
         token: ${{ secrets.PAT_PULL_ENTERPRISE }}
         path: vaex-enterprise
-    - name: Install conda with Python ${{ matrix.python-version }}
-      uses: conda-incubator/setup-miniconda@v2
-      with:
-        python-version: ${{ matrix.python-version }}
-        mamba-version: "*"
-        auto-activate-base: true
-        channels: conda-forge
-    - name: Conda init
-      run: |
-        conda init bash
-    - name: Create env (with mamba)
-      run: |
-        ./ci/02-create-vaex-dev-env.sh ${{ matrix.python-version }} mamba
-    - name: Extra non-windows installs
-      if: matrix.os != 'windows-latest'
-      run: |
-        conda activate vaex-dev
-        mamba install -c conda-forge py-xgboost tensorflow
-        # xgboost is not available on windows on conda-forge
-    - name: Extra installs
-      if: matrix.python-version != '3.9' && matrix.python-version != '3.7'
-      run: |
-        conda activate vaex-dev
-        mamba install -y -q --file ci/conda-env-extra.yml
-    - name: Extra windows installs
-      if: matrix.os == 'windows-latest'
-      run: |
-        conda activate vaex-dev
-        pip install "ipython>=7" "dask>=1" xgboost
-        pip uninstall -y xgboost  # seems to crash, tests will be skipped
-        # not sure why, but the conda env is strange (old dask) if we put this constraint in the conda solver
-    - name: free disk space
-      if: matrix.os == 'ubuntu-latest'
-      run: |
-        sudo swapoff -a
-        sudo rm -f /swapfile
-        sudo apt clean
-        docker rmi $(docker image ls -aq)
-        df -h
-    - name: Install OpenMP runtime (Mac-only)
-      if: matrix.os == 'macOS-latest'
-      run: |
-        brew install libomp
-    - name: Cache compiled binaries
-      # this fails for this combination, leading to binaries filled with 0's
-      if: matrix.python-version != '3.6' || matrix.os != 'macOS-latest'
-      id: cache-compiled-binaries
-      uses: actions/cache@v2
-      with:
-        path: packages/vaex-core/build/lib*
-        key: ${{ runner.OS }}-${{ matrix.python-version }}-${{ hashFiles('packages/vaex-core/src/*') }}-v2
-    - name: Fix cache timestamp
-      if: steps.cache-compiled-binaries.outputs.cache-hit == 'true' && matrix.os != 'windows-latest'
-      run: |
-        find packages/vaex-core/build -type f -exec touch {} +
-    - name: Install vaex
-      run: |
-        ./ci/03-install-vaex.sh
+    # - name: Install conda with Python ${{ matrix.python-version }}
+    #   uses: conda-incubator/setup-miniconda@v2
+    #   with:
+    #     python-version: ${{ matrix.python-version }}
+    #     mamba-version: "*"
+    #     auto-activate-base: true
+    #     channels: conda-forge
+    # - name: Conda init
+    #   run: |
+    #     conda init bash
+    # - name: Create env (with mamba)
+    #   run: |
+    #     ./ci/02-create-vaex-dev-env.sh ${{ matrix.python-version }} mamba
+    # - name: Extra non-windows installs
+    #   if: matrix.os != 'windows-latest'
+    #   run: |
+    #     conda activate vaex-dev
+    #     mamba install -c conda-forge py-xgboost tensorflow
+    #     # xgboost is not available on windows on conda-forge
+    # - name: Extra installs
+    #   if: matrix.python-version != '3.9' && matrix.python-version != '3.7'
+    #   run: |
+    #     conda activate vaex-dev
+    #     mamba install -y -q --file ci/conda-env-extra.yml
+    # - name: Extra windows installs
+    #   if: matrix.os == 'windows-latest'
+    #   run: |
+    #     conda activate vaex-dev
+    #     pip install "ipython>=7" "dask>=1" xgboost
+    #     pip uninstall -y xgboost  # seems to crash, tests will be skipped
+    #     # not sure why, but the conda env is strange (old dask) if we put this constraint in the conda solver
+    # - name: free disk space
+    #   if: matrix.os == 'ubuntu-latest'
+    #   run: |
+    #     sudo swapoff -a
+    #     sudo rm -f /swapfile
+    #     sudo apt clean
+    #     docker rmi $(docker image ls -aq)
+    #     df -h
+    # - name: Install OpenMP runtime (Mac-only)
+    #   if: matrix.os == 'macOS-latest'
+    #   run: |
+    #     brew install libomp
+    # - name: Cache compiled binaries
+    #   # this fails for this combination, leading to binaries filled with 0's
+    #   if: matrix.python-version != '3.6' || matrix.os != 'macOS-latest'
+    #   id: cache-compiled-binaries
+    #   uses: actions/cache@v2
+    #   with:
+    #     path: packages/vaex-core/build/lib*
+    #     key: ${{ runner.OS }}-${{ matrix.python-version }}-${{ hashFiles('packages/vaex-core/src/*') }}-v2
+    # - name: Fix cache timestamp
+    #   if: steps.cache-compiled-binaries.outputs.cache-hit == 'true' && matrix.os != 'windows-latest'
+    #   run: |
+    #     find packages/vaex-core/build -type f -exec touch {} +
+    # - name: Install vaex
+    #   run: |
+    #     ./ci/03-install-vaex.sh
     # - name: Install vaex-enterprise
     #   if: ${{ (github.event.pull_request.head.repo.full_name == 'vaexio/vaex') && (matrix.os == 'linux-latest') }}
     #   run: |
@@ -120,7 +120,7 @@ jobs:
         # (cd packages/vaex-astro && python setup.py bdist_wheel); cp packages/vaex-astro/dist/* dist
         (cd packages/vaex-hdf5 && python setup.py bdist_wheel); cp packages/vaex-hdf5/dist/* dist
         # (cd packages/vaex-server && python setup.py bdist_wheel); cp packages/vaex-server/dist/* dist
-        (cd packages/vaex-meta && python setup.py bdist_wheel); cp packages/vaex-server/dist/* dist
+        # (cd packages/vaex-meta && python setup.py bdist_wheel); cp packages/vaex-server/dist/* dist
     - name: Upload builds
       uses: actions/upload-artifact@v2
       with:
