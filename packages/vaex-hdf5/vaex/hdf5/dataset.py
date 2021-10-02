@@ -1,4 +1,5 @@
 __author__ = 'maartenbreddels'
+# CHANGE MARKER
 import os
 import logging
 import numpy as np
