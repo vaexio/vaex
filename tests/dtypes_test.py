@@ -1,5 +1,7 @@
 from common import *
 from vaex.datatype import DataType
+from unittest.mock import MagicMock
+
 
 def test_dtype_basics(df):
     df['new_virtual_column'] = df.x + 1
@@ -81,3 +83,10 @@ def test_dtype_nested():
     assert df.s.data_type(axis=-3) == pa.list_(pa.list_(pa.string()))
     assert df.s.data_type(axis=-2) == pa.list_(pa.string())
     assert df.s.data_type(axis=-1) == pa.string()
+
+
+def test_dtype_no_eval():
+    df = vaex.from_dict({"#": [1.1], "with space": ['should work']})
+    df._evaluate_implementation = MagicMock()
+    assert df.data_type(df['#']) == float
+    assert df.data_type(df['with space']) == str

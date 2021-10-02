@@ -2025,6 +2025,8 @@ class DataFrame(object):
         :param str array_type: 'numpy', 'arrow' or None, to indicate if the data type should be converted
         :param int axis: If a nested type (like list), it will return the value_type of the nested type, axis levels deep.
         """
+        if isinstance(expression, vaex.expression.Expression):
+            expression = expression._label
         expression = _ensure_string_from_expression(expression)
         data_type = None
         if expression in self.variables:
