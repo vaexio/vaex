@@ -191,12 +191,17 @@ def convert_string_column(col: ColumnObject) -> pa.Array:
     """
     Convert a string column to a Arrow array.
     """
+    # Missing
+    if col.null_count > 0:
+        if col.describe_null != (3, 0):
+            raise TypeError("Only support arrow style mask data")
+
     # Retrieve the data buffers
     buffers = col.get_buffers()
 
-    dbuffer, bdtype = buffers["data"] # buffer containing the UTF-8 code units
-    obuffer, odtype = buffers["offsets"] #  buffer containing the index offsets demarcating the beginning and end of each string
-    mbuffer, mdtype = buffers["validity"] # buffer indicating the presence of missing values
+    dbuffer, bdtype = buffers["data"]  # buffer containing the UTF-8 code units
+    obuffer, odtype = buffers["offsets"]  #  buffer containing the index offsets demarcating the beginning and end of each string
+    mbuffer, mdtype = buffers["validity"]  # buffer indicating the presence of missing values
 
     # Convert the buffers to NumPy arrays
     dt = (_DtypeKind.UINT, 8, None, None)  # note: in order to go from STRING to an equivalent ndarray, we claim that the buffer is uint8 (i.e., a byte array)
@@ -205,21 +210,21 @@ def convert_string_column(col: ColumnObject) -> pa.Array:
     obuf = buffer_to_ndarray(obuffer, odtype)
     mbuf = buffer_to_ndarray(mbuffer, mdtype)
 
-    # Apply missing values from validity buffer and convert string list to Arrow array
-    if col.null_count > 0:
-        if col.describe_null[0] != (3, 0):
-            raise TypeError('Only support arrow style mask data')
     # not sure what the best way to communicate the two types of strings is
-    if obuffer._x.dtype == 'int64':
+    if obuffer._x.dtype == "int64":
         arrow_type = pa.large_utf8()
-    elif obuffer._x.dtype == 'int32':
+    elif obuffer._x.dtype == "int32":
         arrow_type = pa.utf8()
     else:
-        raise TypeError(f'oops')
+        raise TypeError(f"oops")
     length = obuf.size - 1
-    # TODO: support mask
+
     buffers = [None, pa.py_buffer(obuf), pa.py_buffer(dbuf)]
     arrow_array = pa.Array.from_buffers(arrow_type, length, buffers)
+
+    # Apply the mask
+    if col.null_count > 0:
+        arrow_array = pa.array(arrow_array.tolist(), mask=mbuf)
 
     return arrow_array, buffers
 
@@ -429,11 +434,11 @@ class _VaexColumn:
             raise TypeError("`describe_categorical only works on a column with " "categorical dtype!")
 
         ordered = False
-        is_dictionary = True        
+        is_dictionary = True
         if not isinstance(self._col.values, np.ndarray) and isinstance(self._col.values.type, pa.DictionaryType):
             categories = self._col.values.dictionary.tolist()
         else:
-            categories = self._col.df.category_labels(self._col)  
+            categories = self._col.df.category_labels(self._col)
         mapping = {ix: val for ix, val in enumerate(categories)}
         return ordered, is_dictionary, mapping
 
@@ -598,17 +603,13 @@ class _VaexColumn:
                 buffer = _VaexBuffer(self._col.values)
                 dtype = self._dtype_from_vaexdtype(self._col.dtype)
         elif self.dtype[0] == _k.STRING:
-            # Marshal the strings from a NumPy object array into a byte array
-            buf = self._col.to_numpy()
-            b = bytearray()
+            bitmap_buffer, offsets, string_bytes = self._col.evaluate().buffers()
 
-            # TODO: this for-loop is slow; can be implemented in Cython/C/C++ later
-            for i in range(buf.size):
-                if type(buf[i]) == str:
-                    b.extend(buf[i].encode(encoding="utf-8"))
-
-            # Convert the byte array to a Vaex "buffer" using a NumPy array as the backing store
-            buffer = _VaexBuffer(np.frombuffer(b, dtype="uint8"))
+            if string_bytes is None:
+                string_bytes = np.array([], dtype="uint8")
+            else:
+                string_bytes = np.frombuffer(string_bytes, "uint8", len(string_bytes))
+            buffer = _VaexBuffer(string_bytes)
 
             # Define the dtype for the returned buffer
             dtype = (_k.STRING, 8, "u", "=")  # note: currently only support native endianness
@@ -658,28 +659,16 @@ class _VaexColumn:
         """
         _k = _DtypeKind
         if self.dtype[0] == _k.STRING:
-            # For each string, we need to manually determine the next offset
-            values = self._col.to_numpy()
+            bitmap_buffer, offsets, string_bytes = self._col.evaluate().buffers()
 
-            ptr = 0
-            offsets = [ptr]
-            for v in values:
-                # For missing values (in this case, `np.nan` values), we don't increment the pointer)
-                if type(v) == str:
-                    b = v.encode(encoding="utf-8")
-                    ptr += len(b)
+            if self._col.evaluate().type == pyarrow.string():
+                offsets = np.frombuffer(offsets, np.int32, len(offsets) // 4)
+                dtype = (_k.INT, 32, "i", "=")
+            else:
+                offsets = np.frombuffer(offsets, np.int64, len(offsets) // 8)
+                dtype = (_k.INT, 64, "l", "=")
+            buffer = _VaexBuffer(offsets)
 
-                offsets.append(ptr)
-
-            # Convert the list of offsets to a NumPy array of signed 64-bit integers
-            # (note: Arrow allows the offsets array to be either `int32` or `int64`; here, we default to the latter)
-            buf = np.asarray(offsets, dtype="int64")
-
-            # Convert the offsets to a Vaex "buffer" using the NumPy array as the backing store
-            buffer = _VaexBuffer(buf)
-
-            # Assemble the buffer dtype info
-            dtype = (_k.INT, 64, "l", "=")  # note: currently only support native endianness
         else:
             raise RuntimeError("This column has a fixed-length dtype so does not have an offsets buffer")
 
