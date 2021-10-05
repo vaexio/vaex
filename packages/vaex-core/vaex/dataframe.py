@@ -2270,11 +2270,11 @@ class DataFrame(object):
                 raise ValueError(f'skip should be None or its own dataset')
             return self._state_get_pre_vaex_5()
 
-    def state_set(self, state, use_active_range=False, keep_columns=None, set_filter=True, trusted=True, warn=True):
+    def state_set(self, state, use_active_range=False, keep_columns=None, set_filter=True, trusted=True, warn=True, delete_unused_columns = True):
         if self._future_behaviour == 5:
             return self._state_set_vaex_5(state, use_active_range=use_active_range, keep_columns=keep_columns, set_filter=set_filter, trusted=trusted, warn=warn)
         else:
-            return self._state_set_pre_vaex_5(state, use_active_range=use_active_range, keep_columns=keep_columns, set_filter=set_filter, trusted=trusted, warn=warn)
+            return self._state_set_pre_vaex_5(state, use_active_range=use_active_range, keep_columns=keep_columns, set_filter=set_filter, trusted=trusted, warn=warn, delete_unused_columns=delete_unused_columns)
 
     def _state_get_vaex_5(self, skip=None):
         """Return the internal state of the DataFrame in a dictionary
@@ -2477,7 +2477,7 @@ class DataFrame(object):
                      active_range=[self._index_start, self._index_end])
         return state
 
-    def _state_set_pre_vaex_5(self, state, use_active_range=False, keep_columns=None, set_filter=True, trusted=True, warn=True):
+    def _state_set_pre_vaex_5(self, state, use_active_range=False, keep_columns=None, set_filter=True, trusted=True, warn=True, delete_unused_columns = True):
         """Sets the internal state of the df
 
         Example:
@@ -2512,6 +2512,7 @@ class DataFrame(object):
         :param list keep_columns: List of columns that should be kept if the state to be set contains less columns.
         :param bool set_filter: Set the filter from the state (default), or leave the filter as it is it.
         :param bool warn: Give warning when issues are found in the state transfer that are recoverable.
+        :param bool delete_unused_columns: Whether to delete columns from the DataFrame that are not in the column_names. Useful to set to False during prediction time.
         """
         if 'description' in state:
             self.description = state['description']
@@ -2567,7 +2568,7 @@ class DataFrame(object):
                 else:
                     selection = selections.selection_from_dict(selection_dict)
                 self.set_selection(selection, name=name)
-        if self.is_local():
+        if self.is_local() and delete_unused_columns:
             for name in self.dataset:
                 if name not in self.column_names:
                     del self.columns[name]
