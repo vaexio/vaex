@@ -62,6 +62,7 @@ class WebSocketHandler:
                 nonlocal last_progress
 
                 async def send_progress():
+                    vaex.asyncio.check_patch_tornado() # during testing asyncio might be patched
                     nonlocal last_progress
                     logger.debug("progress: %r", f)
                     last_progress = f

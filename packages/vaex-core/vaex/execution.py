@@ -11,6 +11,7 @@ import queue
 
 import numpy as np
 
+import vaex.asyncio
 import vaex.cpu  # force registration of task-part-cpu
 import vaex.encoding
 import vaex.multithreading
@@ -18,6 +19,7 @@ import vaex.vaexfast
 import vaex.events
 
 
+async_default = str(os.environ.get('VAEX_ASYNC', 'nest'))
 chunk_size_min_default = int(os.environ.get('VAEX_CHUNK_SIZE_MIN', 1024))
 chunk_size_max_default = int(os.environ.get('VAEX_CHUNK_SIZE_MAX', 1024*1024))
 chunk_size_default = ast.literal_eval(os.environ.get('VAEX_CHUNK_SIZE', 'None'))
@@ -127,8 +129,9 @@ def _merge_tasks_for_df(tasks, df):
 
 class Executor:
     """An executor is responsible to executing tasks, they are not reentrant, but thread safe"""
-    def __init__(self):
+    def __init__(self, async_method=async_default):
         self.tasks = []
+        self.async_method = async_method
         self.signal_begin = vaex.events.Signal("begin")
         self.signal_progress = vaex.events.Signal("progress")
         self.signal_end = vaex.events.Signal("end")
@@ -144,8 +147,13 @@ class Executor:
         return self.run(self.execute_async())
 
     def run(self, coro):
-        with vaex.asyncio.with_event_loop(self.event_loop):
-            return self.event_loop.run_until_complete(coro)
+        if self.async_method == "nest":
+            return vaex.asyncio.just_run(coro)
+        elif self.async_method == "awaitio":
+            with vaex.asyncio.with_event_loop(self.event_loop):
+                return self.event_loop.run_until_complete(coro)
+        else:
+            raise RuntimeError(f'No async method: {async_default}')
 
     def schedule(self, task):
         '''Schedules new task for execution, will return an existing tasks if the same task was already added'''
