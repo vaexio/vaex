@@ -37,6 +37,7 @@ class Client(client.Client):
 
 class ClientWebsocket(Client):
     def _send_and_forget(self, msg, msg_id=None):
+        vaex.asyncio.check_patch_tornado()
         if msg_id is None:
             msg_id = str(uuid.uuid4())
         self.msg_reply_futures[msg_id] = asyncio.Future()
