@@ -59,6 +59,7 @@ class Run:
         dfs = set()
         for task in tasks:
             dfs.add(task.df)
+        columns = set()
         for df in dfs:
             others = set(df.variables) | set(df.virtual_columns) | set(df.selection_histories)
             tasks_df = [task for task in tasks if task.df == df]
@@ -71,7 +72,6 @@ class Run:
                 variables |= df._selection_expression(selection).dependencies()
             if df.filtered:
                 variables |= df.get_selection(vaex.dataframe.FILTER_SELECTION_NAME).dependencies(df)
-            columns = set()
             for var in variables:
                 if var not in self.dataset:
                     if var not in others:
