@@ -509,3 +509,27 @@ def test_agg_count_with_custom_name():
     df_grouped = df.groupby(df.x, sort=True).agg({'mycounts': vaex.agg.count(), 'mycounts2': 'count'})
     assert df_grouped['mycounts'].tolist() == [3, 2, 1]
     assert df_grouped['mycounts2'].tolist() == [3, 2, 1]
+
+
+def test_agg_unary():
+    x = np.arange(5)
+    df = vaex.from_arrays(x=x, g=x//4)
+    agg = -vaex.agg.sum('x')
+    assert repr(agg) == "-vaex.agg.sum('x')"
+    assert df.groupby('g', agg={'sumx': agg})['sumx'].tolist() == [-6, -4]
+
+
+def test_agg_binary():
+    x = np.arange(5)
+    df = vaex.from_arrays(x=x, y=x+1, g=x//4)
+    agg = vaex.agg.sum('x') / vaex.agg.sum('y')
+    assert repr(agg) == "(vaex.agg.sum('x') / vaex.agg.sum('y'))"
+    assert df.groupby('g', agg={'total': agg})['total'].tolist() == [6 / 10, 4 / 5]
+    agg = vaex.agg.sum('x') + 99
+    assert repr(agg) == "(vaex.agg.sum('x') + 99)"
+    assert df.groupby('g', agg={'total': agg})['total'].tolist() == [6 + 99, 4 + 99]
+    agg = 99 + vaex.agg.sum('y')
+    assert repr(agg) == "(99 + vaex.agg.sum('y'))"
+    assert df.groupby('g', agg={'total': agg})['total'].tolist() == [99 + 10, 99 + 5]
+    assert df.groupby('g', agg={'total': vaex.agg.sum('x') / 2})['total'].tolist() == [6/2, 4/2]
+    assert df.groupby('g', agg={'total': 2/vaex.agg.sum('x')})['total'].tolist() == [2/6, 2/4]
