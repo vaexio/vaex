@@ -6612,7 +6612,7 @@ class DataFrameLocal(DataFrame):
     #     # self.signal_selection_changed.emit(self)
 
     @docsubst
-    def groupby(self, by=None, agg=None, sort=False, assume_sparse='auto', row_limit=None, delay=False):
+    def groupby(self, by=None, agg=None, sort=False, assume_sparse='auto', row_limit=None, copy=True, delay=False):
         """Return a :class:`GroupBy` or :class:`DataFrame` object when agg is not None
 
         Examples:
@@ -6666,11 +6666,12 @@ class DataFrameLocal(DataFrame):
             combinations, and will save another pass over the data)
         :param int row_limit: Limits the resulting dataframe to the number of rows (default is not to check, only works when assume_sparse is True).
             Throws a :py:`vaex.RowLimitException` when the condition is not met.
+        :param bool copy: Copy the dataframe (shallow, does not cost memory) so that the fingerprint of the original dataframe is not modified.
         :param bool delay: {delay}
         :return: :class:`DataFrame` or :class:`GroupBy` object.
         """
         from .groupby import GroupBy
-        groupby = GroupBy(self, by=by, sort=sort, combine=assume_sparse, row_limit=row_limit)
+        groupby = GroupBy(self, by=by, sort=sort, combine=assume_sparse, row_limit=row_limit, copy=copy)
         @vaex.delayed
         def next(_ignore):
             if agg is None:

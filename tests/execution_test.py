@@ -111,6 +111,16 @@ def test_passes_filtering():
     assert result2.get() == 8 + 9
 
 
+def test_multiple_tasks_different_columns_names():
+    df1 = vaex.from_scalars(x=1, y=2)
+    df2 = vaex.from_scalars(x=1, y=2)
+    x = df1.sum('x', delay=True)
+    y = df2.sum('y', delay=True)
+    df1.execute()
+    assert x.get() == 1
+    assert y.get() == 2
+
+
 def test_merge_aggregation_tasks():
     df = vaex.from_arrays(x=[1, 2], y=[2, 3])
     binners = df._create_binners('x', [0.5, 2.5], 2)

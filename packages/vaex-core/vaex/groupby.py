@@ -319,11 +319,11 @@ def _combine(df, groupers, sort, row_limit=None):
 
 
 class GroupByBase(object):
-    def __init__(self, df, by, sort=False, combine=False, expand=True, row_limit=None):
+    def __init__(self, df, by, sort=False, combine=False, expand=True, row_limit=None, copy=True):
         '''Note that row_limit only works in combination with combine=True'''
         df_original = df
-        # TODO: make this configurable
-        # df = df.copy()  # we're gonna mutate, so create a shallow copy
+        if copy:
+            df = df.copy() # we will mutate the df (Add variables), this will keep the original dataframe unchanged
         self.df = df
         self.sort = sort
         self.expand = expand  # keep as pyarrow struct?
@@ -533,8 +533,8 @@ class BinBy(GroupByBase):
 
 class GroupBy(GroupByBase):
     """Implementation of the binning and aggregation of data, see :method:`groupby`."""
-    def __init__(self, df, by, sort=False, combine=False, expand=True, row_limit=None):
-        super(GroupBy, self).__init__(df, by, sort=sort, combine=combine, expand=expand, row_limit=row_limit)
+    def __init__(self, df, by, sort=False, combine=False, expand=True, row_limit=None, copy=True):
+        super(GroupBy, self).__init__(df, by, sort=sort, combine=combine, expand=expand, row_limit=row_limit, copy=copy)
 
     def agg(self, actions, delay=False):
         # TODO: this basically forms a cartesian product, we can do better, use a
