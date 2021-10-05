@@ -159,7 +159,6 @@ def chunk_append(chunk_iter, append_chunks, chunk_size):
             else:
                 # otherwise we are done
                 trimmed = n
-            continue
 
         chunks_current_list_append, current_row_count_append = vaex.dataset._slice_of_chunks(chunks_ready_list_append, chunk_size)
         chunks_append = vaex.dataset._concat_chunk_list(chunks_current_list_append)
