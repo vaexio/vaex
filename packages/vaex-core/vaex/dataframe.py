@@ -3634,6 +3634,8 @@ class DataFrame(object):
         """Deletes a virtual column from a DataFrame."""
         del self.virtual_columns[name]
         del self._virtual_expressions[name]
+        if name in self.column_names:
+            self.column_names.remove(name)
         self.signal_column_changed.emit(self, name, "delete")
 
     def add_variable(self, name, expression, overwrite=True, unique=True):
