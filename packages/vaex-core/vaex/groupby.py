@@ -226,9 +226,16 @@ class GrouperCombined(Grouper):
                 else:
                     bin_values[parent.label] = parent.bin_values.take(indices)
                     # bin_values[parent.label] = pa.DictionaryArray.from_arrays(indices, parent.bin_values)
-            self.bin_values = pa.StructArray.from_arrays(bin_values.values(), bin_values.keys())
+            return pa.StructArray.from_arrays(bin_values.values(), bin_values.keys())
         self._promise_parent = self._promise
-        self._promise = process(self._promise_parent)
+        def key_function():
+            fp = vaex.cache.fingerprint(expression.fingerprint())
+            return f'groupby-combined-{fp}'
+        lookup_originals = vaex.cache._memoize(process, key_function=key_function, delay=True)
+        @vaex.delayed
+        def set(bin_values):
+            self.bin_values = bin_values
+        self._promise = set(lookup_originals(self._promise_parent))
 
 
 class GrouperCategory(BinnerBase):

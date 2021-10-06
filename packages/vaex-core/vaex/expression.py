@@ -1090,17 +1090,17 @@ class Expression(with_metaclass(Meta)):
         :param dropna: short for any of the above, (see :func:`Expression.isna`)
         :param bool axis: Axis over which to determine the unique elements (None will flatten arrays or lists)
         """
-        if delay is False and vaex.cache.is_on():
+        def key_function():
             fp = vaex.cache.fingerprint(self.fingerprint(), dropna, dropnan, dropmissing, selection, axis)
-            key = f'nunique-{fp}'
-            value = vaex.cache.get(key, type='computed')
-            if value is None:
-                t0 = time.time()
-                value = len(self.unique(dropna=dropna, dropnan=dropnan, dropmissing=dropmissing, selection=selection, axis=axis, array_type=None))
-                duration_wallclock = time.time() - t0
-                vaex.cache.set(key, value, type='computed', duration_wallclock=duration_wallclock)
-            return value
-        return len(self.unique(dropna=dropna, dropnan=dropnan, dropmissing=dropmissing, selection=selection, axis=axis, delay=delay))
+            return f'nunique-{fp}'
+        @vaex.cache._memoize(key_function=key_function, delay=delay)
+        def f():
+            value = self.unique(dropna=dropna, dropnan=dropnan, dropmissing=dropmissing, selection=selection, axis=axis, array_type=None, delay=delay)
+            if delay:
+                return value.then(len)
+            else:
+                return len(value)
+        return f()
 
     def countna(self):
         """Returns the number of Not Availiable (N/A) values in the expression.

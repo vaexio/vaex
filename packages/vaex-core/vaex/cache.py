@@ -59,6 +59,7 @@ import threading
 import dask.base
 import pyarrow as pa
 from filelock import FileLock
+from vaex.promise import Promise
 
 import vaex.utils
 diskcache = vaex.utils.optional_import('diskcache')
@@ -450,6 +451,42 @@ dask.base.normalize_token.register(pa.DataType, repr)
 @dask.base.normalize_token.register(pa.Array)
 def _normalize(ar):
     return vaex.dataset.hash_array_data(ar)
+
+
+def _memoize(f=None, key_function=None, type='computed', delay=False):
+    import time
+    def wrapper_top(f=f):
+        @functools.wraps(f)
+        def wrapper(*args, **kwargs):
+            if vaex.cache.is_on():
+                key = key_function()
+                value = vaex.cache.get(key, type=type)
+                if value is None:
+                    t0 = time.time()
+                    if delay:
+                        promise = f(*args, **kwargs)
+                        def set(value):
+                            duration_wallclock = time.time() - t0
+                            vaex.cache.set(key, value, type='computed', duration_wallclock=duration_wallclock)
+                            return value
+                        return promise.then(set)
+                    else:
+                        value = f(*args, **kwargs)
+                        duration_wallclock = time.time() - t0
+                        vaex.cache.set(key, value, type='computed', duration_wallclock=duration_wallclock)
+                        return value
+                else:
+                    if delay:
+                        return Promise.fulfilled(value)
+                    else:
+                        return value
+            else:
+                return f(*args, **kwargs)
+        return wrapper
+    if f is None:
+        return wrapper_top
+    else:
+        return wrapper_top()
 
 
 if _cache_tasks_type:
