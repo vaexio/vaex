@@ -42,6 +42,7 @@ from .datatype import DataType
 from .docstrings import docsubst
 
 astropy = vaex.utils.optional_import("astropy.units")
+xarray = vaex.utils.optional_import("xarray")
 
 # py2/p3 compatibility
 try:
@@ -844,7 +845,6 @@ class DataFrame(object):
                     counts = np.asarray(counts)
                 else:
                     counts = counts[0]
-                import xarray
                 return xarray.DataArray(counts, dims=dims, coords=coords)
             elif array_type == 'list':
                 return vaex.utils.unlistify(expression_waslist, counts).tolist()
@@ -1149,7 +1149,7 @@ class DataFrame(object):
         return self._delay(delay, finish(delayed_list(covars)))
 
     @docsubst
-    def correlation(self, x, y=None, binby=[], limits=None, shape=default_shape, sort=False, sort_key=np.abs, selection=False, delay=False, progress=None):
+    def correlation(self, x, y=None, binby=[], limits=None, shape=default_shape, sort=False, sort_key=np.abs, selection=False, delay=False, progress=None, array_type=None):
         """Calculate the correlation coefficient cov[x,y]/(std[x]*std[y]) between x and y, possibly on a grid defined by binby.
 
         Example:
@@ -1170,63 +1170,45 @@ class DataFrame(object):
         :return: {return_stat_scalar}
         """
         selection = _normalize_selection(selection)
-        @delayed
-        def corr(cov):
-            with np.errstate(divide='ignore', invalid='ignore'):  # these are fine, we are ok with nan's in vaex
-                corr = cov[..., 0, 1] / (cov[..., 0, 0] * cov[..., 1, 1])**0.5
-            return corr
-
         if y is None:
-            if not isinstance(x, (tuple, list)):
+            if not _issequence(x):
                 raise ValueError("if y not given, x is expected to be a list or tuple, not %r" % x)
-            if _issequence(x) and not _issequence(x[0]) and len(x) == 2:
-                x = [x]
-            if _issequence(x) and not all([_issequence(k) and len(k) == 2 for k in x]):
-                xlist = [x]
-                ylist = [None]
-                waslist = False
-            elif _issequence(x) and all([_issequence(k) and len(k) == 2 for k in x]):
-                waslist = True
-                xlist, ylist = zip(*x)
+            if all([_issequence(k) and len(k) == 2 for k in x]):
+                values = []
+                pairs = x
+                x = []
+                y = []
+                for col1, col2 in pairs:
+                    x.append(col1)
+                    y.append(col2)
+                    values.append(self.correlation(col1, col2, delay=True))
+                @vaex.delayed
+                def finish(values):
+                    return vaex.from_arrays(x=x, y=y, correlation=values)
+                result = finish(values)
             else:
-                raise ValueError("if y not given, x is expected to be a list of lists with length 2, not %r" % x)
+                result = self._correlation_matrix(x, binby=binby, limits=limits, shape=shape, selection=selection, delay=True, progress=progress, array_type=array_type)
+        elif _issequence(x) and _issequence(y):
+            result = delayed(np.array)([[self.correlation(x_, y_, binby=binby, limits=limits, shape=shape, selection=selection, delay=True, progress=progress) for y_ in y] for x_ in x])
+        elif _issequence(x):
+            combinations = [(k, y) for k in x]
+            result = delayed(np.array)([self.correlation(x_, y, binby=binby, limits=limits, shape=shape, selection=selection, delay=True, progress=progress)for x_ in x])
+        elif _issequence(y):
+            combinations = [(x, k) for k in y]
+            result = self.correlation(combinations, binby=binby, limits=limits, shape=shape, selection=selection, delay=True, progress=progress)
         else:
-            waslist, [xlist, ylist] = vaex.utils.listify(x, y)
-        xlist = _ensure_strings_from_expressions(xlist)
-        ylist = _ensure_strings_from_expressions(ylist)
-        limits = self.limits(binby, limits, selection=selection, delay=True)
-
-        @delayed
-        def echo(limits):
-            logger.debug(">>>>>>>>: %r %r", limits, np.array(limits).shape)
-        echo(limits)
-
-        @delayed
-        def calculate(limits):
-            results = []
-            for x, y in zip(xlist, ylist):
-                task = self.cov(x, y, binby=binby, limits=limits, shape=shape, selection=selection, delay=True,
-                                progress=progressbar)
-                results.append(corr(task))
-            return results
-
-        progressbar = vaex.utils.progressbars(progress)
-        correlations = calculate(limits)
-
-        @delayed
-        def finish(correlations):
-            if sort:
-                correlations = np.array(correlations)
-                indices = np.argsort(sort_key(correlations) if sort_key else correlations)[::-1]
-                sorted_x = list([x[k] for k in indices])
-                return correlations[indices], sorted_x
-            value = np.array(vaex.utils.unlistify(waslist, correlations))
-            return value
-        return self._delay(delay, finish(delayed_list(correlations)))
+            @vaex.delayed
+            def finish(matrix):
+                return matrix[0][1]
+            matrix = self._correlation_matrix([x, y], binby=binby, limits=limits, shape=shape, selection=selection, delay=True, progress=progress)
+            result = finish(matrix)
+        return self._delay(delay, result)
 
 
     @docsubst
-    def corr(self, x, y=None, binby=[], limits=None, shape=default_shape, selection=False, delay=False, progress=None):
+    def _correlation_matrix(self, column_names=None, binby=[], limits=None, shape=default_shape, selection=False, delay=False, progress=None, array_type=None):
+        if column_names is None:
+            column_names = self.get_column_names()
         @delayed
         def normalize(cov_matrix):
             norm = cov_matrix[:]
@@ -1235,19 +1217,18 @@ class DataFrame(object):
             norm = (diag[...,np.newaxis,:] * diag[...,np.newaxis]) ** 0.5
             # norm = np.outer(diag, diag)**0.5
             return cov_matrix/norm
-        if y is None:
-            result = normalize(self.cov(x, y, binby=binby, limits=limits, shape=shape, selection=selection, delay=True, progress=progress))
-        elif _issequence(x) and _issequence(y):
-            result = delayed(np.array)([[self.correlation(x_, y_, binby=binby, limits=limits, shape=shape, selection=selection, delay=True, progress=progress) for y_ in y] for x_ in x])
-        elif _issequence(x):
-            combinations = [(k, y) for k in x]
-            result = self.correlation(combinations, binby=binby, limits=limits, shape=shape, selection=selection, delay=True, progress=progress)
-        elif _issequence(y):
-            combinations = [(x, k) for k in y]
-            result = self.correlation(combinations, binby=binby, limits=limits, shape=shape, selection=selection, delay=True, progress=progress)
-        else:
-            result = self.correlation(x, y, binby=binby, limits=limits, shape=shape, selection=selection, delay=True, progress=progress)
-        return self._delay(delay, result)
+        result = normalize(self.cov(column_names, binby=binby, limits=limits, shape=shape, selection=selection, delay=True, progress=progress))
+
+        @vaex.delayed
+        def finish(array):
+            if array_type == 'xarray':
+                dims = binby + ['x', 'y']
+                coords = [column_names, column_names]
+                return xarray.DataArray(array, dims=dims, coords=coords)
+            else:
+                return vaex.array_types.convert(array, array_type)
+
+        return self._delay(delay, finish(result))
 
     @docsubst
     def cov(self, x, y=None, binby=[], limits=None, shape=default_shape, selection=False, delay=False, progress=None):
