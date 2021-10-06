@@ -1199,7 +1199,7 @@ class DataFrame(object):
         else:
             @vaex.delayed
             def finish(matrix):
-                return matrix[0][1]
+                return matrix[...,0,1]
             matrix = self._correlation_matrix([x, y], binby=binby, limits=limits, shape=shape, selection=selection, delay=True, progress=progress)
             result = finish(matrix)
         return self._delay(delay, result)
@@ -1276,6 +1276,7 @@ class DataFrame(object):
             expressions = x
         else:
             expressions = [x, y]
+        expressions = _ensure_strings_from_expressions(expressions)
         N = len(expressions)
         binby = _ensure_list(binby)
         shape = _expand_shape(shape, len(binby))
