@@ -4451,7 +4451,13 @@ class DataFrame(object):
         :param inplace: {inplace}
         """
         df = self.trim(inplace=inplace)
-        columns = self.get_column_names() if column is None else [column]
+        if column is None:
+            columns = self.get_column_names()
+        else:
+            if isinstance(column, (list, tuple)):
+                columns = column
+            else:
+                columns = [column]
         originals = {}
         for column in columns:
             new_name = df._find_valid_name(f'__{column}_original')

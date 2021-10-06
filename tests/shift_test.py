@@ -366,3 +366,17 @@ def test_diff(df_factory, periods):
     assert np.all(np.isnan(result) == np.isnan(expected))
     mask = ~np.isnan(result)
     assert result[mask].tolist() == expected[mask].tolist()
+
+def test_diff_list():
+    periods = 2
+    x = np.arange(10, dtype='f8')
+    y = x**2
+    df = vaex.from_arrays(x=x, y=y)
+    dfp = df.to_pandas_df(array_type='numpy')
+    df = df.diff(periods, fill_value=np.nan, column=['x', 'y'])
+    dfp = dfp.diff(periods)
+    result = df['x'].to_numpy()
+    expected = dfp['x'].to_numpy()
+    assert np.all(np.isnan(result) == np.isnan(expected))
+    mask = ~np.isnan(result)
+    assert result[mask].tolist() == expected[mask].tolist()
