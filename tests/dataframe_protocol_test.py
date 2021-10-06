@@ -295,6 +295,21 @@ def test_VaexDataFrame():
     assert df2.select_columns((0, 2))._df[:, 1].tolist() == df2.select_columns_by_name(("x", "z"))._df[:, 1].tolist()
 
 
+def test_chunks(df_factory):
+    x = np.arange(10)
+    df = df_factory(x=x)
+    df2 = df.__dataframe__()
+    chunk_iter = iter(df2.get_chunks(3))
+    chunk = next(chunk_iter)
+    assert chunk.num_rows() == 4
+    chunk = next(chunk_iter)
+    assert chunk.num_rows() == 4
+    chunk = next(chunk_iter)
+    assert chunk.num_rows() == 2
+    with pytest.raises(StopIteration):
+        chunk = next(chunk_iter)
+
+
 def assert_buffer_equal(buffer_dtype: Tuple[_VaexBuffer, Any], vaexcol: vaex.expression.Expression):
     buf, dtype = buffer_dtype
     pytest.raises(NotImplementedError, buf.__dlpack__)

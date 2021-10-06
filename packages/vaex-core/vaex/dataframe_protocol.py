@@ -747,17 +747,11 @@ class _VaexDataFrame:
         Return an iterator yielding the chunks.
         TODO: details on ``n_chunks``
         """
-        if n_chunks == None:
-            size = self.num_rows()
-            n_chunks = self.num_chunks()
-            i = self._df.evaluate_iterator(self.get_column(0)._col, chunk_size=size // n_chunks)
-            for i1, i2, chunk in i:
-                yield _VaexDataFrame(self._df[i1:i2])
+        n_chunks = n_chunks if n_chunks is not None else self.num_chunks()
+        size = self.num_rows()
+        chunk_size = (size + n_chunks - 1) // n_chunks
+        column_names = self.column_names()
+        i = self._df.evaluate_iterator(column_names, chunk_size=chunk_size)
+        for i1, i2, chunk in i:
+            yield _VaexDataFrame(vaex.from_items(*zip(column_names, chunk)))
 
-        elif self.num_chunks() == 1:
-            size = self.num_rows()
-            i = self._df.evaluate_iterator(self.get_column(0)._col, chunk_size=size // n_chunks)
-            for i1, i2, chunk in i:
-                yield _VaexDataFrame(self._df[i1:i2])
-        else:
-            raise ValueError("Dataframe is already chunked.")
