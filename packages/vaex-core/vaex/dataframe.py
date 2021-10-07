@@ -632,10 +632,18 @@ class DataFrame(object):
     def mutual_information(self, x, y=None, dimension=2, mi_limits=None, mi_shape=256, binby=[], limits=None, shape=default_shape, sort=False, selection=False, delay=False):
         """Estimate the mutual information between and x and y on a grid with shape mi_shape and mi_limits, possibly on a grid defined by binby.
 
+        The `x` and `y` arguments can be single expressions of lists of expressions:
+        - If `x` and `y` are single expression, it computes the mutual information between `x` and `y`;
+        - If `x` is a list of expressions and `y` is a single expression, it computes the mutual information between each expression in `x` and the expression in `y`;
+        - If `x` is a list of expressions and `y` is None, it computes the mutual information matrix amongst all expressions in `x`;
+        - If `x` and `y` are lists of expressions, it computes the mutual information matrix defined by the two expression lists.
+
         If sort is True, the mutual information is returned in sorted (descending) order and the list of expressions is returned in the same order.
 
         Example:
 
+        >>> import vaex
+        >>> df = vaex.example()
         >>> df.mutual_information("x", "y")
         array(0.1511814526380327)
         >>> df.mutual_information([["x", "y"], ["x", "z"], ["E", "Lz"]])
@@ -643,6 +651,14 @@ class DataFrame(object):
         >>> df.mutual_information([["x", "y"], ["x", "z"], ["E", "Lz"]], sort=True)
         (array([ 1.07067379,  0.18439181,  0.15118145]),
         [['E', 'Lz'], ['x', 'z'], ['x', 'y']])
+        >>> df.mutual_information(x=['x', 'y', 'z'])
+        array([[3.53535106, 0.06893436, 0.11656418],
+               [0.06893436, 3.49414866, 0.14089177],
+               [0.11656418, 0.14089177, 3.96144906]])
+        >>> df.mutual_information(x=['x', 'y', 'z'], y=['E', 'Lz'])
+        array([[0.32316291, 0.16110026],
+               [0.36573065, 0.17802792],
+               [0.35239151, 0.21677695]])
 
 
         :param x: {expression}
@@ -1152,12 +1168,28 @@ class DataFrame(object):
     def correlation(self, x, y=None, binby=[], limits=None, shape=default_shape, sort=False, sort_key=np.abs, selection=False, delay=False, progress=None, array_type=None):
         """Calculate the correlation coefficient cov[x,y]/(std[x]*std[y]) between x and y, possibly on a grid defined by binby.
 
+        The `x` and `y` arguments can be single expressions of lists of expressions.
+        - If `x` and `y` are single expression, it computes the correlation between `x` and `y`;
+        - If `x` is a list of expressions and `y` is a single expression, it computes the correlation between each expression in `x` and the expression in `y`;
+        - If `x` is a list of expressions and `y` is None, it computes the correlation matrix amongst all expressions in `x`;
+        - If `x` and `y` are lists of expressions, it computes the correlation matrix defined by the two expression lists.
+
         Example:
 
+        >>> import vaex
+        >>> df = vaex.example()
         >>> df.correlation("x**2+y**2+z**2", "-log(-E+1)")
         array(0.6366637382215669)
         >>> df.correlation("x**2+y**2+z**2", "-log(-E+1)", binby="Lz", shape=4)
         array([ 0.40594394,  0.69868851,  0.61394099,  0.65266318])
+        >>> df.correlation(x=['x', 'y', 'z'])
+        array([[ 1.        , -0.06668907, -0.02709719],
+               [-0.06668907,  1.        ,  0.03450365],
+               [-0.02709719,  0.03450365,  1.        ]])
+        >>> df.correlation(x=['x', 'y', 'z'], y=['E', 'Lz'])
+        array([[-0.01116315, -0.00369268],
+               [-0.0059848 ,  0.02472491],
+               [ 0.01428211, -0.05900035]])
 
         :param x: {expression}
         :param y: {expression}
