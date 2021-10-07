@@ -145,7 +145,7 @@ def chunk_append(chunk_iter, append_chunks, chunk_size):
         chunks = dict(chunks)
 
         # keep a list of chunks for which we want to append to
-        chunks_ready_list_append.insert(-1, {name: ar for name, ar in chunks.items() if name in append_chunks})
+        chunks_ready_list_append.insert(1, {name: ar for name, ar in chunks.items() if name in append_chunks})
         # and passthrough
         chunks_ready_list_passthrough.append({name: ar for name, ar in chunks.items() if name not in append_chunks})
 
@@ -159,6 +159,7 @@ def chunk_append(chunk_iter, append_chunks, chunk_size):
             else:
                 # otherwise we are done
                 trimmed = n
+            continue
 
         chunks_current_list_append, current_row_count_append = vaex.dataset._slice_of_chunks(chunks_ready_list_append, chunk_size)
         chunks_append = vaex.dataset._concat_chunk_list(chunks_current_list_append)
