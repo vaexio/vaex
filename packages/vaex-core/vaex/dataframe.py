@@ -1170,6 +1170,7 @@ class DataFrame(object):
         :return: {return_stat_scalar}
         """
         selection = _normalize_selection(selection)
+        progressbar = vaex.utils.progressbars(progress, name="correlation")
         if y is None:
             if not _issequence(x):
                 raise ValueError("if y not given, x is expected to be a list or tuple, not %r" % x)
@@ -1181,26 +1182,26 @@ class DataFrame(object):
                 for col1, col2 in pairs:
                     x.append(col1)
                     y.append(col2)
-                    values.append(self.correlation(col1, col2, delay=True))
+                    values.append(self.correlation(col1, col2, delay=True, progress=progressbar))
                 @vaex.delayed
                 def finish(values):
                     return vaex.from_arrays(x=x, y=y, correlation=values)
                 result = finish(values)
             else:
-                result = self._correlation_matrix(x, binby=binby, limits=limits, shape=shape, selection=selection, delay=True, progress=progress, array_type=array_type)
+                result = self._correlation_matrix(x, binby=binby, limits=limits, shape=shape, selection=selection, delay=True, progress=progressbar, array_type=array_type)
         elif _issequence(x) and _issequence(y):
-            result = delayed(np.array)([[self.correlation(x_, y_, binby=binby, limits=limits, shape=shape, selection=selection, delay=True, progress=progress) for y_ in y] for x_ in x])
+            result = delayed(np.array)([[self.correlation(x_, y_, binby=binby, limits=limits, shape=shape, selection=selection, delay=True, progress=progressbar) for y_ in y] for x_ in x])
         elif _issequence(x):
             combinations = [(k, y) for k in x]
-            result = delayed(np.array)([self.correlation(x_, y, binby=binby, limits=limits, shape=shape, selection=selection, delay=True, progress=progress)for x_ in x])
+            result = delayed(np.array)([self.correlation(x_, y, binby=binby, limits=limits, shape=shape, selection=selection, delay=True, progress=progressbar)for x_ in x])
         elif _issequence(y):
             combinations = [(x, k) for k in y]
-            result = self.correlation(combinations, binby=binby, limits=limits, shape=shape, selection=selection, delay=True, progress=progress)
+            result = self.correlation(combinations, binby=binby, limits=limits, shape=shape, selection=selection, delay=True, progress=progressbar)
         else:
             @vaex.delayed
             def finish(matrix):
                 return matrix[...,0,1]
-            matrix = self._correlation_matrix([x, y], binby=binby, limits=limits, shape=shape, selection=selection, delay=True, progress=progress)
+            matrix = self._correlation_matrix([x, y], binby=binby, limits=limits, shape=shape, selection=selection, delay=True, progress=progressbar)
             result = finish(matrix)
         return self._delay(delay, result)
 
