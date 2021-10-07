@@ -135,3 +135,20 @@ def test_dropna_string_columns():
     assert df_dropped['10'].tolist() == [1]
     assert df_dropped['20'].tolist() == [0.5]
     assert df_dropped['30'].tolist() == [-1]
+
+
+def test_dropna_hidden_columns():
+    x = [0, 1, 2, 3, 4, 5]
+    y = ['I', 'am', 'a', 'nan', 'banana', None]
+    df = vaex.from_arrays(x=x, y=y)
+
+    # Transform column 'y' into virtual column '__y' by using a `vaex.dataframe.DataFrame.map()`
+    mapper = {'I': 'I', 'am': 'am', 'a': 'a', 'banana': 'banana', 'nan': None}
+    df['y'] = df['y'].map(mapper=mapper)
+
+    # Dropna should check the hidden original column without the need of precising them explicitly
+    df_dropped = df.dropna()
+
+    assert df_dropped.shape == (4, 2)
+    assert df_dropped['x'].tolist() == [0, 1, 2, 4]
+    assert df_dropped['y'].tolist() == ['I', 'am', 'a', 'banana']
