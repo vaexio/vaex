@@ -434,3 +434,36 @@ def test_groupby_state(df_factory, rebuild_dataframe):
 def test_old_years():
     df = vaex.from_arrays(t=[np.datetime64('1900-01-01'), np.datetime64('1945-01-01'), np.datetime64('2020-02-01')])
     assert df.groupby(df.t.astype('datetime64[Y]'), 'count')['count'].tolist() == [1, 1, 1]
+
+
+@pytest.mark.parametrize("binby", [False, True])
+def test_delay_ordinal(binby):
+    df = vaex.from_arrays(x=[1, 2, 2, 3, 3, 3], s=["aap", "aap", "aap", "noot", "noot", "mies"])
+    df.ordinal_encode("x", inplace=True)
+    df.ordinal_encode("s", inplace=True)
+    df.executor.passes = 0
+    if binby:
+        ar1 = df.binby('x', agg='count', delay=True)
+        ar2 = df.binby('s', agg='count', delay=True)
+    else:
+        df1 = df.groupby('x', agg='count', delay=True)
+        df2 = df.groupby('s', agg='count', delay=True)
+    df.execute()
+    assert df.executor.passes == 1
+
+
+def test_delay_non_ordinal_1d():
+    df = vaex.from_arrays(s=["aap", "aap", "aap", "noot", "noot", "mies"])
+    df.executor.passes = 0
+    df2 = df.groupby('s').agg('count', delay=True)
+    df.execute()
+    assert df.executor.passes == 2
+
+
+def test_delay_non_ordinal_2d():
+    df = vaex.from_arrays(x=[1, 2, 2, 3, 3, 3], s=["aap", "aap", "aap", "noot", "noot", "mies"])
+    df.executor.passes = 0
+    df1 = df.groupby('x', agg='count', delay=True)
+    df2 = df.groupby('s', agg='count', delay=True)
+    df.execute()
+    assert df.executor.passes == 2

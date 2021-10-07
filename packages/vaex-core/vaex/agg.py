@@ -3,6 +3,9 @@ import numpy as np
 
 import dask.base
 from vaex.expression import Expression
+from vaex.utils import _normalize_selection_name
+from .expression import _unary_ops, _binary_ops, reversable
+
 
 from .stat import _Statistic
 from vaex import encoding
@@ -55,6 +58,151 @@ class AggregatorDescriptor(object):
     def finish(self, value):
         return value
 
+
+class AggregatorExpressionUnary(AggregatorDescriptor):
+    def __init__(self, name, op, code, agg):
+        self.agg = agg
+        self.name = name
+        self.op = op
+        self.code = code
+        self.expressions = self.agg.expressions
+        self.selection = self.agg.selection
+        self.expression = self.agg.expression
+
+    def __repr__(self):
+        return f'{self.code}{self.agg!r}'
+
+    @property
+    def edges(self):
+        return self.agg.edges
+
+    @edges.setter
+    def edges(self, value):
+        self.agg.edges = value
+
+    def add_tasks(self, df, binners):
+        tasks, result = self.agg.add_tasks(df, binners)
+        @vaex.delayed
+        def finish(value):
+            return self.finish(value)
+        return tasks, finish(result)
+
+    def finish(self, value):
+        return self.op(value)
+
+
+class AggregatorExpressionBinary(AggregatorDescriptor):
+    def __init__(self, name, op, code, agg1, agg2, reverse=False):
+        self.agg1 = agg1
+        self.agg2 = agg2
+        self.reverse = reverse
+        self.name = name
+        self.op = op
+        self.code = code
+        self.expressions = self.agg1.expressions + self.agg2.expressions
+        self.selection = self.agg1.selection
+        self.short_name = f'{self.code}{self.agg2.short_name}'
+        if self.agg1.selection != self.agg2.selection:
+            raise ValueError(f'Selections of aggregator for binary op {self.op} should be the same')
+
+    def __repr__(self):
+        if self.reverse:
+            return f'({self.agg2!r} {self.code} {self.agg1!r})'
+        else:
+            return f'({self.agg1!r} {self.code} {self.agg2!r})'
+
+    @property
+    def edges(self):
+        assert self.agg1.edges == self.agg2.edges
+        return self.agg1.edges
+
+    @edges.setter
+    def edges(self, value):
+        self.agg1.edges = value
+        self.agg2.edges = value
+
+    def add_tasks(self, df, binners):
+        tasks1, result1 = self.agg1.add_tasks(df, binners)
+        tasks2, result2 = self.agg2.add_tasks(df, binners)
+        @vaex.delayed
+        def finish(value1, value2):
+            return self.finish(value1, value2)
+        return tasks1 + tasks2, finish(result1, result2)
+
+    def finish(self, value1, value2):
+        if self.reverse:
+            return self.op(value2, value1)
+        return self.op(value1, value2)
+
+
+class AggregatorExpressionBinaryScalar(AggregatorDescriptor):
+    def __init__(self, name, op, code, agg, scalar, reverse=False):
+        self.agg = agg
+        self.scalar = scalar
+        self.name = name
+        self.code = code
+        self.op = op
+        self.reverse = reverse
+        self.expressions = self.agg.expressions
+        self.selection = self.agg.selection
+
+    def __repr__(self):
+        if self.reverse:
+            return f'({self.scalar!r} {self.code} {self.agg!r})'
+        else:
+            return f'({self.agg!r} {self.code} {self.scalar!r})'
+
+    @property
+    def edges(self):
+        return self.agg.edges
+
+    @edges.setter
+    def edges(self, value):
+        self.agg.edges = value
+
+    def add_tasks(self, df, binners):
+        tasks, result = self.agg.add_tasks(df, binners)
+        @vaex.delayed
+        def finish(value):
+            return self.finish(value)
+        return tasks, finish(result)
+
+    def finish(self, value):
+        if self.reverse:
+            return self.op(self.scalar, value)
+        return self.op(value, self.scalar)
+
+
+for op in _binary_ops:
+    def wrap(op=op):
+        def f(a, b):
+            if isinstance(a, AggregatorDescriptor):
+                if isinstance(b, AggregatorDescriptor):
+                    return AggregatorExpressionBinary(op['name'], op['op'], op['code'], a, b)
+                else:
+                    return AggregatorExpressionBinaryScalar(op['name'], op['op'], op['code'], a, b)
+            else:
+                raise RuntimeError('Cannot happen')
+        setattr(AggregatorDescriptor, '__%s__' % op['name'], f)
+        if op['name'] in reversable:
+            def f(a, b):
+                if isinstance(a, AggregatorDescriptor):
+                    if isinstance(b, AggregatorDescriptor):
+                        raise RuntimeError('Cannot happen')
+                    else:
+                        return AggregatorExpressionBinaryScalar(op['name'], op['op'], op['code'], a, b, reverse=True)
+                else:
+                    raise RuntimeError('Cannot happen')
+            setattr(AggregatorDescriptor, '__r%s__' % op['name'], f)
+    wrap(op)
+for op in _unary_ops:
+    def wrap(op=op):
+        def f(a):
+            return AggregatorExpressionUnary(op['name'], op['op'], op['code'], a)
+        setattr(AggregatorDescriptor, '__%s__' % op['name'], f)
+    wrap(op)
+
+
 class AggregatorDescriptorBasic(AggregatorDescriptor):
     def __init__(self, name, expression, short_name, multi_args=False, agg_args=[], selection=None, edges=False):
         self.name = name
@@ -62,7 +210,7 @@ class AggregatorDescriptorBasic(AggregatorDescriptor):
         self.expression = str(expression)
         self.agg_args = agg_args
         self.edges = edges
-        self.selection = selection
+        self.selection = _normalize_selection_name(selection)
         if not multi_args:
             if self.expression == '*':
                 self.expressions = []

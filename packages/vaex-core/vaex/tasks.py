@@ -32,6 +32,14 @@ class Task(vaex.promise.Promise):
         self.pre_filter = pre_filter
         self.result = None
 
+    def dependencies(self):
+        variables = set()
+        for expression in self.expressions_all:
+            variables |= self.df._expr(expression).dependencies()
+        for expression in self.selections:
+            variables |= self.df._selection_expression(expression).dependencies()
+        return variables
+
     def fingerprint(self):
         if self._fingerprint is None:
             self._fingerprint = vaex.encoding.fingerprint('task', self)
@@ -87,6 +95,7 @@ class TaskFilterFill(Task):
     snake_name = "filter_fill"
     def __init__(self, df):
         super().__init__(df=df, pre_filter=True, name=self.snake_name)
+        self.selections = []
 
     def encode(self, encoding):
         return {}
@@ -106,6 +115,7 @@ class TaskSetCreate(Task):
         self.dtype_item = self.df.data_type(expression, axis=-1 if flatten else 0)
         self.unique_limit = unique_limit
         self.selection = selection
+        self.selections = [self.selection]
         self.return_inverse = return_inverse
 
     def encode(self, encoding):
@@ -135,6 +145,7 @@ class TaskMapReduce(Task):
         if self.pre_filter and self.ignore_filter:
             raise ValueError("Cannot pre filter and also ignore the filter")
         self.selection = selection
+        self.selections = [self.selection]
 
     def encode(self, encoding):
         return {'expressions': self.expressions, 'map': self._map, 'reduce': self._reduce,
@@ -341,6 +352,7 @@ class TaskAggregations(Task):
         self.dtypes = {}
         Task.__init__(self, df, expressions, name="statisticNd", pre_filter=df.filtered)
         self.original_tasks = []
+        self.selections = []
 
     def __repr__(self):
         encoding = vaex.encoding.Encoding()
@@ -379,6 +391,13 @@ class TaskAggregations(Task):
         self.then(assign_subtask, chain_reject)
 
         self.aggregation_descriptions.append((aggregator_descriptor))
+        if aggregator_descriptor.selection is not None:
+            if isinstance(aggregator_descriptor.selection, (list, tuple)):
+                self.selections.extend([str(selection) if selection is not None else None for selection in aggregator_descriptor.selection])
+            else:
+                self.selections.append(str(aggregator_descriptor.selection))
+        else:
+            self.selections.append(None)
         # THIS SHOULD BE IN THE SAME ORDER AS THE ABOVE TASKPART
         # it is up the the executor to remove duplicate expressions
         self.expressions_all.extend(aggregator_descriptor.expressions)
@@ -405,6 +424,7 @@ class TaskAggregation(Task):
         Task.__init__(self, df, expressions, name=self.snake_name, pre_filter=df.filtered)
         self.dtypes = {expr: self.df.data_type(expr).index_type for expr in self.expressions_all}
         self.expressions_all.extend(aggregation_description.expressions)
+        self.selections = [str(aggregation_description.selection) if aggregation_description.selection is not None else None]
 
     def __repr__(self):
         encoding = vaex.encoding.Encoding()

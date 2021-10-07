@@ -10,10 +10,12 @@ def test_expression_expand():
     # TODO: this doesn't work, because outself and include_virtual contradict eachother
     # but we don't use this interally
     # assert ds.g.variables(ourself=True, include_virtual=False) == {'g', 'x'}
+    assert ds.g.dependencies() == {'g', 'x'}
 
     ds['r'] = ds.x * ds.y
     assert ds.r.expression == 'r'
     assert ds.r.variables() == {'x', 'y'}
+    assert ds.r.dependencies() == {'r', 'x', 'y'}
     assert ds.r.variables(ourself=True, include_virtual=False) == {'r', 'x', 'y'}
     ds['s'] = ds.r + ds.x
     assert ds.s.variables() == {'r', 'x', 'y'}

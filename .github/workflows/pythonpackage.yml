@@ -55,7 +55,7 @@ jobs:
       if: matrix.os != 'windows-latest'
       run: |
         conda activate vaex-dev
-        mamba install -c conda-forge py-xgboost tensorflow
+        mamba install -c conda-forge py-xgboost tensorflow>=2.6.0
         # xgboost is not available on windows on conda-forge
     - name: Extra installs
       if: matrix.python-version != '3.9' && matrix.python-version != '3.7'
@@ -87,7 +87,7 @@ jobs:
       id: cache-compiled-binaries
       uses: actions/cache@v2
       with:
-        path: packages/vaex-core/build/lib*
+        path: packages/vaex-core/build/temp*
         key: ${{ runner.OS }}-${{ matrix.python-version }}-${{ hashFiles('packages/vaex-core/src/*') }}-v2
     - name: Fix cache timestamp
       if: steps.cache-compiled-binaries.outputs.cache-hit == 'true' && matrix.os != 'windows-latest'

@@ -11,6 +11,116 @@ from common import small_buffer
 import vaex
 
 
+def test_evaluate_expression_once():
+    calls = 0
+    def add(a, b):
+        nonlocal calls
+        if len(a) > 1:  # skip dtype calls
+            calls += 1
+        return a + b
+    x = np.arange(5)
+    y = x**2
+    df = vaex.from_arrays(x=x, y=y)
+    df.add_function('add', add)
+    df['z'] = df.func.add(df.x, df.y)
+    df.executor.passes = 0
+    df.z.sum(delay=True)
+    df._set('z', delay=True)
+    calls = 0
+    df.execute()
+    assert df.executor.passes == 1
+    assert calls == 1
+
+
+def test_nested_use_of_executor():
+    df = vaex.from_scalars(x=1, y=2)
+    @vaex.delayed
+    def next(x):
+        # although the exector is still in its look, it's not using the threads anymore
+        # so we should be able to use the executor again
+        return x + df.y.sum()
+    value = next(df.x.sum(delay=True))
+    df.execute()
+    assert value.get() == 1 + 2
+
+
+def test_passes_two_datasets():
+    df1 = vaex.from_scalars(x=1, y=2)
+    df2 = vaex.from_scalars(x=1, y=3)
+    executor = df1.executor
+    executor.passes = 0
+    df1.sum('x')
+    assert executor.passes == 1
+    df1.sum('x', delay=True)
+    df2.sum('x', delay=True)
+    df1.execute()
+    assert executor.passes == 3
+
+
+def test_passes_two_datasets_different_vars():
+    x = np.array([2.])
+    y = x**2
+    dataset = vaex.dataset.DatasetArrays(x=x, y=y)
+    df1 = vaex.from_dataset(dataset)
+    df2 = vaex.from_dataset(dataset)
+    df1.variables['a'] = 1
+    df2.variables['a'] = 2
+    df1['z'] = 'x + y * a'
+    df2['z'] = 'x + y * a'
+    executor = df1.executor
+    executor.passes = 0
+    s1 = df1.sum('z', delay=True)
+    s2 = df2.sum('z', delay=True)
+    df1.execute()
+    assert executor.passes == 1
+    assert s1.get() == 2 + 4 * 1
+    assert s2.get() == 2 + 4 * 2
+
+
+def test_passes_two_datasets_different_expressions():
+    x = np.array([2.])
+    y = x**2
+    dataset = vaex.dataset.DatasetArrays(x=x, y=y)
+    df1 = vaex.from_dataset(dataset)
+    df2 = vaex.from_dataset(dataset)
+    df1['a'] = 'x * y'
+    df2['b'] = 'x + y'
+    executor = df1.executor
+    executor.passes = 0
+    s1 = df1.sum('a', delay=True)
+    s2 = df2.sum('b', delay=True)
+    df1.execute()
+    assert executor.passes == 1
+    assert s1.get() == 2 * 4
+    assert s2.get() == 2 + 4
+
+
+def test_passes_filtering():
+    x = np.arange(10)
+    df = vaex.from_arrays(x=x, y=x**2)
+    df1 = df[df.x < 4]
+    df2 = df[df.x > 7]
+
+    executor = df.executor
+    executor.passes = 0
+    result1 = df1.sum('x', delay=True)
+    result2 = df2.sum('x', delay=True)
+    df.execute()
+    assert executor.passes == 1
+    assert result1.get() == 1 + 2 + 3
+    assert result2.get() == 8 + 9
+
+
+def test_multiple_tasks_different_columns_names():
+    df1 = vaex.from_scalars(x=1, y=2)
+    df2 = vaex.from_scalars(x=1, y=2)
+    x = df1.sum('x', delay=True)
+    y = df2.sum('y', delay=True)
+    df1.execute()
+    assert x.get() == 1
+    assert y.get() == 2
+
+
 def test_merge_aggregation_tasks():
     df = vaex.from_arrays(x=[1, 2], y=[2, 3])
     binners = df._create_binners('x', [0.5, 2.5], 2)
@@ -26,7 +136,7 @@ def test_merge_aggregation_tasks():
     assert len(df.executor.tasks) == 2
     tasks = df.executor._pop_tasks()
     assert len(tasks) == 2
-    tasks = vaex.execution._merge(tasks, df)
+    tasks = vaex.execution._merge_tasks_for_df(tasks, df)
     assert len(tasks) == 1
     assert isinstance(tasks[0], vaex.tasks.TaskAggregations)
 
@@ -46,6 +156,10 @@ def test_merge_same_aggregation_tasks():
 
 
 def test_signals(df):
+    x = np.arange(10)
+    y = x**2
+    sum_x_expected = x.sum()
+    sum_y_expected = y.sum()
     with vaex.cache.off():
         mock_begin = MagicMock()
         mock_progress = MagicMock()
@@ -54,9 +168,11 @@ def test_signals(df):
         df.executor.signal_begin.connect(mock_begin)
         df.executor.signal_progress.connect(mock_progress)
         df.executor.signal_end.connect(mock_end)
-        df.sum(df.x, delay=True)
-        df.sum(df.y, delay=True)
+        sum_x = df.sum(df.x, delay=True)
+        sum_y = df.sum(df.y, delay=True)
         df.execute()
+        assert sum_x.get() == sum_x_expected
+        assert sum_y.get() == sum_y_expected
         mock_begin.assert_called_once()
         mock_progress.assert_called_with(1.0)
         mock_end.assert_called_once()
@@ -123,7 +239,7 @@ def test_nested_task(df):
             # during the handling of the sum task, we add a new task
             sumy_promise = df.sum(df.y, delay=True)
             if df.is_local():
-                assert df.executor.local.executing
+                assert not df.executor.local.executing
             # without callling the exector, since it should still be running its main loop
             return add(sumy_promise, value)
         total_promise = next(df.sum(df.x, delay=True))

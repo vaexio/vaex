@@ -78,7 +78,7 @@ from .utils import (_ensure_strings_from_expressions,
     _is_limit,
     _isnumber,
     _issequence,
-    _is_string,
+    _is_string, _normalize_selection,
     _parse_reduction,
     _parse_n,
     _normalize_selection_name,
@@ -216,20 +216,27 @@ class DataFrame(object):
         # like the ExecutorLocal.local.executing, this needs to be thread local
         self.local._aggregator_nest_count = 0
 
-    def fingerprint(self, treeshake=False):
+    def fingerprint(self, dependencies=None, treeshake=False):
         '''Id that uniquely identifies a dataframe (cross runtime).
 
+        :param set[str] dependencies: set of column, virtual column, function or selection names to be used.
         :param bool treeshake: Get rid of unused variables before calculating the fingerprint.
         '''
         df = self.copy(treeshake=True) if treeshake else self
         # we only use the state parts that affect data (no metadata)
         encoding = vaex.encoding.Encoding()
+        def dep_filter(d : dict):
+            if dependencies is None:
+                return d
+            return {k: v for k, v in d.items() if k in dependencies}
+
         state = dict(
-            column_names=list(self.column_names),
+            column_names=[k for k in list(self.column_names) if dependencies is None or k in dependencies],
+            virtual_columns=dep_filter(self.virtual_columns),
             # variables go unencoded
-            variables=self.variables,
+            variables=dep_filter(self.variables),
             # for functions it should be fast enough (not large amounts of data)
-            functions={name: encoding.encode("function", value) for name, value in self.functions.items()},
+            functions={name: encoding.encode("function", value) for name, value in dep_filter(self.functions).items()},
             active_range=[self._index_start, self._index_end]
         )
         selections = {name: self.get_selection(name) for name, history in self.selection_histories.items() if self.has_selection(name)}
@@ -391,11 +398,8 @@ class DataFrame(object):
             print("Tasks:")
             for task in self.executor.tasks:
                 print(repr(task))
-        from .asyncio import just_run
         if self.executor.tasks:
-            # we only run when there are tasks, since we may trigger this
-            # call in an async loop context that cannot be patched (like uvloop)
-            just_run(self.execute_async())
+            self.executor.execute()
 
     async def execute_async(self):
         '''Async version of execute'''
@@ -507,7 +511,8 @@ class DataFrame(object):
         # we put None to lazily create them
         for i in range(N_index):
             indices.put(None)
-        def map(thread_index, i1, i2, ar):
+        def map(thread_index, i1, i2, selection_masks, blocks):
+            ar = blocks[0]
             index = indices.get()
             if index is None:
                 index = index_type(1)
@@ -555,68 +560,74 @@ class DataFrame(object):
             raise ValueError('only axis=None is supported')
         expression = _ensure_string_from_expression(expression)
         if self._future_behaviour and self.is_category(expression):
-            keys = self.category_labels(expression)
+            keys = pa.array(self.category_labels(expression))
+            keys = vaex.array_types.convert(keys, array_type)
+            return self._delay(delay, vaex.promise.Promise.fulfilled(keys))
         else:
-            ordered_set = self._set(expression, progress=progress, selection=selection, flatten=axis is None)
-            transient = True
-            data_type_item = self.data_type(expression, axis=-1)
-            if return_inverse:
-                # inverse type can be smaller, depending on length of set
-                inverse = np.zeros(self._length_unfiltered, dtype=np.int64)
-                dtype = self.data_type(expression)
-                from vaex.column import _to_string_sequence
-                def map(thread_index, i1, i2, ar):
-                    if vaex.array_types.is_string_type(dtype):
-                        previous_ar = ar
-                        ar = _to_string_sequence(ar)
-                        if not transient:
-                            assert ar is previous_ar.string_sequence
-                    # TODO: what about masked values?
-                    inverse[i1:i2] = ordered_set.map_ordinal(ar)
-                def reduce(a, b):
-                    pass
-                self.map_reduce(map, reduce, [expression], delay=delay, name='unique_return_inverse', info=True, to_numpy=False, selection=selection)
-            # ordered_set.seal()
-            # if array_type == 'python':
-            if data_type_item.is_object:
-                key_values = ordered_set.extract()
-                keys = list(key_values.keys())
-                counts = list(key_values.values())
-                if ordered_set.has_nan and not dropnan:
-                    keys = [np.nan] + keys
-                    counts = [ordered_set.nan_count] + counts
-                if ordered_set.has_null and not dropmissing:
-                    keys = [None] + keys
-                    counts = [ordered_set.null_count] + counts
-                if dropmissing and None in keys:
-                    # we still can have a None in the values
-                    index = keys.index(None)
-                    keys.pop(index)
-                    counts.pop(index)
-                counts = np.array(counts)
-                keys = np.array(keys)
-            else:
-                keys = ordered_set.key_array()
-                deletes = []
-                if dropmissing and ordered_set.has_null:
-                    deletes.append(ordered_set.null_value)
-                if dropnan and ordered_set.has_nan:
-                    deletes.append(ordered_set.nan_value)
-                if isinstance(keys, (vaex.strings.StringList32, vaex.strings.StringList64)):
-                    keys = vaex.strings.to_arrow(keys)
-                    indices = np.delete(np.arange(len(keys)), deletes)
-                    keys = keys.take(indices)
+            @delayed
+            def process(ordered_set):
+                transient = True
+                data_type_item = self.data_type(expression, axis=-1)
+                if return_inverse:
+                    # inverse type can be smaller, depending on length of set
+                    inverse = np.zeros(self._length_unfiltered, dtype=np.int64)
+                    dtype = self.data_type(expression)
+                    from vaex.column import _to_string_sequence
+                    def map(thread_index, i1, i2, selection_mask, blocks):
+                        ar = blocks[0]
+                        if vaex.array_types.is_string_type(dtype):
+                            previous_ar = ar
+                            ar = _to_string_sequence(ar)
+                            if not transient:
+                                assert ar is previous_ar.string_sequence
+                        # TODO: what about masked values?
+                        inverse[i1:i2] = ordered_set.map_ordinal(ar)
+                    def reduce(a, b):
+                        pass
+                    self.map_reduce(map, reduce, [expression], delay=delay, name='unique_return_inverse', info=True, to_numpy=False, selection=selection)
+                # ordered_set.seal()
+                # if array_type == 'python':
+                if data_type_item.is_object:
+                    key_values = ordered_set.extract()
+                    keys = list(key_values.keys())
+                    counts = list(key_values.values())
+                    if ordered_set.has_nan and not dropnan:
+                        keys = [np.nan] + keys
+                        counts = [ordered_set.nan_count] + counts
+                    if ordered_set.has_null and not dropmissing:
+                        keys = [None] + keys
+                        counts = [ordered_set.null_count] + counts
+                    if dropmissing and None in keys:
+                        # we still can have a None in the values
+                        index = keys.index(None)
+                        keys.pop(index)
+                        counts.pop(index)
+                    counts = np.array(counts)
+                    keys = np.array(keys)
                 else:
-                    keys = np.delete(keys, deletes)
-                    if not dropmissing and ordered_set.has_null:
-                        mask = np.zeros(len(keys), dtype=np.uint8)
-                        mask[ordered_set.null_value] = 1
-                        keys = np.ma.array(keys, mask=mask)
-        keys = vaex.array_types.convert(keys, array_type)
-        if return_inverse:
-            return keys, inverse
-        else:
-            return keys
+                    keys = ordered_set.key_array()
+                    deletes = []
+                    if dropmissing and ordered_set.has_null:
+                        deletes.append(ordered_set.null_value)
+                    if dropnan and ordered_set.has_nan:
+                        deletes.append(ordered_set.nan_value)
+                    if isinstance(keys, (vaex.strings.StringList32, vaex.strings.StringList64)):
+                        keys = vaex.strings.to_arrow(keys)
+                        indices = np.delete(np.arange(len(keys)), deletes)
+                        keys = keys.take(indices)
+                    else:
+                        keys = np.delete(keys, deletes)
+                        if not dropmissing and ordered_set.has_null:
+                            mask = np.zeros(len(keys), dtype=np.uint8)
+                            mask[ordered_set.null_value] = 1
+                            keys = np.ma.array(keys, mask=mask)
+                keys = vaex.array_types.convert(keys, array_type)
+                if return_inverse:
+                    return keys, inverse
+                else:
+                    return keys
+            return self._delay(delay, process(self._set(expression, progress=progress, selection=selection, flatten=axis is None, delay=delay)))
+
 
     @docsubst
     def mutual_information(self, x, y=None, mi_limits=None, mi_shape=256, binby=[], limits=None, shape=default_shape, sort=False, selection=False, delay=False):
@@ -770,8 +781,9 @@ class DataFrame(object):
             # it invalid that expressions are evaluate with filtered data. Sklearn for instance may
             # give errors when evaluated with NaN's present.
             # TODO: GET RID OF THIS
-            len(self) # fill caches and masks
-            # pass
+            # TODO: temporary disabled
+            # len(self) # fill caches and masks
+            pass
         binners = self._create_binners(binby, limits, shape, selection=selection, delay=True)
         @delayed
         def compute(expression, binners, selection, edges, progressbar):
@@ -1138,6 +1150,7 @@ class DataFrame(object):
         :param progress: {progress}
         :return: {return_stat_scalar}
         """
+        selection = _normalize_selection(selection)
         @delayed
         def corr(cov):
             with np.errstate(divide='ignore', invalid='ignore'):  # these are fine, we are ok with nan's in vaex
@@ -1227,6 +1240,7 @@ class DataFrame(object):
         :return: {return_stat_scalar}, the last dimensions are of shape (2,2)
         """
         selection = _ensure_strings_from_expressions(selection)
+        selection = _normalize_selection(selection)
         if y is None:
             if not _issequence(x):
                 raise ValueError("if y argument is not given, x is expected to be sequence, not %r", x)
@@ -1302,7 +1316,8 @@ class DataFrame(object):
         """
         # vmin  = self._compute_agg('min', expression, binby, limits, shape, selection, delay, edges, progress)
         # vmax =  self._compute_agg('max', expression, binby, limits, shape, selection, delay, edges, progress)
-
+        selection = _ensure_strings_from_expressions(selection)
+        selection = _normalize_selection(selection)
         @delayed
         def calculate(expression, limits):
             task = tasks.TaskStatistic(self, binby, shape, limits, weight=expression, op=tasks.OP_MIN_MAX, selection=selection)
@@ -2257,11 +2272,11 @@ class DataFrame(object):
                 raise ValueError(f'skip should be None or its own dataset')
             return self._state_get_pre_vaex_5()
 
-    def state_set(self, state, use_active_range=False, keep_columns=None, set_filter=True, trusted=True, warn=True):
+    def state_set(self, state, use_active_range=False, keep_columns=None, set_filter=True, trusted=True, warn=True, delete_unused_columns = True):
         if self._future_behaviour == 5:
             return self._state_set_vaex_5(state, use_active_range=use_active_range, keep_columns=keep_columns, set_filter=set_filter, trusted=trusted, warn=warn)
         else:
-            return self._state_set_pre_vaex_5(state, use_active_range=use_active_range, keep_columns=keep_columns, set_filter=set_filter, trusted=trusted, warn=warn)
+            return self._state_set_pre_vaex_5(state, use_active_range=use_active_range, keep_columns=keep_columns, set_filter=set_filter, trusted=trusted, warn=warn, delete_unused_columns=delete_unused_columns)
 
     def _state_get_vaex_5(self, skip=None):
         """Return the internal state of the DataFrame in a dictionary
@@ -2464,7 +2479,7 @@ class DataFrame(object):
                      active_range=[self._index_start, self._index_end])
         return state
 
-    def _state_set_pre_vaex_5(self, state, use_active_range=False, keep_columns=None, set_filter=True, trusted=True, warn=True):
+    def _state_set_pre_vaex_5(self, state, use_active_range=False, keep_columns=None, set_filter=True, trusted=True, warn=True, delete_unused_columns = True):
         """Sets the internal state of the df
 
         Example:
@@ -2499,6 +2514,7 @@ class DataFrame(object):
         :param list keep_columns: List of columns that should be kept if the state to be set contains less columns.
         :param bool set_filter: Set the filter from the state (default), or leave the filter as it is it.
         :param bool warn: Give warning when issues are found in the state transfer that are recoverable.
+        :param bool delete_unused_columns: Whether to delete columns from the DataFrame that are not in the column_names. Useful to set to False during prediction time.
         """
         if 'description' in state:
             self.description = state['description']
@@ -2554,7 +2570,7 @@ class DataFrame(object):
                 else:
                     selection = selections.selection_from_dict(selection_dict)
                 self.set_selection(selection, name=name)
-        if self.is_local():
+        if self.is_local() and delete_unused_columns:
             for name in self.dataset:
                 if name not in self.column_names:
                     del self.columns[name]
@@ -2834,47 +2850,6 @@ class DataFrame(object):
             return value
         else:
             return self.variables[name]
-
-    def _evaluate_selection_mask(self, name="default", i1=None, i2=None, selection=None, cache=False, filter_mask=None):
-        """Internal use, ignores the filter"""
-        i1 = i1 or 0
-        i2 = i2 or len(self)
-        scope = scopes._BlockScopeSelection(self, i1, i2, selection, cache=cache, filter_mask=filter_mask)
-        mask = scope.evaluate(name)
-        # TODO: can we do without arrow->numpy conversion?
-        mask = vaex.array_types.to_numpy(mask)
-        return vaex.utils.unmask_selection_mask(mask)
-
-    def evaluate_selection_mask(self, name="default", i1=None, i2=None, selection=None, cache=False, filtered=True, pre_filtered=True):
-        i1 = i1 or 0
-        i2 = i2 or self.length_unfiltered()
-        if isinstance(name, vaex.expression.Expression):
-            # make sure if we get passed an expression, it is converted to a string
-            # otherwise the name != <sth> will evaluate to an Expression object
-            name = str(name)
-        if name in [None, False] and self.filtered and filtered:
-            scope_global = scopes._BlockScopeSelection(self, i1, i2, None, cache=cache)
-            mask_global = scope_global.evaluate(FILTER_SELECTION_NAME)
-            return vaex.utils.unmask_selection_mask(mask_global)
-        elif self.filtered and filtered and name != FILTER_SELECTION_NAME:
-            scope_global = scopes._BlockScopeSelection(self, i1, i2, None, cache=cache)
-            mask_global = scope_global.evaluate(FILTER_SELECTION_NAME)
-            if pre_filtered:
-                scope = scopes._BlockScopeSelection(self, i1, i2, selection, filter_mask=vaex.utils.unmask_selection_mask(mask_global))
-                mask = scope.evaluate(name)
-                return vaex.utils.unmask_selection_mask(mask)
-            else:  # only used in legacy.py?
-                scope = scopes._BlockScopeSelection(self, i1, i2, selection)
-                mask = scope.evaluate(name)
-                return vaex.utils.unmask_selection_mask(mask & mask_global)
-        else:
-            if name in [None, False]:
-                # # in this case we can
-                return np.full(i2-i1, True)
-            scope = scopes._BlockScopeSelection(self, i1, i2, selection, cache=cache)
-            return vaex.utils.unmask_selection_mask(scope.evaluate(name))
-
-        # if _is_string(selection):
 
     def evaluate(self, expression, i1=None, i2=None, out=None, selection=None, filtered=True, array_type=None, parallel=True, chunk_size=None):
         """Evaluate an expression, and return a numpy array with the results for the full column or a part of it.
@@ -3497,6 +3472,9 @@ class DataFrame(object):
         always_list = kwargs.pop('always_list', False)
         return self[str(expressions[0])] if len(expressions) == 1 and not always_list else [self[str(k)] for k in expressions]
 
+    def _selection_expression(self, expression):
+        return vaex.expression.Expression(self, str(expression), _selection=True)
+
     @_hidden
     def add_virtual_columns_cartesian_velocities_to_polar(self, x="x", y="y", vx="vx", radius_polar=None, vy="vy", vr_out="vr_polar", vazimuth_out="vphi_polar",
                                                           propagate_uncertainties=False,):
@@ -3632,8 +3610,7 @@ class DataFrame(object):
 
     def delete_virtual_column(self, name):
         """Deletes a virtual column from a DataFrame."""
-        del self.virtual_columns[name]
-        del self._virtual_expressions[name]
+        self.drop(name, inplace=True)
         self.signal_column_changed.emit(self, name, "delete")
 
     def add_variable(self, name, expression, overwrite=True, unique=True):
@@ -4473,7 +4450,13 @@ class DataFrame(object):
         :param inplace: {inplace}
         """
         df = self.trim(inplace=inplace)
-        columns = self.get_column_names() if column is None else [column]
+        if column is None:
+            columns = self.get_column_names()
+        else:
+            if isinstance(column, (list, tuple)):
+                columns = column
+            else:
+                columns = [column]
         originals = {}
         for column in columns:
             new_name = df._find_valid_name(f'__{column}_original')
@@ -6022,6 +6005,7 @@ class DataFrameLocal(DataFrame):
         expressions = vaex.utils._ensure_strings_from_expressions(expressions)
         column_names = self.get_column_names(hidden=True)
         expressions = [vaex.utils.valid_expression(column_names, k) for k in expressions]
+        selection = _normalize_selection(selection)
 
 
         selection = _ensure_strings_from_expressions(selection)
@@ -6104,7 +6088,7 @@ class DataFrameLocal(DataFrame):
                         if isinstance(arrays[expression], vaex.column.Column):
                             arrays[expression] = arrays[expression][0:end-start]  # materialize fancy columns (lazy, indexed)
                         expression_to_evaluate.remove(expression)
-            def assign(thread_index, i1, i2, *blocks):
+            def assign(thread_index, i1, i2, selection_masks, blocks):
                 for i, expr in enumerate(expression_to_evaluate):
                     if expr in chunks_map:
                         # for non-primitive arrays we simply keep a reference to the chunk
@@ -6132,34 +6116,48 @@ class DataFrameLocal(DataFrame):
                 result = result[0]
             return result
         else:
+            assert df is self
             if not raw and self.filtered and filtered:
                 self._fill_filter_mask()  # fill caches and masks
                 mask = self._selection_masks[FILTER_SELECTION_NAME]
-                if _DEBUG:
-                    if i1 == 0 and i2 == count_check:
-                        # we cannot check it if we just evaluate a portion
-                        assert not mask.view(self._index_start, self._index_end).is_dirty()
-                        # assert mask.count() == count_check
+                # if _DEBUG:
+                #     if i1 == 0 and i2 == count_check:
+                #         # we cannot check it if we just evaluate a portion
+                #         assert not mask.view(self._index_start, self._index_end).is_dirty()
+                #         # assert mask.count() == count_check
                 ni1, ni2 = mask.indices(i1, i2-1) # -1 since it is inclusive
                 assert ni1 != -1
                 assert ni2 != -1
                 i1, i2 = ni1, ni2
                 i2 = i2+1  # +1 to make it inclusive
             values = []
+
+            dataset = self.dataset
+            if i1 != 0 or i2 != self.dataset.row_count:
+                dataset = dataset[i1:i2]
+
+            deps = set()
             for expression in expressions:
-                # for both a selection or filtering we have a mask
-                if selection not in [None, False] or (self.filtered and filtered):
-                    mask = self.evaluate_selection_mask(selection, i1, i2)
-                scope = scopes._BlockScope(self, i1, i2, mask=mask, **self.variables)
-                # value = value[mask]
-                if out is not None:
-                    scope.buffers[expression] = out
-                value = scope.evaluate(expression)
-                # if isinstance(value, ColumnString) and not internal:
-                #     value = value.to_numpy()
-                # print("before", value)
+                deps |= self._expr(expression).dependencies()
+            deps = {k for k in deps if k in dataset}
+            if self.filtered:
+                filter_deps = df.get_selection(vaex.dataframe.FILTER_SELECTION_NAME).dependencies(df)
+                deps |= filter_deps
+            columns = {k: dataset[k][:] for k in deps if k in dataset}
+
+            if self.filtered:
+                filter_scope = scopes._BlockScope(df, i1, i2, None, selection=True, values={**df.variables, **{k: columns[k] for k in filter_deps if k in columns}})
+                filter_scope.filter_mask = None
+                filter_mask = filter_scope.evaluate(vaex.dataframe.FILTER_SELECTION_NAME)
+                columns = {k:vaex.array_types.filter(v, filter_mask) for k, v, in columns.items()}
+            else:
+                filter_mask = None
+            block_scope = scopes._BlockScope(self, i1, i2, mask=mask, values={**self.variables, **columns})
+            block_scope.mask = filter_mask
+
+            for expression in expressions:
+                value = block_scope.evaluate(expression)
                 value = array_types.convert(value, array_type)
-                # print("after", value)
                 values.append(value)
             if not was_list:
                 return values[0]
@@ -6621,7 +6619,8 @@ class DataFrameLocal(DataFrame):
     #     self._has_selection = mask is not None
     #     # self.signal_selection_changed.emit(self)
 
-    def groupby(self, by=None, agg=None, sort=False, assume_sparse='auto', row_limit=None):
+    @docsubst
+    def groupby(self, by=None, agg=None, sort=False, assume_sparse='auto', row_limit=None, copy=True, delay=False):
         """Return a :class:`GroupBy` or :class:`DataFrame` object when agg is not None
 
         Examples:
@@ -6644,7 +6643,7 @@ class DataFrameLocal(DataFrame):
         1    4          2        16
         2    1          3         1
         3    2          1         4
-        >>> df.groupby(df.x, agg={'z': [vaex.agg.count('y'), vaex.agg.mean('y')]})
+        >>> df.groupby(df.x, agg={{'z': [vaex.agg.count('y'), vaex.agg.mean('y')]}})
         #    x    z_count    z_mean
         0    3          4         9
         1    4          2        16
@@ -6658,7 +6657,7 @@ class DataFrameLocal(DataFrame):
         >>> t = np.arange('2015-01-01', '2015-02-01', dtype=np.datetime64)
         >>> y = np.arange(len(t))
         >>> df = vaex.from_arrays(t=t, y=y)
-        >>> df.groupby(vaex.BinnerTime.per_week(df.t)).agg({'y' : 'sum'})
+        >>> df.groupby(vaex.BinnerTime.per_week(df.t)).agg({{'y' : 'sum'}})
         #  t                      y
         0  2015-01-01 00:00:00   21
         1  2015-01-08 00:00:00   70
@@ -6675,16 +6674,22 @@ class DataFrameLocal(DataFrame):
             combinations, and will save another pass over the data)
         :param int row_limit: Limits the resulting dataframe to the number of rows (default is not to check, only works when assume_sparse is True).
             Throws a :py:`vaex.RowLimitException` when the condition is not met.
+        :param bool copy: Copy the dataframe (shallow, does not cost memory) so that the fingerprint of the original dataframe is not modified.
+        :param bool delay: {delay}
         :return: :class:`DataFrame` or :class:`GroupBy` object.
         """
         from .groupby import GroupBy
-        groupby = GroupBy(self, by=by, sort=sort, combine=assume_sparse, row_limit=row_limit)
-        if agg is None:
-            return groupby
-        else:
-            return groupby.agg(agg)
+        groupby = GroupBy(self, by=by, sort=sort, combine=assume_sparse, row_limit=row_limit, copy=copy)
+        @vaex.delayed
+        def next(_ignore):
+            if agg is None:
+                return groupby
+            else:
+                return groupby.agg(agg, delay=delay)
+        return self._delay(delay, next(groupby._promise_by))
 
-    def binby(self, by=None, agg=None, sort=False):
+    @docsubst
+    def binby(self, by=None, agg=None, sort=False, delay=False):
         """Return a :class:`BinBy` or :class:`DataArray` object when agg is not None
 
         The binby operation does not return a 'flat' DataFrame, instead it returns an N-d grid
@@ -6694,14 +6699,18 @@ class DataFrameLocal(DataFrame):
         :param dict, list or agg agg: Aggregate operation in the form of a string, vaex.agg object, a dictionary
             where the keys indicate the target column names, and the values the operations, or the a list of aggregates.
             When not given, it will return the binby object.
+        :param bool delay: {delay}
         :return: :class:`DataArray` or :class:`BinBy` object.
         """
         from .groupby import BinBy
         binby = BinBy(self, by=by, sort=sort)
-        if agg is None:
-            return binby
-        else:
-            return binby.agg(agg)
+        @vaex.delayed
+        def next(_ignore):
+            if agg is None:
+                return binby
+            else:
+                return binby.agg(agg, delay=delay)
+        return self._delay(delay, next(binby._promise_by))
 
     def _selection(self, create_selection, name, executor=None, execute_fully=False):
         def create_wrapper(current):

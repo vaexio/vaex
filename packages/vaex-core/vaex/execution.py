@@ -1,5 +1,6 @@
 from __future__ import division, print_function
 import ast
+import asyncio
 from collections import defaultdict
 import os
 import time
@@ -10,6 +11,7 @@ import queue
 
 import numpy as np
 
+import vaex.asyncio
 import vaex.cpu  # force registration of task-part-cpu
 import vaex.encoding
 import vaex.multithreading
@@ -17,6 +19,7 @@ import vaex.vaexfast
 import vaex.events
 
 
+async_default = str(os.environ.get('VAEX_ASYNC', 'nest'))
 chunk_size_min_default = int(os.environ.get('VAEX_CHUNK_SIZE_MIN', 1024))
 chunk_size_max_default = int(os.environ.get('VAEX_CHUNK_SIZE_MAX', 1024*1024))
 chunk_size_default = ast.literal_eval(os.environ.get('VAEX_CHUNK_SIZE', 'None'))
@@ -36,15 +39,66 @@ class Run:
     def __init__(self, tasks):
         self.tasks = tasks
         self.cancelled = False
-        self.df = self.tasks[0].df
+        dataset = self.tasks[0].df.dataset
+        if self.tasks[0].df._index_start != 0 or self.tasks[0].df._index_end != dataset.row_count:
+            dataset = dataset.slice(self.tasks[0].df._index_start, self.tasks[0].df._index_end)
+        for task in tasks:
+            assert self.tasks[0].df._index_start == task.df._index_start
+            assert self.tasks[0].df._index_end == task.df._index_end
+        self.dataset = dataset
         self.pre_filter = tasks[0].pre_filter
         if any(self.pre_filter != task.pre_filter for task in tasks[1:]):
             raise ValueError(f"All tasks need to be pre_filter'ed or not pre_filter'ed, it cannot be mixed: {tasks}")
-        if self.pre_filter and not self.df.filtered:
+        if self.pre_filter and not all(task.df.filtered for task in tasks):
             raise ValueError("Requested pre_filter for task while DataFrame is not filtered")
         self.expressions = list(set(expression for task in tasks for expression in task.expressions_all))
+        self.tasks_per_df = dict()
+        for task in tasks:
+            if task.df not in self.tasks_per_df:
+                self.tasks_per_df[task.df] = []
+            self.tasks_per_df[task.df].append(task)
 
-def _merge(tasks, df):
+        # find the columns from the dataset we need
+        dfs = set()
+        for task in tasks:
+            dfs.add(task.df)
+        columns = set()
+        for df in dfs:
+            others = set(df.variables) | set(df.virtual_columns) | set(df.selection_histories)
+            tasks_df = [task for task in tasks if task.df == df]
+            expressions = list(set(expression for task in tasks_df for expression in task.expressions_all))
+            selections = list(set(selection for task in tasks_df for selection in task.selections))
+            variables = set()
+            for expression in expressions:
+                variables |= df._expr(expression).expand().variables(ourself=True)
+            for selection in selections:
+                variables |= df._selection_expression(selection).dependencies()
+            if df.filtered:
+                variables |= df.get_selection(vaex.dataframe.FILTER_SELECTION_NAME).dependencies(df)
+            for var in variables:
+                if var not in self.dataset:
+                    if var not in others:
+                        raise RuntimeError(f'Oops, requesting column {var} from dataset, but it does not exist')
+                    else:
+                        pass  # ok, not a column, just a var or virtual column
+                else:
+                    columns.add(var)
+        logger.debug('Using columns %r from dataset', columns)
+        self.columns = columns
+
+
+def _merge(tasks):
+    dfs = set()
+    for task in tasks:
+        dfs.add(task.df)
+    tasks_merged = []
+    for df in dfs:
+        tasks_df = [k for k in tasks if k.df == df]
+        tasks_merged.extend(_merge_tasks_for_df(tasks_df, df))
+    return tasks_merged
+
+
+def _merge_tasks_for_df(tasks, df):
     # non-mergable:
     tasks_non_mergable = [task for task in tasks if not isinstance(task, vaex.tasks.TaskAggregation)]
     # mergable
@@ -72,16 +126,34 @@ def _merge(tasks, df):
         tasks_merged.append(task_merged)
     return tasks_non_mergable + tasks_merged
 
+
 class Executor:
     """An executor is responsible to executing tasks, they are not reentrant, but thread safe"""
-    def __init__(self):
+    def __init__(self, async_method=async_default):
         self.tasks = []
+        self.async_method = async_method
         self.signal_begin = vaex.events.Signal("begin")
         self.signal_progress = vaex.events.Signal("progress")
         self.signal_end = vaex.events.Signal("end")
         self.signal_cancel = vaex.events.Signal("cancel")
         self.local = threading.local()  # to make it non-reentrant
         self.lock = threading.Lock()
+        self.event_loop = asyncio.new_event_loop()
+
+    async def execute_async(self):
+        pass
+
+    def execute(self):
+        return self.run(self.execute_async())
+
+    def run(self, coro):
+        if self.async_method == "nest":
+            return vaex.asyncio.just_run(coro)
+        elif self.async_method == "awaitio":
+            with vaex.asyncio.with_event_loop(self.event_loop):
+                return self.event_loop.run_until_complete(coro)
+        else:
+            raise RuntimeError(f'No async method: {async_default}')
 
     def schedule(self, task):
         '''Schedules new task for execution, will return an existing tasks if the same task was already added'''
@@ -95,9 +167,10 @@ class Executor:
 
             if vaex.cache.is_on() and task.cacheable:
                 key_task = task.fingerprint()
-                key_df = task.df.fingerprint()
+                key_df = task.df.fingerprint(dependencies=task.dependencies())
                 # WARNING tasks' fingerprints don't include the dataframe
                 key = f'{key_task}-{key_df}'
+                task.key = key
 
                 logger.debug("task fingerprint: %r", key)
                 result = vaex.cache.get(key, type="task")
@@ -114,15 +187,20 @@ class Executor:
 
     def _pop_tasks(self):
         # returns a list of tasks that can be executed in 1 pass over the data
-        # (which currently means all tasks for 1 dataframe) and drop them from the
+        # (which currently means all tasks for 1 dataset) and drop them from the
         # list of tasks
         with self.lock:
-            dfs = list(set(task.df for task in self.tasks))
-            if len(dfs) == 0:
+            if len(self.tasks) == 0:
                 return []
             else:
-                df = dfs[0]
-                tasks = [task for task in self.tasks if task.df == df]
+                dataset = self.tasks[0].df.dataset
+                i1, i2 = self.tasks[0].df._index_start, self.tasks[0].df._index_end
+                # if we have the same dataset *AND* we want to have the same slice out of it
+                # we can share it in in single pass over the dataset
+                def shares_dataset(df, i1=i1, i2=i2, dataset=dataset):
+                    return dataset == df.dataset and i1 == df._index_start and i2 == df._index_end
+
+                tasks = [task for task in self.tasks if shares_dataset(task.df)]
                 logger.info("executing tasks in run: %r", tasks)
                 for task in tasks:
                     self.tasks.remove(task)
@@ -140,6 +218,7 @@ class ExecutorLocal(Executor):
         self.passes = 0  # how many times we passed over the data
         self.zig = True  # zig or zag
         self.zigzag = zigzag
+        self.event_loop = asyncio.new_event_loop()
 
     def _cancel(self, run):
         logger.debug("cancelling")
@@ -162,18 +241,6 @@ class ExecutorLocal(Executor):
             if not hasattr(self.local, 'executing'):
                 self.local.executing = False
 
-        # wo don't allow any thread from our thread pool to enter (a computation should never produce a new task)
-        # and we explicitly disallow reentry (this usually means a bug in vaex, or bad usage)
-        chunk_executor_thread = threading.current_thread() in self.thread_pool._threads
-        import traceback
-        trace = ''.join(traceback.format_stack())
-        if chunk_executor_thread or self.local.executing:
-            logger.error("nested execute call")
-            raise RuntimeError("nested execute call: %r %r\nlast trace:\n%s\ncurrent trace:\n%s" % (chunk_executor_thread, self.local.executing, self.local.last_trace, trace))
-        else:
-            self.local.last_trace = trace
-
-        self.local.executing = True
         try:
             t0 = time.time()
             self.local.cancelled = False
@@ -184,11 +251,30 @@ class ExecutorLocal(Executor):
             # but also, tasks can add new tasks
             while not cancelled:
                 tasks = self.local.tasks = self._pop_tasks()
+
+                # wo don't allow any thread from our thread pool to enter (a computation should never produce a new task)
+                # and we explicitly disallow reentry (this usually means a bug in vaex, or bad usage)
+                chunk_executor_thread = threading.current_thread() in self.thread_pool._threads
+                import traceback
+                trace = ''.join(traceback.format_stack())
+                if chunk_executor_thread or self.local.executing:
+                    logger.error("nested execute call")
+                    raise RuntimeError("nested execute call: %r %r\nlast trace:\n%s\ncurrent trace:\n%s" % (chunk_executor_thread, self.local.executing, self.local.last_trace, trace))
+                else:
+                    self.local.last_trace = trace
+
+                self.local.executing = True
+
                 if not tasks:
                     break
-                tasks = _merge(tasks, tasks[0].df)
+                tasks = _merge(tasks)
                 run = Run(tasks)
                 self.passes += 1
+                dataset = run.dataset
+
+                run.variables = {}
+                for df in run.tasks_per_df.keys():
+                    run.variables[df] = {key: df.evaluate_variable(key) for key in df.variables.keys()}
 
                 # (re) thrown exceptions as soon as possible to avoid complicated stack traces
                 for task in tasks:
@@ -206,16 +292,15 @@ class ExecutorLocal(Executor):
                     if not any(task.signal_progress.emit(0)):
                         logger.debug("task cancelled immediately")
                         task.cancelled = True
-                row_count = run.df._index_end - run.df._index_start
+                row_count = dataset.row_count
                 chunk_size = self.chunk_size_for(row_count)
-                run.block_scopes = [run.df._block_scope(0, chunk_size) for i in range(self.thread_pool.nthreads)]
                 encoding = vaex.encoding.Encoding()
-                nthreads = self.thread_pool.nthreads
+                run.nthreads = nthreads = self.thread_pool.nthreads
                 for task in tasks:
                     spec = encoding.encode('task', task)
                     spec['task-part-cpu-type'] = spec.pop('task-type')
                     def create_task_part():
-                        return encoding.decode('task-part-cpu', spec, df=run.df, nthreads=nthreads)
+                        return encoding.decode('task-part-cpu', spec, df=task.df, nthreads=nthreads)
                     # We want at least 1 task part (otherwise we cannot do any work)
                     # then we ask for the task part how often we should split
                     # This means that we can have 100 threads, but only 2 task parts
@@ -234,33 +319,23 @@ class ExecutorLocal(Executor):
                         for i in range(1, ideal_task_splits):
                             task._parts.put(create_task_part())
 
-                length = run.df.active_length()
-                if vaex.cache.is_on():
-                    key_df = run.df.fingerprint()
                 # TODO: in the future we might want to enable the zigzagging again, but this requires all datasets to implement it
                 # if self.zigzag:
                 #     self.zig = not self.zig
-                dataset = run.df.dataset[run.df._index_start:run.df._index_end]
-                # find the columns from the dataset we need
-                variables = set()
-                for expression in run.expressions:
-                    variables |= run.df._expr(expression).expand().variables(ourself=True)
-                columns = list(variables - set(run.df.variables) - set(run.df.virtual_columns))
-                logger.debug('Using columns %r from dataset, chunk_size=%r', columns, chunk_size)
-                for column in columns:
-                    if column not in dataset:
-                        raise RuntimeError(f'Oops, requesting column {column} from dataset, but it does not exist')
-                async for element in self.thread_pool.map_async(self.process_part, dataset.chunk_iterator(columns, chunk_size),
+                def progress(p):
+                    return all(self.signal_progress.emit(p)) and\
+                           all([all(task.signal_progress.emit(p)) for task in tasks]) and\
+                           all([not task.cancelled for task in tasks])
+                async for _element in self.thread_pool.map_async(self.process_part, dataset.chunk_iterator(run.columns, chunk_size),
                                                     dataset.row_count,
-                                                    progress=lambda p: all(self.signal_progress.emit(p)) and
-                                                    all([all(task.signal_progress.emit(p)) for task in tasks]) and
-                                                    all([not task.cancelled for task in tasks]),
+                                                    progress=progress,
                                                     cancel=lambda: self._cancel(run), unpack=True, run=run):
                     pass  # just eat all element
                 duration_wallclock = time.time() - t0
                 logger.debug("executing took %r seconds", duration_wallclock)
                 cancelled = self.local.cancelled or any(task.cancelled for task in tasks) or run.cancelled
                 logger.debug("cancelled: %r", cancelled)
+                self.local.executing = False
                 if cancelled:
                     logger.debug("execution aborted")
                     for task in tasks:
@@ -293,9 +368,7 @@ class ExecutorLocal(Executor):
                                     # we only want to store the original task results into the cache
                                     tasks_cachable = task.original_tasks if isinstance(task, vaex.tasks.TaskAggregations) else [task]
                                     for task_cachable in tasks_cachable:
-                                        key_task = task_cachable.fingerprint()
-                                        # tasks' fingerprints don't include the dataframe
-                                        key = f'{key_task}-{key_df}'
+                                        key = task_cachable.key
                                         previous_result = vaex.cache.get(key, type='task')
                                         if (previous_result is not None):# and (previous_result != task_cachable.get()):
                                             try:
@@ -303,7 +376,7 @@ class ExecutorLocal(Executor):
                                                     # this can happen with multithreading, where two threads enter the same tasks in parallel (IF using different executors)
                                                     logger.warning("calculated new result: %r, while cache had value: %r", previous_result, task_cachable.get())
                                             except ValueError:  # when comparing numpy results
-                                                if np.array_equal(previous_result, task_cachable.get(), equal_nan=True):
+                                                if not np.array_equal(previous_result, task_cachable.get(), equal_nan=True):
                                                     # this can happen with multithreading, where two threads enter the same tasks in parallel (IF using different executors)
                                                     logger.warning("calculated new result: %r, while cache had value: %r", previous_result, task_cachable.get())
                                         vaex.cache.set(key, task_cachable.get(), type='task', duration_wallclock=duration_wallclock)
@@ -324,18 +397,29 @@ class ExecutorLocal(Executor):
 
     def process_part(self, thread_index, i1, i2, chunks, run):
         if not run.cancelled:
-            if thread_index >= len(run.block_scopes):
-                raise ValueError(f'thread_index={thread_index} while only having {len(run.block_scopes)} blocks')
-            block_scope = run.block_scopes[thread_index]
-            block_scope.move(i1, i2)
-            df = run.df
+            if thread_index >= run.nthreads:
+                raise ValueError(f'thread_index={thread_index} while only having {run.nthreads} blocks')
+            for df, tasks in run.tasks_per_df.items():
+                self.process_tasks(thread_index, i1, i2, chunks, run, df, tasks)
+        return i2 - i1
+
+    def process_tasks(self, thread_index, i1, i2, chunks, run, df, tasks):
+        if 1:  # avoid large diff
             if i1 == i2:
                 raise RuntimeError(f'Oops, get an empty chunk, from {i1} to {i2}, that should not happen')
             N = i2 - i1
             for name, chunk in chunks.items():
                 assert len(chunk) == N, f'Oops, got a chunk ({name}) of length {len(chunk)} while it is expected to be of length {N} (at {i1}-{i2}'
+
+            assert df in run.variables
+            from .scopes import _BlockScope
+
             if run.pre_filter:
-                filter_mask = df.evaluate_selection_mask(None, i1=i1, i2=i2, cache=True)
+                # TODO: move detection of dependencies up
+                filter_deps = df.get_selection(vaex.dataframe.FILTER_SELECTION_NAME).dependencies(df)
+                filter_scope = _BlockScope(df, i1, i2, None, selection=True, values={**run.variables[df], **{k: chunks[k] for k in filter_deps if k in chunks}})
+                filter_scope.filter_mask = None
+                filter_mask = filter_scope.evaluate(vaex.dataframe.FILTER_SELECTION_NAME)
                 chunks = {k:vaex.array_types.filter(v, filter_mask) for k, v, in chunks.items()}
             else:
                 filter_mask = None
@@ -344,13 +428,23 @@ class ExecutorLocal(Executor):
                     raise TypeError(f'Evaluated a chunk ({name}) that is not an array of column like object: {chunk!r} (type={type(chunk)}')
             for name, chunk in chunks.items():
                 sanity_check(name, chunk)
-            chunks = {name: df._auto_encode_data(name, ar) for name, ar in chunks.items()}
-            chunks = {name: vaex.arrow.numpy_dispatch.wrap(ar) for name, ar in chunks.items()}
-            block_scope.values.update(chunks)
+            block_scope = _BlockScope(df, i1, i2, values={**run.variables[df], **chunks})
             block_scope.mask = filter_mask
-            block_dict = {expression: block_scope.evaluate(expression) for expression in run.expressions}
-            for task in run.tasks:
+            expressions = list(set(expression for task in tasks for expression in task.expressions_all))
+            block_dict = {expression: block_scope.evaluate(expression) for expression in expressions}
+            selection_scope = _BlockScope(df, i1, i2, None, selection=True, values={**block_scope.values})
+            selection_scope.filter_mask = filter_mask
+            if not run.pre_filter and df.filtered:
+                filter_mask = selection_scope.evaluate(vaex.dataframe.FILTER_SELECTION_NAME)
+
+            for task in tasks:
+                assert df is task.df
                 blocks = [block_dict[expression] for expression in task.expressions_all]
+                def fix(ar):
+                    if np.ma.isMaskedArray(ar):
+                        ar = vaex.utils.unmask_selection_mask(ar)
+                    return ar
+                selections = [None if s is None else fix(selection_scope.evaluate(s)) for s in task.selections]
                 if not run.cancelled:
                     if task.see_all:
                         assert isinstance(task._parts, list)
@@ -363,9 +457,9 @@ class ExecutorLocal(Executor):
                     for task_index, task_part in enumerate(task_parts):
                         try:
                             if task.see_all:
-                                task_part.process(task_index, i1, i2, filter_mask, *blocks)
+                                task_part.process(task_index, i1, i2, filter_mask, selections, blocks)
                             else:
-                                task_part.process(thread_index, i1, i2, filter_mask, *blocks)
+                                task_part.process(thread_index, i1, i2, filter_mask, selections, blocks)
                         except Exception as e:
                             task.reject(e)
                             run.cancelled = True
@@ -373,5 +467,3 @@ class ExecutorLocal(Executor):
                         finally:
                             if not isinstance(task._parts, list):
                                 task._parts.put(task_part)
-
-        return i2 - i1

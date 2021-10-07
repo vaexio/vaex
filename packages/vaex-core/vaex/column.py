@@ -62,6 +62,12 @@ class ColumnVirtualRange(Column):
 
     def __getitem__(self,  slice):
         start, stop, step = slice.start, slice.stop, slice.step
+        if start is None:
+            start = self.start
+        if stop is None:
+            stop = self.stop
+        if step is None:
+            step = self.step
         return np.arange(self.start + start, self.start + stop, step, dtype=self.dtype)
 
     def trim(self, i1, i2):

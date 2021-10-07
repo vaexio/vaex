@@ -1341,9 +1341,9 @@ class SubspaceLocal(Subspace):
     def nearest(self, point, metric=None):
         metric = metric or [1.] * len(point)
 
-        def nearest_in_block(thread_index, i1, i2, *blocks):
+        def nearest_in_block(thread_index, i1, i2, selection_mask, blocks):
             if self.is_masked:
-                mask = self.df.evaluate_selection_mask("default", i1=i1, i2=i2, pre_filtered=False)
+                mask = selection_mask
                 if mask.sum() == 0:
                     return None
                 blocks = [block[mask] for block in blocks]
@@ -1369,5 +1369,6 @@ class SubspaceLocal(Subspace):
         task = TaskMapReduceLegacy(self.df,
                              self.expressions,
                              nearest_in_block,
-                             nearest_reduce, info=True)
+                             nearest_reduce, info=True,
+                             selection="default" if self.is_masked else None,)
         return self._task(task)
