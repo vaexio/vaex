@@ -3610,8 +3610,7 @@ class DataFrame(object):
 
     def delete_virtual_column(self, name):
         """Deletes a virtual column from a DataFrame."""
-        del self.virtual_columns[name]
-        del self._virtual_expressions[name]
+        self.drop(name, inplace=True)
         self.signal_column_changed.emit(self, name, "delete")
 
     def add_variable(self, name, expression, overwrite=True, unique=True):
