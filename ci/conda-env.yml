@@ -9,7 +9,6 @@ dependencies:
 - geopandas
 - graphviz
 - h5py
-- # libcxx=9.0.0
 - lightgbm
 - matplotlib-base
 - notebook
@@ -19,7 +18,6 @@ dependencies:
 - pcre
 - pip
 - python-annoy
-- # py-xgboost
 - pyarrow
 - pyqt
 - pytest
