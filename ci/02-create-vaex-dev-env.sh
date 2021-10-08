@@ -16,4 +16,4 @@ $CONDA update -y -q -c conda-forge $CONDA
 $CONDA create -y -q -c conda-forge -n vaex-dev python=$PYTHON_VERSION
 conda activate vaex-dev
 # $CONDA install -y -q --file ci/conda-env-nightlies.yml -c arrow-nightlies -c conda-forge
-$CONDA install -y -q compilers --file ci/conda-env.yml --file ci/conda-env-notebooks.yml -c conda-forge -c numba/label/dev
+$CONDA env update -y -q compilers --file ci/conda-env.yml --file ci/conda-env-notebooks.yml -c conda-forge -c numba/label/dev
