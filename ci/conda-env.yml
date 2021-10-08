@@ -1,6 +1,7 @@
 astropy
 cython
 cachetools
+catboost
 diskcache
 fsspec <0.9
 geopandas
@@ -30,3 +31,5 @@ s3fs
 gcsfs
 tornado
 xarray
+pip:
+  - tensorflow >= 2.4.0
