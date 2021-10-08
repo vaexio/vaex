@@ -56,9 +56,8 @@ jobs:
       run: |
         conda activate vaex-dev
         # xgboost is not available on windows on conda-forge
-        mamba install -c conda-forge py-xgboost
         # Install tensorflow from the main conda channel - the MKL version is required
-        mamba install tensorflow>=2.6.0
+        mamba install -c conda-forge -c pkgs/main py-xgboost  pkgs/main::tensorflow
 
     - name: Extra installs
       if: matrix.python-version != '3.9' && matrix.python-version != '3.7'
