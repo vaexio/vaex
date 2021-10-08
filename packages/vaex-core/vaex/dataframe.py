@@ -636,6 +636,7 @@ class DataFrame(object):
         - If `x` and `y` are single expression, it computes the mutual information between `x` and `y`;
         - If `x` is a list of expressions and `y` is a single expression, it computes the mutual information between each expression in `x` and the expression in `y`;
         - If `x` is a list of expressions and `y` is None, it computes the mutual information matrix amongst all expressions in `x`;
+        - If `x` is a list of tuples of length 2, it computes the mutual information for the specified dimension pairs;
         - If `x` and `y` are lists of expressions, it computes the mutual information matrix defined by the two expression lists.
 
         If sort is True, the mutual information is returned in sorted (descending) order and the list of expressions is returned in the same order.
@@ -1172,6 +1173,7 @@ class DataFrame(object):
         - If `x` and `y` are single expression, it computes the correlation between `x` and `y`;
         - If `x` is a list of expressions and `y` is a single expression, it computes the correlation between each expression in `x` and the expression in `y`;
         - If `x` is a list of expressions and `y` is None, it computes the correlation matrix amongst all expressions in `x`;
+        - If `x` is a list of tuples of length 2, it computes the correlation for the specified dimension pairs;
         - If `x` and `y` are lists of expressions, it computes the correlation matrix defined by the two expression lists.
 
         Example:
