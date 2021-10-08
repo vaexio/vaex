@@ -32,4 +32,4 @@ gcsfs
 tornado
 xarray
 pip:
-  - tensorflow >= 2.4.0
+  - tensorflow>=2.4.0
