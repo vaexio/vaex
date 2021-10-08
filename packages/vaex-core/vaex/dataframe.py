@@ -6804,6 +6804,14 @@ class DataFrameLocal(DataFrame):
     #     self._has_selection = mask is not None
     #     # self.signal_selection_changed.emit(self)
 
+    def drop_duplicates(self, subset=None):
+        if subset is None:
+            subset = self.get_column_names()
+        if type(subset) is str:
+            subset = [subset]
+
+        return self.groupby(subset, agg={col: vaex.agg.first(col, subset[0]) for col in self.get_column_names()})
+
     @docsubst
     def groupby(self, by=None, agg=None, sort=False, assume_sparse='auto', row_limit=None, copy=True, progress=None, delay=False):
         """Return a :class:`GroupBy` or :class:`DataFrame` object when agg is not None
