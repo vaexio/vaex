@@ -1,3 +1,5 @@
+name: vaex-dev
+dependencies:
 - astropy
 - cython
 - cachetools
