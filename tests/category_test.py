@@ -121,3 +121,10 @@ def test_ordinal_encode_optimize():
     df = vaex.from_arrays(x=x)
     with pytest.warns(UserWarning, match='.*categorize.*'):
         df.ordinal_encode(df.x)
+
+
+def test_ordinal_with_offset():
+    df = vaex.from_arrays(x=[100, 101, 102, 100])
+    df = df.ordinal_encode('x')
+    df = df._future()
+    assert df.x.index_values().tolist() == [0, 1, 2, 0]

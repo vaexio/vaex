@@ -5456,6 +5456,9 @@ class DataFrameLocal(DataFrame):
             return values
         if self.is_category(expression):
             dictionary = vaex.array_types.to_arrow(self.category_labels(expression))
+            offset = self.category_offset(expression)
+            if offset != 0:
+                values = values - offset
             values = vaex.array_types.to_arrow(values)
             to_type = None
             if values.type in self._dict_mapping:
