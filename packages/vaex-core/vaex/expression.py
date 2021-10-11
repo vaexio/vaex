@@ -651,6 +651,16 @@ class Expression(with_metaclass(Meta)):
         var = _ensure_string_from_expression(var)
         return self.__class__(self.ds, expresso.derivative(self.ast, var, simplify=simplify))
 
+    @property
+    def codes(self):
+        '''Returns an expression for the numerical codes for categories or dict encoded columns'''
+        if not self.df.is_category(self.expression):
+            raise TypeError(f'{self.expression} is not categorical')
+        if self.dtype.is_encoded:
+            return self.index_values()
+        else:
+            return self
+
     def expand(self, stop=[]):
         """Expand the expression such that no virtual columns occurs, only normal columns.
 
