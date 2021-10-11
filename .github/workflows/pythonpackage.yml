@@ -167,7 +167,7 @@ jobs:
         export_default_credentials: true
     - name: Test vaex-contrib
       if: matrix.os != 'windows-latest'
-      if: ${{ (github.event.pull_request.head.repo.full_name == 'vaexio/vaex') }}
+        if: ${{ (github.event.pull_request.head.repo.full_name == 'vaexio/vaex') }}
       env:
         PROJECT_ID: ${{ secrets.GCP_PROJECT_ID_VAEX }}
       run: |
