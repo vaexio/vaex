@@ -751,7 +751,7 @@ class _VaexDataFrame:
         size = self.num_rows()
         chunk_size = (size + n_chunks - 1) // n_chunks
         column_names = self.column_names()
-        i = self._df.evaluate_iterator(column_names, chunk_size=chunk_size)
+        i = self._df._future().evaluate_iterator(column_names, chunk_size=chunk_size)
         for i1, i2, chunk in i:
             yield _VaexDataFrame(vaex.from_items(*zip(column_names, chunk)))
 
