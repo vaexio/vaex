@@ -129,7 +129,7 @@ def numpy_array_from_arrow_array(arrow_array):
     else:
         array = np.frombuffer(data_buffer, dtype, len(arrow_array) + offset)[offset:]
 
-    if bitmap_buffer is not None:
+    if bitmap_buffer is not None and arrow_array.null_count > 0:
         bitmap = np.frombuffer(bitmap_buffer, np.uint8, len(bitmap_buffer))
         mask = numpy_mask_from_arrow_mask(bitmap, len(arrow_array) + offset)[offset:]
         array = np.ma.MaskedArray(array, mask=mask)
