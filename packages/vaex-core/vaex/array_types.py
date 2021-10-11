@@ -5,8 +5,12 @@ import vaex.utils
 
 supported_arrow_array_types = (pa.Array, pa.ChunkedArray)
 supported_array_types = (np.ndarray, ) + supported_arrow_array_types
-
 string_types = [pa.string(), pa.large_string()]
+_type_names = ["float64", "float32", "int8", "int16", "int32", "int64", "uint8", "uint16", "uint32", "uint64"]
+map_arrow_to_numpy = {getattr(pa, name)(): np.dtype(name) for name in _type_names}
+map_arrow_to_numpy[pa.bool_()] = np.dtype("?")
+for unit in 's ms us ns'.split():
+    map_arrow_to_numpy[pa.timestamp(unit)] = np.dtype(f"datetime64[{unit}]")
 
 
 def full(n, value, dtype):
@@ -274,8 +278,16 @@ def arrow_type_from_numpy_dtype(dtype):
 
 
 def numpy_dtype_from_arrow_type(arrow_type, strict=True):
-    data = pa.array([], type=arrow_type)
-    return numpy_dtype(data, strict=strict)
+    if is_string_type(arrow_type):
+        if strict:
+            return np.dtype('object')
+        else:
+            return arrow_type
+    try:
+        return map_arrow_to_numpy[arrow_type]
+    except KeyError:
+        raise NotImplementedError(f'Cannot convert {arrow_type}')
+
 
 
 def type_promote(t1, t2):
