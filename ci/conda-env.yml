@@ -19,6 +19,7 @@ dependencies:
 - ipyvolume=0.6.0a6
 - lightgbm
 - matplotlib-base
+- nbconvert=6.1.0
 - notebook
 - numba
 - numpy<1.21
