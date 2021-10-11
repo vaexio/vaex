@@ -38,7 +38,7 @@ dependencies:
 - s3fs
 - scikit-learn
 - scipy
-- pkgs/main::tensorflow>=2.4.0
+- pkgs/main::tensorflow>=2.0.0
 - tornado
 - xarray
 - pip:

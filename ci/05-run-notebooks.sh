@@ -23,5 +23,4 @@ python -m nbconvert --TagRemovePreprocessor.remove_cell_tags="('skip-ci',)" --to
 python -m nbconvert --TagRemovePreprocessor.remove_cell_tags="('skip-ci',)" --to html --execute example_ml_iris.ipynb --ExecutePreprocessor.timeout=240
 python -m nbconvert --TagRemovePreprocessor.remove_cell_tags="('skip-ci',)" --to html --execute example_jupyter_ipyvolume.ipynb --ExecutePreprocessor.timeout=240
 python -m nbconvert --TagRemovePreprocessor.remove_cell_tags="('skip-ci',)" --to html --execute example_jupyter_plotly.ipynb --ExecutePreprocessor.timeout=240
-# this fails to run currently
-python -m nbconvert --TagRemovePreprocessor.remove_cell_tags="('skip-ci',)" --execute example_ml_titanic.ipynb
+python -m nbconvert --TagRemovePreprocessor.remove_cell_tags="('skip-ci',)" --to html --execute example_ml_titanic.ipynb
