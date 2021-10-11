@@ -58,11 +58,11 @@ jobs:
         # xgboost is not available on windows on conda-forge
         mamba install -c conda-forge py-xgboost
 
-    # - name: Extra installs
-    #   if: matrix.python-version != '3.9' && matrix.python-version != '3.7'
-    #   run: |
-    #     conda activate vaex-dev
-    #     mamba install -y -q --file ci/conda-env-extra.yml
+    - name: Extra installs
+      if: matrix.python-version != '3.9' && matrix.python-version != '3.7'
+      run: |
+        conda activate vaex-dev
+        mamba install -y -q --file ci/conda-env-extra.yml
     - name: Extra windows installs
       if: matrix.os == 'windows-latest'
       run: |
@@ -166,6 +166,7 @@ jobs:
         service_account_key: ${{ secrets.GCP_SA_KEY_VAEX }}
         export_default_credentials: true
     - name: Test vaex-contrib
+      if: matrix.os != 'windows-latest'
       if: ${{ (github.event.pull_request.head.repo.full_name == 'vaexio/vaex') }}
       env:
         PROJECT_ID: ${{ secrets.GCP_PROJECT_ID_VAEX }}
