@@ -4615,10 +4615,15 @@ class DataFrame(object):
             df[name] = df.func.fillna(df[name], value)
         return df
 
-    def materialize(self, virtual_column, inplace=False):
-        '''Returns a new DataFrame where the virtual column is turned into an in memory numpy array.
+    def materialize(self, column=None, inplace=False, virtual_column=None):
+        '''Turn columns into native CPU format for optimal performance at cost of memory.
 
-        Example:
+        .. warning:: This may use of lot of memory, be mindfull.
+
+        Virtual columns will be evaluated immediately, and all real columns will be
+        cached in memory when used for the first time.
+
+        Example for virtual column:
 
         >>> x = np.arange(1,4)
         >>> y = np.arange(2,5)
@@ -4626,19 +4631,46 @@ class DataFrame(object):
         >>> df['r'] = (df.x**2 + df.y**2)**0.5 # 'r' is a virtual column (computed on the fly)
         >>> df = df.materialize('r')  # now 'r' is a 'real' column (i.e. a numpy array)
 
+        Example with parquet file
+        >>> df = vaex.open('somewhatslow.parquet')
+        >>> df.x.sum()  # slow
+        >>> df = df.materialize()
+        >>> df.x.sum()  # slow, but will fill the cache
+        >>> df.x.sum()  # as fast as possible, will use memory
+
+        :param column: string or list of strings with column names to materialize
+        :param virtual_column: for backward compatibility
         :param inplace: {inplace}
         '''
+        if virtual_column is not None:
+            warnings.warn("virtual_column argument is deprecated, please use column")
+            column = virtual_column
         df = self.trim(inplace=inplace)
+        columns = _ensure_strings_from_expressions(column)
+        virtual = []
+        cache = []
+        for column in columns:
+            if column in self.dataset:
+                cache.append(column)
+            elif column in self.virtual_columns:
+                virtual.append(column)
+            else:
+                raise NameError(f'{column} is not a column or virtual column')
         virtual_columns = _ensure_strings_from_expressions(virtual_column)
-        if not isinstance(virtual_columns, list):
-            virtual_columns = [virtual_columns]
-        for virtual_column in df.virtual_columns:
-            if virtual_column not in df.virtual_columns:
-                raise KeyError('Virtual column not found: %r' % virtual_column)
-        arrays = df.evaluate(virtual_columns, filtered=False)
-        for ar, virtual_column in zip(arrays, virtual_columns):
-            del df[virtual_column]
-            df.add_column(virtual_column, ar)
+        dataset = df._dataset
+        if cache:
+            dataset = vaex.dataset.DatasetCached(dataset, cache)
+        if virtual:
+            arrays = df.evaluate(virtual, filtered=False)
+            materialized = vaex.dataset.DatasetArrays(dict(zip(virtual, arrays)))
+            dataset = dataset.merged(materialized)
+            df.dataset = dataset
+            for name in virtual:
+                del df.virtual_columns[name]
+        else:
+            # in this case we don't need to invalidate caches,
+            # also the fingerprint will be the same
+            df._dataset = dataset
         return df
 
     def _lazy_materialize(self, *virtual_columns):
