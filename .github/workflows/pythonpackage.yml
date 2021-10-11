@@ -69,6 +69,7 @@ jobs:
         conda activate vaex-dev
         pip install "ipython>=7" "dask>=1" xgboost
         pip uninstall -y xgboost  # seems to crash, tests will be skipped
+        mamba upgrade scipy
         # not sure why, but the conda env is strange (old dask) if we put this constraint in the conda solver
     - name: free disk space
       if: matrix.os == 'ubuntu-latest'

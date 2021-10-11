@@ -25,7 +25,7 @@ install:
   - conda update -q conda
   - conda info -a
   - "conda create -y -q -c conda-forge -n vaex-dev python=%PYTHON_VERSION% mamba"
-  # - activate vaex-dev
+  - conda activate vaex-dev
   # - "mamba install -c conda-forge --file ci/conda-env.yml --file ci/conda-env-notebooks.yml"
   - mamba env update --file ci/conda-env.yml --quiet
   - pip install -r requirements-ml.txt
