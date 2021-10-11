@@ -1,5 +1,6 @@
 import vaex.utils
 import pyarrow.fs
+import warnings
 s3fs = vaex.utils.optional_import('s3fs')
 
 import vaex.file.cache
