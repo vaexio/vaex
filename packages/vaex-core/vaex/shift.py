@@ -145,7 +145,7 @@ def chunk_append(chunk_iter, append_chunks, chunk_size):
         chunks = dict(chunks)
 
         # keep a list of chunks for which we want to append to
-        chunks_ready_list_append.insert(-1, {name: ar for name, ar in chunks.items() if name in append_chunks})
+        chunks_ready_list_append.append({name: ar for name, ar in chunks.items() if name in append_chunks})
         # and passthrough
         chunks_ready_list_passthrough.append({name: ar for name, ar in chunks.items() if name not in append_chunks})
 
