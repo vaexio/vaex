@@ -34,10 +34,10 @@ dependencies:
 - pytest-mpl
 - pytest-timeout
 - python-graphviz
+- py-xgboost
 - s3fs
 - scikit-learn
-- scipy>=1.5
-# - pkgs/main::tensorflow>=2.0.0
+- scipy
 - tornado
 - xarray
 - pip:
