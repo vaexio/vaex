@@ -36,7 +36,7 @@ dependencies:
 - python-graphviz
 - s3fs
 - scikit-learn
-- scipy
+- scipy>=1.5
 # - pkgs/main::tensorflow>=2.0.0
 - tornado
 - xarray

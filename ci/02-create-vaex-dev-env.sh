@@ -14,3 +14,4 @@ $CONDA update -y -q -c conda-forge $CONDA
 $CONDA create -y -q -c conda-forge -n vaex-dev python=$PYTHON_VERSION
 conda activate vaex-dev
 $CONDA env update --file ci/conda-env.yml --quiet
+conda list
