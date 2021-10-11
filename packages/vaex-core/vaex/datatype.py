@@ -222,11 +222,10 @@ class DataType:
         >>> date_type == 'datetime'
         True
         """
-        if self.is_string:
-            return False
-        if self.is_encoded:
-            return False
-        return vaex.array_types.to_numpy_type(self.internal).kind in 'M'
+        if self.is_arrow:
+            return pa.types.is_timestamp(self.internal)
+        else:
+            return self.kind in 'M'
 
     @property
     def is_timedelta(self):

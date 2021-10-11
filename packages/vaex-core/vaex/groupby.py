@@ -136,7 +136,7 @@ class Grouper(BinnerBase):
                     # col = vaex.column.ColumnStringArrow.from_string_sequence(self.bin_values)
                     # self.bin_values = pa.array(col)
                     self.bin_values = pa.array(self.bin_values.to_numpy())
-                if vaex.dtype_of(self.bin_values).kind == 'i':
+                if vaex.dtype_of(self.bin_values) == int:
                     max_value = self.bin_values.max()
                     self.bin_values = self.bin_values.astype(vaex.utils.required_dtype_for_max(max_value))
                 logger.debug('Constructed grouper for expression %s with %i values', str(expression), len(self.bin_values))
