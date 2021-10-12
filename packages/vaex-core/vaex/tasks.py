@@ -435,10 +435,6 @@ class TaskAggregation(Task):
         self.selections = [str(aggregation_description.selection) if aggregation_description.selection is not None else None]
 
     def __repr__(self):
-        # encoding = vaex.encoding.Encoding()
-        # state = self.encode(encoding)
-        # import yaml
-        # return yaml.dump(state, sort_keys=False, indent=4)
         return f"task-{self.snake_name} agg={self.aggregation_description!r} selection={self.selections[0]!r} binners=[{self.binners!r}]"
 
     def encode(self, encoding):
