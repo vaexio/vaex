@@ -23,8 +23,8 @@ install:
   - conda update -q conda
   - conda info -a
   - "conda create -y -q -c conda-forge -n vaex-dev python=%PYTHON_VERSION% mamba"
+  - conda activate vaex-dev 
   - "mamba env update --file ci/conda-env.yml"
-  - conda activate vaex-dev
   - "mamba update pcre scipy ipython dask"
   - conda list
   - pushd packages\vaex-core   && pip install . && popd
