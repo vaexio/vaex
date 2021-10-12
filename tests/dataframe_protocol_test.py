@@ -314,7 +314,7 @@ def assert_buffer_equal(buffer_dtype: Tuple[_VaexBuffer, Any], vaexcol: vaex.exp
     buf, dtype = buffer_dtype
     pytest.raises(NotImplementedError, buf.__dlpack__)
     assert buf.__dlpack_device__() == (1, None)
-    assert dtype[1] == vaexcol.dtype.numpy.itemsize * 8
+    assert dtype[1] == vaexcol.dtype.index_type.numpy.itemsize * 8
     if not isinstance(vaexcol.values, np.ndarray) and isinstance(vaexcol.values.type, pa.DictionaryType):
         assert dtype[2] == vaexcol.index_values().dtype.numpy.str
     else:
