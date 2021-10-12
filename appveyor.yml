@@ -25,11 +25,11 @@ install:
   - conda init
   - "mamba create -y -q -c conda-forge -n vaex-dev python=%PYTHON_VERSION% --quiet"
   - conda activate vaex-dev
-  - "mamba env update --file ci/conda-env.yml"
+  - "mamba env update --file ci/conda-env.yml  --quiet"
   - "mamba update pcre scipy ipython dask"
-  - conda list
-  - conda deactivate vaex-dev
+  - conda deactivate
   - conda activate vaex-dev
+  - conda list
   - pushd packages\vaex-core   && pip install . && popd
   - pushd packages\vaex-hdf5   && pip install . && popd
   - pushd packages\vaex-viz   && pip install . && popd
