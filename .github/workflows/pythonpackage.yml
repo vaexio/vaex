@@ -56,18 +56,11 @@ jobs:
       run: |
         conda activate vaex-dev
         # xgboost is not available on windows on conda-forge
-        mamba install -c conda-forge py-xgboost
-
-    - name: Extra installs
-      if: matrix.python-version != '3.9' && matrix.python-version != '3.7'
-      run: |
-        conda activate vaex-dev
-        mamba install -y -q --file ci/conda-env-extra.yml
+        echo "not needed at the moment"
     - name: Extra windows installs
       if: matrix.os == 'windows-latest'
       run: |
         conda activate vaex-dev
-
         mamba upgrade scipy ipython dask
         # not sure why, but the conda env is strange (old dask) if we put this constraint in the conda solver
     - name: free disk space
