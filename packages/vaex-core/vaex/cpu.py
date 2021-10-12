@@ -229,8 +229,7 @@ class TaskPartSetCreate(TaskPart):
             if count > self.unique_limit:
                 raise vaex.RowLimitException(f'Resulting set has {count:,} unique combinations, which is larger than the allowed value of {self.unique_limit:,}')
         self.set = set_merged
-        fp = vaex.cache.fingerprint(self.expression, self.dtype, self.dtype_item, self.flatten, self.selection)
-        self.set.fingerprint = f'set-df-{self.df_fp}-{fp}'
+        self.set.fingerprint = f'set-{self.fingerprint}'
 
     @classmethod
     def decode(cls, encoding, spec, df, nthreads):

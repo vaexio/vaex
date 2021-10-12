@@ -6802,6 +6802,9 @@ class BinnerScalar(BinnerBase):
         self.count = count
         self.dtype = dtype
 
+    def __repr__(self):
+        return f'binner_scalar({self.expression}, {self.minimum}, {self.maximum}, count={self.count})'
+
     def encode(self, encoding):
         dtype = encoding.encode('dtype', self.dtype)
         return {'expression': self.expression, 'dtype': dtype, 'count': self.count, 'minimum': self.minimum, 'maximum': self.maximum}
@@ -6828,6 +6831,9 @@ class BinnerOrdinal(BinnerBase):
         self.minimum = minimum
         self.count = count
         self.dtype = dtype
+
+    def __repr__(self):
+        return f'binner_ordinal({self.expression}, {self.minimum}, {self.count})'
 
     def encode(self, encoding):
         datatype = encoding.encode('dtype', self.dtype)
