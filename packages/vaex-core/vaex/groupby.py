@@ -166,7 +166,7 @@ class Grouper(BinnerBase):
                     self.sort_indices = None
                 self.set = set
 
-                self.basename = 'set_%s' % vaex.utils._python_save_name(str(self.expression))
+                self.basename = 'set_%s' % vaex.utils._python_save_name(str(self.expression) + "_" + set.fingerprint)
 
                 self.N = len(self.bin_values)
                 self.bin_values = self.expression.dtype.create_array(self.bin_values)
@@ -176,7 +176,10 @@ class Grouper(BinnerBase):
         # TODO: we modify the dataframe in place, this is not nice
         assert df.dataset == self.df.dataset, "you passed a dataframe with a different dataset to the grouper/binned"
         self.df = df
-        self.setname = df.add_variable(self.basename, self.set, unique=True)
+        if self.basename not in self.df.variables:
+            self.setname = df.add_variable(self.basename, self.set, unique=True)
+        else:
+            self.setname = self.basename
         self.binby_expression = '_ordinal_values(%s, %s)' % (self.expression, self.setname)
         self.binner = self.df._binner_ordinal(self.binby_expression, self.N)
 
