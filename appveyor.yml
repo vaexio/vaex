@@ -20,14 +20,11 @@ install:
   - git submodule update --init --recursive
   - call %MINICONDA%\Scripts\activate.bat
   - conda config --set always_yes yes --set changeps1 no
-  # - conda config --remove channels defaults
-  # - conda config --add channels msys2
   - conda update -q conda
   - conda info -a
   - "conda create -y -q -c conda-forge -n vaex-dev python=%PYTHON_VERSION% mamba"
-  - conda activate vaex-dev
-  # - "mamba install -c conda-forge --file ci/conda-env.yml --file ci/conda-env-notebooks.yml"
   - "mamba env update --file ci/conda-env.yml"
+  - conda activate vaex-dev
   - "mamba update pcre scipy ipython dask"
   - conda list
   - pushd packages\vaex-core   && pip install . && popd
