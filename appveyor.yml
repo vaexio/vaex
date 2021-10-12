@@ -21,9 +21,9 @@ install:
   - call %MINICONDA%\Scripts\activate.bat
   - conda config --set always_yes yes --set changeps1 no
   - conda update -q conda
-  - conda install -y -q -c conda-forge mamba
+  - "conda install -y -q -c conda-forge mamba"
   - conda init
-  - "mamba create -y -q -c conda-forge -n vaex-dev python=$PYTHON_VERSION%"
+  - "mamba create -y -q -c conda-forge -n vaex-dev python=%PYTHON_VERSION%"
   - conda activate vaex-dev
   - "mamba env update --file ci/conda-env.yml"
   - "mamba update pcre scipy ipython dask"
