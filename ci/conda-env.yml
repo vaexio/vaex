@@ -9,7 +9,6 @@ dependencies:
 - cython
 - cachetools
 - catboost
-- compilers
 - diskcache
 - fsspec <0.9
 - gcsfs
