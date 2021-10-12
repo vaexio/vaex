@@ -435,6 +435,35 @@ def nunique(expression, dropna=False, dropnan=False, dropmissing=False, selectio
         dropmissing = True
     return AggregatorDescriptorNUnique('AggNUnique', expression, 'nunique', dropmissing, dropnan, selection=selection, edges=edges)
 
+
+def any(expression=None, selection=None):
+    '''True when any of the values in the group are true, of when there is any data in the group (when selections are used)'''
+    if expression is None and selection is None:
+        return count(selection=selection) > -1  # trivial
+    else:
+        if expression is None:
+            return count(selection=selection) > 0
+        else:
+            return sum(expression, selection=selection) > 0
+
+
+def all(expression=None, selection=None):
+    '''True when all of the values in the group are true, of when there is as much data in the group as unselected data (when selections are used)'''
+    if expression is None and selection is None:
+        return count(selection=selection) > -1  # trivial
+    else:
+        if expression is None:
+            # counting how often the selection is true == counting how many rows
+            return sum(selection) == count(selection)
+        else:
+            if selection is None:
+                # counting how often true == counting how much data there is
+                return sum(expression) == count(expression)
+            else:
+                # since we cannot mix different selections:
+                return sum(f'astype({expression}, "bool") & astype({selection}, "bool")') == count(expression)
+
+
 # @register
 # def covar(x, y):
 #     '''Creates a standard deviation aggregation'''

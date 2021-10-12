@@ -533,3 +533,41 @@ def test_agg_binary():
     assert df.groupby('g', agg={'total': agg})['total'].tolist() == [99 + 10, 99 + 5]
     assert df.groupby('g', agg={'total': vaex.agg.sum('x') / 2})['total'].tolist() == [6/2, 4/2]
     assert df.groupby('g', agg={'total': 2/vaex.agg.sum('x')})['total'].tolist() == [2/6, 2/4]
+
+
+def test_any():
+    # x  = [0, 1, 2, 3, 4]
+    # g  = [0, 0, 0, 0, 1]
+    # b1 = [0, 0, 1, 0, 0]
+    # b2 = [0, 0, 1, 0, 1]
+    x = np.arange(5)
+    df = vaex.from_arrays(x=x, y=x+1, g=x//4)
+    df['b1'] = x == 2
+    df['b2'] = (x % 2) == 0
+    assert df.groupby('g', agg={'any': vaex.agg.any('b1')})['any'].tolist() == [True, False]
+    assert df.groupby('g', agg={'any': vaex.agg.any('b2')})['any'].tolist() == [True, True]
+
+    assert df.groupby('g', agg={'any': vaex.agg.any('b1', selection=df.b1)})['any'].tolist() == [True, False]
+    assert df.groupby('g', agg={'any': vaex.agg.any('b2', selection=df.b1)})['any'].tolist() == [True, False]
+
+    assert df.groupby('g', agg={'any': vaex.agg.any(selection=df.b1)})['any'].tolist() == [True, False]
+    assert df.groupby('g', agg={'any': vaex.agg.any(selection=df.b2)})['any'].tolist() == [True, True]
+
+
+def test_all():
+    # x  = [0, 1, 2, 3, 4]
+    # g  = [0, 0, 0, 0, 1]
+    # b1 = [0, 0, 1, 0, 0]
+    # b2 = [0, 0, 1, 0, 1]
+    x = np.arange(5)
+    df = vaex.from_arrays(x=x, y=x+1, g=x//4)
+    df['b1'] = x == 2
+    df['b2'] = (x % 2) == 0
+    assert df.groupby('g', agg={'all': vaex.agg.all('b1')})['all'].tolist() == [False, False]
+    assert df.groupby('g', agg={'all': vaex.agg.all('b2')})['all'].tolist() == [False, True]
+
+    assert df.groupby('g', agg={'all': vaex.agg.all('b1', selection=df.b1)})['all'].tolist() == [False, False]
+    assert df.groupby('g', agg={'all': vaex.agg.all('b2', selection=df.b1)})['all'].tolist() == [False, False]
+
+    assert df.groupby('g', agg={'all': vaex.agg.all(selection=df.b1)})['all'].tolist() == [False, False]
+    assert df.groupby('g', agg={'all': vaex.agg.all(selection=df.b2)})['all'].tolist() == [False, True]
