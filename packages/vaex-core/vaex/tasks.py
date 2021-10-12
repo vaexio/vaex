@@ -16,6 +16,7 @@ class Task(vaex.promise.Promise):
     :type: signal_progress: Signal
     """
     _fingerprint = None
+    requires_fingerprint = False
     cacheable = True
     see_all = False
 
@@ -42,8 +43,11 @@ class Task(vaex.promise.Promise):
 
     def fingerprint(self):
         if self._fingerprint is None:
-            self._fingerprint = vaex.encoding.fingerprint('task', self)
-        return f'task-{self.name}-{self._fingerprint}'
+            dependencies = self.dependencies()
+            df_fp = self.df.fingerprint(dependencies=dependencies)
+            task_fp = vaex.encoding.fingerprint('task', self)
+            self._fingerprint = f'task-{self.name}-{task_fp}-{df_fp}'
+        return self._fingerprint
 
     def _set_progress(self, fraction):
         self.progress_fraction = fraction
@@ -107,6 +111,7 @@ class TaskFilterFill(Task):
 @register
 class TaskSetCreate(Task):
     see_all = True
+    requires_fingerprint = True
     snake_name = "set_create"
     def __init__(self, df, expression, flatten, unique_limit=None, selection=None, return_inverse=False):
         super().__init__(df=df, expressions=[expression], pre_filter=df.filtered, name=self.snake_name)
@@ -117,6 +122,9 @@ class TaskSetCreate(Task):
         self.selection = selection
         self.selections = [self.selection]
         self.return_inverse = return_inverse
+
+    def __repr__(self):
+        return f"task-{self.snake_name}: expression={self.expressions[0]!r}"
 
     def encode(self, encoding):
         return {'expression': self.expressions[0], 'dtype': encoding.encode('dtype', self.dtype),
@@ -427,10 +435,11 @@ class TaskAggregation(Task):
         self.selections = [str(aggregation_description.selection) if aggregation_description.selection is not None else None]
 
     def __repr__(self):
-        encoding = vaex.encoding.Encoding()
-        state = self.encode(encoding)
-        import yaml
-        return yaml.dump(state, sort_keys=False, indent=4)
+        # encoding = vaex.encoding.Encoding()
+        # state = self.encode(encoding)
+        # import yaml
+        # return yaml.dump(state, sort_keys=False, indent=4)
+        return f"task-{self.snake_name} agg={self.aggregation_description!r} selection={self.selections[0]!r} binners=[{self.binners!r}]"
 
     def encode(self, encoding):
         # TODO: get rid of dtypes

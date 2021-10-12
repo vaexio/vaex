@@ -159,20 +159,15 @@ class Executor:
         '''Schedules new task for execution, will return an existing tasks if the same task was already added'''
         with self.lock:
             for task_existing in self.tasks:
-                # WARNING: tasks fingerprint ignores the dataframe
                 if (task_existing.df == task.df) and task_existing.fingerprint() == task.fingerprint():
                     key = task.fingerprint()
                     logger.debug("Did not add already existing task with fingerprint: %r", key)
                     return task_existing
 
             if vaex.cache.is_on() and task.cacheable:
-                key_task = task.fingerprint()
-                key_df = task.df.fingerprint(dependencies=task.dependencies())
-                # WARNING tasks' fingerprints don't include the dataframe
-                key = f'{key_task}-{key_df}'
-                task.key = key
-
-                logger.debug("task fingerprint: %r", key)
+                key = task.fingerprint()                
+                logger.debug("task fingerprint: %r (dataset fp=%r)", key, task.df.dataset.fingerprint)
+                logger.debug("task repr: %r", task)
                 result = vaex.cache.get(key, type="task")
                 if result is not None:
                     logger.info("task not added, used cache key: %r", key)
@@ -300,7 +295,10 @@ class ExecutorLocal(Executor):
                     spec = encoding.encode('task', task)
                     spec['task-part-cpu-type'] = spec.pop('task-type')
                     def create_task_part():
-                        return encoding.decode('task-part-cpu', spec, df=task.df, nthreads=nthreads)
+                        task_part = encoding.decode('task-part-cpu', spec, df=task.df, nthreads=nthreads)
+                        if task.requires_fingerprint:
+                            task_part.fingerprint = task.fingerprint()
+                        return task_part
                     # We want at least 1 task part (otherwise we cannot do any work)
                     # then we ask for the task part how often we should split
                     # This means that we can have 100 threads, but only 2 task parts
@@ -368,7 +366,7 @@ class ExecutorLocal(Executor):
                                     # we only want to store the original task results into the cache
                                     tasks_cachable = task.original_tasks if isinstance(task, vaex.tasks.TaskAggregations) else [task]
                                     for task_cachable in tasks_cachable:
-                                        key = task_cachable.key
+                                        key = task_cachable.fingerprint()
                                         previous_result = vaex.cache.get(key, type='task')
                                         if (previous_result is not None):# and (previous_result != task_cachable.get()):
                                             try:

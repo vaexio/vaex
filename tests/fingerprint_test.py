@@ -133,3 +133,17 @@ def test_df_project():
     df_b = df[['x', 'y']]
     assert df_a.fingerprint() == df_b.fingerprint()
     assert df_a.fingerprint() == 'dataframe-c13a4ab588272f03855ae5627731f7e5'
+
+
+def test_set():
+    x = np.arange(10)
+    df = vaex.from_arrays(x=x)
+    assert df._set('x').fingerprint == df._set('x').fingerprint
+    df2 = vaex.from_arrays(x=x)
+    assert df._set('x').fingerprint == df2._set('x').fingerprint
+    df3 = vaex.from_arrays(x=x, y=x**2)
+    assert df.dataset.fingerprint != df3.dataset.fingerprint
+    assert df._set('x').fingerprint != df3._set('x').fingerprint
+    df4 = vaex.from_arrays(x=x)
+    df4['y'] = df.x+1
+    assert df._set('x').fingerprint == df4._set('x').fingerprint
