@@ -1,5 +1,5 @@
 #!/bin/bash
-set -e
+set -x -e
 
 if [ -f ${HOME}/.bashrc ]; then
     source ${HOME}/.bashrc
