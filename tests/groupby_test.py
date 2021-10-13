@@ -294,6 +294,14 @@ def test_groupby_count():
     assert dfg._equals(dfg2)
 
 
+def test_groupby_boolean(df_factory):
+    # df = df_factory(g=[False, False, True, True, True, None, None], x=[3, None, 4, 5, None, 6, 7])
+    df = df_factory(g=[False, False, True, True, True], x=[3, None, 4, 5, None])
+    dfg = df.groupby('g', agg={'sum': vaex.agg.sum('x')}, sort=True)
+    assert dfg['g'].tolist() == [False, True]
+    assert dfg['sum'].tolist() == [3, 4+5]
+
+
 def test_groupby_std():
     g = np.array([9, 2, 3, 4, 0, 1, 2, 3, 2, 5], dtype='int32')
     s = np.array(list(map(str, [0, 0, 0, 0, 1, 1, 1, 1, 2, 2])))

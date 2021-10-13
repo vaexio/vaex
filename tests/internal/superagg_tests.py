@@ -130,3 +130,17 @@ def test_count_1d_object():
     agg.set_data(y, 0)
     grid.bin([agg])
     assert agg_data.tolist() == [0, 2, 1, 0, 1, 0, 0, 1]
+
+
+def test_sum_1d_bool():
+    x = np.array([True, True, False], dtype='?')
+    y = np.array([1, 9, 3], dtype='float64')
+    ordinal_count = 2
+    binner = vaex.superagg.BinnerOrdinal_bool('x', ordinal_count, 0)
+    binner.set_data(x)
+    grid = vaex.superagg.Grid([binner])
+    agg = vaex.superagg.AggSum_float64(grid)
+    agg_data = np.asarray(agg)
+    agg.set_data(y, 0)
+    grid.bin([agg])
+    assert agg_data.tolist() == [0, 0, 3, 10, 0]
