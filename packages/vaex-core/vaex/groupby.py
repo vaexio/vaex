@@ -101,6 +101,34 @@ class BinnerTime(BinnerBase):
         return cls(expression, 'Y', df)
 
 
+class BinnerInteger(BinnerBase):
+    '''Bins an expression into it's natural bin (i.e. 5 for the number 5)
+
+    Useful for boolean, uint8, which only have a limited number of possibilities (2, 256)
+    '''
+    def __init__(self, expression, label=None):
+        self.expression = expression
+        self.df = expression.df
+        self.dtype = self.expression.dtype
+        self.label = label or self.expression._label
+        if self.dtype.numpy == np.dtype('bool'):
+            self.bin_values = np.array([False, True])
+            self.N = 2
+        elif self.dtype.numpy == np.dtype('uint8'):
+            self.bin_values = np.arange(0, 256, dtype='uint8')
+            self.N = 256
+        else:
+            raise TypeError(f'Only boolean and uint8 are supported, not {self.dtype}')
+        self.binby_expression = str(self.expression)
+        self.sort_indices = None
+        self._promise = vaex.promise.Promise.fulfilled(None)
+
+    def _create_binner(self, df):
+        assert df.dataset == self.df.dataset, "you passed a dataframe with a different dataset to the grouper/binned"
+        self.df = df
+        self.binner = self.df._binner_ordinal(self.binby_expression, self.N)
+
+
 class Grouper(BinnerBase):
     """Bins an expression to a set of unique bins, like an SQL like groupby."""
     def __init__(self, expression, df=None, sort=False, pre_sort=True, row_limit=None, df_original=None, materialize_experimental=False):
@@ -182,7 +210,6 @@ class Grouper(BinnerBase):
             self.setname = self.basename
         self.binby_expression = '_ordinal_values(%s, %s)' % (self.expression, self.setname)
         self.binner = self.df._binner_ordinal(self.binby_expression, self.N)
-
 
 
 class GrouperCombined(Grouper):
@@ -346,10 +373,15 @@ class GroupByBase(object):
         self.by_original = by
         for by_value in by:
             if not isinstance(by_value, BinnerBase):
+                expression = df[_ensure_string_from_expression(by_value)]
                 if df.is_category(by_value):
-                    by_value = GrouperCategory(df[_ensure_string_from_expression(by_value)], sort=sort, row_limit=row_limit)
+                    by_value = GrouperCategory(expression, sort=sort, row_limit=row_limit)
                 else:
-                    by_value = Grouper(df[_ensure_string_from_expression(by_value)], sort=sort, row_limit=row_limit, df_original=df_original)
+                    dtype = expression.dtype
+                    if dtype == np.dtype('uint8') or dtype == np.dtype('bool'):
+                        by_value = BinnerInteger(expression)  # doesn't modify, always sorted
+                    else:
+                        by_value = Grouper(expression, sort=sort, row_limit=row_limit, df_original=df_original)
             self.by.append(by_value)
         @vaex.delayed
         def possible_combine(*binner_promises):
