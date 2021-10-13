@@ -55,8 +55,7 @@ jobs:
       if: matrix.os != 'windows-latest'
       run: |
         conda activate vaex-dev
-        # xgboost is not available on windows on conda-forge
-        echo "not needed at the moment"
+        mamba install compilers
     - name: Extra windows installs
       if: matrix.os == 'windows-latest'
       run: |
