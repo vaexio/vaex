@@ -188,6 +188,7 @@ jobs:
         python-version: ${{ matrix.python-version }}
         mamba-version: "*"
         auto-activate-base: true
+        auto-update-conda: true
         channels: conda-forge
 
     - name: Install the packages
