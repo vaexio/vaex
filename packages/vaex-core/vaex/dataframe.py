@@ -41,6 +41,7 @@ import vaex.events
 from .datatype import DataType
 from .docstrings import docsubst
 
+
 astropy = vaex.utils.optional_import("astropy.units")
 
 # py2/p3 compatibility
@@ -245,6 +246,12 @@ class DataFrame(object):
         state['selections'] = selections
         fp = vaex.cache.fingerprint(state, df.dataset.fingerprint)
         return f'dataframe-{fp}'
+
+    def __dataframe__(self, nan_as_null : bool = False, allow_copy : bool = True):
+        """
+        """
+        import vaex.dataframe_protocol
+        return vaex.dataframe_protocol._VaexDataFrame(self, nan_as_null=nan_as_null, allow_copy=allow_copy)
 
     def _future(self, version=5, inplace=False):
         '''Act like a Vaex dataframe version 5.
