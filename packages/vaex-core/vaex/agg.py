@@ -10,6 +10,7 @@ from .expression import _unary_ops, _binary_ops, reversable
 from .stat import _Statistic
 from vaex import encoding
 from .datatype import DataType
+from .docstrings import docsubst
 
 
 on_rtd = os.environ.get('READTHEDOCS', None) == 'True'
@@ -425,15 +426,56 @@ def var(expression, ddof=0, selection=None, edges=False):
 def nunique(expression, dropna=False, dropnan=False, dropmissing=False, selection=None, edges=False):
     """Aggregator that calculates the number of unique items per bin.
 
-    :param expression: Expression for which to calculate the unique items
+    :param expression: {expression_one}
     :param dropmissing: do not count missing values
     :param dropnan: do not count nan values
     :param dropna: short for any of the above, (see :func:`Expression.isna`)
+    :param selection: {selection1}
     """
     if dropna:
         dropnan = True
         dropmissing = True
     return AggregatorDescriptorNUnique('AggNUnique', expression, 'nunique', dropmissing, dropnan, selection=selection, edges=edges)
+
+@docsubst
+def any(expression=None, selection=None):
+    '''Aggregator that returns True when any of the values in the group are True, or when there is any data in the group that is valid (i.e. not missing values or np.nan).
+    The aggregator returns False if there is no data in the group when the selection argument is used.
+
+    :param expression: {expression_one}
+    :param selection: {selection1}
+    '''
+    if expression is None and selection is None:
+        return count(selection=selection) > -1  # trivial
+    else:
+        if expression is None:
+            return count(selection=selection) > 0
+        else:
+            return sum(expression, selection=selection) > 0
+
+@docsubst
+def all(expression=None, selection=None):
+    '''Aggregator that returns True when all of the values in the group are True,
+    or when all of the data in the group is valid (i.e. not missing values or np.nan).
+    The aggregator returns False if there is no data in the group when the selection argument is used.
+
+    :param expression: {expression_one}
+    :param selection: {selection1}
+    '''
+    if expression is None and selection is None:
+        return count(selection=selection) > -1  # trivial
+    else:
+        if expression is None:
+            # counting how often the selection is true == counting how many rows
+            return sum(selection) == count(selection)
+        else:
+            if selection is None:
+                # counting how often true == counting how much data there is
+                return sum(expression) == count(expression)
+            else:
+                # since we cannot mix different selections:
+                return sum(f'astype({expression}, "bool") & astype({selection}, "bool")') == count(expression)
+
 
 # @register
 # def covar(x, y):
