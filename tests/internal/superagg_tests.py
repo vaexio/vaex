@@ -144,3 +144,19 @@ def test_sum_1d_bool():
     agg.set_data(y, 0)
     grid.bin([agg])
     assert agg_data.tolist() == [0, 0, 3, 10, 0]
+
+
+def test_to_bins():
+    x = np.array([True, True, False, True, True, True, True], dtype='?')
+    xi = [3, 3, 2, 3, 3, 3, 3]
+    y = np.array([-1, -1, 0, 0, 2, 5, 10], dtype='i8')
+    yi = [1, 1, 2, 2, 4, 7, 8]
+    ordinal_count_x = 2
+    ordinal_count_y = 6
+    binner1 = vaex.superagg.BinnerOrdinal_bool('x', ordinal_count_x, 0)
+    binner1.set_data(x)
+    binner2 = vaex.superagg.BinnerOrdinal_int64('y', ordinal_count_y, 0)
+    binner2.set_data(y)
+    binners = [binner1, binner2]
+    indices = vaex.superagg.binners_to_1d(len(x), binners)
+    assert indices.tolist() == [xi_ + yi_ * 5 for xi_, yi_ in zip(xi, yi)]

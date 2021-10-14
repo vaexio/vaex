@@ -234,10 +234,132 @@ void add_binner_scalar_(Module m, Base &base, std::string postfix) {
     ;
 }
 
+
+template <class T = uint64_t, class BinIndexType = default_index_type, bool FlipEndian = false>
+class BinnerCombined : public Binner {
+  public:
+    using index_type = BinIndexType;
+    BinnerCombined(std::vector<Binner*> binners) : binners(binners) {
+        for(Binner* binner : binners) {
+            shapes.push_back(binners.shape());
+        }
+    }
+    BinnerOrdinal *copy() { return new BinnerOrdinal(*this); }
+    virtual ~BinnerOrdinal() {}
+    virtual void to_bins(uint64_t offset, index_type *output, uint64_t length, uint64_t stride) {
+        if (data_mask_ptr) {
+            for (uint64_t i = offset; i < offset + length; i++) {
+                T value = ptr[i] - min_value;
+                if (FlipEndian) {
+                    value = _to_native<>(value);
+                }
+                index_type index = 0;
+                // this followes numpy, 1 is masked
+                bool masked = data_mask_ptr[i] == 1;
+                if (value != value || masked) { // nan goes to index 0
+                } else if (value < 0) {         // smaller values are put at offset 1
+                    index = 1;
+                } else if (value >= ordinal_count) { // bigger values are put at offset -1 (last)
+                    index = ordinal_count - 1 + 3;
+                } else {
+                    index = value + 2; // real data starts at 2
+                }
+                output[i - offset] += index * stride;
+            }
+        } else {
+            for (uint64_t i = offset; i < offset + length; i++) {
+                T value = ptr[i] - min_value;
+                if (FlipEndian) {
+                    value = _to_native<>(value);
+                }
+                index_type index = 0;
+                if (value != value) {   // nan goes to index 0
+                } else if (value < 0) { // smaller values are put at offset 1
+                    index = 1;
+                } else if (value >= ordinal_count) { // bigger values are put at offset -1 (last)
+                    index = ordinal_count - 1 + 3;
+                } else {
+                    index = value + 2; // real data starts at 2
+                }
+                output[i - offset] += index * stride;
+            }
+        }
+    }
+    virtual uint64_t size() { return _size; }
+    virtual uint64_t shape() { return ordinal_count + 3; }
+    void set_data(py::buffer ar) {
+        py::buffer_info info = ar.request();
+        if (info.ndim != 1) {
+            throw std::runtime_error("Expected a 1d array");
+        }
+        if (info.itemsize != sizeof(T)) {
+            throw std::runtime_error("Itemsize of data and binner are not equal");
+        }
+        this->ptr = (T *)info.ptr;
+        this->_size = info.shape[0];
+    }
+    // pybind11 likes casting too much, this can slow things down
+    // void set_data(py::array_t<T, py::array::c_style> ar) {
+    //     auto m = ar.template mutable_unchecked<1>();
+    //     this->ptr = &m(0);
+    //     this->_size = ar.size();
+    // }
+    void clear_data_mask() {
+        this->data_mask_ptr = nullptr;
+        this->data_mask_size = 0;
+    }
+    void set_data_mask(py::buffer ar) {
+        py::buffer_info info = ar.request();
+        if (info.ndim != 1) {
+            throw std::runtime_error("Expected a 1d array");
+        }
+        this->data_mask_ptr = (uint8_t *)info.ptr;
+        this->data_mask_size = info.shape[0];
+    }
+    uint64_t ordinal_count;
+    uint64_t min_value;
+    T *ptr;
+    uint64_t _size;
+    uint8_t *data_mask_ptr;
+    uint64_t data_mask_size;
+};
+
 template <class T, class Base, class Module>
 void add_binner_scalar(Module m, Base &base, std::string postfix) {
     add_binner_scalar_<T, Base, Module, false>(m, base, postfix);
     add_binner_scalar_<T, Base, Module, true>(m, base, postfix + "_non_native");
+}
+
+py::object binners_to_1d(int64_t length, std::vector<Binner *> binners) {
+    using IndexType = uint64_t;
+    py::array_t<IndexType, py::array::c_style> indices1d_ar(length);
+    IndexType *indices1d = indices1d_ar.mutable_data(0);
+    {
+        py::gil_scoped_release gil;
+        int64_t dimensions = binners.size();
+        uint64_t *shapes = new uint64_t[dimensions];
+        uint64_t *strides = new uint64_t[dimensions];
+        // uint64_t length1d = 1;
+        for (size_t i = 0; i < dimensions; i++) {
+            shapes[i] = binners[i]->shape();
+            // length1d *= shapes[i];
+            printf("shape: %i\n", shapes[i]);
+        }
+        if (dimensions > 0) {
+            strides[0] = 1;
+            for (size_t i = 1; i < dimensions; i++) {
+                strides[i] = strides[i - 1] * shapes[i - 1];
+                printf("stride: %i\n", strides[i]);
+            }
+        }
+        std::fill(indices1d, indices1d + length, 0);
+        for (size_t i = 0; i < dimensions; i++) {
+            binners[i]->to_bins(0, indices1d, length, strides[i]);
+        }
+        delete[] strides;
+        delete[] shapes;
+    }
+    return indices1d_ar;
 }
 
 void add_binners(py::module &m, py::class_<Binner> &binner) {
@@ -264,5 +386,7 @@ void add_binners(py::module &m, py::class_<Binner> &binner) {
     add_binner_scalar<uint16_t>(m, binner, "uint16");
     add_binner_scalar<uint8_t>(m, binner, "uint8");
     add_binner_scalar<bool>(m, binner, "bool");
+
+    m.def("binners_to_1d", binners_to_1d);
 }
 } // namespace vaex
