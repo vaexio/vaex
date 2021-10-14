@@ -28,6 +28,24 @@ product = lambda l: reduce(operator.mul, l)
 class BinnerBase:
     pass
 
+class Binner(BinnerBase):
+    def __init__(self, expression, vmin, vmax, bins, df=None, label=None):
+        self.df = df or expression.df
+        self.expression = self.df[str(expression)]
+        self.label = label or self.expression._label
+        self.vmin = vmin
+        self.vmax = vmax
+        self.N = bins
+        self.binby_expression = str(expression)
+        self.bin_values = self.df.bin_centers(expression, (self.vmin, self.vmax), bins)
+        self.sort_indices = None
+        self._promise = vaex.promise.Promise.fulfilled(None)
+
+    def _create_binner(self, df):
+        assert (df.dataset == self.df.dataset), "you passed a dataframe with a different dataset to the grouper/binned"
+        self.df = df
+        self.binner = self.df._binner_scalar(self.binby_expression, (self.vmin, self.vmax), self.N)
+
 class BinnerTime(BinnerBase):
     """Bins an expression in a specified datetime resolution.
 
@@ -419,6 +437,10 @@ class GrouperLimited(BinnerBase):
         self.binner = self.df._binner_ordinal(self.binby_expression, self.N)
 
 def _combine(df, groupers, sort, row_limit=None):
+    for grouper in groupers:
+        if isinstance(grouper, Binner):
+            raise NotImplementedError('Cannot combined Binner with other groupers yet')
+
     groupers = groupers.copy()
     max_count_64bit = 2**63-1
     first = groupers.pop(0)
