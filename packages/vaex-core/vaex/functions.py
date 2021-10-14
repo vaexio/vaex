@@ -148,7 +148,7 @@ def fillmissing(ar, value):
     See :`ismissing` for the definition of missing values.
     '''
     dtype = vaex.dtype_of(ar)
-    if dtype == str:
+    if dtype.is_arrow:
         return pc.fill_null(ar, value)
     ar = ar if not isinstance(ar, column.Column) else ar.to_numpy()
     mask = ismissing(ar)
@@ -2445,7 +2445,12 @@ def _ordinal_values(x, ordered_set):
     if not isinstance(x, vaex.array_types.supported_array_types) or isinstance(ordered_set, vaex.superutils.ordered_set_string):
         # sometimes the dtype can be object, but seen as an string array
         x = _to_string_sequence(x)
-    return ordered_set.map_ordinal(x)
+    else:
+        x = vaex.array_types.to_numpy(x)
+    indices = ordered_set.map_ordinal(x)
+    if np.ma.isMaskedArray(x):
+        indices[x.mask] = ordered_set.null_value
+    return indices
 
 @register_function()
 def _choose(ar, choices, default=None):

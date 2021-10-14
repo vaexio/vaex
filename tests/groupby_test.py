@@ -131,13 +131,15 @@ def test_groupby_sort_string(df_factory, as_category):
 
 
 @pytest.mark.parametrize("auto_encode", [False, True])
-def test_groupby_1d_cat(ds_local, auto_encode):
+@pytest.mark.parametrize("pre_sort", [False, True])
+def test_groupby_1d_cat(ds_local, auto_encode, pre_sort):
     df = ds_local.extract()
-    g = np.array([0, 0, 0, 0, 1, 1, 1, 1, 2, 2])
+    g = np.array([0, 0, 0, 0, 2, 2, 1, 1, 1, 1, ])
     df.add_column('g', g)
     df.categorize('g', labels=['cat', 'dog', 'snake'], inplace=True)
     df = df._future() if auto_encode else df
-    dfg = df.groupby(by=df.g, agg='count')
+    grouper = vaex.groupby.GrouperCategory(df.g, sort=True, pre_sort=pre_sort)
+    dfg = df.groupby(by=grouper, agg='count')
 
     assert dfg.g.tolist() == ['cat', 'dog', 'snake']
     assert dfg['count'].tolist() == [4, 4, 2]
@@ -294,13 +296,56 @@ def test_groupby_count():
     assert dfg._equals(dfg2)
 
 
-def test_groupby_boolean(df_factory):
-    # df = df_factory(g=[False, False, True, True, True, None, None], x=[3, None, 4, 5, None, 6, 7])
+@pytest.mark.parametrize("pre_sort", [False, True])
+def test_groupby_with_missing(df_factory, pre_sort):
+    df = df_factory(g=[0, 0, 1, 1, 1, None, None, 2])
+    grouper = vaex.groupby.Grouper(df.g, pre_sort=pre_sort, sort=True)
+    dfg = df.groupby(grouper, agg='count', sort=True, copy=False)
+    assert dfg['g'].tolist() == [0, 1, 2, None]
+    assert dfg['count'].tolist() == [2, 3, 1, 2]
+
+    df = df_factory(g=[0, 0, 1, 1, 1, None, None], x=[3, None, 4, 5, None, 6, 7])
+    grouper = vaex.groupby.Grouper(df.g, pre_sort=pre_sort, sort=True)
+    dfg = df.groupby(grouper, agg={'sum': vaex.agg.sum('x')})
+    assert dfg['g'].tolist() == [0, 1, None]
+    assert dfg['sum'].tolist() == [3, 4+5, 6+7]
+
+
+
+# we don't support pre_sort=False currently (not sure if possible)
+#@pytest.mark.parametrize("pre_sort", [False, True])
+@pytest.mark.parametrize("pre_sort", [True])
+@pytest.mark.parametrize("assume_sparse", [True, False])
+def test_groupby_with_missing_combine(df_factory, pre_sort, assume_sparse):
+    df = df_factory(g1=[0, 0, 1, 1, 1, None, None, 2],
+                    g2=[0, 1, 0, 1, 1, 0,    1,    0],
+    )
+    grouper1 = vaex.groupby.Grouper(df.g1, pre_sort=pre_sort, sort=True)
+    grouper2 = vaex.groupby.Grouper(df.g2, pre_sort=pre_sort, sort=True)
+    groupers = [grouper1, grouper2]
+    dfg = df.groupby(groupers, agg='count', sort=True, copy=False, assume_sparse=assume_sparse)
+    assert dfg['g1'].tolist() == [0, 0, 1, 1, 2, None, None]
+    assert dfg['count'].tolist() == [1, 1, 1, 2, 1, 1, 1]
+
+    df = df_factory(g=[0, 0, 1, 1, 1, None, None], x=[3, None, 4, 5, None, 6, 7])
+    grouper = vaex.groupby.Grouper(df.g, pre_sort=pre_sort, sort=True)
+    dfg = df.groupby(grouper, agg={'sum': vaex.agg.sum('x')})
+    assert dfg['g'].tolist() == [0, 1, None]
+    assert dfg['sum'].tolist() == [3, 4+5, 6+7]
+
+
+def test_groupby_boolean_without_null(df_factory):
     df = df_factory(g=[False, False, True, True, True], x=[3, None, 4, 5, None])
     dfg = df.groupby('g', agg={'sum': vaex.agg.sum('x')}, sort=True)
     assert dfg['g'].tolist() == [False, True]
     assert dfg['sum'].tolist() == [3, 4+5]
 
+
+def test_groupby_boolean_with_null(df_factory):
+    df = df_factory(g=[False, False, True, True, True, None, None], x=[3, None, 4, 5, None, 6, 7])
+    dfg = df.groupby('g', agg={'sum': vaex.agg.sum('x')}, sort=True)
+    assert dfg['g'].tolist() == [False, True, None]
+    assert dfg['sum'].tolist() == [3, 4+5, 6+7]
 
 def test_groupby_std():
     g = np.array([9, 2, 3, 4, 0, 1, 2, 3, 2, 5], dtype='int32')
