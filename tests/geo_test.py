@@ -78,6 +78,14 @@ def test_which_polygon_single():
     assert df.polygon_index.values.tolist() == [None, 0, 1]
 
 
+def test_inside_polygon_single_loaded_from_file(df_factory):
+    px = np.array([1.5, 2.5, 2.5, 1.5])
+    py = np.array([2.5, 2.5, 3.5, 3.5])
+    df = df_factory(x=[1, 2, 3], y=[2, 3, 4])
+    df['inside'] = df.geo.inside_polygon(df.x, df.y, px, py)
+    assert df['inside'].values.any()
+
+
 def test_which_polygons():
     df = vaex.from_arrays(x=[1, 2, 3], y=[2, 3, 4])
     # polygon1a = np.array( [(1.5, 2.5, 2.5, 1.5), (2.5, 2.5, 3.5, 3.5)] )
