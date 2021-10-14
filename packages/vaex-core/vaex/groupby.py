@@ -106,20 +106,31 @@ class BinnerInteger(BinnerBase):
 
     Useful for boolean, uint8, which only have a limited number of possibilities (2, 256)
     '''
-    def __init__(self, expression, label=None):
+    def __init__(self, expression, label=None, dropmissing=False):
         self.expression = expression
         self.df = expression.df
         self.dtype = self.expression.dtype
         self.label = label or self.expression._label
         if self.dtype.numpy == np.dtype('bool'):
-            self.bin_values = np.array([False, True])
-            self.N = 2
+            if dropmissing:
+                self.binby_expression = str(self.expression)
+                self.bin_values = np.array([False, True])
+                self.N = 2
+            else:
+                self.binby_expression = f'fillmissing(astype({str(self.expression)}, "uint8"), 2)'
+                self.bin_values = pa.array([False, True, None])
+                self.N = 3
         elif self.dtype.numpy == np.dtype('uint8'):
-            self.bin_values = np.arange(0, 256, dtype='uint8')
-            self.N = 256
+            if dropmissing:
+                self.binby_expression = str(self.expression)
+                self.bin_values = np.arange(0, 256, dtype="uint8")
+                self.N = 256
+            else:
+                self.binby_expression = f'fillmissing(astype({str(self.expression)}, "int16"), 256)'
+                self.bin_values = pa.array(list(range(256)) + [None])
+                self.N = 257
         else:
             raise TypeError(f'Only boolean and uint8 are supported, not {self.dtype}')
-        self.binby_expression = str(self.expression)
         self.sort_indices = None
         self._promise = vaex.promise.Promise.fulfilled(None)
 
@@ -133,6 +144,8 @@ class Grouper(BinnerBase):
     """Bins an expression to a set of unique bins, like an SQL like groupby."""
     def __init__(self, expression, df=None, sort=False, pre_sort=True, row_limit=None, df_original=None, materialize_experimental=False):
         self.df = df or expression.ds
+        self.sort = sort
+        self.pre_sort = pre_sort
         # we prefer to calculate the set the original dataframe to have better cache hits, and modify df
         if df_original is None:
             df_original = self.df
@@ -141,6 +154,7 @@ class Grouper(BinnerBase):
         # make sure it's an expression
         self.expression = self.df[_ensure_string_from_expression(self.expression)]
         self.label = self.expression._label
+        dtype = self.expression.dtype
         if materialize_experimental:
             set, values = df_original._set(self.expression, unique_limit=row_limit, return_inverse=True)
             # TODO: add column should have a unique argument
@@ -169,9 +183,12 @@ class Grouper(BinnerBase):
                     self.bin_values = self.bin_values.astype(vaex.utils.required_dtype_for_max(max_value))
                 logger.debug('Constructed grouper for expression %s with %i values', str(expression), len(self.bin_values))
 
-                # since nan and null are at the start, we skip them with sorting
+                if set.has_null and (dtype.is_primitive or dtype.is_datetime):
+                    mask = np.zeros(shape=self.bin_values.shape, dtype="?")
+                    mask[set.null_value] = 1
+                    self.bin_values = np.ma.array(self.bin_values, mask=mask)
                 if self.sort:
-                    dtype = self.expression.dtype
+                    self.bin_values = vaex.array_types.to_arrow(self.bin_values)
                     indices = pa.compute.sort_indices(self.bin_values)#[offset:])
                     if pre_sort:
                         self.bin_values = pa.compute.take(self.bin_values, indices)
@@ -186,7 +203,6 @@ class Grouper(BinnerBase):
                             set = type(set)(self.bin_values, null_value, set.nan_count, set.null_count, fingerprint)
                         self.sort_indices = None
                     else:
-                        # TODO: skip first or first two values (null and/or nan)
                         self.sort_indices = vaex.array_types.to_numpy(indices)
                         # the bin_values will still be pre sorted, maybe that is confusing (implementation detail)
                         self.bin_values = pa.compute.take(self.bin_values, self.sort_indices)
@@ -197,7 +213,9 @@ class Grouper(BinnerBase):
                 self.basename = 'set_%s' % vaex.utils._python_save_name(str(self.expression) + "_" + set.fingerprint)
 
                 self.N = len(self.bin_values)
-                self.bin_values = self.expression.dtype.create_array(self.bin_values)
+                # for datetimes, we converted to int
+                if dtype.is_datetime:
+                    self.bin_values = dtype.create_array(self.bin_values)
             self._promise = process(df_original._set(self.expression, unique_limit=row_limit, delay=True))
 
     def _create_binner(self, df):
@@ -247,6 +265,9 @@ class GrouperCombined(Grouper):
             bin_values = {}
             # NOTE: we can also use dict encoding instead of take
             for indices, parent in zip(indices_parents, parents):
+                if sort:
+                    assert parent.pre_sort, "cannot sort while parent not presorted"
+                    assert parent.sort_indices is None
                 dtype = vaex.dtype_of(parent.bin_values)
                 if dtype.is_struct:
                     # collapse parent struct into our flat struct
@@ -270,40 +291,66 @@ class GrouperCombined(Grouper):
 
 class GrouperCategory(BinnerBase):
     """Faster grouper that will use the fact that a column is categorical."""
-    def __init__(self, expression, df=None, sort=False, row_limit=None):
+
+    def __init__(self, expression, df=None, sort=False, row_limit=None, pre_sort=True):
         self.df = df or expression.ds
         self.sort = sort
+        self.pre_sort = pre_sort
         # make sure it's an expression
         expression = self.df[str(expression)]
         self.expression_original = expression
         self.label = expression._label
         self.expression = expression.index_values() if expression.dtype.is_encoded else expression
+        self.row_limit = row_limit
 
+        self.min_value = self.df.category_offset(self.expression_original)
         self.bin_values = self.df.category_labels(self.expression_original, aslist=False)
+        self.N = self.df.category_count(self.expression_original)
+        dtype = self.expression.dtype
         if self.sort:
-            self.sort_indices = pa.compute.sort_indices(self.bin_values)#[offset:])
-            self.bin_values = pa.compute.take(self.bin_values, self.sort_indices)
+            # not pre-sorting is faster
+            sort_indices = pa.compute.sort_indices(self.bin_values)
+            self.bin_values = pa.compute.take(self.bin_values, sort_indices)
+            if self.pre_sort:
+                sort_indices = vaex.array_types.to_numpy(sort_indices)
+                # TODO: this is kind of like expression.map
+                from .hash import ordered_set_type_from_dtype
+
+                ordered_set_type = ordered_set_type_from_dtype(dtype)
+                fingerprint = self.expression.fingerprint() + "-grouper-sort-mapper"
+                self.set = ordered_set_type(sort_indices + self.min_value, -1, 0, 0, fingerprint)
+                self.min_value = 0
+                self.sort_indices = None
+                self.basename = "set_%s" % vaex.utils._python_save_name(str(self.expression) + "_" + self.set.fingerprint)
+            else:
+                self.sort_indices = sort_indices
         else:
             self.sort_indices = None
         if isinstance(self.bin_values, list):
             self.bin_values = pa.array(self.bin_values)
 
-        self.N = self.df.category_count(self.expression_original)
         if row_limit is not None:
             if self.N > row_limit:
                 raise vaex.RowLimitException(f'Resulting grouper has {self.N:,} unique combinations, which is larger than the allowed row limit of {row_limit:,}')
-        self.min_value = self.df.category_offset(self.expression_original)
         # TODO: what do we do with null values for categories?
         # if self.set.has_null:
         #     self.N += 1
         #     keys += ['null']
-        self.binby_expression = str(self.expression)
         self._promise = vaex.promise.Promise.fulfilled(None)
 
     def _create_binner(self, df):
         assert df.dataset == self.df.dataset, "you passed a dataframe with a different dataset to the grouper/binned"
         self.df = df
-        self.binner = self.df._binner_ordinal(self.expression, self.N, self.min_value)
+        if self.sort and self.pre_sort:
+            if self.basename not in self.df.variables:
+                self.setname = df.add_variable(self.basename, self.set, unique=True)
+            else:
+                self.setname = self.basename
+            self.binby_expression = "_ordinal_values(%s, %s)" % (self.expression, self.setname)
+            self.binner = self.df._binner_ordinal(self.binby_expression, self.N, 0)
+        else:
+            self.binby_expression = str(self.expression)
+            self.binner = self.df._binner_ordinal(self.binby_expression, self.N, self.min_value)
 
 
 def _combine(df, groupers, sort, row_limit=None):
@@ -584,29 +631,40 @@ class GroupBy(GroupByBase):
         @vaex.delayed
         def aggregate(promise_by):
             arrays = super(GroupBy, self)._agg(actions)
-            has_non_existing_pairs = len(self.by) > 1
             # we don't want non-existing pairs (e.g. Amsterdam in France does not exist)
+            # but also, e.g. GrouperInteger will always expect missing values
+            # but they may not aways exist
             counts = self.counts
             # nobody wanted to know count*, but we need it if we included non-existing pairs
-            if has_non_existing_pairs and counts is None:
+            if counts is None:
                 # TODO: it seems this path is never tested
                 count_agg = vaex.agg.count(edges=True)
                 counts = self.df._agg(count_agg, self.binners, delay=_USE_DELAY)
             arrays = delayed_dict(arrays)
-            return counts, arrays, has_non_existing_pairs
+            return counts, arrays
 
         @vaex.delayed
         def process(args):
-            counts, arrays, has_non_existing_pairs = args
+            counts, arrays = args
             # arrays = {key: value.get() for key, value in arrays.items()}
             # take out the edges
             arrays = {key: vaex.utils.extract_central_part(value) for key, value in arrays.items()}
-            if has_non_existing_pairs:
-                counts = vaex.utils.extract_central_part(counts)
+            counts = vaex.utils.extract_central_part(counts)
 
             # make sure we respect the sorting
-            sorting = tuple(by.sort_indices if by.sort_indices is not None else slice(None) for by in self.by)
-            arrays = {key: value[sorting] for key, value in arrays.items()}
+            def sort(ar):
+                for i, by in list(enumerate(self.by))[::-1]:
+                    sort_indices = by.sort_indices
+                    if sort_indices is not None:
+                        # if sort_indices come from arrow, it will be uint64
+                        # which np.take does not like
+                        sort_indices = vaex.array_types.to_numpy(sort_indices)
+                        if sort_indices.dtype == np.dtype("uint64"):
+                            sort_indices = sort_indices.astype("int64")
+                        ar = np.take(ar, sort_indices, axis=i)
+                return ar
+
+            arrays = {key: sort(value) for key, value in arrays.items()}
 
             if self.combine and self.expand and isinstance(self.by[0], GrouperCombined):
                 assert len(self.by) == 1
@@ -616,18 +674,17 @@ class GroupBy(GroupByBase):
                     assert value.ndim == 1
                     columns[key] = value
             else:
-                if has_non_existing_pairs:
-                    counts = counts[sorting]
-                    mask = counts > 0
-                    coords = [coord[mask] for coord in np.meshgrid(*self._coords1d, indexing='ij')]
-                    columns = {by.label: coord for by, coord in zip(self.by, coords)}
-                    for key, value in arrays.items():
-                        columns[key] = value[mask]
-                else:
-                    columns = {by.label: coord for by, coord in zip(self.by, self._coords1d)}
-                    for key, value in arrays.items():
-                        assert value.ndim == 1
-                        columns[key] = value
+                counts = sort(counts)
+                mask = counts > 0
+                columns = {}
+                for by, indices in zip(self.by, np.where(mask)):
+                    columns[by.label] = by.bin_values.take(indices)
+                if mask.sum() == mask.size:
+                    # if we want all, just take it all
+                    # should be faster
+                    mask = slice(None, None, None)
+                for key, value in arrays.items():
+                    columns[key] = value[mask]
             dataset_arrays = vaex.dataset.DatasetArrays(columns)
             dataset = DatasetGroupby(dataset_arrays, self.df, self.by_original, actions, combine=self.combine, expand=self.expand, sort=self.sort)
             df_grouped = vaex.from_dataset(dataset)
