@@ -4714,7 +4714,7 @@ class DataFrame(object):
         >>> df.x.sum()  # slow, but will fill the cache
         >>> df.x.sum()  # as fast as possible, will use memory
 
-        :param column: string or list of strings with column names to materialize
+        :param column: string or list of strings with column names to materialize, all columns when None
         :param virtual_column: for backward compatibility
         :param inplace: {inplace}
         '''
@@ -4722,7 +4722,10 @@ class DataFrame(object):
             warnings.warn("virtual_column argument is deprecated, please use column")
             column = virtual_column
         df = self.trim(inplace=inplace)
-        columns = _ensure_strings_from_expressions(column)
+        if column is None:
+            columns = df.get_column_names(hidden=True)
+        else:
+            columns = _ensure_strings_from_expressions(column)
         virtual = []
         cache = []
         for column in columns:
@@ -4732,7 +4735,6 @@ class DataFrame(object):
                 virtual.append(column)
             else:
                 raise NameError(f'{column} is not a column or virtual column')
-        virtual_columns = _ensure_strings_from_expressions(virtual_column)
         dataset = df._dataset
         if cache:
             dataset = vaex.dataset.DatasetCached(dataset, cache)

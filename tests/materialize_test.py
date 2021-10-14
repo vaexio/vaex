@@ -16,3 +16,7 @@ def test_materialize_dataset():
     df = vaex.from_scalars(x=1)
     df = df.materialize('x')
     assert df.dataset.names == ['x']
+
+    df = vaex.from_scalars(x=1, __y=2)
+    df = df.materialize()
+    assert df.dataset.names == ['x', '__y']
