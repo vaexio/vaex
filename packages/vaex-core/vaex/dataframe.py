@@ -4513,6 +4513,7 @@ class DataFrame(object):
             indices = indices[::-1].copy()  # this may be used a lot, so copy for performance
         return self.take(indices)
 
+    @docsubst
     def diff(self, periods=1, column=None, fill_value=None, trim=False, inplace=False, reverse=False):
         """Calculate the difference between the current row and the row offset by periods
 
@@ -4544,6 +4545,7 @@ class DataFrame(object):
                 df[column] = df[originals[column]] - df[column]
         return df
 
+    @docsubst
     def shift(self, periods, column=None, fill_value=None, trim=False, inplace=False):
         """Shift a column or multiple columns by `periods` amounts of rows.
 
