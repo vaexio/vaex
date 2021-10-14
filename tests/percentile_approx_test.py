@@ -5,9 +5,9 @@ import pytest
 import sys
 
 
-version = tuple(map(int, np.__version__.split('.')))
+np_version = tuple(map(int, np.__version__.split('.')))
 
-@pytest.mark.skipif(platform.system().lower() == 'windows', reason="strange ref count issue with numpy")
+@pytest.mark.skipif((np_version[0] == 1) & (np_version[1] < 21), reason="strange ref count issue with numpy")
 def test_percentile_approx():
     df = vaex.example()
     # Simple test
@@ -26,7 +26,7 @@ def test_percentile_approx():
     np.testing.assert_array_almost_equal(percentiles_2d, expected_result, decimal=1)
 
 
-@pytest.mark.skipif(platform.system().lower() == 'windows', reason="strange ref count issue with numpy")
+@pytest.mark.skipif((np_version[0] == 1) & (np_version[1] < 21), reason="strange ref count issue with numpy")
 def test_percentile_1d():
     x = np.array([0, 0, 10, 100, 200])
     df = vaex.from_arrays(x=x)

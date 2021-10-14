@@ -55,19 +55,12 @@ jobs:
       if: matrix.os != 'windows-latest'
       run: |
         conda activate vaex-dev
-        mamba install -c conda-forge py-xgboost tensorflow>=2.6.0
-        # xgboost is not available on windows on conda-forge
-    - name: Extra installs
-      if: matrix.python-version != '3.9' && matrix.python-version != '3.7'
-      run: |
-        conda activate vaex-dev
-        mamba install -y -q --file ci/conda-env-extra.yml
+        echo "not needed for now"
     - name: Extra windows installs
       if: matrix.os == 'windows-latest'
       run: |
         conda activate vaex-dev
-        pip install "ipython>=7" "dask>=1" xgboost
-        pip uninstall -y xgboost  # seems to crash, tests will be skipped
+        mamba upgrade scipy ipython dask
         # not sure why, but the conda env is strange (old dask) if we put this constraint in the conda solver
     - name: free disk space
       if: matrix.os == 'ubuntu-latest'
@@ -165,7 +158,7 @@ jobs:
         service_account_key: ${{ secrets.GCP_SA_KEY_VAEX }}
         export_default_credentials: true
     - name: Test vaex-contrib
-      if: ${{ (github.event.pull_request.head.repo.full_name == 'vaexio/vaex') }}
+      if: ${{ (github.event.pull_request.head.repo.full_name == 'vaexio/vaex') && (matrix.os != 'windows-latest')}}
       env:
         PROJECT_ID: ${{ secrets.GCP_PROJECT_ID_VAEX }}
       run: |
@@ -182,6 +175,10 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest, macOS-latest]
         python-version: [3.7, 3.8, 3.9]
+        # ssl/certifi issues with this combination
+        exclude:
+          - os: windows-latest
+            python-version: 3.7
 
     steps:
     - uses: actions/download-artifact@v2
@@ -195,6 +192,7 @@ jobs:
         python-version: ${{ matrix.python-version }}
         mamba-version: "*"
         auto-activate-base: true
+        auto-update-conda: true
         channels: conda-forge
 
     - name: Install the packages

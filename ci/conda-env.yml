@@ -1,32 +1,44 @@
-astropy
-cython
-cachetools
-diskcache
-fsspec <0.9
-geopandas
-graphviz
-h5py
-# libcxx=9.0.0
-lightgbm
-matplotlib-base
-notebook
-numba
-numpy<1.21
-pandas
-pcre
-pip
-python-annoy
-# py-xgboost
-pyarrow
-pyqt
-pytest
-pytest-asyncio <0.14
-pytest-mpl
-pytest-timeout
-python-graphviz
-scikit-learn
-scipy
-s3fs
-gcsfs
-tornado
-xarray
+name: vaex-dev
+channels:
+  - msys2
+  - conda-forge
+  - pkgs/main
+  - numba/label/dev
+dependencies:
+- astropy
+- cython
+- cachetools
+- catboost
+- diskcache
+- fsspec <0.9
+- gcsfs
+- geopandas
+- graphviz
+- h5py
+- ipyvolume=0.6.0a6
+- lightgbm
+- matplotlib-base
+- notebook
+- numba
+- numpy<1.21
+- pandas
+- pcre
+- pip
+- plotly
+- python-annoy
+- pyarrow>=4.0.0
+- pyqt
+- pytest
+- pytest-asyncio<0.14
+- pytest-mpl
+- pytest-timeout
+- python-graphviz
+- py-xgboost
+- s3fs
+- scikit-learn
+- scipy
+- tornado
+- xarray
+- pip:
+  - myst_parser
+  - tensorflow>=2.4.0

@@ -9,6 +9,9 @@ from sklearn.random_projection import GaussianRandomProjection, SparseRandomProj
 from sklearn.preprocessing import StandardScaler, MinMaxScaler, MaxAbsScaler, RobustScaler
 
 
+np_version = tuple(map(int, np.__version__.split('.')))
+
+
 def data_maker(n_rows, n_cols):
     return {f'feat_{i}': np.random.normal(loc=np.random.uniform(-100, 100),
                                           scale=np.random.uniform(0.5, 25),
@@ -356,7 +359,7 @@ import sys
 import platform
 version = tuple(map(int, numpy.__version__.split('.')))
 
-@pytest.mark.skipif(platform.system().lower() == 'windows', reason="strange ref count issue with numpy")
+@pytest.mark.skipif((np_version[0] == 1) & (np_version[1] < 21), reason="strange ref count issue with numpy")
 def test_robust_scaler(df_factory):
     x = np.array([-2.65395789, -7.97116295, -4.76729177, -0.76885033, -6.45609635])
     y = np.array([-8.9480332, -4.81582449, -3.73537263, -3.46051912,  1.35137275])

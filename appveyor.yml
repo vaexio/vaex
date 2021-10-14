@@ -20,16 +20,16 @@ install:
   - git submodule update --init --recursive
   - call %MINICONDA%\Scripts\activate.bat
   - conda config --set always_yes yes --set changeps1 no
-  - conda config --remove channels defaults
-  - conda config --add channels msys2
   - conda update -q conda
-  - conda info -a
-  - "conda create -y -q -c conda-forge -n vaex-dev python=%PYTHON_VERSION% mamba"
-  - activate vaex-dev
-  - "mamba install -c conda-forge --file ci/conda-env.yml --file ci/conda-env-notebooks.yml"
-  - pip install -r requirements-ml.txt
-  - pip install "ipython>=7" "dask>=1" xgboost myst_parser # similar to GHA
-  - pip uninstall -y xgboost  # seems to crash, tests will be skipped
+  - "conda install -y -q -c conda-forge mamba --quiet"
+  - conda init
+  - "mamba create -y -q -c conda-forge -n vaex-dev python=%PYTHON_VERSION% --quiet"
+  - conda activate vaex-dev
+  - "mamba env update --file ci/conda-env.yml  --quiet"
+  - "mamba update pcre scipy ipython dask"
+  - conda deactivate
+  - conda activate vaex-dev
+  - conda list
   - pushd packages\vaex-core   && pip install . && popd
   - pushd packages\vaex-hdf5   && pip install . && popd
   - pushd packages\vaex-viz   && pip install . && popd
