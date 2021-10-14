@@ -12,4 +12,6 @@ jobs:
     steps:
       # Commands are run in a Windows virtual machine environment
       - checkout
-      - run: Write-Host 'Hello, Windows on Vaex'
+      - run: |
+        Write-Host 'Hello, Windows on Vaex'
+        Write-Host 'Hello, Windows on Vaex again!'
