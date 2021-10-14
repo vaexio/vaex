@@ -550,3 +550,36 @@ def test_binner_2d(df_factory):
     assert xar.coords['x'].data.tolist() == [0.5, 1.5, 2.5]
     assert xar.coords['g'].data.tolist() == [0, 1]
     assert xar.data.tolist() == [[1, 0], [1, 1], [1, 2]]
+
+def test_groupby_limited_plain(df_factory):
+    df = df_factory(x=[1, 2, 2, 3, 3, 4], s=["aap", "aap", "aap", "noot", "noot", "mies"])
+    g = vaex.groupby.GrouperLimited(df.s, values=['aap', 'noot'], keep_other=True, other_value='others', label="type")
+    dfg = df.groupby(g, agg={'sum': vaex.agg.sum('x')})
+    assert dfg['type'].tolist() == ['aap', 'noot', 'others']
+    assert dfg['sum'].tolist() == [1+2+2, 3+3, 4]
+
+    # not supported yet
+    # g = vaex.groupby.GrouperLimited(df.s, values=['aap', 'noot'], keep_other=False, other_value='others', label="type")
+    # dfg = df.groupby(g, agg={'sum': vaex.agg.sum('x')})
+    # assert dfg['type'].tolist() == ['aap', 'noot']
+    # assert dfg['sum'].tolist() == [1+2+2, 3+3]
+
+def test_groupby_limited_with_missing(df_factory):
+    df = df_factory(x=[1, 2, 2, 3, 3, 4, 9, 9], s=["aap", "aap", "aap", "noot", "noot", "mies", None, None])
+    g = vaex.groupby.GrouperLimited(df.s, values=['aap', 'noot', None], keep_other=True, other_value='others', label="type")
+    dfg = df.groupby(g, agg={'sum': vaex.agg.sum('x')})
+    assert dfg['type'].tolist() == ['aap', 'noot', None, 'others']
+    assert dfg['sum'].tolist() == [1+2+2, 3+3, 9+9, 4]
+
+
+def test_groupby_limited_with_nan(df_factory):
+    a = 1.2
+    b = np.nan
+    c = 3.4
+    others = 42.
+    df = df_factory(x=[1, 2, 2, 3, 3, 4, 9, 9], s=[a, a, a, b, b, c, None, None])
+    g = vaex.groupby.GrouperLimited(df.s, values=[a, b, None], keep_other=True, other_value=others, label="type")
+    dfg = df.groupby(g, agg={'sum': vaex.agg.sum('x')})
+    # we don't check, because comparing nan is always false
+    # assert dfg['type'].tolist() == [a, b,  None, others]
+    assert dfg['sum'].tolist() == [1+2+2, 3+3, 9+9, 4]

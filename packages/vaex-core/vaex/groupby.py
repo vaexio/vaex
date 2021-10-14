@@ -371,6 +371,71 @@ class GrouperCategory(BinnerBase):
             self.binner = self.df._binner_ordinal(self.binby_expression, self.N, self.min_value)
 
 
+class GrouperLimited(BinnerBase):
+    """Group to a limited set of values, store the rest in an (optional) other bin"""
+
+    def __init__(self, expression, values, keep_other=True, other_value=None, sort=False, label=None, df=None):
+        self.df = df or expression.df
+        self.sort = sort
+        self.pre_sort = True
+        self.expression = self.df[str(expression)]
+        self.label = label or self.expression._label
+        self.keep_other = keep_other
+        if isinstance(values, pa.ChunkedArray):
+            values = pa.concat_arrays(values.chunks)
+        if sort:
+            indices = pa.compute.sort_indices(values)
+            values = pa.compute.take(values, indices)
+
+        if self.keep_other:
+            self.bin_values = pa.array(vaex.array_types.tolist(values) + [other_value])
+            self.values = self.bin_values.slice(0, len(self.bin_values) - 1)
+        else:
+            raise NotImplementedError("not supported yet")
+            # although we can support this, it will fail with _combine, because of
+            # the mapping of the set to -1
+            self.bin_values = pa.array(vaex.array_types.tolist(values))
+            self.values = self.bin_values
+        self.N = len(self.bin_values)
+        dtype = vaex.dtype_of(self.values)
+        set_type = vaex.hash.ordered_set_type_from_dtype(dtype)
+        values_list = self.values.tolist()
+        try:
+            null_value = values_list.index(None)
+            null_count = 1
+        except ValueError:
+            null_value = -1
+            null_count = 0
+        if vaex.dtype_of(self.values) == float:
+            nancount = np.isnan(self.values).sum()
+        else:
+            nancount = 0
+
+        fp = vaex.cache.fingerprint(values)
+        fingerprint = f"set-grouper-fixed-{fp}"
+        if dtype.is_string:
+            values = vaex.column.ColumnStringArrow.from_arrow(self.values)
+            string_sequence = values.string_sequence
+            self.set = set_type(string_sequence, null_value, nancount, null_count, fingerprint)
+        else:
+            self.set = set_type(self.values, null_value, nancount, null_count, fingerprint)
+
+        self.basename = "set_%s" % vaex.utils._python_save_name(str(self.expression) + "_" + self.set.fingerprint)
+        self.binby_expression = expression
+        self.sort_indices = None
+        self._promise = vaex.promise.Promise.fulfilled(None)
+
+    def _create_binner(self, df):
+        assert df.dataset == self.df.dataset, "you passed a dataframe with a different dataset to the grouper/binned"
+        self.df = df
+        if self.basename not in self.df.variables:
+            self.setname = df.add_variable(self.basename, self.set, unique=True)
+        else:
+            self.setname = self.basename
+        # modulo N will map -1 (value not found) to N-1
+        self.binby_expression = "_ordinal_values(%s, %s) %% %s" % (self.expression, self.setname, self.N)
+        self.binner = self.df._binner_ordinal(self.binby_expression, self.N)
+
 def _combine(df, groupers, sort, row_limit=None):
     for grouper in groupers:
         if isinstance(grouper, Binner):
