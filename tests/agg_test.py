@@ -69,8 +69,7 @@ def test_correlation(df_local):
     def correlation(x, y):
         c = np.cov([x, y], bias=1)
         return c[0,1] / (c[0,0] * c[1,1])**0.5
-
-    np.testing.assert_array_almost_equal(df.correlation([["x", "y"], ["x", "x**2"]], selection=None), [correlation(x, y), correlation(x, x**2)])
+    np.testing.assert_array_almost_equal(df.correlation([["x", "y"], ["x", "x**2"]], selection=None)['correlation'].tolist(), [correlation(x, y), correlation(x, x**2)])
 
     df.select("x < 5")
     np.testing.assert_array_almost_equal(df.correlation("x", "y", selection=None), correlation(x, y))
