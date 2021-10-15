@@ -47,38 +47,32 @@ jobs:
       uses: actions/cache@v2
       env:
         # Increase this value to reset cache if ci/vaex-env.yml has not changed
-        CACHE_NUMBER: 0
+        CACHE_NUMBER: 1
       with:
         path: |
-          ~/conda_pkgs_dir
+          ~/micromamba/pkgs
           ~/.cache/pip
-          envs/conda-env-${{ runner.OS }}-${{ matrix.python-version }}.yml
+          envs/conda-env-${{ runner.OS }}-${{ matrix.python-version }}.txt
         key:
           pkgs-${{ runner.os }}-${{ matrix.python-version }}-conda-${{ env.CACHE_NUMBER }}-${{hashFiles('ci/conda-env.yml') }}
-    - name: Install conda with Python ${{ matrix.python-version }}
-      uses: conda-incubator/setup-miniconda@v2
-      with:
-        auto-update-conda: false
-        python-version: ${{ matrix.python-version }}
-        mamba-version: "*"
-        auto-activate-base: true
-        channels: conda-forge
-    - name: Conda init
+    - name: install micromamba
+      uses: mamba-org/provision-with-micromamba@main
+    - name: install conda for micromamba
       run: |
-        conda init bash
+        micromamba install mamba -c conda-forge
     - name: Create env (with mamba)
       if: steps.cache-conda-pip-env.outputs.cache-hit != 'true'
       run: |
         ./ci/02-create-vaex-dev-env.sh ${{ matrix.python-version }} mamba
-    - name: Create env (fixed)
+    - name: Create env using micromamba (fixed)
       if: steps.cache-conda-pip-env.outputs.cache-hit == 'true'
       run: |
-        mamba create -n vaex-dev --file envs/conda-env-${{ runner.OS }}-${{ matrix.python-version }}.yml --offline
+        micromamba create -n vaex-dev --file envs/conda-env-${{ runner.OS }}-${{ matrix.python-version }}.txt --offline
     - name: Save environment file
       if: steps.cache-conda-pip-env.outputs.cache-hit != 'true'
       run: |
         mkdir envs
-        mamba list -n vaex-dev --explicit --md5 --export > envs/conda-env-${{ runner.OS }}-${{ matrix.python-version }}.yml
+        mamba list -n vaex-dev --explicit --md5 --export > envs/conda-env-${{ runner.OS }}-${{ matrix.python-version }}.txt
     - name: Upload environment file
       uses: actions/upload-artifact@v2
       with:
