@@ -51,14 +51,11 @@ jobs:
     - name: Conda init
       run: |
         conda init bash
-    - name: Set conda root as output
-      shell: bash
-      run: echo "::set-env name=CONDA::$(echo $CONDA)"
     - name: Conda env cache
       id: cache-conda-env
       uses: actions/cache@v1
       with:
-        path: ${{ env.CONDA }}/envs/vaex-dev
+        path: /usr/share/miniconda/envs/vaex-dev
         key: conda-env-${{ runner.OS }}-${{ matrix.python-version }}-v1
     - name: Create env (with mamba)
       if: steps.cache-conda-env.outputs.cache-hit != 'true'
