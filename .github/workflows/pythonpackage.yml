@@ -63,7 +63,7 @@ jobs:
     - name: Create env (with mamba)
       if: steps.cache-conda-pip-env.outputs.cache-hit != 'true'
       run: |
-        ./ci/02-create-vaex-dev-env.sh ${{ matrix.python-version }} mamba
+        ./ci/02-create-vaex-dev-env.sh ${{ matrix.python-version }} micromamba
     - name: Create env using micromamba (fixed)
       if: steps.cache-conda-pip-env.outputs.cache-hit == 'true'
       run: |
@@ -117,7 +117,7 @@ jobs:
         touch packages/vaex-core/build/lib*/vaex/super*
     - name: Install vaex
       run: |
-        ./ci/03-install-vaex.sh
+        ./ci/03-install-vaex.sh micromamba
     # - name: Install vaex-enterprise
     #   if: ${{ (github.event.pull_request.head.repo.full_name == 'vaexio/vaex') && (matrix.os == 'ubuntu-latest') }}
     #   run: |
