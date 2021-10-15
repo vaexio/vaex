@@ -47,7 +47,7 @@ jobs:
       uses: actions/cache@v2
       env:
         # Increase this value to reset cache if ci/vaex-env.yml has not changed
-        CACHE_NUMBER: 1
+        CACHE_NUMBER: 2
       with:
         path: |
           ~/micromamba/pkgs
@@ -63,7 +63,7 @@ jobs:
     - name: Create env (with mamba)
       if: steps.cache-conda-pip-env.outputs.cache-hit != 'true'
       run: |
-        micromamba create -y -q -c conda-forge -n vaex-dev python=$PYTHON_VERSION compilers
+        micromamba create -y -q -c conda-forge -n vaex-dev python=${{ matrix.python-version }} compilers
         micromamba activate vaex-dev
         micromamba env update --file ci/conda-env.yml
         # micromamba env create --file ci/conda-env.yml
@@ -137,7 +137,7 @@ jobs:
       uses: ./ci/actions/windll
     - name: Build Python packages
       run: |
-        conda activate vaex-dev
+        micromamba activate vaex-dev
         mkdir dist
         (cd packages/vaex-core && python setup.py bdist_wheel); cp packages/vaex-core/dist/* dist
         (cd packages/vaex-graphql && python setup.py bdist_wheel); cp packages/vaex-graphql/dist/* dist
