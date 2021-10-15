@@ -121,9 +121,11 @@ jobs:
         touch packages/vaex-core/build/lib*/vaex/vaexfast* || echo "ok to fail"
         touch packages/vaex-core/build/lib*/vaex/super* || echo "ok to fail"
         ls -alh packages/vaex-core/build/lib*/vaex/ || echo "ok to fail"
-    # - name: Install vaex
-    #   run: |
-    #     ./ci/03-install-vaex.sh micromamba
+    - name: Install vaex
+      run: |
+        pip install myst_parser
+        pip install -e . -v
+        # ./ci/03-install-vaex.sh micromamba
     # - name: Install vaex-enterprise
     #   if: ${{ (github.event.pull_request.head.repo.full_name == 'vaexio/vaex') && (matrix.os == 'ubuntu-latest') }}
     #   run: |
