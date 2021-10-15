@@ -72,7 +72,7 @@ jobs:
       if: steps.cache-conda-pip-env.outputs.cache-hit != 'true'
       run: |
         mkdir envs
-        mamba list -n vaex-dev --explicit --md5 --export > envs/conda-env-${{ runner.OS }}-${{ matrix.python-version }}.txt
+        micromamba env export --explicit > envs/conda-env-${{ runner.OS }}-${{ matrix.python-version }}.txt
     - name: Upload environment file
       uses: actions/upload-artifact@v2
       with:

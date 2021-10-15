@@ -1,11 +1,11 @@
 #!/bin/bash
 set -x -e
 
-if [ -f ${HOME}/.bashrc ]; then
-    source ${HOME}/.bashrc
-else
-    source ${HOME}/.bash_profile
-fi
+# if [ -f ${HOME}/.bashrc ]; then
+#     source ${HOME}/.bashrc
+# else
+#     source ${HOME}/.bash_profile
+# fi
 
 PYTHON_VERSION=${1:-3.7}
 CONDA=${2:-conda}
