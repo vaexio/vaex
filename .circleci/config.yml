@@ -5,11 +5,49 @@ orbs:
 
 jobs:
   build:
+    parameters:
+      python-version:
+        type: string
     executor:
       name: win/default
       size: "medium"
+      shell: bash.exe
 
     steps:
-      # Commands are run in a Windows virtual machine environment
       - checkout
-      - run: Write-Host 'Hello, Windows on Vaex'
+      - run: git submodule update --init --recursive
+      - run:
+          name: Set up conda
+          command: |
+            conda config --set always_yes yes --set changeps1 no
+            conda update -q conda
+            conda install -y -q -c conda-forge mamba --quiet
+      - run:
+          name: Create vaex-dex environment
+          command: |
+            mamba create -y -q -c conda-forge -n vaex-dev python=<< parameters.python-version >> compilers --file ci/conda-env.yml
+            source activate vaex-dev
+            conda list
+      - run:
+          name: Install vaex
+          command: |
+            source activate vaex-dev
+            conda list
+            pip install -e .
+      - run:
+          name: Run all tests
+          command: |
+            source activate vaex-dev
+            set VAEX_SERVER_OVERRIDE={"dataframe.vaex.io":"dataframe-dev.vaex.io"}
+            python -m vaex.test.dataset TestDataset
+            py.test tests/ --timeout=1000
+
+
+workflows:
+  version: 2
+  build_and_test:
+    jobs:
+      - build:
+          matrix:
+            parameters:
+              python-version: ["3.7", "3.8", "3.9"]
