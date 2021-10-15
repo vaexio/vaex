@@ -90,7 +90,9 @@ jobs:
       id: cache-compiled-binaries
       uses: actions/cache@v2
       with:
-        path: packages/vaex-core/build/temp*
+        path: |
+          packages/vaex-core/build/lib*/vaex/vaexfast*
+          packages/vaex-core/build/lib*/vaex/super*
         key: ${{ runner.OS }}-${{ matrix.python-version }}-${{ hashFiles('packages/vaex-core/src/*') }}-v2
     - name: Fix cache timestamp
       if: steps.cache-compiled-binaries.outputs.cache-hit == 'true' && matrix.os != 'windows-latest'
@@ -99,81 +101,81 @@ jobs:
     - name: Install vaex
       run: |
         ./ci/03-install-vaex.sh
-    - name: Install vaex-enterprise
-      if: ${{ (github.event.pull_request.head.repo.full_name == 'vaexio/vaex') && (matrix.os == 'ubuntu-latest') }}
-      run: |
-        conda activate vaex-dev
-        cd vaex-enterprise
-        mamba install -c conda-forge distributed
-        pip install ray
-        pip install -e .
-    - name: Copy dll
-      if: (matrix.os == 'windows-latest')
-      uses: ./ci/actions/windll
-    - name: Build Python packages
-      run: |
-        conda activate vaex-dev
-        mkdir dist
-        (cd packages/vaex-core && python setup.py bdist_wheel); cp packages/vaex-core/dist/* dist
-        (cd packages/vaex-graphql && python setup.py bdist_wheel); cp packages/vaex-graphql/dist/* dist
-        (cd packages/vaex-jupyter && python setup.py bdist_wheel); cp packages/vaex-jupyter/dist/* dist
-        (cd packages/vaex-ml && python setup.py bdist_wheel); cp packages/vaex-ml/dist/* dist
-        (cd packages/vaex-viz && python setup.py bdist_wheel); cp packages/vaex-viz/dist/* dist
-        (cd packages/vaex-astro && python setup.py bdist_wheel); cp packages/vaex-astro/dist/* dist
-        (cd packages/vaex-hdf5 && python setup.py bdist_wheel); cp packages/vaex-hdf5/dist/* dist
-        (cd packages/vaex-server && python setup.py bdist_wheel); cp packages/vaex-server/dist/* dist
-        (cd packages/vaex-meta && python setup.py bdist_wheel); cp packages/vaex-server/dist/* dist
-    - name: Upload builds
-      uses: actions/upload-artifact@v2
-      with:
-        name: dist-${{ github.run_number }}-${{ matrix.python-version }}-${{ matrix.os }}
-        path: ./dist
-    - name: Lint with flake8
-      run: |
-        echo "soon"
-        # pip install flake8
-        # stop the build if there are Python syntax errors or undefined names
-        # flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
-        # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
-        # flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
-    - name: Test with pytest
-      run: |
-        ./ci/04-run-test-suite.sh
-    - name: Test with pytest (with cache on)
-      if: matrix.python-version == '3.9' && matrix.os == 'ubuntu-latest'
-      run: |
-        VAEX_CACHE_RESULTS=1 ./ci/04-run-test-suite.sh
-    - name: Check ml spec
-      # no catboost for py39 and py37
-      if: matrix.python-version != '3.9' && matrix.os != 'windows-latest' && matrix.python-version != '3.7'
-      run: |
-        conda activate vaex-dev
-        python -m vaex.ml.spec packages/vaex-ml/vaex/ml/spec_new.json
-        diff packages/vaex-ml/vaex/ml/spec_new.json packages/vaex-ml/vaex/ml/spec.json
-    - name: Test with pytest (vaex-enterprise)
-      if: ${{ (github.event.pull_request.head.repo.full_name == 'vaexio/vaex') && (matrix.os == 'ubuntu-latest') }}
-      run: |
-        conda activate vaex-dev
-        py.test vaex-enterprise/tests --timeout=1000
-    - name: Test notebooks
-      if: matrix.os != 'windows-latest'
-      run: |
-        ./ci/05-run-notebooks.sh
-    - name: Authenticate Google Cloud Platform
-      if: ${{ (github.event.pull_request.head.repo.full_name == 'vaexio/vaex') }}
-      uses: google-github-actions/setup-gcloud@master
-      with:
-        project_id: ${{ secrets.GCP_PROJECT_ID_VAEX }}
-        service_account_key: ${{ secrets.GCP_SA_KEY_VAEX }}
-        export_default_credentials: true
-    - name: Test vaex-contrib
-      if: ${{ (github.event.pull_request.head.repo.full_name == 'vaexio/vaex') && (matrix.os != 'windows-latest')}}
-      env:
-        PROJECT_ID: ${{ secrets.GCP_PROJECT_ID_VAEX }}
-      run: |
-        conda activate vaex-dev
-        pip install -e 'packages/vaex-contrib[gcp]'
-        ./ci/06-run-contrib-tests.sh
+    # - name: Install vaex-enterprise
+    #   if: ${{ (github.event.pull_request.head.repo.full_name == 'vaexio/vaex') && (matrix.os == 'ubuntu-latest') }}
+    #   run: |
+    #     conda activate vaex-dev
+    #     cd vaex-enterprise
+    #     mamba install -c conda-forge distributed
+    #     pip install ray
+    #     pip install -e .
+    # - name: Copy dll
+    #   if: (matrix.os == 'windows-latest')
+    #   uses: ./ci/actions/windll
+    # - name: Build Python packages
+    #   run: |
+    #     conda activate vaex-dev
+    #     mkdir dist
+    #     (cd packages/vaex-core && python setup.py bdist_wheel); cp packages/vaex-core/dist/* dist
+    #     (cd packages/vaex-graphql && python setup.py bdist_wheel); cp packages/vaex-graphql/dist/* dist
+    #     (cd packages/vaex-jupyter && python setup.py bdist_wheel); cp packages/vaex-jupyter/dist/* dist
+    #     (cd packages/vaex-ml && python setup.py bdist_wheel); cp packages/vaex-ml/dist/* dist
+    #     (cd packages/vaex-viz && python setup.py bdist_wheel); cp packages/vaex-viz/dist/* dist
+    #     (cd packages/vaex-astro && python setup.py bdist_wheel); cp packages/vaex-astro/dist/* dist
+    #     (cd packages/vaex-hdf5 && python setup.py bdist_wheel); cp packages/vaex-hdf5/dist/* dist
+    #     (cd packages/vaex-server && python setup.py bdist_wheel); cp packages/vaex-server/dist/* dist
+    #     (cd packages/vaex-meta && python setup.py bdist_wheel); cp packages/vaex-server/dist/* dist
+    # - name: Upload builds
+    #   uses: actions/upload-artifact@v2
+    #   with:
+    #     name: dist-${{ github.run_number }}-${{ matrix.python-version }}-${{ matrix.os }}
+    #     path: ./dist
+    # - name: Lint with flake8
+    #   run: |
+    #     echo "soon"
+    #     # pip install flake8
+    #     # stop the build if there are Python syntax errors or undefined names
+    #     # flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+    #     # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
+    #     # flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+    # - name: Test with pytest
+    #   run: |
+    #     ./ci/04-run-test-suite.sh
+    # - name: Test with pytest (with cache on)
+    #   if: matrix.python-version == '3.9' && matrix.os == 'ubuntu-latest'
+    #   run: |
+    #     VAEX_CACHE_RESULTS=1 ./ci/04-run-test-suite.sh
+    # - name: Check ml spec
+    #   # no catboost for py39 and py37
+    #   if: matrix.python-version != '3.9' && matrix.os != 'windows-latest' && matrix.python-version != '3.7'
+    #   run: |
+    #     conda activate vaex-dev
+    #     python -m vaex.ml.spec packages/vaex-ml/vaex/ml/spec_new.json
+    #     diff packages/vaex-ml/vaex/ml/spec_new.json packages/vaex-ml/vaex/ml/spec.json
+    # - name: Test with pytest (vaex-enterprise)
+    #   if: ${{ (github.event.pull_request.head.repo.full_name == 'vaexio/vaex') && (matrix.os == 'ubuntu-latest') }}
+    #   run: |
+    #     conda activate vaex-dev
+    #     py.test vaex-enterprise/tests --timeout=1000
+    # - name: Test notebooks
+    #   if: matrix.os != 'windows-latest'
+    #   run: |
+    #     ./ci/05-run-notebooks.sh
+    # - name: Authenticate Google Cloud Platform
+    #   if: ${{ (github.event.pull_request.head.repo.full_name == 'vaexio/vaex') }}
+    #   uses: google-github-actions/setup-gcloud@master
+    #   with:
+    #     project_id: ${{ secrets.GCP_PROJECT_ID_VAEX }}
+    #     service_account_key: ${{ secrets.GCP_SA_KEY_VAEX }}
+    #     export_default_credentials: true
+    # - name: Test vaex-contrib
+    #   if: ${{ (github.event.pull_request.head.repo.full_name == 'vaexio/vaex') && (matrix.os != 'windows-latest')}}
+    #   env:
+    #     PROJECT_ID: ${{ secrets.GCP_PROJECT_ID_VAEX }}
+    #   run: |
+    #     conda activate vaex-dev
+    #     pip install -e 'packages/vaex-contrib[gcp]'
+    #     ./ci/06-run-contrib-tests.sh
 
   install:
     runs-on: ${{ matrix.os }}
