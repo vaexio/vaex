@@ -20,7 +20,7 @@ jobs:
   main:
     env:
       # 'reset' the cache by changing this number
-      CACHE_NUMBER_ENV: 6
+      CACHE_NUMBER_ENV: 7
       CACHE_NUMBER_COMPILE: 5
     runs-on: ${{ matrix.os }}
     strategy:
@@ -206,6 +206,9 @@ jobs:
     #     conda activate vaex-dev
     #     pip install -e 'packages/vaex-contrib[gcp]'
     #     ./ci/06-run-contrib-tests.sh
+    - name: Cleanup packages directory
+      run: |
+        rm -rf ~/micromamba/pkgs/*/
 
   install:
     runs-on: ${{ matrix.os }}
