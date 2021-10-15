@@ -20,7 +20,8 @@ jobs:
   main:
     env:
       # 'reset' the cache by changing this number
-      CACHE_NUMBER: 5
+      CACHE_NUMBER_ENV: 6
+      CACHE_NUMBER_COMPILE: 5
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -50,9 +51,10 @@ jobs:
       uses: actions/cache@v2
       with:
         path: |
+          ~/micromamba/pkgs
           envs/conda-env-${{ runner.OS }}-${{ matrix.python-version }}.txt
         key:
-          pkgs-${{ runner.os }}-${{ matrix.python-version }}-conda-${{ env.CACHE_NUMBER }}-${{hashFiles('ci/conda-env.yml') }}
+          pkgs-${{ runner.os }}-${{ matrix.python-version }}-conda-${{ env.CACHE_NUMBER_ENV }}-${{hashFiles('ci/conda-env.yml') }}
     - name: install micromamba
       uses: mamba-org/provision-with-micromamba@main
     - name: Install conda for micromamba
@@ -115,7 +117,7 @@ jobs:
         path: |
           packages/vaex-core/build/lib*/vaex/vaexfast*
           packages/vaex-core/build/lib*/vaex/super*
-        key: ${{ runner.OS }}-${{ matrix.python-version }}-${{ hashFiles('packages/vaex-core/src/*') }}-${{ env.CACHE_NUMBER }}
+        key: ${{ runner.OS }}-${{ matrix.python-version }}-${{ hashFiles('packages/vaex-core/src/*') }}-${{ env.CACHE_NUMBER_COMPILE }}
     - name: Fix cache timestamp
       run: |
         touch packages/vaex-core/build/lib*/vaex/vaexfast* || echo "ok to fail"
