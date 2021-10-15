@@ -74,6 +74,7 @@ jobs:
       run: |
         mamba create -n vaex-dev --file envs/conda-env-${{ runner.OS }}-${{ matrix.python-version }}.yml --offline
     - name: Save environment file
+      if: steps.cache-conda-pip-env.outputs.cache-hit != 'true'
       run: |
         mkdir envs
         mamba list -n vaex-dev --explicit --md5 --export > envs/conda-env-${{ runner.OS }}-${{ matrix.python-version }}.yml
