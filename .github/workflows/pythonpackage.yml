@@ -89,14 +89,14 @@ jobs:
         conda activate vaex-dev
         mamba upgrade scipy ipython dask
         # not sure why, but the conda env is strange (old dask) if we put this constraint in the conda solver
-    - name: free disk space
-      if: matrix.os == 'ubuntu-latest'
-      run: |
-        sudo swapoff -a
-        sudo rm -f /swapfile
-        sudo apt clean
-        docker rmi $(docker image ls -aq)
-        df -h
+    # - name: free disk space
+    #   if: matrix.os == 'ubuntu-latest'
+    #   run: |
+    #     sudo swapoff -a
+    #     sudo rm -f /swapfile
+    #     sudo apt clean
+    #     docker rmi $(docker image ls -aq)
+    #     df -h
     - name: Install OpenMP runtime (Mac-only)
       if: matrix.os == 'macOS-latest'
       run: |
