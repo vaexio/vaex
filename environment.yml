@@ -1,2 +1,5 @@
+name: dummy
+channels:
+  - conda-forge
 dependencies:
-- wget
+- python
