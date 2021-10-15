@@ -123,6 +123,7 @@ jobs:
         ls -alh packages/vaex-core/build/lib*/vaex/ || echo "ok to fail"
     - name: Install vaex
       run: |
+        micromamba activate vaex-dev
         pip install myst_parser
         pip install -e . -v
         # ./ci/03-install-vaex.sh micromamba
