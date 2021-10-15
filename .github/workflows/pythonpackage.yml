@@ -61,12 +61,6 @@ jobs:
     - name: Conda init
       run: |
         conda init bash
-    - name: Conda env cache
-      id: cache-conda-env
-      uses: actions/cache@v1
-      with:
-        path: /usr/share/miniconda/envs/vaex-dev
-        key: conda-env-${{ runner.OS }}-${{ matrix.python-version }}-v1
     - name: Create env (with mamba)
       run: |
         ./ci/02-create-vaex-dev-env.sh ${{ matrix.python-version }} mamba
