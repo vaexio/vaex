@@ -18,6 +18,9 @@ defaults:
 
 jobs:
   main:
+    env:
+      # 'reset' the cache by changing this number
+      CACHE_NUMBER: 5
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -45,9 +48,6 @@ jobs:
     - name: Cache conda+pip
       id: cache-conda-pip-env
       uses: actions/cache@v2
-      env:
-        # Increase this value to reset cache if ci/vaex-env.yml has not changed
-        CACHE_NUMBER: 3
       with:
         path: |
           envs/conda-env-${{ runner.OS }}-${{ matrix.python-version }}.txt
@@ -76,6 +76,7 @@ jobs:
       if: steps.cache-conda-pip-env.outputs.cache-hit != 'true'
       run: |
         mkdir envs
+        micromamba activate vaex-dev
         micromamba env export --explicit > envs/conda-env-${{ runner.OS }}-${{ matrix.python-version }}.txt
     - name: Upload environment file
       uses: actions/upload-artifact@v2
@@ -114,7 +115,7 @@ jobs:
         path: |
           packages/vaex-core/build/lib*/vaex/vaexfast*
           packages/vaex-core/build/lib*/vaex/super*
-        key: ${{ runner.OS }}-${{ matrix.python-version }}-${{ hashFiles('packages/vaex-core/src/*') }}-v2
+        key: ${{ runner.OS }}-${{ matrix.python-version }}-${{ hashFiles('packages/vaex-core/src/*') }}-${{ env.CACHE_NUMBER }}
     - name: Fix cache timestamp
       run: |
         touch packages/vaex-core/build/lib*/vaex/vaexfast*
