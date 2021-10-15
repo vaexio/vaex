@@ -35,7 +35,7 @@ jobs:
       if: matrix.os == 'macOS-latest'
       with:
         xcode-version: "11.7.0"
-    - uses: actions/checkout@v1
+    - uses: actions/checkout@v2
       with:
         submodules: true
     - uses: actions/checkout@v2
