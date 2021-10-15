@@ -43,6 +43,7 @@ jobs:
         path: vaex-enterprise
     # I think it is important to do this first, since setup-miniconda will clean up the pkg folder for us
     - name: Cache conda+pip
+      id: cache-conda-pip-env
       uses: actions/cache@v2
       env:
         # Increase this value to reset cache if ci/vaex-env.yml has not changed
@@ -65,13 +66,13 @@ jobs:
       run: |
         conda init bash
     - name: Create env (with mamba)
-      if: steps.cache-conda-env.outputs.cache-hit != 'true'
+      if: steps.cache-conda-pip-env.outputs.cache-hit != 'true'
       run: |
         ./ci/02-create-vaex-dev-env.sh ${{ matrix.python-version }} mamba
     - name: Create env (fixed)
-      if: steps.cache-conda-env.outputs.cache-hit == 'true'
+      if: steps.cache-conda-pip-env.outputs.cache-hit == 'true'
       run: |
-        mamba create -y -c conda-forge -n vaex-dev python=${{ matrix.python-version }} compilers --file envs/conda-env-${{ runner.OS }}-${{ matrix.python-version }}.yml --offline
+        mamba create -n vaex-dev --file envs/conda-env-${{ runner.OS }}-${{ matrix.python-version }}.yml --offline
     - name: Save environment file
       run: |
         mkdir envs
