@@ -41,6 +41,16 @@ jobs:
         repository: vaexio/vaex-enterprise
         token: ${{ secrets.PAT_PULL_ENTERPRISE }}
         path: vaex-enterprise
+    # I think it is important to do this first, since setup-miniconda will clean up the pkg folder for us
+    - name: Cache conda
+      uses: actions/cache@v2
+      env:
+        # Increase this value to reset cache if ci/vaex-env.yml has not changed
+        CACHE_NUMBER: 0
+      with:
+        path: ~/conda_pkgs_dir
+        key:
+          ${{ runner.os }}-conda-${{ env.CACHE_NUMBER }}-${{hashFiles('ci/vaex-env.yml') }}
     - name: Install conda with Python ${{ matrix.python-version }}
       uses: conda-incubator/setup-miniconda@v2
       with:
@@ -58,9 +68,17 @@ jobs:
         path: /usr/share/miniconda/envs/vaex-dev
         key: conda-env-${{ runner.OS }}-${{ matrix.python-version }}-v1
     - name: Create env (with mamba)
-      if: steps.cache-conda-env.outputs.cache-hit != 'true'
       run: |
         ./ci/02-create-vaex-dev-env.sh ${{ matrix.python-version }} mamba
+    - name: Save environment file
+      run: |
+        mkdir envs
+        mamba list -n vaex-dev --explicit --md5 --export > envs/conda-env-${{ runner.OS }}-${{ matrix.python-version }}.yml
+    - name: Upload environment file
+      uses: actions/upload-artifact@v2
+      with:
+        name: env-${{ github.run_number }}-${{ matrix.python-version }}-${{ matrix.os }}
+        path: ./envs
     - name: Extra non-windows installs
       if: matrix.os != 'windows-latest'
       run: |
