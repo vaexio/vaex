@@ -63,7 +63,7 @@ jobs:
       run: |
         micromamba create -y -q -c conda-forge -n vaex-dev python=${{ matrix.python-version }} compilers
         micromamba activate vaex-dev
-        micromamba env update --file ci/conda-env.yml
+        micromamba env update -n vaex-dev --file ci/conda-env.yml
         # micromamba env create --file ci/conda-env.yml
         # ./ci/02-create-vaex-dev-env.sh ${{ matrix.python-version }} micromamba
       # name: vaex-dev
