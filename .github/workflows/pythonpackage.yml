@@ -47,11 +47,9 @@ jobs:
       uses: actions/cache@v2
       env:
         # Increase this value to reset cache if ci/vaex-env.yml has not changed
-        CACHE_NUMBER: 2
+        CACHE_NUMBER: 3
       with:
         path: |
-          ~/micromamba/pkgs
-          ~/.cache/pip
           envs/conda-env-${{ runner.OS }}-${{ matrix.python-version }}.txt
         key:
           pkgs-${{ runner.os }}-${{ matrix.python-version }}-conda-${{ env.CACHE_NUMBER }}-${{hashFiles('ci/conda-env.yml') }}
