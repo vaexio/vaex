@@ -25,10 +25,8 @@ jobs:
       - run:
           name: Create vaex-dex environment
           command: |
-            mamba create -y -q -c conda-forge -n vaex-dev python=<< parameters.python-version >> compilers --quiet
+            mamba create -y -q -c conda-forge -n vaex-dev python=<< parameters.python-version >> compilers --file ci/conda-env.yml
             source activate vaex-dev
-            mamba env update --file ci/conda-env.yml  --quiet
-            mamba update pcre scipy ipython dask
             conda list
       - run:
           name: Install vaex
