@@ -42,15 +42,17 @@ jobs:
         token: ${{ secrets.PAT_PULL_ENTERPRISE }}
         path: vaex-enterprise
     # I think it is important to do this first, since setup-miniconda will clean up the pkg folder for us
-    - name: Cache conda
+    - name: Cache conda+pip
       uses: actions/cache@v2
       env:
         # Increase this value to reset cache if ci/vaex-env.yml has not changed
         CACHE_NUMBER: 0
       with:
-        path: ~/conda_pkgs_dir
+        path: |
+          ~/conda_pkgs_dir
+          ~/.cache/pip
         key:
-          ${{ runner.os }}-conda-${{ env.CACHE_NUMBER }}-${{hashFiles('ci/vaex-env.yml') }}
+          pkgs-${{ runner.os }}-${{ matrix.python-version }}-conda-${{ env.CACHE_NUMBER }}-${{hashFiles('ci/vaex-env.yml') }}
     - name: Install conda with Python ${{ matrix.python-version }}
       uses: conda-incubator/setup-miniconda@v2
       with:

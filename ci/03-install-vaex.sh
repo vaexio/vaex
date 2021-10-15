@@ -14,4 +14,4 @@ if [[ "$OSTYPE" == "linux-gnu"* ]]; then
     export CXXFLAGS='-Wl,-strip-all'
 fi
 pip install myst_parser
-pip install -e .
+pip install -e . -v
