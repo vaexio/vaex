@@ -6804,13 +6804,18 @@ class DataFrameLocal(DataFrame):
     #     self._has_selection = mask is not None
     #     # self.signal_selection_changed.emit(self)
 
-    def drop_duplicates(self, subset=None):
-        if subset is None:
-            subset = self.get_column_names()
-        if type(subset) is str:
-            subset = [subset]
+    def drop_duplicates(self, columns=None):
+        """Return a :class:`DataFrame` object with no duplicates in the given columns.
 
-        return self.groupby(subset, agg={col: vaex.agg.first(col, subset[0]) for col in self.get_column_names()})
+        :param columns: Columns to remove duplicates by, default to all columns. If only one columns, no need to pass in a list (str or `df.col_name` will work).
+        :return: :class:`DataFrame` object with duplicates filtered away.
+        """
+        if columns is None:
+            columns = self.get_column_names()
+        if type(columns) is str:
+            columns = [columns]
+
+        return self.groupby(columns, agg={'__hidden_count': vaex.agg.count()})
 
     @docsubst
     def groupby(self, by=None, agg=None, sort=False, assume_sparse='auto', row_limit=None, copy=True, progress=None, delay=False):
