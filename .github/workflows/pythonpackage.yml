@@ -123,27 +123,27 @@ jobs:
     #     mamba install -c conda-forge distributed
     #     pip install ray
     #     pip install -e .
-    # - name: Copy dll
-    #   if: (matrix.os == 'windows-latest')
-    #   uses: ./ci/actions/windll
-    # - name: Build Python packages
-    #   run: |
-    #     conda activate vaex-dev
-    #     mkdir dist
-    #     (cd packages/vaex-core && python setup.py bdist_wheel); cp packages/vaex-core/dist/* dist
-    #     (cd packages/vaex-graphql && python setup.py bdist_wheel); cp packages/vaex-graphql/dist/* dist
-    #     (cd packages/vaex-jupyter && python setup.py bdist_wheel); cp packages/vaex-jupyter/dist/* dist
-    #     (cd packages/vaex-ml && python setup.py bdist_wheel); cp packages/vaex-ml/dist/* dist
-    #     (cd packages/vaex-viz && python setup.py bdist_wheel); cp packages/vaex-viz/dist/* dist
-    #     (cd packages/vaex-astro && python setup.py bdist_wheel); cp packages/vaex-astro/dist/* dist
-    #     (cd packages/vaex-hdf5 && python setup.py bdist_wheel); cp packages/vaex-hdf5/dist/* dist
-    #     (cd packages/vaex-server && python setup.py bdist_wheel); cp packages/vaex-server/dist/* dist
-    #     (cd packages/vaex-meta && python setup.py bdist_wheel); cp packages/vaex-server/dist/* dist
-    # - name: Upload builds
-    #   uses: actions/upload-artifact@v2
-    #   with:
-    #     name: dist-${{ github.run_number }}-${{ matrix.python-version }}-${{ matrix.os }}
-    #     path: ./dist
+    - name: Copy dll
+      if: (matrix.os == 'windows-latest')
+      uses: ./ci/actions/windll
+    - name: Build Python packages
+      run: |
+        conda activate vaex-dev
+        mkdir dist
+        (cd packages/vaex-core && python setup.py bdist_wheel); cp packages/vaex-core/dist/* dist
+        (cd packages/vaex-graphql && python setup.py bdist_wheel); cp packages/vaex-graphql/dist/* dist
+        (cd packages/vaex-jupyter && python setup.py bdist_wheel); cp packages/vaex-jupyter/dist/* dist
+        (cd packages/vaex-ml && python setup.py bdist_wheel); cp packages/vaex-ml/dist/* dist
+        (cd packages/vaex-viz && python setup.py bdist_wheel); cp packages/vaex-viz/dist/* dist
+        (cd packages/vaex-astro && python setup.py bdist_wheel); cp packages/vaex-astro/dist/* dist
+        (cd packages/vaex-hdf5 && python setup.py bdist_wheel); cp packages/vaex-hdf5/dist/* dist
+        (cd packages/vaex-server && python setup.py bdist_wheel); cp packages/vaex-server/dist/* dist
+        (cd packages/vaex-meta && python setup.py bdist_wheel); cp packages/vaex-server/dist/* dist
+    - name: Upload builds
+      uses: actions/upload-artifact@v2
+      with:
+        name: dist-${{ github.run_number }}-${{ matrix.python-version }}-${{ matrix.os }}
+        path: ./dist
     # - name: Lint with flake8
     #   run: |
     #     echo "soon"
@@ -219,6 +219,17 @@ jobs:
         auto-activate-base: true
         auto-update-conda: true
         channels: conda-forge
+
+    - name: Cache pip
+      uses: actions/cache@v2
+      env:
+        # Increase this value to reset cache
+        CACHE_NUMBER: 0
+      with:
+        path: |
+          ~/.cache/pip
+        key:
+          pip-${{ runner.os }}-${{ matrix.python-version }}-${{ env.CACHE_NUMBER }}
 
     - name: Install the packages
       run: |
