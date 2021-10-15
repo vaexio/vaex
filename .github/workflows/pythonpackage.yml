@@ -118,9 +118,9 @@ jobs:
         key: ${{ runner.OS }}-${{ matrix.python-version }}-${{ hashFiles('packages/vaex-core/src/*') }}-${{ env.CACHE_NUMBER }}
     - name: Fix cache timestamp
       run: |
-        touch packages/vaex-core/build/lib*/vaex/vaexfast*
-        touch packages/vaex-core/build/lib*/vaex/super*
-        ls -alh packages/vaex-core/build/lib*/vaex/
+        touch packages/vaex-core/build/lib*/vaex/vaexfast* || echo "ok to fail"
+        touch packages/vaex-core/build/lib*/vaex/super* || echo "ok to fail"
+        ls -alh packages/vaex-core/build/lib*/vaex/ || echo "ok to fail"
     # - name: Install vaex
     #   run: |
     #     ./ci/03-install-vaex.sh micromamba
