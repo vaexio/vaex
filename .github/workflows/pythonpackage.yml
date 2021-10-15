@@ -119,6 +119,7 @@ jobs:
       run: |
         touch packages/vaex-core/build/lib*/vaex/vaexfast*
         touch packages/vaex-core/build/lib*/vaex/super*
+        ls -alh packages/vaex-core/build/lib*/vaex/
     # - name: Install vaex
     #   run: |
     #     ./ci/03-install-vaex.sh micromamba
