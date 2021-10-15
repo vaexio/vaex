@@ -5,7 +5,7 @@ import fsspec
 
 fs_options = {'anonymous': 'true'}
 
-@pytest.mark.skipif(vaex.utils.devmode, reason='runs too slow when developing')
+@pytest.mark.slow
 @pytest.mark.parametrize("base_url", ["gs://vaex-data", "s3://vaex"])
 @pytest.mark.parametrize("cache", ["true", "false"])
 def test_cloud_dataset_basics(base_url, cache):
@@ -18,7 +18,7 @@ def test_cloud_dataset_basics(base_url, cache):
     assert df.x.sum() == 3
 
 
-@pytest.mark.skipif(vaex.utils.devmode, reason='runs too slow when developing')
+@pytest.mark.slow
 @pytest.mark.parametrize("base_url", ["gs://vaex-data", "s3://vaex"])
 @pytest.mark.parametrize("cache", ["true", "false"])
 @pytest.mark.parametrize("file_format", ["hdf5", "arrow", "parquet", "csv", "feather"])
@@ -38,7 +38,7 @@ def test_cloud_dataset_masked(base_url, file_format, cache):
 
 
 
-@pytest.mark.skipif(vaex.utils.devmode, reason='runs too slow when developing')
+@pytest.mark.slow
 @pytest.mark.parametrize("base_url", ["gs://vaex-data", "s3://vaex"])
 def test_cloud_glob(base_url):
     assert set(vaex.file.glob(f'{base_url}/testing/*.hdf5', fs_options=fs_options)) >= ({f'{base_url}/testing/xys-masked.hdf5', f'{base_url}/testing/xys.hdf5'})
