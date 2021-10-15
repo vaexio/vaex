@@ -51,6 +51,7 @@ jobs:
         path: |
           ~/conda_pkgs_dir
           ~/.cache/pip
+          envs/conda-env-${{ runner.OS }}-${{ matrix.python-version }}.yml
         key:
           pkgs-${{ runner.os }}-${{ matrix.python-version }}-conda-${{ env.CACHE_NUMBER }}-${{hashFiles('ci/vaex-env.yml') }}
     - name: Install conda with Python ${{ matrix.python-version }}
@@ -64,8 +65,13 @@ jobs:
       run: |
         conda init bash
     - name: Create env (with mamba)
+      if: steps.cache-conda-env.outputs.cache-hit != 'true'
       run: |
         ./ci/02-create-vaex-dev-env.sh ${{ matrix.python-version }} mamba
+    - name: Create env (fixed)
+      if: steps.cache-conda-env.outputs.cache-hit == 'true'
+      run: |
+        mamba create -y -c conda-forge -n vaex-dev python=${{ matrix.python-version }} compilers --file envs/conda-env-${{ runner.OS }}-${{ matrix.python-version }}.yml --offline
     - name: Save environment file
       run: |
         mkdir envs
