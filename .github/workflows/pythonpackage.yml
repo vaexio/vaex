@@ -54,10 +54,11 @@ jobs:
           ~/.cache/pip
           envs/conda-env-${{ runner.OS }}-${{ matrix.python-version }}.yml
         key:
-          pkgs-${{ runner.os }}-${{ matrix.python-version }}-conda-${{ env.CACHE_NUMBER }}-${{hashFiles('ci/vaex-env.yml') }}
+          pkgs-${{ runner.os }}-${{ matrix.python-version }}-conda-${{ env.CACHE_NUMBER }}-${{hashFiles('ci/conda-env.yml') }}
     - name: Install conda with Python ${{ matrix.python-version }}
       uses: conda-incubator/setup-miniconda@v2
       with:
+        auto-update-conda: false
         python-version: ${{ matrix.python-version }}
         mamba-version: "*"
         auto-activate-base: true
