@@ -57,7 +57,7 @@ jobs:
           pkgs-${{ runner.os }}-${{ matrix.python-version }}-conda-${{ env.CACHE_NUMBER }}-${{hashFiles('ci/conda-env.yml') }}
     - name: install micromamba
       uses: mamba-org/provision-with-micromamba@main
-    - name: install conda for micromamba
+    - name: Install conda for micromamba
       run: |
         micromamba install mamba -c conda-forge
     - name: Create env (with mamba)
