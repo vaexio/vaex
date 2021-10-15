@@ -11,7 +11,8 @@ init:
   - "ECHO %PYTHON_VERSION% %MINICONDA%"
 
 cache:
-  vaex\packages\vaex-core\build
+  - vaex\packages\vaex-core\build
+  - '%MINICONDA%\pkgs'
 
 build: false
 
@@ -31,6 +32,8 @@ install:
   - conda deactivate
   - conda activate vaex-dev
   - conda list
+  - sh: touch packages/vaex-core/build/lib*/vaex/vaexfast*
+  - sh: touch packages/vaex-core/build/lib*/vaex/super*
   - pushd packages\vaex-core   && pip install . && popd
   - pushd packages\vaex-hdf5   && pip install . && popd
   - pushd packages\vaex-viz   && pip install . && popd
@@ -40,6 +43,7 @@ install:
   - pushd packages\vaex-ui   && pip install . && popd
   - pushd packages\vaex-ml   && pip install . && popd
   - pushd packages\vaex-graphql   && pip install . && popd
+  - sh: rm -rf $MINICONDA/pkgs/*/'
 
 test_script:
  - set VAEX_SERVER_OVERRIDE={"dataframe.vaex.io":"dataframe-dev.vaex.io"}
