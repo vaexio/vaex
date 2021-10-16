@@ -583,3 +583,12 @@ def test_groupby_limited_with_nan(df_factory):
     # we don't check, because comparing nan is always false
     # assert dfg['type'].tolist() == [a, b,  None, others]
     assert dfg['sum'].tolist() == [1+2+2, 3+3, 9+9, 4]
+
+
+def test_groupby_int8():
+    df = vaex.example()
+    assert df.id.dtype ==  np.uint8  # Just a consistency check
+
+    df_group = df.groupby('id').agg({'x': 'sum'})
+
+    assert df_group.shape == (33, 2)
