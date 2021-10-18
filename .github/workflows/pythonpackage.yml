@@ -229,17 +229,12 @@ jobs:
         name: dist-${{ github.run_number }}-${{ matrix.python-version }}-${{ matrix.os }}
         path: ./dist
 
-    - name: install micromamba
+    - name: Install micromamba
       uses: mamba-org/provision-with-micromamba@main
 
-    - name: Install Python ${{ matrix.python-version }}
-      uses: conda-incubator/setup-miniconda@v2
-      run:|
-        python-version: ${{ matrix.python-version }}
-        mamba-version: "*"
-        auto-activate-base: true
-        auto-update-conda: true
-        channels: conda-forge
+    - name: Create a base environment
+      run: |
+        micromamba create -n vaex-install python=${{ matrix.python-version }} numpy scipy pandas
 
     - name: Cache pip
       uses: actions/cache@v2
@@ -254,14 +249,17 @@ jobs:
 
     - name: Install the packages
       run: |
+        micromamba activate vaex-install
         pip install -vv dist/*
 
     - name: Test import
       run: |
+        micromamba activate vaex-install
         python -c "import vaex; df = vaex.example()"
 
     - name: Test server
       run: |
+        micromamba activate vaex-install
         vaex server --add-example --port 9999&
 
     - name: Wait for Vaex server
@@ -272,5 +270,6 @@ jobs:
 
     - name: Use the Vaex server
       run: |
+        micromamba activate vaex-install
         python -c "import vaex; df = vaex.open('ws://localhost:9999/example'); df.x.sum()"
         curl -i http://localhost:9999/histogram/example/x
