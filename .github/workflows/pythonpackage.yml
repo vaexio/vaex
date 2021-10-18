@@ -45,7 +45,8 @@ jobs:
         repository: vaexio/vaex-enterprise
         token: ${{ secrets.PAT_PULL_ENTERPRISE }}
         path: vaex-enterprise
-    # I think it is important to do this first, since setup-miniconda will clean up the pkg folder for us
+    - name: install micromamba
+      uses: mamba-org/provision-with-micromamba@main
     - name: Cache conda+pip
       id: cache-conda-pip-env
       uses: actions/cache@v2
@@ -55,8 +56,6 @@ jobs:
           envs/conda-env-${{ runner.OS }}-${{ matrix.python-version }}.txt
         key:
           pkgs-${{ runner.os }}-${{ matrix.python-version }}-conda-${{ env.CACHE_NUMBER_ENV }}-${{hashFiles('ci/conda-env.yml') }}
-    - name: install micromamba
-      uses: mamba-org/provision-with-micromamba@main
     - name: Install conda for micromamba
       run: |
         micromamba install mamba -c conda-forge
@@ -230,9 +229,12 @@ jobs:
         name: dist-${{ github.run_number }}-${{ matrix.python-version }}-${{ matrix.os }}
         path: ./dist
 
-    - name: Install conda with Python ${{ matrix.python-version }}
+    - name: install micromamba
+      uses: mamba-org/provision-with-micromamba@main
+
+    - name: Install Python ${{ matrix.python-version }}
       uses: conda-incubator/setup-miniconda@v2
-      with:
+      run:|
         python-version: ${{ matrix.python-version }}
         mamba-version: "*"
         auto-activate-base: true
