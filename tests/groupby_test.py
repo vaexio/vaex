@@ -583,3 +583,13 @@ def test_groupby_limited_with_nan(df_factory):
     # we don't check, because comparing nan is always false
     # assert dfg['type'].tolist() == [a, b,  None, others]
     assert dfg['sum'].tolist() == [1+2+2, 3+3, 9+9, 4]
+
+
+def test_groupby_2d_tmp():
+    # This is a tenporary test to expose the main issue
+    # I have not been able to reproduce the data with a small dataset that i build myself
+    # But I've encountered this issue when using various datasets (hdf5)
+    import vaex.ml
+    df = vaex.ml.datasets.load_titanic()
+    dfg = df.groupby(['pclass', 'sex']).agg({'fare': 'sum'})
+    assert dfg.shape == (6, 2)
