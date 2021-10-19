@@ -229,9 +229,10 @@ jobs:
         name: dist-${{ github.run_number }}-${{ matrix.python-version }}-${{ matrix.os }}
         path: ./dist
 
-    - name: Get a dummy environment file
-      run: |
-        wget https://raw.githubusercontent.com/vaexio/vaex/9d87c81260b2b2d9773d80033aeb594cc0529b70/environment.yml
+    - name: Fetch dummy environment file
+      uses: wei/wget@v1
+      with:
+        args: https://raw.githubusercontent.com/vaexio/vaex/9d87c81260b2b2d9773d80033aeb594cc0529b70/environment.yml
 
     - name: Install micromamba
       uses: mamba-org/provision-with-micromamba@main
