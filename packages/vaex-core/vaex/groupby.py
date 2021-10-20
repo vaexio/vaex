@@ -769,9 +769,11 @@ class GroupBy(GroupByBase):
                 if mask.sum() == mask.size:
                     # if we want all, just take it all
                     # should be faster
-                    mask = slice(None, None, None)
-                for key, value in arrays.items():
-                    columns[key] = value[mask]
+                    for key, value in arrays.items():
+                        columns[key] = value.ravel()
+                else:
+                    for key, value in arrays.items():
+                        columns[key] = value[mask]
             dataset_arrays = vaex.dataset.DatasetArrays(columns)
             dataset = DatasetGroupby(dataset_arrays, self.df, self.by_original, actions, combine=self.combine, expand=self.expand, sort=self.sort)
             df_grouped = vaex.from_dataset(dataset)

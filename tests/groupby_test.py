@@ -198,16 +198,15 @@ def test_binby_2d(ds_local):
     assert ar.data.tolist() == [[3, 1], [4, 0], [0, 2]]
 
 
-def test_groupby_2d(ds_local):
-    ds = ds_local.extract()
+@pytest.mark.parametrize("assume_sparse", [True, False])
+def test_groupby_2d_full(df_factory, assume_sparse):
     g = np.array([0, 0, 0, 0, 1, 1, 1, 1, 2, 2])
-    h = np.array([5, 5, 5, 6, 5, 5, 5, 5, 6, 6])
-    ds['g'] = g
-    ds['h'] = h
-    dfg = ds.groupby(by=[ds.g, ds.h], agg={'count': vaex.agg.count()}, sort=True)
-    assert dfg.g.tolist() == [0, 0, 1, 2]
-    assert dfg['count'].tolist() == [3, 1, 4, 2]
-
+    h = np.array([5, 5, 5, 6, 5, 5, 5, 6, 5, 6])
+    df = df_factory(g=g, h=h)
+    dfg = df.groupby(by=[df.g, df.h], agg={'count': vaex.agg.count()}, sort=True, assume_sparse=assume_sparse)
+    assert dfg.g.tolist() == [0, 0, 1, 1, 2, 2]
+    assert dfg.h.tolist() == [5, 6, 5, 6, 5, 6]
+    assert dfg['count'].tolist() == [3, 1, 3, 1, 1, 1]
 
 
 @pytest.mark.parametrize("assume_sparse", [True, False])
