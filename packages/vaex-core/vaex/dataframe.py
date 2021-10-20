@@ -6686,7 +6686,6 @@ class DataFrameLocal(DataFrame):
         :return:
         """
         import pandas as pd
-
         expressions = self.get_column_names()
         progressbar = vaex.utils.progressbars(progress)
         dtypes = self[expressions].dtypes
@@ -6694,19 +6693,22 @@ class DataFrameLocal(DataFrame):
         if chunk_size is None:
             chunk_size = len(self)
 
+        # By default vaex does not expect a csv file to have index like column so this is turned of by default
+        if 'index' not in kwargs:
+            kwargs['index'] = False
+
         for i1, i2, chunks in self.evaluate_iterator(expressions, chunk_size=chunk_size, parallel=parallel):
             progressbar( i1 / n_samples)
             chunk_dict = {col: values for col, values in zip(expressions, chunks)}
             chunk_pdf = pd.DataFrame(chunk_dict)
 
             if i1 == 0:  # Only the 1st chunk should have a header and the rest will be appended
-                mode = 'w'
-                header = True
+                kwargs['mode'] = 'w'
             else:
-                mode = 'a'
-                header = False
+                kwargs['mode'] = 'a'
+                kwargs['header'] = False
 
-            chunk_pdf.to_csv(path_or_buf=path, mode=mode, header=header, index=False, **kwargs)
+            chunk_pdf.to_csv(path_or_buf=path, **kwargs)
         progressbar(1.0)
         return
 
