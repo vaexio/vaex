@@ -85,9 +85,9 @@ else:
 
 
 @pytest.fixture(scope='session', params=webservers)
-def webserver(request, webserver_fastapi, webserver_tornado, df_server, df_example, df_server_huge):
+def webserver(request, webserver_fastapi, webserver_tornado, df_server, df_server_huge):
     webserver = locals()[request.param]
-    df_example = df_example.copy()
+    df_example = vaex.example()
     df = df_server.copy()
     df = df.materialize('z')  # in the fastapi we drop the state
     df.drop('obj', inplace=True)
