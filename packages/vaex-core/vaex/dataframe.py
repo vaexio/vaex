@@ -3096,7 +3096,9 @@ class DataFrame(object):
             return iterator()
         return dict(list(zip(column_names, [array_types.convert(chunk, array_type) for chunk in self.evaluate(column_names, selection=selection, parallel=parallel)])))
 
+    @_hidden
     @docsubst
+    @vaex.utils.deprecated('`.to_copy()` is deprecated and it will be removed in version 5.x. Please use `.copy()` instead.')
     def to_copy(self, column_names=None, selection=None, strings=True, virtual=True, selections=True):
         """Return a copy of the DataFrame, if selection is None, it does not copy the data, it just has a reference
 
@@ -3105,7 +3107,7 @@ class DataFrame(object):
         :param strings: argument passed to DataFrame.get_column_names when column_names is None
         :param virtual: argument passed to DataFrame.get_column_names when column_names is None
         :param selections: copy selections to a new DataFrame
-        :return: dict
+        :return: DataFrame
         """
         if column_names:
             column_names = _ensure_strings_from_expressions(column_names)
@@ -5717,11 +5719,15 @@ class DataFrameLocal(DataFrame):
         return datas
 
     def copy(self, column_names=None, treeshake=False):
-        '''Make a shallow copy of a dataframe, or a subset of columns.
+        '''Make a shallow copy of a DataFrame. One can also specify a subset of columns.
 
-        Note that this is a fairly cheap operation, since no memory copies of the underlying data are made.
+        This is a fairly cheap operation, since no memory copies of the underlying data are made.
 
+        {note_copy}
+
+        :param list column_names: A subset of columns to use for the DataFrame copy. If None, all the columns are copied.
         :param bool treeshake: Get rid of variables not used.
+        :rtype: DataFrame
         '''
         copy_all = column_names is None
         if copy_all and not treeshake:  # fast path
