@@ -492,8 +492,9 @@ def test_old_years():
 @pytest.mark.parametrize("binby", [False, True])
 def test_delay_ordinal(binby):
     df = vaex.from_arrays(x=[1, 2, 2, 3, 3, 3], s=["aap", "aap", "aap", "noot", "noot", "mies"])
-    df.ordinal_encode("x", inplace=True)
-    df.ordinal_encode("s", inplace=True)
+    with pytest.warns(UserWarning):
+        df.ordinal_encode("x", inplace=True)
+        df.ordinal_encode("s", inplace=True)
     df.executor.passes = 0
     if binby:
         ar1 = df.binby('x', agg='count', delay=True)
