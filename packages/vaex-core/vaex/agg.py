@@ -409,7 +409,7 @@ def max(expression, selection=None, edges=False):
 
 @register
 def first(expression, order_expression, selection=None, edges=False):
-    '''Creates a max aggregation'''
+    '''Creates a first aggregation'''
     return AggregatorDescriptorBasic('AggFirst', [expression, order_expression], 'first', multi_args=True, selection=selection, edges=edges)
 
 @register
