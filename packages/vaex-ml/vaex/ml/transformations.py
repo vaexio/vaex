@@ -19,11 +19,6 @@ help_features = 'List of features to transform.'
 help_prefix = 'Prefix for the names of the transformed features.'
 
 
-def dot_product(a, b):
-    products = ['%s * %s' % (ai, bi) for ai, bi in zip(a, b)]
-    return ' + '.join(products)
-
-
 @register
 class StateTransfer(HasState):
     state = traitlets.Dict()
@@ -127,19 +122,13 @@ class PCA(Transformer):
         for i in range(n_components):
             vector = eigen_vectors[:, i]
             if self.whiten:
-                expr = dot_product(expressions, vector)
+                expr = copy.func.dot_product(expressions, vector)
                 expr = f'({expr}) / {np.sqrt(self.explained_variance_[i])}'
             else:
-                expr = dot_product(expressions, vector)
+                expr = copy.func.dot_product(expressions, vector)
             name = self.prefix + str(i + name_prefix_offset)
             copy[name] = expr
         return copy
-
-def dot_product(a, b):
-    products = ['%s * %s' % (ai, bi) for ai, bi in zip(a, b)]
-    return ' + '.join(products)
-
-help_prefix = 'Prefix for the names of the transformed features.'
 
 
 @register
@@ -302,7 +291,8 @@ class RandomProjections(Transformer):
 
         for component in range(self.n_components):
             vector = random_matrix[component]
-            expr = dot_product(self.features, vector)
+            feature_expressions = [copy[feat] for feat in self.features]
+            expr = copy.func.dot_product(feature_expressions, vector)
             name = self.prefix + str(component + name_prefix_offset)
             copy[name] = expr
 

@@ -2741,3 +2741,18 @@ def stack(arrays, strict=False):
 def getitem(ar, item):
     slicer = (slice(None), item)
     return ar.__getitem__(slicer)
+
+
+@register_function()
+def dot_product(a, b):
+    '''Compute the dot product between `a` and `b`.
+
+    :param a: A list of Expressions or a list of values (e.g. a vector)
+    :param b: A list of Expressions or a list of values (e.g. a vector)
+    :return: Vaex expression
+    '''
+    assert len(a) == len(b), 'The lenghts of `a` and `b` must be the same.'
+    result = a[0] * b[0]
+    for an, bn in zip(a[1:], b[1:]):
+        result += an * bn
+    return result
