@@ -559,7 +559,7 @@ def read_csv(filepath_or_buffer, **kwargs):
     '''Alias to from_csv.'''
     return from_csv(filepath_or_buffer, **kwargs)
 
-aliases = vaex.settings.main.auto_store_dict("aliases")
+aliases = vaex.settings.aliases
 
 # py2/p3 compatibility
 try:

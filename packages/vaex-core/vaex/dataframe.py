@@ -3790,12 +3790,13 @@ class DataFrame(object):
         # self.cat(i1=max(0, N-n), i2=min(len(self), N))
         return self[max(0, N - n):min(len(self), N)]
 
-    def _head_and_tail_table(self, n=5, format='html'):
+    def _head_and_tail_table(self, n=None, format='html'):
+        n = n or vaex.settings.display.max_rows
         N = _len(self)
-        if N <= n * 2:
+        if N <= n:
             return self._as_table(0, N, format=format)
         else:
-            return self._as_table(0, n, N - n, N, format=format)
+            return self._as_table(0, math.ceil(n / 2), N - math.floor(n / 2), N, format=format)
 
     def head_and_tail_print(self, n=5):
         """Display the first and last n elements of a DataFrame."""
@@ -3891,21 +3892,29 @@ class DataFrame(object):
             output = self._as_table(i1, i2, format=format)
             print(output)
 
-    def _as_table(self, i1, i2, j1=None, j2=None, format='html'):
+    def _as_table(self, i1, i2, j1=None, j2=None, format='html', ellipsis="..."):
         from .formatting import _format_value
         parts = []  # """<div>%s (length=%d)</div>""" % (self.name, len(self))]
         parts += ["<table class='table-striped'>"]
 
         # we need to get the underlying names since we use df.evaluate
         column_names = self.get_column_names()
+        max_columns = vaex.settings.display.max_columns
+        if (max_columns is not None) and (max_columns > 0):
+            if max_columns < len(column_names):
+                columns_sliced = math.ceil(max_columns/2)
+                column_names = column_names[:columns_sliced] + column_names[-math.floor(max_columns/2):]
+            else:
+                columns_sliced = None
         values_list = []
         values_list.append(['#', []])
         # parts += ["<thead><tr>"]
-        for name in column_names:
+        for i, name in enumerate(column_names):
+            if columns_sliced == i:
+                values_list.append([ellipsis, []])
             values_list.append([name, []])
             # parts += ["<th>%s</th>" % name]
         # parts += ["</tr></thead>"]
-
         def table_part(k1, k2, parts):
             N = k2 - k1
             # slicing will invoke .extract which will make the evaluation
@@ -3930,18 +3939,23 @@ class DataFrame(object):
                     value = "{:,}".format(i + k1)
                 values_list[0][1].append(value)
                 for j, name in enumerate(column_names):
+                    column_index = j
+                    if columns_sliced == j:
+                        values_list[column_index+1][1].append(ellipsis)
+                    if columns_sliced is not None and j >= columns_sliced:
+                        column_index += 1  # skip over the slice/ellipsis
                     value = values[name][i]
                     value = _format_value(value)
-                    values_list[j+1][1].append(value)
+                    values_list[column_index+1][1].append(value)
                 # parts += ["</tr>"]
             # return values_list
         if i2 - i1 > 0:
             parts = table_part(i1, i2, parts)
             if j1 is not None and j2 is not None:
-                values_list[0][1].append('...')
+                values_list[0][1].append(ellipsis)
                 for i in range(len(column_names)):
                     # parts += ["<td>...</td>"]
-                    values_list[i+1][1].append('...')
+                    values_list[i+1][1].append(ellipsis)
 
                 # parts = table_part(j1, j2, parts)
                 table_part(j1, j2, parts)

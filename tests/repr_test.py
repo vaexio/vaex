@@ -74,3 +74,28 @@ def test_display_large_int(df_factory):
     df = df_factory(x=[123, large_int])
     text = repr(df)
     assert str(large_int) in text
+
+
+def test_max_columns():
+    x = np.arange(10)
+    df1 = vaex.from_dict({f'col_{i}': x for i in range(vaex.settings.display.max_columns)})
+    df2 = vaex.from_dict({f'col_{i}': x for i in range(vaex.settings.display.max_columns+1)})
+    mime_bundle = df1._repr_mimebundle_()
+    for key, value in mime_bundle.items():
+        assert "..." not in value
+    mime_bundle = df2._repr_mimebundle_()
+    for key, value in mime_bundle.items():
+        assert "..." in value
+
+
+def test_max_row():
+    x = np.arange(vaex.settings.display.max_rows)
+    x2 = np.arange(vaex.settings.display.max_rows+1)
+    df1 = vaex.from_dict({f'col_{i}': x for i in range(vaex.settings.display.max_columns)})
+    df2 = vaex.from_dict({f'col_{i}': x2 for i in range(vaex.settings.display.max_columns)})
+    mime_bundle = df1._repr_mimebundle_()
+    for key, value in mime_bundle.items():
+        assert "..." not in value
+    mime_bundle = df2._repr_mimebundle_()
+    for key, value in mime_bundle.items():
+        assert "..." in value
