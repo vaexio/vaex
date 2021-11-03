@@ -2,6 +2,9 @@
 [![Documentation](https://readthedocs.org/projects/vaex/badge/?version=latest)](https://docs.vaex.io)
 [![Slack](https://img.shields.io/badge/slack-chat-green.svg)](https://join.slack.com/t/vaexio/shared_invite/zt-shhxzf5i-Cf5n2LtkoYgUjOjbB3bGQQ)
 
+# Launch the whole repo in Binder
+[![Binder](https://mybinder.org/badge_logo.svg)](https://hub.gke2.mybinder.org/user/vaexio-vaex-9j6s1207/doc/tree/docs/source/example_dask.ipynb)
+
 # What is Vaex?
 
 Vaex is a high performance Python library for lazy **Out-of-Core DataFrames**
