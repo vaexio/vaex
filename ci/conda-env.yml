@@ -10,7 +10,7 @@ dependencies:
 - cachetools
 - catboost
 - diskcache
-- fsspec <0.9
+- fsspec
 - gcsfs
 - geopandas
 - graphviz
@@ -34,7 +34,7 @@ dependencies:
 - pytest-timeout
 - python-graphviz
 - py-xgboost
-- s3fs
+- s3fs>=2021.8.0
 - scikit-learn
 - scipy
 - tornado
