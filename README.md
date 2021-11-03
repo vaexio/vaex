@@ -3,7 +3,7 @@
 [![Slack](https://img.shields.io/badge/slack-chat-green.svg)](https://join.slack.com/t/vaexio/shared_invite/zt-shhxzf5i-Cf5n2LtkoYgUjOjbB3bGQQ)
 
 # Launch the whole repo in Binder
-[![Binder](https://mybinder.org/badge_logo.svg)](https://hub.gke2.mybinder.org/user/vaexio-vaex-9j6s1207/doc/tree/docs/source/example_dask.ipynb)
+[![Binder](https://mybinder.org/badge_logo.svg)](https://hub.gke2.mybinder.org/user/vaexio-vaex-9j6s1207/lab)
 
 # What is Vaex?
 
