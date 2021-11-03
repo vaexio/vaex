@@ -121,11 +121,9 @@ class PCA(Transformer):
         expressions = [copy[feature]-mean for feature, mean in zip(self.features, self.means_)]
         for i in range(n_components):
             vector = eigen_vectors[:, i]
+            expr = copy.func.dot_product(expressions, vector)
             if self.whiten:
-                expr = copy.func.dot_product(expressions, vector)
                 expr = f'({expr}) / {np.sqrt(self.explained_variance_[i])}'
-            else:
-                expr = copy.func.dot_product(expressions, vector)
             name = self.prefix + str(i + name_prefix_offset)
             copy[name] = expr
         return copy
