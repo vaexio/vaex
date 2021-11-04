@@ -41,4 +41,5 @@ dependencies:
 - xarray
 - pip:
   - myst_parser
-  - tensorflow>=2.4.0
+  - tensorflow==2.6.0
+  - keras==2.6.0
