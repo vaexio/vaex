@@ -101,7 +101,7 @@ def test_fsspec(df_trimmed):
     df_trimmed = df_trimmed.drop('obj')
     fs = fsspec.implementations.memory.MemoryFileSystem()
     df_trimmed.export('test.arrow', fs=fs)
-    assert 'test.arrow' in fs.store
+    assert ('test.arrow' in fs.store) or ('/test.arrow' in fs.store)
     # with vaex.file.open('test.txt', fs=fs) as f:
     #     f.write('vaex')
     df_trimmed['test'] = df_trimmed.x + 10
