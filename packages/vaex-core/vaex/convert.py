@@ -141,6 +141,8 @@ def main(argv):
             df = df.filter(args.filter)
         if args.sort:
             df = df.sort(args.sort)
+        if args.shuffle:
+            df = df.shuffle()
         try:
             df.export(args.output, progress=args.progress)
             if not args.quiet:
