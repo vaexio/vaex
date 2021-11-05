@@ -1,4 +1,7 @@
+from functools import reduce
+import operator
 import os
+import sys
 import numpy as np
 
 import dask.base
@@ -259,7 +262,14 @@ class AggregatorDescriptorBasic(AggregatorDescriptor):
 
     def _create_operation(self, grid):
         agg_op_type = vaex.utils.find_type_from_dtype(vaex.superagg, self.name + "_", self.dtype_in)
+        bytes_per_cell = self.dtype_out.numpy.itemsize
+        cells = reduce(operator.mul, [len(binner) for binner in grid.binners], 1)
+        predicted_memory_usage = bytes_per_cell * cells
+        vaex.memory.local.agg.pre_alloc(predicted_memory_usage, f"aggregator data for {agg_op_type}")
         agg_op = agg_op_type(grid, *self.agg_args)
+        used_memory = sys.getsizeof(agg_op)
+        if predicted_memory_usage != used_memory:
+            raise RuntimeError(f'Wrong prediction for {agg_op_type}, expected to take {predicted_memory_usage} bytes but actually used {used_memory}')
         return agg_op
 
     def get_result(self, agg_operation):
@@ -289,7 +299,14 @@ class AggregatorDescriptorNUnique(AggregatorDescriptorBasic):
 
     def _create_operation(self, grid):
         agg_op_type = vaex.utils.find_type_from_dtype(vaex.superagg, self.name + "_", self.dtype_in)
+        cells = reduce(operator.mul, [len(binner) for binner in grid.binners], 1)
+        predicted_memory_usage = self.dtype_out.numpy.itemsize * cells
+        vaex.memory.local.agg.pre_alloc(predicted_memory_usage, f"aggregator data for {agg_op_type}")
         agg_op = agg_op_type(grid, self.dropmissing, self.dropnan)
+        used_memory = sys.getsizeof(agg_op)
+        if predicted_memory_usage != used_memory:
+            raise RuntimeError(f'Wrong prediction for {agg_op_type}, expected to take {predicted_memory_usage} bytes but actually used {used_memory}')
+
         return agg_op
 
 

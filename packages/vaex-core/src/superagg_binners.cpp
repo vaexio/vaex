@@ -181,6 +181,7 @@ void add_binner_ordinal_(Module m, Base &base, std::string postfix) {
         .def("clear_data_mask", &Type::clear_data_mask)
         .def("set_data_mask", &Type::set_data_mask)
         .def("copy", &Type::copy)
+        .def("__len__", [](const Type &binner) { return binner.ordinal_count + 3; })
         .def_property_readonly("expression", [](const Type &binner) { return binner.expression; })
         .def_property_readonly("ordinal_count", [](const Type &binner) { return binner.ordinal_count; })
         .def_property_readonly("min_value", [](const Type &binner) { return binner.min_value; })
@@ -214,6 +215,7 @@ void add_binner_scalar_(Module m, Base &base, std::string postfix) {
         .def("clear_data_mask", &Type::clear_data_mask)
         .def("set_data_mask", &Type::set_data_mask)
         .def("copy", &Type::copy)
+        .def("__len__", [](const Type &binner) { return binner.bins + 3; })
         .def_property_readonly("expression", [](const Type &binner) { return binner.expression; })
         .def_property_readonly("bins", [](const Type &binner) { return binner.bins; })
         .def_property_readonly("vmin", [](const Type &binner) { return binner.vmin; })
@@ -237,7 +239,6 @@ void add_binner_scalar(Module m, Base &base, std::string postfix) {
     add_binner_scalar_<T, Base, Module, false>(m, base, postfix);
     add_binner_scalar_<T, Base, Module, true>(m, base, postfix + "_non_native");
 }
-
 
 void add_binners(py::module &m, py::class_<Binner> &binner) {
     add_binner_ordinal<double>(m, binner, "float64");
