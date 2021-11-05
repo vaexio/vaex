@@ -24,10 +24,20 @@ main_pool = None
 main_io_pool = None
 
 
+thread_pools = {}
+
+
+def get_thread_pool(nthreads):
+    if nthreads not in thread_pools:
+        thread_pools[nthreads] = ThreadPoolIndex(nthreads)
+    return thread_pools[nthreads]
+
+
 def get_main_pool():
     global main_pool
     if main_pool is None:
         main_pool = ThreadPoolIndex()
+        thread_pools[main_pool.nthreads] = main_pool
     return main_pool
 
 

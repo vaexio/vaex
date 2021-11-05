@@ -5,15 +5,18 @@ from collections import defaultdict
 import os
 import time
 import threading
+import math
 import multiprocessing
 import logging
 import queue
 
+import dask.utils
 import numpy as np
 
 import vaex.asyncio
 import vaex.cpu  # force registration of task-part-cpu
 import vaex.encoding
+import vaex.memory
 import vaex.multithreading
 import vaex.vaexfast
 import vaex.events
@@ -291,11 +294,17 @@ class ExecutorLocal(Executor):
                 chunk_size = self.chunk_size_for(row_count)
                 encoding = vaex.encoding.Encoding()
                 run.nthreads = nthreads = self.thread_pool.nthreads
+                memory_tracker = vaex.memory.create_tracker()
+                vaex.memory.local.agg = memory_tracker
+                # we track this for consistency
+                memory_usage = 0
                 for task in tasks:
                     spec = encoding.encode('task', task)
                     spec['task-part-cpu-type'] = spec.pop('task-type')
                     def create_task_part():
+                        nonlocal memory_usage
                         task_part = encoding.decode('task-part-cpu', spec, df=task.df, nthreads=nthreads)
+                        memory_usage += task_part.memory_usage()
                         if task.requires_fingerprint:
                             task_part.fingerprint = task.fingerprint()
                         return task_part
@@ -316,6 +325,9 @@ class ExecutorLocal(Executor):
                         task._parts.put(task_part_0)
                         for i in range(1, ideal_task_splits):
                             task._parts.put(create_task_part())
+                if memory_usage != memory_tracker.used:
+                    raise RuntimeError(f"Reported memory usage by tasks was {memory_usage}, while tracker listed {memory_tracker.used}")
+                vaex.memory.local.agg = None
 
                 # TODO: in the future we might want to enable the zigzagging again, but this requires all datasets to implement it
                 # if self.zigzag:
@@ -435,6 +447,7 @@ class ExecutorLocal(Executor):
             if not run.pre_filter and df.filtered:
                 filter_mask = selection_scope.evaluate(vaex.dataframe.FILTER_SELECTION_NAME)
 
+            memory_tracker = vaex.memory.create_tracker()
             for task in tasks:
                 assert df is task.df
                 blocks = [block_dict[expression] for expression in task.expressions_all]
@@ -465,3 +478,6 @@ class ExecutorLocal(Executor):
                         finally:
                             if not isinstance(task._parts, list):
                                 task._parts.put(task_part)
+                if memory_tracker.track_live:
+                    for part in task_parts:
+                        memory_tracker.using(part.memory_usage())

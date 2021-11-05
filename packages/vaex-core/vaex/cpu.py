@@ -60,6 +60,9 @@ class TaskPart:
     def ideal_splits(self, nthreads):
         return nthreads
 
+    def memory_usage(self):
+        return 0
+
 
 @register
 class TaskPartSum(TaskPart):
@@ -236,6 +239,8 @@ class TaskPartSetCreate(TaskPart):
         return cls(df, spec['expression'], encoding.decode('dtype', spec['dtype']), encoding.decode('dtype', spec['dtype_item']),
                    flatten=spec['flatten'], unique_limit=spec['unique_limit'], selection=spec['selection'], return_inverse=spec['return_inverse'], nthreads=nthreads)
 
+    def memory_usage(self):
+        return sys.getsizeof(self.set)
 
 
 @register
@@ -485,6 +490,9 @@ class TaskPartAggregation(TaskPart):
             selections = _ensure_list(selection)
             initial_values_i = initial_values[i] if initial_values else None
             self.aggregations.append((aggregator_descriptor, selections, list(create_aggregator(aggregator_descriptor, selections, initial_values_i)), selection_waslist))
+
+    def memory_usage(self):
+        return self.nbytes
 
     def ideal_splits(self, nthreads):
         # We need to do some proper work on this, but this should already improve performance

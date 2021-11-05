@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 from __future__ import absolute_import
+import ast
 import collections
 import concurrent.futures
 import contextlib
@@ -15,6 +16,7 @@ import warnings
 import numbers
 import keyword
 
+import dask.utils
 import numpy as np
 import pyarrow as pa
 import progressbar
@@ -1018,6 +1020,20 @@ def div_ceil(n, d):
     return (n + d - 1) // d
 
 
+def get_env_memory(key, default=None):
+    value = os.environ.get(key, default)
+    if value is not None:
+        try:
+            value = ast.literal_eval(value)
+        except:
+            pass
+        if isinstance(value, str):
+            value = dask.utils.parse_bytes(value)
+        if not isinstance(value, int):
+            raise TypeError(f"Expected env var {key} to be of integer type")
+    return value
+
+
 def get_env_type(type, key, default=None):
     '''Get an env var named key, and cast to type
 
@@ -1042,7 +1058,6 @@ def get_env_type(type, key, default=None):
         # support empty strings
         value = default
     if value is not None:
-        import ast
         return type(ast.literal_eval(repr(value)))
 
 

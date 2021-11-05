@@ -64,8 +64,10 @@ def buffer_size():
 def webserver_tornado():
     webserver = vaex.server.tornado_server.WebServer(datasets=[], port=test_port, cache_byte_size=0)
     webserver.serve_threaded()
-    yield webserver
-    webserver.stop_serving()
+    try:
+        yield webserver
+    finally:
+        webserver.stop_serving()
 
 
 @pytest.fixture(scope='session')
