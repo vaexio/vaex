@@ -491,12 +491,12 @@ class TaskPartAggregation(TaskPart):
         # Since if we have a lot of data per task, we should split up the work less
         logger.info(f'A single task part takes {self.nbytes:,} bytes')
         splits = nthreads
-        if self.nbytes >= 1e5:
-            splits = splits//2
-        if self.nbytes >= 1e6:
-            splits = splits//2
-        if self.nbytes >= 1e7:
-            splits = splits//2
+        # if self.nbytes >= 1e5:
+        #     splits = splits//2
+        # if self.nbytes >= 1e6:
+        #     splits = splits//2
+        # if self.nbytes >= 1e7:
+        #     splits = splits//2
         logger.info(f'Estimate for ideal number of splits: {splits:,}')
         return max(min(nthreads, 2), splits)
 
