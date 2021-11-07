@@ -23,6 +23,30 @@ def generate_strings(progress=False):
     return path
 
 
+def generate_strings2(progress=False):
+    """
+    Generate a dataframe with 10**8 rows and two columns: sequential numbers
+    and their string representations. The HDF5 file will be created at the path
+    ~/.vaex/benchmark_strings.hdf5. If the file already exists this function will do nothing.
+    :return: the path of the generated HDF5 file.
+    """
+    nmax = 8
+    filename = f'strings2_{nmax}.hdf5'
+    path = os.path.join(vaex.utils.get_private_dir('benchmarks'), filename)
+    df = vaex.open(generate_numerical())
+    df['sx'] = df['x'].astype(str)
+    df['sy'] = df['y'].astype(str)
+    df['s10'] = df['i8_10'].astype(str)
+    df['s100'] = df['i8_100'].astype(str)
+    df['s1K'] = df['i8_1K'].astype(str)
+    df['s1M'] = df['i8_1M'].astype(str)
+    if not os.path.exists(path):
+        df[['sx', 'sy', 's10', 's100', 's1K', 's1M']].export(path, progress=True)
+    return path
+
+
+
+
 def generate_numerical():
     """
     x and y floating points (float64), gaussian distributed
