@@ -179,6 +179,7 @@ class DataFrame(object):
         self._length_original = None
         self._length_unfiltered = None
         self._cached_filtered_length = None
+        self._filter_filled = False
         self._active_fraction = 1
         self._current_row = None
         self._index_start = 0
@@ -4127,7 +4128,7 @@ class DataFrame(object):
             return self._length_unfiltered
         else:
             if self._cached_filtered_length is None:
-               self. _cached_filtered_length = int(self.count())
+                self._cached_filtered_length = int(self.count())
             return self._cached_filtered_length
 
     def selected_length(self):
@@ -4162,6 +4163,7 @@ class DataFrame(object):
             self.set_current_row(None)
             self._length_unfiltered = int(round(self._length_original * self._active_fraction))
             self._cached_filtered_length = None
+            self._filter_filled = False
             self._index_start = 0
             self._index_end = self._length_unfiltered
             self.signal_active_fraction_changed.emit(self, value)
@@ -4184,10 +4186,11 @@ class DataFrame(object):
         self._length_unfiltered = i2 - i1
         if self.filtered:
             mask = self._selection_masks[FILTER_SELECTION_NAME]
-            if not mask.is_dirty():
+            if not mask.view(i1, i2).is_dirty():
                 self._cached_filtered_length = mask.view(i1, i2).count()
             else:
                 self._cached_filtered_length = None
+                self._filter_filled = False
         self.signal_active_fraction_changed.emit(self, self._active_fraction)
 
     @docsubst
@@ -4225,6 +4228,7 @@ class DataFrame(object):
                     cache[key] = selection, sub_mask_array
             else:
                 df._cached_filtered_length = None
+                df._filter_filled = False
         return df
 
     @docsubst
@@ -5125,6 +5129,7 @@ class DataFrame(object):
         df = self.copy()
         df.select(expression, name=FILTER_SELECTION_NAME, mode=mode)
         df._cached_filtered_length = None  # invalide cached length
+        df._filter_filled = False
         # WARNING: this is a special case where we create a new filter
         # the cache mask chunks still hold references to views on the old
         # mask, and this new mask will be filled when required
@@ -5482,8 +5487,14 @@ class DataFrameLocal(DataFrame):
         self.columns = ColumnProxy(self)
 
     def _fill_filter_mask(self):
-        if self.filtered:
+        if self.filtered and self._filter_filled is False:
             task = vaex.tasks.TaskFilterFill(self)
+            # we also get the count, which is almost for free
+            @delayed
+            def set_length(count):
+                self._cached_filtered_length = int(count)
+                self._filter_filled = True
+            set_length(self.count(delay=True))
             task = self.executor.schedule(task)
             self.execute()
 
@@ -5505,6 +5516,7 @@ class DataFrameLocal(DataFrame):
         self._length_original = dataset.row_count
         self._length_unfiltered = self._length_original
         self._cached_filtered_length = None
+        self._filter_filled = False
         self._index_start = 0
         self._index_end = self._length_original
         self._future_behaviour = state['_future_behaviour']
@@ -5520,6 +5532,7 @@ class DataFrameLocal(DataFrame):
             self._length_original = dataset.row_count
             self._length_unfiltered = self._length_original
             self._cached_filtered_length = None
+            self._filter_filled = False
             self._index_start = 0
             self._index_end = self._length_original
         self._dataset = dataset
@@ -5819,6 +5832,7 @@ class DataFrameLocal(DataFrame):
         df._length_unfiltered = self._length_unfiltered
         df._length_original = self._length_original
         df._cached_filtered_length = self._cached_filtered_length
+        df._filter_filled = self._filter_filled
         df._index_end = self._index_end
         df._index_start = self._index_start
         df._active_fraction = self._active_fraction
@@ -6057,6 +6071,7 @@ class DataFrameLocal(DataFrame):
     def _invalidate_caches(self):
         self._invalidate_selection_cache()
         self._cached_filtered_length = None
+        self._filter_filled = False
 
     def _invalidate_selection_cache(self):
         self._selection_mask_caches.clear()
