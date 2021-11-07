@@ -65,8 +65,17 @@ class Run:
         dfs = set()
         for task in tasks:
             dfs.add(task.df)
-        columns = set()
+        # shared between all datasets (TODO: can we detect the filter is cached already?)
+        self.dataset_deps = set()
+        # per dataframe:
+        self.filter_deps = {}
+        self.selection_deps = {}
+        self.expression_deps = {}
+
         for df in dfs:
+            self.filter_deps[df] = set()
+            self.selection_deps[df] = set()
+            self.expression_deps[df] = set()
             others = set(df.variables) | set(df.virtual_columns) | set(df.selection_histories)
             tasks_df = [task for task in tasks if task.df == df]
             expressions = list(set(expression for task in tasks_df for expression in task.expressions_all))
@@ -74,10 +83,6 @@ class Run:
             variables = set()
             for expression in expressions:
                 variables |= df._expr(expression).expand().variables(ourself=True)
-            for selection in selections:
-                variables |= df._selection_expression(selection).dependencies()
-            if df.filtered:
-                variables |= df.get_selection(vaex.dataframe.FILTER_SELECTION_NAME).dependencies(df)
             for var in variables:
                 if var not in self.dataset:
                     if var not in others:
@@ -85,9 +90,36 @@ class Run:
                     else:
                         pass  # ok, not a column, just a var or virtual column
                 else:
-                    columns.add(var)
-        logger.debug('Using columns %r from dataset', columns)
-        self.columns = columns
+                    self.dataset_deps.add(var)
+                    self.expression_deps[df].add(var)
+
+            variables = set()
+            if df.filtered:
+                variables = df.get_selection(vaex.dataframe.FILTER_SELECTION_NAME).dependencies(df)
+                for var in variables:
+                    if var not in self.dataset:
+                        if var not in others:
+                            raise RuntimeError(f'Oops, requesting column {var} from dataset, but it does not exist')
+                        else:
+                            pass  # ok, not a column, just a var or virtual column
+                    else:
+                        self.dataset_deps.add(var)
+                        self.filter_deps[df].add(var)
+            variables = set()
+            for selection in selections:
+                if selection is not None:
+                    variables |= df._selection_expression(selection).dependencies()
+            for var in variables:
+                if var not in self.dataset:
+                    if var not in others:
+                        raise RuntimeError(f'Oops, requesting column {var} from dataset, but it does not exist')
+                    else:
+                        pass  # ok, not a column, just a var or virtual column
+                else:
+                    self.dataset_deps.add(var)
+                    self.selection_deps[df].add(var)
+
+        logger.debug('Using columns %r from dataset', self.dataset_deps)
 
 
 def _merge(tasks):
@@ -341,7 +373,7 @@ class ExecutorLocal(Executor):
                     return all(self.signal_progress.emit(p)) and\
                            all([all(task.signal_progress.emit(p)) for task in tasks]) and\
                            all([not task.cancelled for task in tasks])
-                async for _element in self.thread_pool.map_async(self.process_part, dataset.chunk_iterator(run.columns, chunk_size),
+                async for _element in self.thread_pool.map_async(self.process_part, dataset.chunk_iterator(run.dataset_deps, chunk_size),
                                                     dataset.row_count,
                                                     progress=progress,
                                                     cancel=lambda: self._cancel(run), unpack=True, run=run):
@@ -429,13 +461,14 @@ class ExecutorLocal(Executor):
             assert df in run.variables
             from .scopes import _BlockScope
 
+            expressions = list(set(expression for task in tasks for expression in task.expressions_all))
             if run.pre_filter:
-                # TODO: move detection of dependencies up
-                filter_deps = df.get_selection(vaex.dataframe.FILTER_SELECTION_NAME).dependencies(df)
+                filter_deps = run.filter_deps[df]
                 filter_scope = _BlockScope(df, i1, i2, None, selection=True, values={**run.variables[df], **{k: chunks[k] for k in filter_deps if k in chunks}})
                 filter_scope.filter_mask = None
                 filter_mask = filter_scope.evaluate(vaex.dataframe.FILTER_SELECTION_NAME)
-                chunks = {k:vaex.array_types.filter(v, filter_mask) for k, v, in chunks.items()}
+                deps = run.expression_deps[df] | run.selection_deps[df]
+                chunks = {k:vaex.array_types.filter(v, filter_mask) for k, v, in chunks.items() if k in deps}
             else:
                 filter_mask = None
             def sanity_check(name, chunk):
@@ -445,7 +478,6 @@ class ExecutorLocal(Executor):
                 sanity_check(name, chunk)
             block_scope = _BlockScope(df, i1, i2, values={**run.variables[df], **chunks})
             block_scope.mask = filter_mask
-            expressions = list(set(expression for task in tasks for expression in task.expressions_all))
             block_dict = {expression: block_scope.evaluate(expression) for expression in expressions}
             selection_scope = _BlockScope(df, i1, i2, None, selection=True, values={**block_scope.values})
             selection_scope.filter_mask = filter_mask
