@@ -41,6 +41,7 @@ class Mask {
                 }
                 if (count == i2) {
                     end = i;
+                    break;
                 }
                 count++;
             }
