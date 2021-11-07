@@ -139,14 +139,14 @@ class hash_common {
         update1(map_index, key);
     }
 
-    void update1(uint16_t map_index, key_type &key, int64_t index = 0) {
+    value_type update1(uint16_t map_index, key_type &key, int64_t index = 0) {
         auto &map = this->maps[map_index];
         auto search = map.find(key);
         auto end = map.end();
         if (search == end) {
-            static_cast<Derived &>(*this).add_new(map_index, key, index);
+            return static_cast<Derived &>(*this).add_new(map_index, key, index);
         } else {
-            static_cast<Derived &>(*this).add_existing(search, map_index, key, index);
+            return static_cast<Derived &>(*this).add_existing(search, map_index, key, index);
         }
     }
     value_type update1_null(int64_t index = 0) {
