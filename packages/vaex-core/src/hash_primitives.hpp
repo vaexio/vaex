@@ -92,8 +92,112 @@ class hash_base : public hash_common<Derived, T, Hashmap<T, int64_t>> {
         }
         return _update(size, keys_ptr, mask_ptr, start_index = start_index, chunk_size = chunk_size, bucket_size = bucket_size, return_values = return_values);
     }
-
     py::object _update(int64_t size, const key_type *keys, const bool *masks, int64_t start_index = 0, int64_t chunk_size = 1024 * 16, int64_t bucket_size = 1024 * 128, bool return_values = false) {
+        if (this->maps.size() == 1) {
+            return this->_update_thread_unsafe(size, keys, masks, start_index, return_values);
+        } else {
+            return _update_thread_safe(size, keys, masks, start_index, chunk_size, bucket_size, return_values);
+        }
+    }
+    py::object _update_thread_unsafe(int64_t size, const key_type *keys, const bool *masks, int64_t start_index = 0, bool return_values = false) {
+        if (return_values) {
+            py::array_t<value_type> values_array(return_values ? size : 1);
+            auto values_ptr = values_array.mutable_data(0);
+
+            py::array_t<int16_t> values_map_index_array(return_values ? size : 1);
+            auto values_map_index_ptr = values_map_index_array.mutable_data(0);
+            std::fill(values_map_index_ptr, values_map_index_ptr + size, 0);
+            {
+                py::gil_scoped_release gil;
+                if (std::numeric_limits<key_type>::is_integer) {
+                    if (masks == nullptr) {
+                        for (int64_t i = 0; i < size; i++) {
+                            key_type value = keys[i];
+                            values_ptr[i] = this->update1(0, value, start_index + i);
+                        }
+                    } else {
+                        for (int64_t i = 0; i < size; i++) {
+                            key_type value = keys[i];
+                            if (masks[i]) {
+                                values_ptr[i] = this->update1_null(start_index + i);
+                            } else {
+                                values_ptr[i] = this->update1(0, value, start_index + i);
+                            }
+                        }
+                    }
+                } else {
+                    if (masks == nullptr) {
+                        for (int64_t i = 0; i < size; i++) {
+                            key_type value = keys[i];
+                            if (custom_isnan(value)) {
+                                values_ptr[i] = update1_nan(start_index + i);
+                            } else {
+                                values_ptr[i] = this->update1(0, value, start_index + i);
+                            }
+                        }
+                    } else {
+                        for (int64_t i = 0; i < size; i++) {
+                            key_type value = keys[i];
+                            if (masks[i]) {
+                                values_ptr[i] = this->update1_null(start_index + i);
+                            } else if (custom_isnan(value)) {
+                                values_ptr[i] = update1_nan(start_index + i);
+                            } else {
+                                values_ptr[i] = this->update1(0, value, start_index + i);
+                            }
+                        }
+                    }
+                }
+            }
+            return py::make_tuple(values_array, values_map_index_array);
+        } else {
+            {
+                py::gil_scoped_release gil;
+                if (std::numeric_limits<key_type>::is_integer) {
+                    if (masks == nullptr) {
+                        for (int64_t i = 0; i < size; i++) {
+                            key_type value = keys[i];
+                            this->update1(0, value, start_index + i);
+                        }
+                    } else {
+                        for (int64_t i = 0; i < size; i++) {
+                            key_type value = keys[i];
+                            if (masks[i]) {
+                                this->update1_null(start_index + i);
+                            } else {
+                                this->update1(0, value, start_index + i);
+                            }
+                        }
+                    }
+                } else {
+                    if (masks == nullptr) {
+                        for (int64_t i = 0; i < size; i++) {
+                            key_type value = keys[i];
+                            if (custom_isnan(value)) {
+                                update1_nan(start_index + i);
+                            } else {
+                                this->update1(0, value, start_index + i);
+                            }
+                        }
+                    } else {
+                        for (int64_t i = 0; i < size; i++) {
+                            key_type value = keys[i];
+                            if (masks[i]) {
+                                this->update1_null(start_index + i);
+                            } else if (custom_isnan(value)) {
+                                update1_nan(start_index + i);
+                            } else {
+                                this->update1(0, value, start_index + i);
+                            }
+                        }
+                    }
+                }
+            }
+            return py::none();
+        }
+    }
+    py::object _update_thread_safe(int64_t size, const key_type *keys, const bool *masks, int64_t start_index = 0, int64_t chunk_size = 1024 * 16, int64_t bucket_size = 1024 * 128,
+                                   bool return_values = false) {
         if (bucket_size < chunk_size) {
             throw std::runtime_error("bucket size should be larger than chunk_size");
         }
@@ -323,7 +427,7 @@ class hash_base : public hash_common<Derived, T, Hashmap<T, int64_t>> {
         }
         return map_vector;
     }
-};
+}; // namespace vaex
 
 template <class U, template <typename, typename> class Hashmap2>
 class counter : public hash_base<counter<U, Hashmap2>, U, Hashmap2>, public counter_mixin<U, int64_t, counter<U, Hashmap2>> {
@@ -465,7 +569,7 @@ class ordered_set : public hash_base<ordered_set<T2, Hashmap2>, T2, Hashmap2> {
         return bucket->second;
     }
 
-    static ordered_set *create(py::array_t<key_type> keys, int64_t null_value, int64_t nan_count, int64_t null_count, std::string* fingerprint) {
+    static ordered_set *create(py::array_t<key_type> keys, int64_t null_value, int64_t nan_count, int64_t null_count, std::string *fingerprint) {
         ordered_set *set = new ordered_set(1);
         const key_type *keys_ptr = keys.data(0);
         size_t size = keys.size();
@@ -509,7 +613,7 @@ class ordered_set : public hash_base<ordered_set<T2, Hashmap2>, T2, Hashmap2> {
         set->null_count = null_count;
         set->nan_count = nan_count;
         set->sealed = true;
-        if(fingerprint) {
+        if (fingerprint) {
             set->fingerprint = *fingerprint;
         }
         return set;
