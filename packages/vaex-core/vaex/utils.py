@@ -411,7 +411,7 @@ def confirm_on_console(topic, msg):
 
 
 def yaml_dump(f, data):
-    yaml.safe_dump(data, f, default_flow_style=False, encoding='utf-8', allow_unicode=True)
+    yaml.safe_dump(data, f, default_flow_style=False, encoding='utf-8', allow_unicode=True, sort_keys=False)
 
 
 def yaml_load(f):
@@ -450,23 +450,6 @@ def read_json_or_yaml(file, fs_options={}, fs=None, old_style=True):
             raise ValueError("file should end in .json or .yaml (not %s)" % ext)
     finally:
         file.close()
-
-
-# from http://stackoverflow.com/questions/5121931/in-python-how-can-you-load-yaml-mappings-as-ordereddicts
-
-_mapping_tag = yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG
-
-
-def dict_representer(dumper, data):
-    return dumper.represent_dict(data.iteritems() if hasattr(data, "iteritems") else data.items())
-
-
-def dict_constructor(loader, node):
-    return collections.OrderedDict(loader.construct_pairs(node))
-
-
-yaml.add_representer(collections.OrderedDict, dict_representer, yaml.SafeDumper)
-yaml.add_constructor(_mapping_tag, dict_constructor, yaml.SafeLoader)
 
 
 def check_memory_usage(bytes_needed, confirm):
