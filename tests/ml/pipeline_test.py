@@ -11,7 +11,7 @@ def test_pca(df_iris):
     pca.fit(ds)
     ds1 = pca.transform(ds)
 
-    path = tempfile.mktemp('.yaml')
+    path = tempfile.mktemp('.json')
     pipeline = vaex.ml.Pipeline([pca])
     pipeline.save(path)
 
@@ -20,7 +20,7 @@ def test_pca(df_iris):
     ds2 = pipeline.transform(ds)
     assert ds1.virtual_columns['PCA_1'] == ds2.virtual_columns['PCA_1']
 
-    path = tempfile.mktemp('.yaml')
+    path = tempfile.mktemp('.json')
     pipeline = vaex.ml.Pipeline([ds1.ml.state_transfer()])
     pipeline.save(path)
 
@@ -35,7 +35,7 @@ def test_selections(df_iris):
     ds.select('class_ == 1')
     count1 = ds.count(selection=True)
 
-    path = tempfile.mktemp('.yaml')
+    path = tempfile.mktemp('.json')
     pipeline = vaex.ml.Pipeline([ds.ml.state_transfer()])
     pipeline.save(path)
     print(path)
@@ -61,6 +61,6 @@ def test_state_transfer(df_iris):
     ds1, ds2 = ds.split(0.5)
     state_transfer = ds1.ml.state_transfer()
 
-    path = tempfile.mktemp('.yaml')
+    path = tempfile.mktemp('.json')
     pipeline = vaex.ml.Pipeline([state_transfer])
     pipeline.save(path)
