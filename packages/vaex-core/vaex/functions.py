@@ -1934,7 +1934,7 @@ def str_rsplit(x, pattern=None, max_splits=-1):
     if pattern is None:
         return pc.utf8_split_whitespace(x, reverse=True, max_splits=max_splits)
     else:
-        return pc.split_pattern(x, reverse=True, max_splits=max_splits)
+        return pc.split_pattern(x, pattern=pattern, reverse=True, max_splits=max_splits)
 
 
 @register_function(scope='str')
