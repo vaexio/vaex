@@ -2,6 +2,7 @@
 from __future__ import division, print_function
 import difflib
 import base64
+from typing import Iterable
 import os
 import math
 import time
@@ -4514,9 +4515,11 @@ class DataFrame(object):
           3  b      2  0.04
 
         :param str or expression by: expression to sort by
-        :param bool ascending: ascending (default, True) or descending (False)
+        :param bool ascending: ascending (default, True) or descending (False). Cannot apply different sorting orders to different columns. 
         :param str kind: kind of algorithm to use (passed to numpy.argsort)
         '''
+        if isinstance(ascending, Iterable):
+            raise ValueError("Cannot sort differently by multiple columns. Param ascending must be a single boolean value.")
         self = self.trim()
         if not isinstance(by, list):
             values = self.evaluate(by)
