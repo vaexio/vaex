@@ -1,10 +1,10 @@
-from __future__ import absolute_import
 import json
-import numpy as np
-import datetime
 import re
-import vaex.hash
+
+import numpy as np
 import pyarrow as pa
+
+import vaex
 
 
 serializers = []
@@ -115,6 +115,7 @@ class ArrowSerializer:
 class OrdererSetSerializer:
     @staticmethod
     def can_encode(obj):
+        import vaex.hash
         return isinstance(obj, vaex.hash.ordered_set)
 
     @staticmethod
@@ -140,6 +141,7 @@ class OrdererSetSerializer:
     @staticmethod
     def decode(data):
         clsname = data['type']
+        import vaex.hash
         cls = getattr(vaex.hash, clsname)
         keys = data['data']['keys']
         if "string" in clsname:

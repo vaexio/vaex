@@ -5,8 +5,8 @@ import pyarrow as pa
 
 import vaex
 
-on_rtd = os.environ.get('READTHEDOCS', None) == 'True'
-if not on_rtd:
+
+if vaex.utils.has_c_extension:
     from .superstrings import *
 
 def array(ar):
