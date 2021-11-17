@@ -32,6 +32,26 @@ def test_numba(ds):
     np.testing.assert_array_almost_equal(ds.arc_distance.tolist(), ds.arc_distance_jit.tolist())
 
 
+# @pytest.mark.skipif(sys.version_info < (3,6) and sys.version_info[0] != 2,
+#                     reason="no support for python3.5 (numba segfaults)")
+def test_metal(df):
+    df_original = df.copy()
+    #df.columns['x'] = (df.columns['x']*1).copy()  # convert non non-big endian for now
+    expr = arc_distance(df.y*1, df.y*1, df.y**2*df.y, df.x+df.y)
+    # expr = df.x + df.y
+    df['arc_distance'] = expr
+    #assert df.arc_distance.expression == expr.expression
+    df['arc_distance_jit'] = df['arc_distance'].jit_metal()
+    # assert df.arc_distance.tolist() == df.arc_distance_jit.tolist()
+    np.testing.assert_almost_equal(df.arc_distance.values, df.arc_distance_jit.values, decimal=1)
+    # TODO: make it such that they can be pickled
+    df_original.state_set(df.state_get())
+    df = df_original
+    np.testing.assert_almost_equal(df.arc_distance.values, df.arc_distance_jit.values, decimal=1)
+
+
+@pytest.mark.skipif(sys.version_info < (3,6) and sys.version_info[0] != 2,
+                    reason="no support for python3.5 (numba segfaults)")
 def test_jit_overwrite(ds_local):
     ds = ds_local # TODO: remote overwriting of functions does not work
     ds_original = ds.copy()
