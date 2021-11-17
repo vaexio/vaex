@@ -95,8 +95,7 @@ jobs:
     - name: Install vaex-enterprise
       if: ${{ (github.event.pull_request.head.repo.full_name == 'vaexio/vaex') && (matrix.os == 'ubuntu-latest') }}
       run: |
-        conda config --set always_yes yes --set changeps1 no
-        source activate vaex-dev
+        conda activate vaex-dev
         cd vaex-enterprise
         mamba install -c conda-forge distributed
         pip install ray
