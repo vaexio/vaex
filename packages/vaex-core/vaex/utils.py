@@ -36,6 +36,9 @@ osname = dict(darwin="osx", linux="linux", windows="windows")[platform.system().
 devmode = os.environ.get('VAEX_DEV', '0') == '1'
 
 
+# so that vaex can be imported without compiling the extenstions (like in readthedocs)
+has_c_extension = os.environ.get('VAEX_NO_C_EXTENSIONS', None) != "1"
+
 class AttrDict(dict):
     def __init__(self, *args, **kwargs):
         dict.__init__(self, *args, **kwargs)

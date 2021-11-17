@@ -8,11 +8,12 @@ import numpy as np
 import pyarrow as pa
 
 import vaex
+import vaex.utils
 import vaex.cache
 from .array_types import supported_array_types, supported_arrow_array_types, string_types, is_string_type
 
-on_rtd = os.environ.get('READTHEDOCS', None) == 'True'
-if not on_rtd:
+
+if vaex.utils.has_c_extension:
     import vaex.strings
 
 logger = logging.getLogger("vaex.column")

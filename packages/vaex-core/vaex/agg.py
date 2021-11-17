@@ -14,10 +14,10 @@ from .stat import _Statistic
 from vaex import encoding
 from .datatype import DataType
 from .docstrings import docsubst
+import vaex.utils
 
 
-on_rtd = os.environ.get('READTHEDOCS', None) == 'True'
-if not on_rtd:
+if vaex.utils.has_c_extension:
     import vaex.superagg
 
 
