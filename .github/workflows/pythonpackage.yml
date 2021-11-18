@@ -261,7 +261,6 @@ jobs:
 
     - name: Test server
       run: |
-        micromamba activate vaex-install
         vaex server --add-example --port 9999&
 
     - name: Wait for Vaex server
@@ -272,6 +271,5 @@ jobs:
 
     - name: Use the Vaex server
       run: |
-        micromamba activate vaex-install
         python -c "import vaex; df = vaex.open('ws://localhost:9999/example'); df.x.sum()"
         curl -i http://localhost:9999/histogram/example/x
