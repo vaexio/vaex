@@ -56,9 +56,9 @@ jobs:
           envs/conda-env-${{ runner.OS }}-${{ matrix.python-version }}.txt
         key:
           pkgs-${{ runner.os }}-${{ matrix.python-version }}-conda-${{ env.CACHE_NUMBER_ENV }}-${{hashFiles('ci/conda-env.yml') }}
-    - name: Install conda for micromamba
-      run: |
-        micromamba install mamba -c conda-forge
+    # - name: Install conda for micromamba
+    #   run: |
+    #     micromamba install mamba -c conda-forge
     - name: Create env (with mamba)
       if: steps.cache-conda-pip-env.outputs.cache-hit != 'true'
       run: |
@@ -224,6 +224,7 @@ jobs:
             python-version: 3.7
 
     steps:
+    - uses: actions/checkout@v2
     - uses: actions/download-artifact@v2
       with:
         name: dist-${{ github.run_number }}-${{ matrix.python-version }}-${{ matrix.os }}
