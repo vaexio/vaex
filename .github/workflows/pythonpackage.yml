@@ -229,17 +229,13 @@ jobs:
         name: dist-${{ github.run_number }}-${{ matrix.python-version }}-${{ matrix.os }}
         path: ./dist
 
-    - name: Fetch dummy environment file
-      uses: wei/wget@v1
-      with:
-        args: https://raw.githubusercontent.com/vaexio/vaex/9d87c81260b2b2d9773d80033aeb594cc0529b70/environment.yml
-
     - name: Install micromamba
       uses: mamba-org/provision-with-micromamba@main
-
-    - name: Create a base environment
-      run: |
-        micromamba create -n vaex-install python=${{ matrix.python-version }} numpy scipy pandas
+      with:
+        environment-name: vaex-test
+        environment-file: ci/conda-base-minimal.yml
+        extra-specs: |
+            python=${{ matrix.python-version }}
 
     - name: Cache pip
       uses: actions/cache@v2
