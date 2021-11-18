@@ -254,6 +254,23 @@ def fingerprint(path, fs_options={}, fs=None):
     return vaex.cache.fingerprint(('file', (path, mtime, size)))
 
 
+def size(path, fs_options={}, fs=None):
+    """Gives the file size in bytes
+
+    >>> size(os.path.expanduser('~/.vaex/data/helmi-dezeeuw-2000-FeH-v2.hdf5'))  # doctest: +SKIP
+    135323168
+
+    >>> size('s3://vaex/taxi/nyc_taxi_2015_mini.parquet', fs_options={'anon': True})
+    9820562
+    """
+    fs, path = parse(path, fs_options, fs=fs)
+    path = stringyfy(path)
+    if fs is None:
+        return os.path.getsize(path)
+    else:
+        info = fs.get_file_info([path])[0]
+        return info.size
+
 def open(path, mode='rb', fs_options={}, fs=None, for_arrow=False, mmap=False, encoding="utf8"):
     if is_file_object(path):
         return path
