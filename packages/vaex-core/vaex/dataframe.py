@@ -476,7 +476,10 @@ class DataFrame(object):
         :param delay: {delay}
         :returns: None
         """
-        expressions = _ensure_list(_ensure_strings_from_expressions(expression)) or self.get_column_names()
+        if expression is None:
+            expressions = self.get_column_names()
+        else:
+            expressions = _ensure_list(_ensure_strings_from_expressions(expression))
         def map(*ar):
             pass
         def reduce(a, b):
