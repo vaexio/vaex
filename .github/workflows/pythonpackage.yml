@@ -59,13 +59,13 @@ jobs:
       if: matrix.os != 'windows-latest'
       run: |
         echo "not needed for now"
-    - name: Extra windows installs
-      if: matrix.os == 'windows-latest'
-      run: |
-        # not sure why, but the conda env is strange (old dask) if we put this constraint in the conda solver
-        # also might solve scipy issues
-        micromamba update scipy ipython dask
-        micromamba install scipy=1.7.1
+    # - name: Extra windows installs
+    #   if: matrix.os == 'windows-latest'
+    #   run: |
+    #     # not sure why, but the conda env is strange (old dask) if we put this constraint in the conda solver
+    #     # also might solve scipy issues
+    #     micromamba update scipy ipython dask
+    #     micromamba install scipy=1.7.1
     # - name: free disk space
     #   if: matrix.os == 'ubuntu-latest'
     #   run: |

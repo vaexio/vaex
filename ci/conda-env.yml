@@ -45,7 +45,7 @@ dependencies:
 - s3fs>=2021.8.0
 - progressbar2
 - scikit-learn
-- scipy
+- scipy<1.7.2
 - tabulate
 - tornado
 - xarray
