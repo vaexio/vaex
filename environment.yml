@@ -1,5 +1,0 @@
-name: dummy
-channels:
-  - conda-forge
-dependencies:
-- python
