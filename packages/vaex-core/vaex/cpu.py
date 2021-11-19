@@ -2,6 +2,7 @@
 
 from functools import reduce
 import logging
+import operator
 import sys
 
 import numpy as np
@@ -72,6 +73,9 @@ class TaskPartSum(TaskPart):
         self.total = 0
         self.expression = expression
 
+    def get_bin_count(self):
+        return 1
+
     @property
     def expressions(self):
         return [self.expression]
@@ -97,6 +101,9 @@ class TaskPartFilterFill(TaskPart):
 
     def __init__(self):
         pass
+
+    def get_bin_count(self):
+        return 0
 
     @property
     def expressions(self):
@@ -150,6 +157,9 @@ class TaskPartSetCreate(TaskPart):
         self.ordered_set_type = vaex.hash.ordered_set_type_from_dtype(dtype_item, transient)
         # *7 is arbitrary, but we can have more maps than threads to avoid locks
         self.set = self.ordered_set_type(self.nthreads*7)
+
+    def get_bin_count(self):
+        return len(self.set)
 
     @property
     def expressions(self):
@@ -265,6 +275,9 @@ class TaskPartMapReduce(TaskPart):
         self.selection = selection
         self.values = []
 
+    def get_bin_count(self):
+        return 0
+
     def process(self, thread_index, i1, i2, filter_mask, selection_masks, blocks):
         selection_mask = selection_masks[0]
         if self.to_numpy:
@@ -339,6 +352,9 @@ class TaskPartStatistic(TaskPart):
         self.maxima = maxima
         self.edges = edges
         self.selection_waslist = selection_waslist
+
+    def get_bin_count(self):
+        return reduce(operator.mul, self.shape, 1)
 
     def process(self, thread_index, i1, i2, filter_mask, selection_masks, blocks):
         class Info(object):
@@ -461,6 +477,7 @@ class TaskPartAggregation(TaskPart):
         self.df = df
         self.has_values = False
         self.dtypes = dtypes
+        self.binners = binners
         # self.expressions_all = expressions
         self.expressions = [binner.expression for binner in binners]
         # TODO: selection and edges in descriptor?
@@ -490,6 +507,9 @@ class TaskPartAggregation(TaskPart):
             selections = _ensure_list(selection)
             initial_values_i = initial_values[i] if initial_values else None
             self.aggregations.append((aggregator_descriptor, selections, list(create_aggregator(aggregator_descriptor, selections, initial_values_i)), selection_waslist))
+
+    def get_bin_count(self):
+        return reduce(lambda prev, binner: len(binner) * prev, self.binners, 1)
 
     def memory_usage(self):
         return self.nbytes

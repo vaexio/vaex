@@ -20,7 +20,7 @@ import requests
 
 
 from pydantic import BaseModel, BaseSettings
-from starlette.responses import HTMLResponse
+from starlette.responses import HTMLResponse, PlainTextResponse
 
 
 import vaex
@@ -266,6 +266,11 @@ app = FastAPI(
     openapi_tags=openapi_tags,
     docs_url=None,
 )
+
+@app.exception_handler(vaex.tasks.TaskCheckError)
+async def task_check_exception_handler(request, exc):
+    return PlainTextResponse(str(exc), status_code=413)
+
 
 app.include_router(router)
 app.add_middleware(
