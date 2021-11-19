@@ -5486,8 +5486,6 @@ class DataFrameLocal(DataFrame):
         if hasattr(dataset, 'ucds'):
             self.ucds.update(dataset.ucds)
         self.column_names = list(self.dataset)
-        for column_name in self.column_names:
-            self._initialize_column(column_name)
         if len(self.dataset):
             self._length = self.dataset.row_count
             if self._length_unfiltered is None:
@@ -5497,6 +5495,8 @@ class DataFrameLocal(DataFrame):
         # self.path = dataset.path
         self.mask = None
         self.columns = ColumnProxy(self)
+        for column_name in self.column_names:
+            self._initialize_column(column_name)
 
     def _fill_filter_mask(self):
         if self.filtered:
