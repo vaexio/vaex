@@ -64,7 +64,7 @@ jobs:
       run: |
         # not sure why, but the conda env is strange (old dask) if we put this constraint in the conda solver
         # also might solve scipy issues
-        micromamba upgrade scipy ipython dask
+        micromamba update scipy ipython dask
     # - name: free disk space
     #   if: matrix.os == 'ubuntu-latest'
     #   run: |
@@ -109,7 +109,6 @@ jobs:
       uses: ./ci/actions/windll
     - name: Build Python packages
       run: |
-        micromamba activate vaex-dev
         mkdir dist
         (cd packages/vaex-core && python setup.py bdist_wheel); cp packages/vaex-core/dist/* dist
         (cd packages/vaex-graphql && python setup.py bdist_wheel); cp packages/vaex-graphql/dist/* dist
@@ -135,7 +134,6 @@ jobs:
     #     # flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
     - name: Test with pytest
       run: |
-        micromamba activate vaex-dev
         ./ci/04-run-test-suite.sh
     - name: Test with pytest (with cache on)
       if: matrix.python-version == '3.9' && matrix.os == 'ubuntu-latest'
