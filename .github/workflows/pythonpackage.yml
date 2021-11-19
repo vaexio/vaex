@@ -19,8 +19,6 @@ defaults:
 jobs:
   main:
     env:
-      # 'reset' the cache by changing this number
-      CACHE_NUMBER_ENV: 7
       CACHE_NUMBER_COMPILE: 5
     runs-on: ${{ matrix.os }}
     strategy:
@@ -47,43 +45,11 @@ jobs:
         path: vaex-enterprise
     - name: install micromamba
       uses: mamba-org/provision-with-micromamba@main
-    - name: Cache conda+pip
-      id: cache-conda-pip-env
-      uses: actions/cache@v2
       with:
-        path: |
-          ~/micromamba/pkgs
-          envs/conda-env-${{ runner.OS }}-${{ matrix.python-version }}.txt
-        key:
-          pkgs-${{ runner.os }}-${{ matrix.python-version }}-conda-${{ env.CACHE_NUMBER_ENV }}-${{hashFiles('ci/conda-env.yml') }}
-    # - name: Install conda for micromamba
-    #   run: |
-    #     micromamba install mamba -c conda-forge
-    - name: Create env (with mamba)
-      if: steps.cache-conda-pip-env.outputs.cache-hit != 'true'
-      run: |
-        micromamba create -y -q -c conda-forge -n vaex-dev python=${{ matrix.python-version }} compilers --file ci/conda-env.yml
-        # micromamba activate vaex-dev
-        # micromamba env update -n vaex-dev --file ci/conda-env.yml
-        # micromamba env create --file ci/conda-env.yml
-        # ./ci/02-create-vaex-dev-env.sh ${{ matrix.python-version }} micromamba
-      # name: vaex-dev
-
-    - name: Create env using micromamba (fixed)
-      if: steps.cache-conda-pip-env.outputs.cache-hit == 'true'
-      run: |
-        micromamba create -n vaex-dev --file envs/conda-env-${{ runner.OS }}-${{ matrix.python-version }}.txt --offline
-    - name: Save environment file
-      if: steps.cache-conda-pip-env.outputs.cache-hit != 'true'
-      run: |
-        mkdir envs
-        micromamba activate vaex-dev
-        micromamba env export --explicit > envs/conda-env-${{ runner.OS }}-${{ matrix.python-version }}.txt
-    - name: Upload environment file
-      uses: actions/upload-artifact@v2
-      with:
-        name: env-${{ github.run_number }}-${{ matrix.python-version }}-${{ matrix.os }}
-        path: ./envs
+        environment-name: vaex-dev
+        environment-file: ci/conda-env.yml
+        extra-specs: |
+            python=${{ matrix.python-version }}
     # - name: Extra non-windows installs
     #   if: matrix.os != 'windows-latest'
     #   run: |
@@ -205,9 +171,6 @@ jobs:
     #     conda activate vaex-dev
     #     pip install -e 'packages/vaex-contrib[gcp]'
     #     ./ci/06-run-contrib-tests.sh
-    - name: Cleanup packages directory
-      run: |
-        rm -rf ~/micromamba/pkgs/*/
 
   install:
     runs-on: ${{ matrix.os }}
