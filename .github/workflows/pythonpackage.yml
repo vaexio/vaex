@@ -20,6 +20,7 @@ jobs:
   main:
     env:
       CACHE_NUMBER_COMPILE: 5
+      MAMBA_ROOT_PREFIX: /dev/shm/mambaroot
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -29,6 +30,10 @@ jobs:
         python-version: [3.7, 3.8, 3.9]
 
     steps:
+    - name: disk space
+      if: ${{ (github.event.pull_request.head.repo.full_name == 'vaexio/vaex') && (matrix.os == 'ubuntu-latest') }}
+      run: |
+        df -h
     - uses: maxim-lobanov/setup-xcode@v1
       # alternative would be to upgrade tapi to 1100.0.11, we can possibly remove this in the future
       if: matrix.os == 'macOS-latest'
