@@ -1,4 +1,11 @@
+import difflib
 import logging
+import os
+import operator
+from functools import reduce
+import threading
+import pkg_resources
+
 import numpy as np
 
 import vaex.promise
@@ -9,6 +16,48 @@ from .datatype import DataType
 
 logger = logging.getLogger('vaex.tasks')
 register = vaex.encoding.make_class_registery('task')
+
+_lock = threading.Lock()
+_task_checker_types = {}
+task_checkers_type = os.environ.get("VAEX_TASK_CHECKER", "")
+
+
+class Checker:
+    track_live = False
+
+    def add_task(self, task):
+        pass
+
+    def add_task_part(self, task):
+        pass
+
+
+def create_checkers():
+    if not _task_checker_types:
+        with _lock:
+            if not _task_checker_types:
+                for entry in pkg_resources.iter_entry_points(group="vaex.task.checker"):
+                    _task_checker_types[entry.name] = entry.load()
+    names = list(_task_checker_types.keys())
+    types = [k for k in task_checkers_type.split(",") if k]
+    checkers = []
+    for type in types:
+        cls = _task_checker_types.get(type)
+        if cls is not None:
+            checkers.append(cls())
+        else:
+            msg = f"Task checker {type} does not exist."
+            matches = difflib.get_close_matches(type, names)
+            if matches:
+                msg += " Did you mean: " + " or ".join(map(repr, matches))
+            else:
+                msg += " Options are: " + repr(names)
+        raise NameError(msg)
+    return checkers
+
+
+class TaskCheckError(RuntimeError):
+    pass
 
 
 class Task(vaex.promise.Promise):
@@ -81,6 +130,9 @@ class Task(vaex.promise.Promise):
 class TaskSum(Task):
     snake_name = "sum-test"
 
+    def get_bin_count(self):
+        return 1
+
     # def __init__(self, df, expression):
     #     super().__init__(df, expression)
     #     self.expression = expression
@@ -100,6 +152,9 @@ class TaskFilterFill(Task):
     def __init__(self, df):
         super().__init__(df=df, pre_filter=True, name=self.snake_name)
         self.selections = []
+
+    def get_bin_count(self):
+        return 0
 
     def encode(self, encoding):
         return {}
@@ -122,6 +177,9 @@ class TaskSetCreate(Task):
         self.selection = selection
         self.selections = [self.selection]
         self.return_inverse = return_inverse
+
+    def get_bin_count(self):
+        return 0
 
     def __repr__(self):
         return f"task-{self.snake_name}: expression={self.expressions[0]!r}"
@@ -154,6 +212,9 @@ class TaskMapReduce(Task):
             raise ValueError("Cannot pre filter and also ignore the filter")
         self.selection = selection
         self.selections = [self.selection]
+
+    def get_bin_count(self):
+        return 0
 
     def encode(self, encoding):
         return {'expressions': self.expressions, 'map': self._map, 'reduce': self._reduce,
@@ -292,6 +353,9 @@ class TaskStatistic(Task):
                 'dtype': encoding.encode('dtype', DataType(self.dtype)), 'minima': self.minima, 'maxima': self.maxima, 'edges': self.edges,
                 'selection_waslist': self.selection_waslist}
 
+    def get_bin_count(self):
+        return reduce(operator.mul, self.shape, 1)
+
     @classmethod
     def decode(cls, encoding, spec, df):
         spec = spec.copy()
@@ -361,6 +425,9 @@ class TaskAggregations(Task):
         Task.__init__(self, df, expressions, name="statisticNd", pre_filter=df.filtered)
         self.original_tasks = []
         self.selections = []
+
+    def get_bin_count(self):
+        return reduce(lambda prev, binner: binner.count * prev, self.binners, 1)
 
     def __repr__(self):
         encoding = vaex.encoding.Encoding()

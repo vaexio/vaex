@@ -294,17 +294,22 @@ class ExecutorLocal(Executor):
                 chunk_size = self.chunk_size_for(row_count)
                 encoding = vaex.encoding.Encoding()
                 run.nthreads = nthreads = self.thread_pool.nthreads
+                task_checkers = vaex.tasks.create_checkers()
                 memory_tracker = vaex.memory.create_tracker()
                 vaex.memory.local.agg = memory_tracker
                 # we track this for consistency
                 memory_usage = 0
                 for task in tasks:
+                    for task_checker in task_checkers:
+                        task_checker.add_task(task)
                     spec = encoding.encode('task', task)
                     spec['task-part-cpu-type'] = spec.pop('task-type')
                     def create_task_part():
                         nonlocal memory_usage
                         task_part = encoding.decode('task-part-cpu', spec, df=task.df, nthreads=nthreads)
                         memory_usage += task_part.memory_usage()
+                        for task_checker in task_checkers:
+                            task_checker.add_task(task)
                         if task.requires_fingerprint:
                             task_part.fingerprint = task.fingerprint()
                         return task_part
@@ -448,6 +453,7 @@ class ExecutorLocal(Executor):
                 filter_mask = selection_scope.evaluate(vaex.dataframe.FILTER_SELECTION_NAME)
 
             memory_tracker = vaex.memory.create_tracker()
+            task_checkers = vaex.tasks.create_checkers()
             for task in tasks:
                 assert df is task.df
                 blocks = [block_dict[expression] for expression in task.expressions_all]
@@ -481,3 +487,7 @@ class ExecutorLocal(Executor):
                 if memory_tracker.track_live:
                     for part in task_parts:
                         memory_tracker.using(part.memory_usage())
+                for task_checker in task_checkers:
+                    if task_checker.track_live:
+                        for part in task_parts:
+                            task_checker.add_task_part(part)
