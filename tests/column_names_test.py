@@ -87,3 +87,10 @@ def test_invalid_name_read(tmpdir):
     df = vaex.open(path)
     assert df['1'].tolist() == x.tolist()
     assert (df.copy()['1']*2).tolist() == (x*2).tolist()
+
+
+def test_special_names():
+    # df.data accessed self.columns, which cause an exception, resulting in
+    # getattr(df, 'data', None) to return None
+    df = vaex.from_arrays(data=[1, 2])
+    assert df['data'].tolist() == [1, 2]
