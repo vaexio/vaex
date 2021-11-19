@@ -8,7 +8,7 @@ import six
 
 import pyarrow as pa
 from vaex.delayed import delayed_args, delayed_dict, delayed_list
-from vaex.utils import _ensure_string_from_expression
+from vaex.utils import _ensure_list, _ensure_string_from_expression
 
 try:
     collections_abc = collections.abc
@@ -88,7 +88,7 @@ class BinnerTime(BinnerBase):
         self.N = (self.N + every - 1) // every
         self.bin_values = np.arange(self.tmin.astype(self.resolution_type), self.tmax.astype(self.resolution_type)+1, every)
         self._promise = vaex.promise.Promise.fulfilled(None)
-    
+
     def _create_binner(self, df):
         # TODO: we modify the dataframe in place, this is not nice
         assert df.dataset == self.df.dataset, "you passed a dataframe with a different dataset to the grouper/binned"
@@ -629,10 +629,40 @@ class GroupByBase(object):
             yield group
 
     def get_group(self, group):
+        '''Get DataFrame containing a single group from the :class:`GroupBy`.
+
+        Example:
+
+        >>> import vaex
+        >>> import vaex.ml
+        >>> df = vaex.ml.datasets.load_titanic()
+        >>> g1 = df.groupby(by='pclass')
+        >>> df_group1 = g1.get_group(1)
+        >>> df_group1.head(3)
+          #  name                              pclass  sex         age     fare
+          0  Allen, Miss. Elisabeth Walton          1  female  29       211.338
+          1  Allison, Master. Hudson Trevor         1  male     0.9167  151.55
+          2  Allison, Miss. Helen Loraine           1  female   2       151.55
+
+
+        >>> df = vaex.ml.datasets.load_titanic()
+        >>> g2 = df.groupby(by=['pclass', 'sex'])
+        >>> df_group2 = g2.get_group([1, 'female'])
+        >>> df_group2.head(3)
+          #  name                                               pclass  sex       age     fare
+          0  Allen, Miss. Elisabeth Walton                           1  female     29  211.338
+          1  Allison, Miss. Helen Loraine                            1  female      2  151.55
+          2  Allison, Mrs. Hudson J C (Bessie Waldo Daniels)         1  female     25  151.55
+
+        :param group: A value or a list of values of the expressions used to create the groupby object.
+            If `assume_sparse=True` when greating the groupby object, this param takes an int corresponding to the particular groupby combination.
+        :rtype: DataFrame
+        '''
         if self.combine:
             assert isinstance(group, int)
             filter_expression = self.df[str(self.by[0].binby_expression)] == group
         else:
+            group = _ensure_list(group)
             values = group
             filter_expressions = [self.df[expression] == value for expression, value in zip(self.groupby_expression, values)]
             filter_expression = filter_expressions[0]
