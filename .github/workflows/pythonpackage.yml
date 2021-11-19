@@ -64,7 +64,7 @@ jobs:
       run: |
         # not sure why, but the conda env is strange (old dask) if we put this constraint in the conda solver
         # also might solve scipy issues
-        pip upgrade scipy ipython dask
+        micromamba upgrade scipy ipython dask
     # - name: free disk space
     #   if: matrix.os == 'ubuntu-latest'
     #   run: |
