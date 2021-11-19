@@ -26,7 +26,8 @@ install:
   - "mamba create -y -q -c conda-forge -n vaex-dev python=%PYTHON_VERSION% --quiet"
   - conda activate vaex-dev
   - "mamba env update --file ci/conda-env.yml  --quiet"
-  - "mamba update pcre scipy ipython dask"
+  - "mamba update pcre ipython dask"
+  - "mamba install scipy=1.7.1"
   - conda deactivate
   - conda activate vaex-dev
   - conda list
