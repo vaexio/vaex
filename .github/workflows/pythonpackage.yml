@@ -50,17 +50,16 @@ jobs:
         environment-file: ci/conda-env.yml
         extra-specs: |
             python=${{ matrix.python-version }}
-    # - name: Extra non-windows installs
-    #   if: matrix.os != 'windows-latest'
-    #   run: |
-    #     conda activate vaex-dev
-    #     echo "not needed for now"
-    # - name: Extra windows installs
-    #   if: matrix.os == 'windows-latest'
-    #   run: |
-    #     micromamba activate vaex-dev
-    #     # pip upgrade scipy ipython dask
-    #     # not sure why, but the conda env is strange (old dask) if we put this constraint in the conda solver
+    - name: Extra non-windows installs
+      if: matrix.os != 'windows-latest'
+      run: |
+        echo "not needed for now"
+    - name: Extra windows installs
+      if: matrix.os == 'windows-latest'
+      run: |
+        echo "not needed for now"
+        # pip upgrade scipy ipython dask
+        # not sure why, but the conda env is strange (old dask) if we put this constraint in the conda solver
     # - name: free disk space
     #   if: matrix.os == 'ubuntu-latest'
     #   run: |
@@ -90,18 +89,16 @@ jobs:
         ls -alh packages/vaex-core/build/lib*/vaex/ || echo "ok to fail"
     - name: Install vaex
       run: |
-        micromamba activate vaex-dev
         pip install myst_parser
         pip install -e . -v
         # ./ci/03-install-vaex.sh micromamba
-    # - name: Install vaex-enterprise
-    #   if: ${{ (github.event.pull_request.head.repo.full_name == 'vaexio/vaex') && (matrix.os == 'ubuntu-latest') }}
-    #   run: |
-    #     conda activate vaex-dev
-    #     cd vaex-enterprise
-    #     mamba install -c conda-forge distributed
-    #     pip install ray
-    #     pip install -e .
+    - name: Install vaex-enterprise
+      if: ${{ (github.event.pull_request.head.repo.full_name == 'vaexio/vaex') && (matrix.os == 'ubuntu-latest') }}
+      run: |
+        cd vaex-enterprise
+        micromamba install -c conda-forge distributed
+        pip install ray
+        pip install -e .
     - name: Copy dll
       if: (matrix.os == 'windows-latest')
       uses: ./ci/actions/windll
@@ -131,46 +128,42 @@ jobs:
     #     # flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
     #     # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
     #     # flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
-    # - name: Test with pytest
-    #   run: |
-    #     micromamba activate vaex-dev
-    #     py.test tests/agg_test.py
-    #     # ./ci/04-run-test-suite.sh
-    # - name: Test with pytest (with cache on)
-    #   if: matrix.python-version == '3.9' && matrix.os == 'ubuntu-latest'
-    #   run: |
-    #     VAEX_CACHE_RESULTS=1 ./ci/04-run-test-suite.sh
-    # - name: Check ml spec
-    #   # no catboost for py39 and py37
-    #   if: matrix.python-version != '3.9' && matrix.os != 'windows-latest' && matrix.python-version != '3.7'
-    #   run: |
-    #     conda activate vaex-dev
-    #     python -m vaex.ml.spec packages/vaex-ml/vaex/ml/spec_new.json
-    #     diff packages/vaex-ml/vaex/ml/spec_new.json packages/vaex-ml/vaex/ml/spec.json
-    # - name: Test with pytest (vaex-enterprise)
-    #   if: ${{ (github.event.pull_request.head.repo.full_name == 'vaexio/vaex') && (matrix.os == 'ubuntu-latest') }}
-    #   run: |
-    #     conda activate vaex-dev
-    #     py.test vaex-enterprise/tests --timeout=1000
-    # - name: Test notebooks
-    #   if: matrix.os != 'windows-latest'
-    #   run: |
-    #     ./ci/05-run-notebooks.sh
-    # - name: Authenticate Google Cloud Platform
-    #   if: ${{ (github.event.pull_request.head.repo.full_name == 'vaexio/vaex') }}
-    #   uses: google-github-actions/setup-gcloud@master
-    #   with:
-    #     project_id: ${{ secrets.GCP_PROJECT_ID_VAEX }}
-    #     service_account_key: ${{ secrets.GCP_SA_KEY_VAEX }}
-    #     export_default_credentials: true
-    # - name: Test vaex-contrib
-    #   if: ${{ (github.event.pull_request.head.repo.full_name == 'vaexio/vaex') && (matrix.os != 'windows-latest')}}
-    #   env:
-    #     PROJECT_ID: ${{ secrets.GCP_PROJECT_ID_VAEX }}
-    #   run: |
-    #     conda activate vaex-dev
-    #     pip install -e 'packages/vaex-contrib[gcp]'
-    #     ./ci/06-run-contrib-tests.sh
+    - name: Test with pytest
+      run: |
+        micromamba activate vaex-dev
+        ./ci/04-run-test-suite.sh
+    - name: Test with pytest (with cache on)
+      if: matrix.python-version == '3.9' && matrix.os == 'ubuntu-latest'
+      run: |
+        VAEX_CACHE_RESULTS=1 ./ci/04-run-test-suite.sh
+    - name: Check ml spec
+      # no catboost for py39 and py37
+      if: matrix.python-version != '3.9' && matrix.os != 'windows-latest' && matrix.python-version != '3.7'
+      run: |
+        python -m vaex.ml.spec packages/vaex-ml/vaex/ml/spec_new.json
+        diff packages/vaex-ml/vaex/ml/spec_new.json packages/vaex-ml/vaex/ml/spec.json
+    - name: Test with pytest (vaex-enterprise)
+      if: ${{ (github.event.pull_request.head.repo.full_name == 'vaexio/vaex') && (matrix.os == 'ubuntu-latest') }}
+      run: |
+        py.test vaex-enterprise/tests --timeout=1000
+    - name: Test notebooks
+      if: matrix.os != 'windows-latest'
+      run: |
+        ./ci/05-run-notebooks.sh
+    - name: Authenticate Google Cloud Platform
+      if: ${{ (github.event.pull_request.head.repo.full_name == 'vaexio/vaex') }}
+      uses: google-github-actions/setup-gcloud@master
+      with:
+        project_id: ${{ secrets.GCP_PROJECT_ID_VAEX }}
+        service_account_key: ${{ secrets.GCP_SA_KEY_VAEX }}
+        export_default_credentials: true
+    - name: Test vaex-contrib
+      if: ${{ (github.event.pull_request.head.repo.full_name == 'vaexio/vaex') && (matrix.os != 'windows-latest')}}
+      env:
+        PROJECT_ID: ${{ secrets.GCP_PROJECT_ID_VAEX }}
+      run: |
+        pip install -e 'packages/vaex-contrib[gcp]'
+        ./ci/06-run-contrib-tests.sh
 
   install:
     runs-on: ${{ matrix.os }}
