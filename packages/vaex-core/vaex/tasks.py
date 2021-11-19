@@ -52,7 +52,7 @@ def create_checkers():
                 msg += " Did you mean: " + " or ".join(map(repr, matches))
             else:
                 msg += " Options are: " + repr(names)
-        raise NameError(msg)
+            raise NameError(msg)
     return checkers
 
 
