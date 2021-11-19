@@ -12,6 +12,8 @@ export VAEX_SERVER_OVERRIDE='{"dataframe.vaex.io":"dataframe-dev.vaex.io"}'
 python -m pip install healpy
 cd docs/source
 
+# make sure the ~/.ipython dir exists because multiple processes might try to create it
+python -c "import IPython.paths as p; p.get_ipython_dir()"
 
 notesbooks=("tutorial.ipynb" "tutorial_ml.ipynb")
 # general examples
