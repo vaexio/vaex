@@ -4491,7 +4491,7 @@ class DataFrame(object):
 
     @docsubst
     def sort(self, by, ascending=True, kind='quicksort'):
-        '''Return a sorted DataFrame, sorted by the expression 'by'
+        '''Return a sorted DataFrame, sorted by the expression 'by'.
 
         The kind keyword is ignored if doing multi-key sorting.
 
@@ -4518,7 +4518,7 @@ class DataFrame(object):
           3  b      2  0.04
 
         :param str or expression by: expression to sort by
-        :param bool ascending: ascending (default, True) or descending (False). Cannot apply different sorting orders to different columns. 
+        :param bool ascending: ascending (default, True) or descending (False).
         :param str kind: kind of algorithm to use (passed to numpy.argsort)
         '''
         if isinstance(ascending, Iterable):
