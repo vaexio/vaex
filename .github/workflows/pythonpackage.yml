@@ -251,12 +251,10 @@ jobs:
 
     - name: Install the packages
       run: |
-        micromamba activate vaex-install
         pip install -vv dist/*
 
     - name: Test import
       run: |
-        micromamba activate vaex-install
         python -c "import vaex; df = vaex.example()"
 
     - name: Test server
