@@ -1128,9 +1128,9 @@ class Expression(with_metaclass(Meta)):
     def clip(self, lower=None, upper=None):
         return self.ds.func.clip(self, lower, upper)
 
-    def jit_metal(self, verbose=False):
+    def jit_metal(self, verbose=False, dtype_out='float32'):
         from .metal import FunctionSerializableMetal
-        f = FunctionSerializableMetal.build(self.expression, df=self.ds, verbose=verbose, compile=self.ds.is_local())
+        f = FunctionSerializableMetal.build(self.expression, df=self.ds, verbose=verbose, compile=self.ds.is_local(), dtype_out=dtype_out)
         function = self.ds.add_function('_jit', f, unique=True)
         return function(*f.arguments)
 
@@ -1498,12 +1498,13 @@ class FunctionSerializablePickle(FunctionSerializable):
 
 
 class FunctionSerializableJit(FunctionSerializable):
-    def __init__(self, expression, arguments, argument_dtypes, return_dtype, verbose=False, compile=True):
+    def __init__(self, expression, arguments, argument_dtypes, return_dtype, verbose=False, compile=True, dtype_out=None):
         self.expression = expression
         self.arguments = arguments
         self.argument_dtypes = argument_dtypes
         self.return_dtype = return_dtype
         self.verbose = verbose
+        self.dtype_out = dtype_out
         if compile:
             self.f = self.compile()
         else:
@@ -1516,7 +1517,8 @@ class FunctionSerializableJit(FunctionSerializable):
                     arguments=self.arguments,
                     argument_dtypes=list(map(lambda dtype: str(dtype.numpy), self.argument_dtypes)),
                     return_dtype=str(self.return_dtype),
-                    verbose=self.verbose)
+                    verbose=self.verbose,
+                    dtype_out=self.dtype_out)
 
     @classmethod
     def state_from(cls, state, trusted=True):
@@ -1524,10 +1526,11 @@ class FunctionSerializableJit(FunctionSerializable):
                    arguments=state['arguments'],
                    argument_dtypes=list(map(lambda s: DataType(np.dtype(s)), state['argument_dtypes'])),
                    return_dtype=DataType(np.dtype(state['return_dtype'])),
-                   verbose=state['verbose'])
+                   verbose=state['verbose'],
+                   dtype_out=state['dtype_out'])
 
     @classmethod
-    def build(cls, expression, df=None, verbose=False, compile=True):
+    def build(cls, expression, df=None, verbose=False, compile=True, dtype_out=None):
         df = df or expression.df
         # if it's a virtual column, we probably want to optimize that
         # TODO: fully extract the virtual columns, i.e. depending ones?
@@ -1546,7 +1549,7 @@ class FunctionSerializableJit(FunctionSerializable):
         arguments = list(set(names))
         argument_dtypes = [df.data_type(argument, array_type='numpy') for argument in arguments]
         return_dtype = df[expression].dtype
-        return cls(str(expression), arguments, argument_dtypes, return_dtype, verbose, compile=compile)
+        return cls(str(expression), arguments, argument_dtypes, return_dtype, verbose, compile=compile, dtype_out=dtype_out)
 
     def __call__(self, *args, **kwargs):
         '''Forward the call to the numba function'''

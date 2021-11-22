@@ -34,7 +34,8 @@ def test_numba(ds):
 
 # @pytest.mark.skipif(sys.version_info < (3,6) and sys.version_info[0] != 2,
 #                     reason="no support for python3.5 (numba segfaults)")
-def test_metal(df):
+def test_metal(df_local):
+    df = df_local
     df_original = df.copy()
     #df.columns['x'] = (df.columns['x']*1).copy()  # convert non non-big endian for now
     expr = arc_distance(df.y*1, df.y*1, df.y**2*df.y, df.x+df.y)
