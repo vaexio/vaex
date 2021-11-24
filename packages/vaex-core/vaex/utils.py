@@ -276,24 +276,29 @@ def _progressbar_progressbar2(type=None, name="processing", max_value=1):
     # FormatLabel('Processed: %(value)d lines (in: %(elapsed)s)')
 
 
-def _progressbar_vaex(type=None, name="processing", max_value=1):
+def _progressbar_vaex(type=None, title="processing", max_value=1):
     import vaex.misc.progressbar as pb
-    return pb.ProgressBar(0, 1)
+    return pb.ProgressBar(0, 1, title=title)
 
-def _progressbar_widget(type=None, name="processing", max_value=1):
+def _progressbar_widget(type=None, title="processing", max_value=1):
     import vaex.misc.progressbar as pb
-    return pb.ProgressBarWidget(0, 1, name=name)
+    return pb.ProgressBarWidget(0, 1, title=title)
+
+def _progressbar_rich(type=None, title="processing", max_value=1):
+    import vaex.misc.progressbar as pb
+    return pb.ProgressBarRich(0, 1, title=title)
 
 
 _progressbar_typemap = {}
 _progressbar_typemap['progressbar2'] = _progressbar_progressbar2
 _progressbar_typemap['vaex'] = _progressbar_vaex
 _progressbar_typemap['widget'] = _progressbar_widget
+_progressbar_typemap['rich'] = _progressbar_rich
 
 
 def progressbar(type_name=None, title="processing", max_value=1):
-    type_name = type_name or 'vaex'
-    return _progressbar_typemap[type_name](name=title)
+    type_name = type_name or _progressbar_type_default
+    return _progressbar_typemap[type_name](title=title)
 
 
 def progressbar_widget():
@@ -340,15 +345,18 @@ class _progressbar_wrapper_sum(_progressbar):
 
     def add(self, name=None):
         pb = _progressbar_wrapper_sum(parent=self, name=name)
+        if self.bar and hasattr(self.bar, 'add_child'):
+            pb.bar = self.bar.add_child(pb, None, name)
         self.children.append(pb)
+        self.finished = False
+        self.fraction = sum([c.fraction for c in self.children]) / len(self.children)
+        self(self.fraction)
         return pb
 
     def add_task(self, task, name=None):
         pb = self.add(name)
         pb.oncancel = task.cancel
         task.signal_progress.connect(pb)
-        if self.bar and hasattr(self.bar, 'add_child'):
-            self.bar.add_child(pb, task, name)
 
     def __call__(self, fraction):
         if self.cancelled:
@@ -368,8 +376,8 @@ class _progressbar_wrapper_sum(_progressbar):
             elif fraction != 1:
                 if self.bar:
                     self.bar.update(fraction)
-            if self.next:
-                result = self.next(fraction)
+        if self.next:
+            result = self.next(fraction)
         if self.parent:
             assert self in self.parent.children
             result = self.parent(None) in [None, True] and result  # fraction is not used anyway..
@@ -382,9 +390,12 @@ class _progressbar_wrapper_sum(_progressbar):
         pass
 
 
-def progressbars(f=True, next=None, name=None):
+def progressbars(f=True, next=None, name=None, title=None):
     if isinstance(f, _progressbar_wrapper_sum):
-        return f
+        if title is None:
+            return f
+        else:
+            return f.add(title)
     if callable(f):
         next = f
         f = False
@@ -392,9 +403,9 @@ def progressbars(f=True, next=None, name=None):
         return _progressbar_wrapper_sum(next=next, name=name)
     else:
         if f is True:
-            return _progressbar_wrapper_sum(bar=progressbar(), next=next, name=name)
+            return _progressbar_wrapper_sum(bar=progressbar(title=title), next=next, name=name)
         elif isinstance(f, six.string_types):
-            return _progressbar_wrapper_sum(bar=progressbar(f), next=next, name=name)
+            return _progressbar_wrapper_sum(bar=progressbar(f, title=title), next=next, name=name)
         else:
             return _progressbar_wrapper_sum(next=next, name=name)
 
@@ -1071,3 +1082,5 @@ def dropnan(sequence, expect=None):
     if expect is not None:
         assert len(sequence) - len(non_nan) == 1, "expected 1 nan value"
     return original_type(non_nan)
+
+_progressbar_type_default = get_env_type(str, 'VAEX_PROGRESS_TYPE', 'vaex')

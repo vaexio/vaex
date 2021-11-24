@@ -40,6 +40,7 @@ import six
 
 import vaex.dataframe
 import vaex.dataset
+from vaex.docstrings import docsubst
 from vaex.registry import register_function
 from vaex import functions, struct
 from . import stat
@@ -93,7 +94,8 @@ def app(*args, **kwargs):
     return vaex.ui.main.VaexApp()
 
 
-def open(path, convert=False, shuffle=False, fs_options={}, fs=None, *args, **kwargs):
+@docsubst
+def open(path, convert=False, progress=None, shuffle=False, fs_options={}, fs=None, *args, **kwargs):
     """Open a DataFrame from file given by path.
 
     Example:
@@ -104,6 +106,7 @@ def open(path, convert=False, shuffle=False, fs_options={}, fs=None, *args, **kw
     :param str or list path: local or absolute path to file, or glob string, or list of paths
     :param convert: Uses `dataframe.export` when convert is a path. If True, ``convert=path+'.hdf5'``
                     The conversion is skipped if the input file or conversion argument did not change.
+    :param progress: (_Only applies when convert is not False_) {progress}
     :param bool shuffle: shuffle converted DataFrame or not
     :param dict fs_options: Extra arguments passed to an optional file system if needed:
         * Amazon AWS S3
@@ -138,9 +141,9 @@ def open(path, convert=False, shuffle=False, fs_options={}, fs=None, *args, **kw
 
     Examples:
 
-    >>> df = vaex.open('s3://vaex/taxi/yellow_taxi_2015_f32s.hdf5', fs_options={'anonymous': True})
+    >>> df = vaex.open('s3://vaex/taxi/yellow_taxi_2015_f32s.hdf5', fs_options={{'anonymous': True}})
     >>> df = vaex.open('s3://vaex/taxi/yellow_taxi_2015_f32s.hdf5?anon=true')
-    >>> df = vaex.open('s3://mybucket/path/to/file.hdf5', fs_options={'access_key': my_key, 'secret_key': my_secret_key})
+    >>> df = vaex.open('s3://mybucket/path/to/file.hdf5', fs_options={{'access_key': my_key, 'secret_key': my_secret_key}})
     >>> df = vaex.open(f's3://mybucket/path/to/file.hdf5?access_key={{my_key}}&secret_key={{my_secret_key}}')
     >>> df = vaex.open('s3://mybucket/path/to/file.hdf5?profile=myproject')
 
@@ -154,7 +157,7 @@ def open(path, convert=False, shuffle=False, fs_options={}, fs=None, *args, **kw
 
     Examples:
 
-    >>> df = vaex.open('gs://vaex-data/airlines/us_airline_data_1988_2019.hdf5', fs_options={'token': None})
+    >>> df = vaex.open('gs://vaex-data/airlines/us_airline_data_1988_2019.hdf5', fs_options={{'token': None}})
     >>> df = vaex.open('gs://vaex-data/airlines/us_airline_data_1988_2019.hdf5?token=anon')
     >>> df = vaex.open('gs://vaex-data/testing/xys.hdf5?token=anon&cache=False')
     """
@@ -212,12 +215,13 @@ def open(path, convert=False, shuffle=False, fs_options={}, fs=None, *args, **kw
             # # naked_path, _ = vaex.file.split_options(path, fs_options)
             _, ext, _ = vaex.file.split_ext(path)
             if ext == '.csv':  # special case for csv
-                return vaex.from_csv(path, fs_options=fs_options, fs=fs, convert=convert, **kwargs)
+                return vaex.from_csv(path, fs_options=fs_options, fs=fs, convert=convert, progress=progress, **kwargs)
             if convert:
                 path_output = convert if isinstance(convert, str) else filename_hdf5
                 vaex.convert.convert(
                     path_input=path, fs_options_input=fs_options, fs_input=fs,
                     path_output=path_output, fs_options_output=fs_options, fs_output=fs,
+                    progress=progress,
                     *args, **kwargs
                 )
                 ds = vaex.dataset.open(path_output, fs_options=fs_options, fs=fs, **kwargs)
@@ -242,7 +246,7 @@ def open(path, convert=False, shuffle=False, fs_options={}, fs=None, *args, **kw
                 if convert:
                     if shuffle:
                         df = df.shuffle()
-                    df.export_hdf5(filename_hdf5)
+                    df.export_hdf5(filename_hdf5, progress=progress)
                     df = vaex.open(filename_hdf5)
 
         if df is None:
@@ -499,7 +503,8 @@ def from_json(path_or_buffer, orient=None, precise_float=False, lines=False, cop
                        copy_index=copy_index)
 
 
-def from_csv(filename_or_buffer, copy_index=False, chunk_size=None, convert=False, fs_options={}, fs=None, **kwargs):
+@docsubst
+def from_csv(filename_or_buffer, copy_index=False, chunk_size=None, convert=False, fs_options={}, fs=None, progress=None, **kwargs):
     """
     Read a CSV file as a DataFrame, and optionally convert to an hdf5 file.
 
@@ -511,13 +516,14 @@ def from_csv(filename_or_buffer, copy_index=False, chunk_size=None, convert=Fals
         >>> import vaex
         >>> for i, df in enumerate(vaex.from_csv('taxi.csv', chunk_size=100_000)):
         >>>     df = df[df.passenger_count < 6]
-        >>>     df.export_hdf5(f'taxi_{i:02}.hdf5')
+        >>>     df.export_hdf5(f'taxi_{{i:02}}.hdf5')
 
     :param bool or str convert: convert files to an hdf5 file for optimization, can also be a path. The CSV
         file will be read in chunks: either using the provided chunk_size argument, or a default size. Each chunk will
         be saved as a separate hdf5 file, then all of them will be combined into one hdf5 file. So for a big CSV file
         you will need at least double of extra space on the disk. Default chunk_size for converting is 5 million rows,
         which corresponds to around 1Gb memory on an example of NYC Taxi dataset.
+    :param progress: (_Only applies when convert is not False_) {progress}
     :param kwargs: extra keyword arguments, currently passed to Pandas read_csv function, but the implementation might
         change in future versions.
     :returns: DataFrame
@@ -536,6 +542,7 @@ def from_csv(filename_or_buffer, copy_index=False, chunk_size=None, convert=Fals
             path_output=path_output, fs_options_output=fs_options, fs_output=fs,
             chunk_size=chunk_size,
             copy_index=copy_index,
+            progress=progress,
             **kwargs
         )
         return open(path_output, fs_options=fs_options, fs=fs)

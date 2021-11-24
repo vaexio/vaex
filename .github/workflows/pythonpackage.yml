@@ -205,6 +205,12 @@ jobs:
       run: |
         python -c "import vaex; df = vaex.example()"
 
+    - name: Test comand line
+      run: |
+        vaex convert ~/.vaex/data/helmi-dezeeuw-2000-FeH-v2-10percent.hdf5 test.parquet
+        pip install rich
+        VAEX_PROGRESS_TYPE=rich vaex convert ~/.vaex/data/helmi-dezeeuw-2000-FeH-v2-10percent.hdf5 test.parquet
+
     - name: Test server
       run: |
         vaex server --add-example --port 9999&
