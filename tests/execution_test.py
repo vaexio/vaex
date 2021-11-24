@@ -126,13 +126,13 @@ def test_merge_aggregation_tasks():
     binners = df._create_binners('x', [0.5, 2.5], 2)
     binners2 = df._create_binners('x', [0.5, 2.5], 2)
     assert len(binners) == 1
-    vaex.agg.count().add_tasks(df, binners)
+    vaex.agg.count().add_tasks(df, binners, progress=False)
     assert len(df.executor.tasks) == 1
     assert binners is not binners2
     assert binners[0] is not binners2[0]
     assert binners == binners2
     assert binners[0] == binners2[0]
-    vaex.agg.sum('y').add_tasks(df, binners)
+    vaex.agg.sum('y').add_tasks(df, binners, progress=False)
     assert len(df.executor.tasks) == 2
     tasks = df.executor._pop_tasks()
     assert len(tasks) == 2
@@ -147,8 +147,8 @@ def test_merge_same_aggregation_tasks():
     binners2 = df._create_binners('x', [0.5, 2.5], 2)
     assert len(binners) == 1
     # these two aggregations should be merged into 1 subtask
-    [task1], result1 = vaex.agg.count().add_tasks(df, binners)
-    [task2], result2 = vaex.agg.count().add_tasks(df, binners)
+    [task1], result1 = vaex.agg.count().add_tasks(df, binners, progress=False)
+    [task2], result2 = vaex.agg.count().add_tasks(df, binners, progress=False)
     assert len(df.executor.tasks) == 1
     df.execute()
     assert task1 is task2

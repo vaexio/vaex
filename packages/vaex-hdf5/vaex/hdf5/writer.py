@@ -40,7 +40,7 @@ class Writer:
     def __exit__(self, *args):
         self.close()
 
-    def layout(self, df):
+    def layout(self, df, progress=None):
         assert not self._layout_called, "Layout called twice"
         N = len(df)
         if N == 0:
@@ -48,18 +48,24 @@ class Writer:
         column_names = df.get_column_names()
 
         logger.debug("layout columns(hdf5): %r" % column_names)
+        progressbar = vaex.utils.progressbars(progress, title="layout(hdf5)")
+        progressbar_strings = progressbar.add("variable-length storage requirements")
+        progressbar_count = progressbar.add("count missing values")
+        progressbar_reserve = progressbar.add("reserve disk space to be mmapped")
 
         self.column_writers = {}
         dtypes = df.schema()
-        str_byte_length = {name:df[name].str.byte_length().sum(delay=True) for name, dtype in dtypes.items() if dtype.is_string}
-        str_count = {name:df.count(df[name], delay=True) for name, dtype in dtypes.items() if dtype.is_string}
+        str_byte_length = {name:df[name].str.byte_length().sum(delay=True, progress=progressbar_strings) for name, dtype in dtypes.items() if dtype.is_string}
+        str_count = {name:df.count(df[name], delay=True, progress=progressbar_count) for name, dtype in dtypes.items() if dtype.is_string}
         df.execute()
+        progressbar_count(1)
+        progressbar_strings(1)
 
         str_byte_length = {k: v.get() for k, v in str_byte_length.items()}
         has_null_str = {k: N != v.get() for k, v in str_count.items()}
         has_null = {name:df.is_masked(name) for name, dtype in dtypes.items() if not dtype.is_string}
 
-        for name in list(column_names):
+        for i, name in enumerate(list(column_names)):
             dtype = dtypes[name]
 
             shape = (N, ) + df._shape_of(name)[1:]
@@ -72,6 +78,7 @@ class Writer:
                 logger.exception("error creating dataset for %r, with type %r " % (name, dtype))
                 del self.columns[name]
                 column_names.remove(name)
+            progressbar_reserve((i+1)/len(column_names))
         self.columns.attrs["column_order"] = ",".join(column_names)
 
         # flush out the content
@@ -101,8 +108,9 @@ class Writer:
 
         logger.debug("writing columns(hdf5): %r" % column_names)
         # actual writing part
-        progressbar = vaex.utils.progressbars(progress)
+        progressbar = vaex.utils.progressbars(progress, title="exporting")
         progressbar(0)
+        progressbar_columns = {k: progressbar.add(f"write: {k}") for k in column_names}
         total = N * len(column_names)
         written = 0
         if export_threads:
@@ -112,6 +120,7 @@ class Writer:
                 def write(arg):
                     i, name = arg
                     self.column_writers[name].write(values[i])
+                    progressbar_columns[name](self.column_writers[name].progress)
                 # for i, name in enumerate(column_names_subgroup):
                 if export_threads:
                     list(pool.map(write, enumerate(column_names_subgroup)))
@@ -152,6 +161,10 @@ class ColumnWriterPrimitive:
             self.mask[0] = self.mask[0]  # make sure the array really exists
         else:
             self.mask = None
+
+    @property
+    def progress(self):
+        return self.to_offset/self.count
 
     def mmap(self, mmap, file):
         self.to_array = h5mmap(mmap if USE_MMAP else None, file, self.array, self.mask)
@@ -214,6 +227,10 @@ class ColumnWriterString:
         else:
             self.null_bitmap_array = None
         # TODO: masked support ala arrow?
+
+    @property
+    def progress(self):
+        return self.to_offset/self.count
 
 
     def mmap(self, mmap, file):

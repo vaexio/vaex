@@ -174,7 +174,7 @@ def test_count_1d_ordinal():
     bins = 5
     binner = df._binner_ordinal('x', 5)
     agg = vaex.agg.count(edges=True)
-    tasks, result = agg.add_tasks(df, (binner,))
+    tasks, result = agg.add_tasks(df, (binner,), progress=False)
     df.execute()
     assert result.get().tolist() == [0, 2, 1, 1, 0, 0, 1, 1]
 
