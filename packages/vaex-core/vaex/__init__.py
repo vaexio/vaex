@@ -237,7 +237,7 @@ def open(path, convert=False, shuffle=False, fs_options={}, fs=None, *args, **kw
             else:
                 dfs = []
                 for filename in filenames:
-                    dfs.append(vaex.open(filename, convert=bool(convert), shuffle=shuffle, **kwargs))
+                    dfs.append(vaex.open(filename, fs_options=fs_options, fs=fs, convert=bool(convert), shuffle=shuffle, **kwargs))
                 df = vaex.concat(dfs)
                 if convert:
                     if shuffle:
