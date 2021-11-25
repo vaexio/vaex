@@ -25,10 +25,11 @@ def translate_options(fs_options):
              fs_options.pop(key)
 
     # If scheme key is present in the fs_options use that, else default it to https
-    if 'scheme' in fs_options.keys():
-        fs_options['endpoint_override'] = fs_options.pop('scheme') + "://" + fs_options.pop('endpoint_override')
-    else:
-        fs_options['endpoint_override'] = "https://" + fs_options.pop('endpoint_override')
+    if 'endpoint_override' in fs_options.keys():
+        if 'scheme' in fs_options.keys():
+            fs_options['endpoint_override'] = fs_options.pop('scheme') + "://" + fs_options.pop('endpoint_override')
+        else:
+            fs_options['endpoint_override'] = "https://" + fs_options.pop('endpoint_override')
 
     # top level
     mapping = {
