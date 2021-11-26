@@ -9,6 +9,7 @@ import pkg_resources
 import numpy as np
 
 import vaex.promise
+import vaex.settings
 import vaex.encoding
 from .utils import _expand_shape
 from .datatype import DataType
@@ -19,7 +20,6 @@ register = vaex.encoding.make_class_registery('task')
 
 _lock = threading.Lock()
 _task_checker_types = {}
-task_checkers_type = os.environ.get("VAEX_TASK_CHECKER", "")
 
 
 class Checker:
@@ -39,6 +39,7 @@ def create_checkers():
                 for entry in pkg_resources.iter_entry_points(group="vaex.task.checker"):
                     _task_checker_types[entry.name] = entry.load()
     names = list(_task_checker_types.keys())
+    task_checkers_type = vaex.settings.main.task_tracker.type
     types = [k for k in task_checkers_type.split(",") if k]
     checkers = []
     for type in types:

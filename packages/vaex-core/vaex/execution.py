@@ -21,17 +21,10 @@ import vaex.memory
 import vaex.multithreading
 import vaex.vaexfast
 import vaex.events
+import vaex.settings
 
-
-async_default = str(os.environ.get('VAEX_ASYNC', 'nest'))
-chunk_size_min_default = int(os.environ.get('VAEX_CHUNK_SIZE_MIN', 1024))
-chunk_size_max_default = int(os.environ.get('VAEX_CHUNK_SIZE_MAX', 1024*1024))
-chunk_size_default = ast.literal_eval(os.environ.get('VAEX_CHUNK_SIZE', 'None'))
-if chunk_size_default is not None:
-    chunk_size_default = int(chunk_size_default)  # make sure it's an int
 
 logger = logging.getLogger("vaex.execution")
-thread_count_default = multiprocessing.cpu_count()
 
 
 class UserAbort(Exception):
@@ -170,7 +163,7 @@ def _merge_tasks_for_df(tasks, df):
 
 class Executor:
     """An executor is responsible to executing tasks, they are not reentrant, but thread safe"""
-    def __init__(self, async_method=async_default):
+    def __init__(self, async_method=None):
         self.tasks : List[Task] = []
         self.async_method = async_method
         self.signal_begin = vaex.events.Signal("begin")
@@ -188,9 +181,10 @@ class Executor:
         return self.run(self.execute_async())
 
     def run(self, coro):
-        if self.async_method == "nest":
+        async_method = self.async_method or vaex.settings.main.async_
+        if async_method == "nest":
             return vaex.asyncio.just_run(coro)
-        elif self.async_method == "awaitio":
+        elif async_method == "awaitio":
             with vaex.asyncio.with_event_loop(self.event_loop):
                 return self.event_loop.run_until_complete(coro)
         else:
@@ -244,12 +238,12 @@ class Executor:
 
 
 class ExecutorLocal(Executor):
-    def __init__(self, thread_pool=None, chunk_size=chunk_size_default, chunk_size_min=chunk_size_min_default, chunk_size_max=chunk_size_max_default, thread_mover=None, zigzag=True):
+    def __init__(self, thread_pool=None, chunk_size=None, chunk_size_min=None, chunk_size_max=None, thread_mover=None, zigzag=True):
         super().__init__()
         self.thread_pool = thread_pool or vaex.multithreading.ThreadPoolIndex()
         self.chunk_size = chunk_size
-        self.chunk_size_min = chunk_size_min_default
-        self.chunk_size_max = chunk_size_max_default
+        self.chunk_size_min = chunk_size_min
+        self.chunk_size_max = chunk_size_max
         self.thread = None
         self.passes = 0  # how many times we passed over the data
         self.zig = True  # zig or zag
@@ -262,12 +256,14 @@ class ExecutorLocal(Executor):
         run.cancelled = True
 
     def chunk_size_for(self, row_count):
-        chunk_size = self.chunk_size
+        chunk_size = self.chunk_size or vaex.settings.main.chunk.size
+        chunk_size_min = self.chunk_size or vaex.settings.main.chunk.size_min
+        chunk_size_max = self.chunk_size or vaex.settings.main.chunk.size_max
         if chunk_size is None:
             # we determine it automatically by defaulting to having each thread do 1 chunk
             chunk_size_1_pass = vaex.utils.div_ceil(row_count, self.thread_pool.nthreads)
             # brackated by a min and max chunk_size
-            chunk_size = min(self.chunk_size_max, max(self.chunk_size_min, chunk_size_1_pass))
+            chunk_size = min(chunk_size_max, max(chunk_size_min, chunk_size_1_pass))
         return chunk_size
 
     async def execute_async(self):

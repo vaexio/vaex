@@ -217,6 +217,23 @@ html_context = dict(
 html_extra_path = [
 		]
 
+def update_conf_md():
+	current = os.path.dirname(__file__)
+	source = os.path.join(current, '../../packages/vaex-core/vaex/settings.py')
+	root = os.path.join(current, '../../')
+	dest = os.path.join(current, 'conf.md')
+	time_source = os.path.getmtime(os.path.abspath(os.path.join(source)))
+	time_dest = os.path.getmtime(os.path.abspath(os.path.join(dest)))
+	should_update = time_source > time_dest
+	if should_update:
+		cmd = f"(cd {root}; vaex settings docgen)"
+		print(cmd)
+		err = os.system(cmd)
+		if err != 0:
+			raise RuntimeError('Error executing command')
+
+update_conf_md()
+
 # def convert(names, ext="html", include_source=True, include_dest=True):
 # 	for name in names:
 # 		source = "../../examples/{name}.ipynb".format(name=name)

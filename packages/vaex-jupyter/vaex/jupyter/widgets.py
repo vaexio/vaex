@@ -553,3 +553,20 @@ class LinkList(VuetifyTemplate):
     @traitlets.default('template')
     def _template(self):
         return load_template('vue/link-list.vue')
+
+
+import ipyvuetify as v
+import traitlets
+
+class SettingsEditor(v.VuetifyTemplate):
+    template_file = os.path.join(os.path.dirname(__file__), "vue/vjsf.vue")
+
+    vjsf_loaded = traitlets.Bool(False).tag(sync=True)
+    values = traitlets.Dict(default_value={}).tag(sync=True)
+    schema = traitlets.Dict().tag(sync=True)
+    valid = traitlets.Bool(False).tag(sync=True)
+
+
+def watch():
+    import ipyvue
+    ipyvue.watch(os.path.dirname(__file__) + "/vue")

@@ -150,12 +150,14 @@ class CachedFile:
     def __init__(self, file, path=None, cache_dir=None, block_size=DEFAULT_BLOCK_SIZE, data_file=None, mask_file=None, read_as_buffer=True):
         """Decorator that wraps a file object (typically a s3) by caching the content locally on disk.
 
-        The standard location for the cache is: ~/.vaex/file-cache/<protocol (e.g. s3)>/path/to/file.ext
+        The standard location for the cache is: `${VAEX_FS_PATH}/<protocol (e.g. s3)>/path/to/file.ext`
+
+        See `Configuration of paths<conf.html#cache-fs>`_ how to change this.
 
         Arguments:
         :file file or callable: if callable, invoking it should give a file like object
         :path str: path of file, defaults of file.name
-        :cache_dir str: path of cache dir, defaults to ~/.vaex/file-cache
+        :cache_dir str: path of cache dir, defaults to `${VAEX_FS_PATH}`
         """
         self.name = path
         self.path = path
@@ -171,12 +173,12 @@ class CachedFile:
         if data_file is None or mask_file is None:
             o = urlparse(path)
             if cache_dir is None:
-                self.cache_dir_path = vaex.utils.get_private_dir('file-cache', o.scheme, o.netloc, o.path[1:])
+                self.cache_dir_path = os.path.join(vaex.settings.fs.path, o.scheme, o.netloc, o.path[1:])
+                os.makedirs(self.cache_dir_path, exist_ok=True)
             else:
                 # this path is used for testing
-                self.cache_dir_path = os.path.join(cache_dir, 'file-cache', o.scheme, o.netloc, o.path[1:])
-                if not os.path.exists(self.cache_dir_path):
-                    os.makedirs(self.cache_dir_path)
+                self.cache_dir_path = os.path.join(cache_dir, o.scheme, o.netloc, o.path[1:])
+            os.makedirs(self.cache_dir_path, exist_ok=True)
             self.data_path = os.path.join(self.cache_dir_path, 'data')
             self.mask_path = os.path.join(self.cache_dir_path, 'mask')
             # if possible, we avoid using the file

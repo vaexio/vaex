@@ -35,6 +35,7 @@ positional arguments:
     stat                print statistics/info about dataset
     test                run unittests
     open                tests opening of a file (will return exit error on failure)
+    settings            control and view settings
     ...                 anything else will start up the gui, see usage below
 
 Examples:
@@ -84,6 +85,9 @@ def main(args=None):
         elif len(args) > 1 and args[1] == "test":
             import vaex.test.__main__
             vaex.test.__main__.main([os.path.basename(args[0]) + " " + args[1]] + args[2:])
+        elif len(args) > 1 and args[1] == "settings":
+            import vaex.settings
+            vaex.settings._main([os.path.basename(args[0]) + " " + args[1]] + args[2:])
         else:
             print(usage)
             sys.exit(0)
