@@ -10,6 +10,8 @@ import vaex
 import vaex.dataset as dataset
 import vaex.encoding
 
+from common import small_buffer
+
 pytest.importorskip("blake3")
 
 HERE = Path(__file__).parent
@@ -46,13 +48,10 @@ def test_no_hash():
     y2 = x2**2
     ds2 = dataset.DatasetArrays(x=x2, y=y2, hashed=False)
 
-    with pytest.raises(ValueError, match='.*hash.*'):
-        ds1 == ds2
-    with pytest.raises(ValueError, match='.*hash.*'):
-        ds1 == ds2.hashed()
-    with pytest.raises(ValueError, match='.*hash.*'):
-        ds1.hashed() == ds2
-    ds1.hashed() == ds2.hashed()
+    assert ds1 != ds2
+    assert ds1 != ds2.hashed()
+    assert ds1.hashed() != ds2
+    assert ds1.hashed() == ds2.hashed()
 
 
 def test_merge_array():
@@ -461,3 +460,36 @@ def test_columns():
     df = vaex.from_arrays(x=vaex.vrange(0, 10))
     ar = pa.array(['foo', 'bar'])
     df = vaex.from_arrays(x=vaex.column.ColumnStringArrow.from_arrow(ar))
+
+
+def test_cache(buffer_size):
+    x = np.arange(10)
+    y = x**2
+    z = 2*x
+    df = vaex.from_arrays(x=x, y=y, z=z)
+
+    # first test the dataset interace
+    cache = {}
+    ds = vaex.dataset.DatasetCached(df.dataset, ['x', 'y'], cache)
+    iter = ds.chunk_iterator(['x', 'y'], chunk_size=2)
+    for i in range(5):
+        i1, i2, chunks = next(iter)
+        assert i1 == i*2
+        assert i2 == (i + 1) * 2
+        chunks['x'].tolist() == x[i1:i2].tolist()
+        chunks['y'].tolist() == y[i1:i2].tolist()
+
+    # more of an integration test
+    df['q'] = df.x + df.y
+    with small_buffer(df, 3):
+        cache = {}
+        df.dataset = vaex.dataset.DatasetCached(df.dataset, ['x', 'y'], cache)
+        df.z.sum()
+        assert len(cache) == 0
+        df.x.sum()
+        # it will also fill up due to dtype evaluation
+        assert len(cache) == 2
+        df.q.sum()
+        assert len(cache) == 4
+        df.y.sum()
+        assert len(cache) == 4

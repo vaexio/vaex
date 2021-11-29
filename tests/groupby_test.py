@@ -131,13 +131,15 @@ def test_groupby_sort_string(df_factory, as_category):
 
 
 @pytest.mark.parametrize("auto_encode", [False, True])
-def test_groupby_1d_cat(ds_local, auto_encode):
+@pytest.mark.parametrize("pre_sort", [False, True])
+def test_groupby_1d_cat(ds_local, auto_encode, pre_sort):
     df = ds_local.extract()
-    g = np.array([0, 0, 0, 0, 1, 1, 1, 1, 2, 2])
+    g = np.array([0, 0, 0, 0, 2, 2, 1, 1, 1, 1, ])
     df.add_column('g', g)
     df.categorize('g', labels=['cat', 'dog', 'snake'], inplace=True)
     df = df._future() if auto_encode else df
-    dfg = df.groupby(by=df.g, agg='count')
+    grouper = vaex.groupby.GrouperCategory(df.g, sort=True, pre_sort=pre_sort)
+    dfg = df.groupby(by=grouper, agg='count')
 
     assert dfg.g.tolist() == ['cat', 'dog', 'snake']
     assert dfg['count'].tolist() == [4, 4, 2]
@@ -196,16 +198,15 @@ def test_binby_2d(ds_local):
     assert ar.data.tolist() == [[3, 1], [4, 0], [0, 2]]
 
 
-def test_groupby_2d(ds_local):
-    ds = ds_local.extract()
+@pytest.mark.parametrize("assume_sparse", [True, False])
+def test_groupby_2d_full(df_factory, assume_sparse):
     g = np.array([0, 0, 0, 0, 1, 1, 1, 1, 2, 2])
-    h = np.array([5, 5, 5, 6, 5, 5, 5, 5, 6, 6])
-    ds['g'] = g
-    ds['h'] = h
-    dfg = ds.groupby(by=[ds.g, ds.h], agg={'count': vaex.agg.count()}, sort=True)
-    assert dfg.g.tolist() == [0, 0, 1, 2]
-    assert dfg['count'].tolist() == [3, 1, 4, 2]
-
+    h = np.array([5, 5, 5, 6, 5, 5, 5, 6, 5, 6])
+    df = df_factory(g=g, h=h)
+    dfg = df.groupby(by=[df.g, df.h], agg={'count': vaex.agg.count()}, sort=True, assume_sparse=assume_sparse)
+    assert dfg.g.tolist() == [0, 0, 1, 1, 2, 2]
+    assert dfg.h.tolist() == [5, 6, 5, 6, 5, 6]
+    assert dfg['count'].tolist() == [3, 1, 3, 1, 1, 1]
 
 
 @pytest.mark.parametrize("assume_sparse", [True, False])
@@ -293,6 +294,57 @@ def test_groupby_count():
     dfg2 = df.groupby('s', {'g': 'mean'}).sort('s')
     assert dfg._equals(dfg2)
 
+
+@pytest.mark.parametrize("pre_sort", [False, True])
+def test_groupby_with_missing(df_factory, pre_sort):
+    df = df_factory(g=[0, 0, 1, 1, 1, None, None, 2])
+    grouper = vaex.groupby.Grouper(df.g, pre_sort=pre_sort, sort=True)
+    dfg = df.groupby(grouper, agg='count', sort=True, copy=False)
+    assert dfg['g'].tolist() == [0, 1, 2, None]
+    assert dfg['count'].tolist() == [2, 3, 1, 2]
+
+    df = df_factory(g=[0, 0, 1, 1, 1, None, None], x=[3, None, 4, 5, None, 6, 7])
+    grouper = vaex.groupby.Grouper(df.g, pre_sort=pre_sort, sort=True)
+    dfg = df.groupby(grouper, agg={'sum': vaex.agg.sum('x')})
+    assert dfg['g'].tolist() == [0, 1, None]
+    assert dfg['sum'].tolist() == [3, 4+5, 6+7]
+
+
+
+# we don't support pre_sort=False currently (not sure if possible)
+#@pytest.mark.parametrize("pre_sort", [False, True])
+@pytest.mark.parametrize("pre_sort", [True])
+@pytest.mark.parametrize("assume_sparse", [True, False])
+def test_groupby_with_missing_combine(df_factory, pre_sort, assume_sparse):
+    df = df_factory(g1=[0, 0, 1, 1, 1, None, None, 2],
+                    g2=[0, 1, 0, 1, 1, 0,    1,    0],
+    )
+    grouper1 = vaex.groupby.Grouper(df.g1, pre_sort=pre_sort, sort=True)
+    grouper2 = vaex.groupby.Grouper(df.g2, pre_sort=pre_sort, sort=True)
+    groupers = [grouper1, grouper2]
+    dfg = df.groupby(groupers, agg='count', sort=True, copy=False, assume_sparse=assume_sparse)
+    assert dfg['g1'].tolist() == [0, 0, 1, 1, 2, None, None]
+    assert dfg['count'].tolist() == [1, 1, 1, 2, 1, 1, 1]
+
+    df = df_factory(g=[0, 0, 1, 1, 1, None, None], x=[3, None, 4, 5, None, 6, 7])
+    grouper = vaex.groupby.Grouper(df.g, pre_sort=pre_sort, sort=True)
+    dfg = df.groupby(grouper, agg={'sum': vaex.agg.sum('x')})
+    assert dfg['g'].tolist() == [0, 1, None]
+    assert dfg['sum'].tolist() == [3, 4+5, 6+7]
+
+
+def test_groupby_boolean_without_null(df_factory):
+    df = df_factory(g=[False, False, True, True, True], x=[3, None, 4, 5, None])
+    dfg = df.groupby('g', agg={'sum': vaex.agg.sum('x')}, sort=True)
+    assert dfg['g'].tolist() == [False, True]
+    assert dfg['sum'].tolist() == [3, 4+5]
+
+
+def test_groupby_boolean_with_null(df_factory):
+    df = df_factory(g=[False, False, True, True, True, None, None], x=[3, None, 4, 5, None, 6, 7])
+    dfg = df.groupby('g', agg={'sum': vaex.agg.sum('x')}, sort=True)
+    assert dfg['g'].tolist() == [False, True, None]
+    assert dfg['sum'].tolist() == [3, 4+5, 6+7]
 
 def test_groupby_std():
     g = np.array([9, 2, 3, 4, 0, 1, 2, 3, 2, 5], dtype='int32')
@@ -434,3 +486,99 @@ def test_groupby_state(df_factory, rebuild_dataframe):
 def test_old_years():
     df = vaex.from_arrays(t=[np.datetime64('1900-01-01'), np.datetime64('1945-01-01'), np.datetime64('2020-02-01')])
     assert df.groupby(df.t.astype('datetime64[Y]'), 'count')['count'].tolist() == [1, 1, 1]
+
+
+@pytest.mark.parametrize("binby", [False, True])
+def test_delay_ordinal(binby):
+    df = vaex.from_arrays(x=[1, 2, 2, 3, 3, 3], s=["aap", "aap", "aap", "noot", "noot", "mies"])
+    df.ordinal_encode("x", inplace=True)
+    df.ordinal_encode("s", inplace=True)
+    df.executor.passes = 0
+    if binby:
+        ar1 = df.binby('x', agg='count', delay=True)
+        ar2 = df.binby('s', agg='count', delay=True)
+    else:
+        df1 = df.groupby('x', agg='count', delay=True)
+        df2 = df.groupby('s', agg='count', delay=True)
+    df.execute()
+    assert df.executor.passes == 1
+
+
+def test_delay_non_ordinal_1d():
+    df = vaex.from_arrays(s=["aap", "aap", "aap", "noot", "noot", "mies"])
+    df.executor.passes = 0
+    df2 = df.groupby('s').agg('count', delay=True)
+    df.execute()
+    assert df.executor.passes == 2
+
+
+def test_delay_non_ordinal_2d():
+    df = vaex.from_arrays(x=[1, 2, 2, 3, 3, 3], s=["aap", "aap", "aap", "noot", "noot", "mies"])
+    df.executor.passes = 0
+    df1 = df.groupby('x', agg='count', delay=True)
+    df2 = df.groupby('s', agg='count', delay=True)
+    df.execute()
+    assert df.executor.passes == 2
+
+
+def test_binner_1d(df_factory):
+    df = df_factory(x=[0.1, 1.1, 1.2, 2.2, 2.5, 2.7])
+    binner = vaex.groupby.Binner(df.x, 0, 3, bins=3)
+    dfg = df.groupby(binner, agg='count')
+
+    assert dfg.x.tolist() == [0.5, 1.5, 2.5]
+    assert dfg['count'].tolist() == [1, 2, 3]
+    xar = df.binby(binner, agg='count')
+    assert xar.data.tolist() == [1, 2, 3]
+
+
+def test_binner_2d(df_factory):
+    df = df_factory(x=[0.1, 1.1, 1.2, 2.2, 2.5, 2.7, 100], g=[0, 0, 1, 0, 1, 1, 1])
+    binner = vaex.groupby.Binner(df.x, 0, 3, bins=3)
+    grouper = vaex.groupby.Grouper(df.g, sort=True)
+    dfg = df.groupby([binner, grouper], agg='count', assume_sparse=False)
+    assert dfg.x.tolist() == [0.5, 1.5, 1.5, 2.5, 2.5]
+    assert dfg.g.tolist() == [0, 0, 1, 0, 1]
+    assert dfg['count'].tolist() == [1, 1, 1, 1, 2]
+
+    with pytest.raises(NotImplementedError):
+        dfg = df.groupby([binner, grouper], agg='count', assume_sparse=True)
+    assert dfg['count'].tolist() == [1, 1, 1, 1, 2]
+
+    xar = df.binby([binner, grouper], agg='count')
+    assert xar.coords['x'].data.tolist() == [0.5, 1.5, 2.5]
+    assert xar.coords['g'].data.tolist() == [0, 1]
+    assert xar.data.tolist() == [[1, 0], [1, 1], [1, 2]]
+
+def test_groupby_limited_plain(df_factory):
+    df = df_factory(x=[1, 2, 2, 3, 3, 4], s=["aap", "aap", "aap", "noot", "noot", "mies"])
+    g = vaex.groupby.GrouperLimited(df.s, values=['aap', 'noot'], keep_other=True, other_value='others', label="type")
+    dfg = df.groupby(g, agg={'sum': vaex.agg.sum('x')})
+    assert dfg['type'].tolist() == ['aap', 'noot', 'others']
+    assert dfg['sum'].tolist() == [1+2+2, 3+3, 4]
+
+    # not supported yet
+    # g = vaex.groupby.GrouperLimited(df.s, values=['aap', 'noot'], keep_other=False, other_value='others', label="type")
+    # dfg = df.groupby(g, agg={'sum': vaex.agg.sum('x')})
+    # assert dfg['type'].tolist() == ['aap', 'noot']
+    # assert dfg['sum'].tolist() == [1+2+2, 3+3]
+
+def test_groupby_limited_with_missing(df_factory):
+    df = df_factory(x=[1, 2, 2, 3, 3, 4, 9, 9], s=["aap", "aap", "aap", "noot", "noot", "mies", None, None])
+    g = vaex.groupby.GrouperLimited(df.s, values=['aap', 'noot', None], keep_other=True, other_value='others', label="type")
+    dfg = df.groupby(g, agg={'sum': vaex.agg.sum('x')})
+    assert dfg['type'].tolist() == ['aap', 'noot', None, 'others']
+    assert dfg['sum'].tolist() == [1+2+2, 3+3, 9+9, 4]
+
+
+def test_groupby_limited_with_nan(df_factory):
+    a = 1.2
+    b = np.nan
+    c = 3.4
+    others = 42.
+    df = df_factory(x=[1, 2, 2, 3, 3, 4, 9, 9], s=[a, a, a, b, b, c, None, None])
+    g = vaex.groupby.GrouperLimited(df.s, values=[a, b, None], keep_other=True, other_value=others, label="type")
+    dfg = df.groupby(g, agg={'sum': vaex.agg.sum('x')})
+    # we don't check, because comparing nan is always false
+    # assert dfg['type'].tolist() == [a, b,  None, others]
+    assert dfg['sum'].tolist() == [1+2+2, 3+3, 9+9, 4]

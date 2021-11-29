@@ -142,8 +142,8 @@ def test_export_string_mask(tmpdir):
 
 def test_export_unicode_column_name_hdf5(tmpdir):
     # prepare many columns for multithreaded export
-    src_dict = {"あ": [1, 2, 3], "a": [1, 2, 3], "b": [1, 2, 3], 
-            "c": [1, 2, 3], "d": [1, 2, 3], "a1": [1, 2, 3], 
+    src_dict = {"あ": [1, 2, 3], "a": [1, 2, 3], "b": [1, 2, 3],
+            "c": [1, 2, 3], "d": [1, 2, 3], "a1": [1, 2, 3],
             "b2": [1, 2, 3], "c3": [1, 2, 3], "d4": [1, 2, 3]}
     path = str(tmpdir.join('test.hdf5'))
     df = vaex.from_dict(src_dict)
@@ -202,6 +202,6 @@ def test_multi_file_naive_read_convert_export(tmpdir, dtypes):
 def test_export_csv(df_local, tmpdir):
     df = df_local
     path = str(tmpdir.join('test.csv'))
-    df.export_csv(path)
+    df.export_csv(path, index=False)
 
     assert '123456' in vaex.open(path)

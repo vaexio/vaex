@@ -1,16 +1,23 @@
+from functools import reduce
+import operator
 import os
+import sys
 import numpy as np
 
 import dask.base
 from vaex.expression import Expression
+from vaex.utils import _normalize_selection_name
+from .expression import _unary_ops, _binary_ops, reversable
+
 
 from .stat import _Statistic
 from vaex import encoding
 from .datatype import DataType
+from .docstrings import docsubst
+import vaex.utils
 
 
-on_rtd = os.environ.get('READTHEDOCS', None) == 'True'
-if not on_rtd:
+if vaex.utils.has_c_extension:
     import vaex.superagg
 
 
@@ -55,6 +62,153 @@ class AggregatorDescriptor(object):
     def finish(self, value):
         return value
 
+
+class AggregatorExpressionUnary(AggregatorDescriptor):
+    def __init__(self, name, op, code, agg):
+        self.agg = agg
+        self.name = name
+        self.op = op
+        self.code = code
+        self.expressions = self.agg.expressions
+        self.selection = self.agg.selection
+        self.expression = self.agg.expression
+
+    def __repr__(self):
+        return f'{self.code}{self.agg!r}'
+
+    @property
+    def edges(self):
+        return self.agg.edges
+
+    @edges.setter
+    def edges(self, value):
+        self.agg.edges = value
+
+    def add_tasks(self, df, binners, progress):
+        tasks, result = self.agg.add_tasks(df, binners, progress)
+        @vaex.delayed
+        def finish(value):
+            return self.finish(value)
+        return tasks, finish(result)
+
+    def finish(self, value):
+        return self.op(value)
+
+
+class AggregatorExpressionBinary(AggregatorDescriptor):
+    def __init__(self, name, op, code, agg1, agg2, reverse=False):
+        self.agg1 = agg1
+        self.agg2 = agg2
+        self.reverse = reverse
+        self.name = name
+        self.op = op
+        self.code = code
+        self.expressions = self.agg1.expressions + self.agg2.expressions
+        self.selection = self.agg1.selection
+        self.short_name = f'{self.code}{self.agg2.short_name}'
+        if self.agg1.selection != self.agg2.selection:
+            raise ValueError(f'Selections of aggregator for binary op {self.op} should be the same')
+
+    def __repr__(self):
+        if self.reverse:
+            return f'({self.agg2!r} {self.code} {self.agg1!r})'
+        else:
+            return f'({self.agg1!r} {self.code} {self.agg2!r})'
+
+    @property
+    def edges(self):
+        assert self.agg1.edges == self.agg2.edges
+        return self.agg1.edges
+
+    @edges.setter
+    def edges(self, value):
+        self.agg1.edges = value
+        self.agg2.edges = value
+
+    def add_tasks(self, df, binners, progress):
+        progressbar = vaex.utils.progressbars(progress, title=repr(self))
+        tasks1, result1 = self.agg1.add_tasks(df, binners, progress=progressbar)
+        tasks2, result2 = self.agg2.add_tasks(df, binners, progress=progressbar)
+        @vaex.delayed
+        def finish(value1, value2):
+            return self.finish(value1, value2)
+        return tasks1 + tasks2, finish(result1, result2)
+
+    def finish(self, value1, value2):
+        if self.reverse:
+            return self.op(value2, value1)
+        return self.op(value1, value2)
+
+
+class AggregatorExpressionBinaryScalar(AggregatorDescriptor):
+    def __init__(self, name, op, code, agg, scalar, reverse=False):
+        self.agg = agg
+        self.scalar = scalar
+        self.name = name
+        self.code = code
+        self.op = op
+        self.reverse = reverse
+        self.expressions = self.agg.expressions
+        self.selection = self.agg.selection
+
+    def __repr__(self):
+        if self.reverse:
+            return f'({self.scalar!r} {self.code} {self.agg!r})'
+        else:
+            return f'({self.agg!r} {self.code} {self.scalar!r})'
+
+    @property
+    def edges(self):
+        return self.agg.edges
+
+    @edges.setter
+    def edges(self, value):
+        self.agg.edges = value
+
+    def add_tasks(self, df, binners, progress):
+        progressbar = vaex.utils.progressbars(progress, title=repr(self))
+        tasks, result = self.agg.add_tasks(df, binners, progress=progressbar)
+        @vaex.delayed
+        def finish(value):
+            return self.finish(value)
+        return tasks, finish(result)
+
+    def finish(self, value):
+        if self.reverse:
+            return self.op(self.scalar, value)
+        return self.op(value, self.scalar)
+
+
+for op in _binary_ops:
+    def wrap(op=op):
+        def f(a, b):
+            if isinstance(a, AggregatorDescriptor):
+                if isinstance(b, AggregatorDescriptor):
+                    return AggregatorExpressionBinary(op['name'], op['op'], op['code'], a, b)
+                else:
+                    return AggregatorExpressionBinaryScalar(op['name'], op['op'], op['code'], a, b)
+            else:
+                raise RuntimeError('Cannot happen')
+        setattr(AggregatorDescriptor, '__%s__' % op['name'], f)
+        if op['name'] in reversable:
+            def f(a, b):
+                if isinstance(a, AggregatorDescriptor):
+                    if isinstance(b, AggregatorDescriptor):
+                        raise RuntimeError('Cannot happen')
+                    else:
+                        return AggregatorExpressionBinaryScalar(op['name'], op['op'], op['code'], a, b, reverse=True)
+                else:
+                    raise RuntimeError('Cannot happen')
+            setattr(AggregatorDescriptor, '__r%s__' % op['name'], f)
+    wrap(op)
+for op in _unary_ops:
+    def wrap(op=op):
+        def f(a):
+            return AggregatorExpressionUnary(op['name'], op['op'], op['code'], a)
+        setattr(AggregatorDescriptor, '__%s__' % op['name'], f)
+    wrap(op)
+
+
 class AggregatorDescriptorBasic(AggregatorDescriptor):
     def __init__(self, name, expression, short_name, multi_args=False, agg_args=[], selection=None, edges=False):
         self.name = name
@@ -62,7 +216,7 @@ class AggregatorDescriptorBasic(AggregatorDescriptor):
         self.expression = str(expression)
         self.agg_args = agg_args
         self.edges = edges
-        self.selection = selection
+        self.selection = _normalize_selection_name(selection)
         if not multi_args:
             if self.expression == '*':
                 self.expressions = []
@@ -70,6 +224,12 @@ class AggregatorDescriptorBasic(AggregatorDescriptor):
                 self.expressions = [self.expression]
         else:
             self.expressions = expression
+
+    def __repr__(self):
+        if self.agg_args:
+            return 'vaex.agg.{}({!r}, {})'.format(self.short_name, str(self.expression), ", ".join(map(str, self.agg_args)))
+        else:
+            return 'vaex.agg.{}({!r})'.format(self.short_name, str(self.expression))
 
     def encode(self, encoding):
         spec = {'aggregation': self.short_name}
@@ -99,10 +259,12 @@ class AggregatorDescriptorBasic(AggregatorDescriptor):
             if self.short_name in ['sum', 'summoment']:
                 self.dtype_out = self.dtype_in.upcast()
 
-    def add_tasks(self, df, binners):
+    def add_tasks(self, df, binners, progress):
+        progressbar = vaex.utils.progressbars(progress)
         self._prepare_types(df)
         task = vaex.tasks.TaskAggregation(df, binners, self)
         task = df.executor.schedule(task)
+        progressbar.add_task(task, repr(self))
         @vaex.delayed
         def finish(value):
             return self.finish(value)
@@ -110,7 +272,14 @@ class AggregatorDescriptorBasic(AggregatorDescriptor):
 
     def _create_operation(self, grid):
         agg_op_type = vaex.utils.find_type_from_dtype(vaex.superagg, self.name + "_", self.dtype_in)
+        bytes_per_cell = self.dtype_out.numpy.itemsize
+        cells = reduce(operator.mul, [len(binner) for binner in grid.binners], 1)
+        predicted_memory_usage = bytes_per_cell * cells
+        vaex.memory.local.agg.pre_alloc(predicted_memory_usage, f"aggregator data for {agg_op_type}")
         agg_op = agg_op_type(grid, *self.agg_args)
+        used_memory = sys.getsizeof(agg_op)
+        if predicted_memory_usage != used_memory:
+            raise RuntimeError(f'Wrong prediction for {agg_op_type}, expected to take {predicted_memory_usage} bytes but actually used {used_memory}')
         return agg_op
 
     def get_result(self, agg_operation):
@@ -140,7 +309,14 @@ class AggregatorDescriptorNUnique(AggregatorDescriptorBasic):
 
     def _create_operation(self, grid):
         agg_op_type = vaex.utils.find_type_from_dtype(vaex.superagg, self.name + "_", self.dtype_in)
+        cells = reduce(operator.mul, [len(binner) for binner in grid.binners], 1)
+        predicted_memory_usage = self.dtype_out.numpy.itemsize * cells
+        vaex.memory.local.agg.pre_alloc(predicted_memory_usage, f"aggregator data for {agg_op_type}")
         agg_op = agg_op_type(grid, self.dropmissing, self.dropnan)
+        used_memory = sys.getsizeof(agg_op)
+        if predicted_memory_usage != used_memory:
+            raise RuntimeError(f'Wrong prediction for {agg_op_type}, expected to take {predicted_memory_usage} bytes but actually used {used_memory}')
+
         return agg_op
 
 
@@ -159,14 +335,15 @@ class AggregatorDescriptorMean(AggregatorDescriptorMulti):
     def __init__(self, name, expression, short_name="mean", selection=None, edges=False):
         super(AggregatorDescriptorMean, self).__init__(name, expression, short_name, selection=selection, edges=edges)
 
-    def add_tasks(self, df, binners):
+    def add_tasks(self, df, binners, progress):
+        progressbar = vaex.utils.progressbars(progress, title=repr(self))
         expression = expression_sum = expression = df[str(self.expression)]
 
         sum_agg = sum(expression_sum, selection=self.selection, edges=self.edges)
         count_agg = count(expression, selection=self.selection, edges=self.edges)
 
-        task_sum = sum_agg.add_tasks(df, binners)[0][0]
-        task_count = count_agg.add_tasks(df, binners)[0][0]
+        task_sum = sum_agg.add_tasks(df, binners, progress=progressbar)[0][0]
+        task_count = count_agg.add_tasks(df, binners, progress=progressbar)[0][0]
         self.dtype_in = sum_agg.dtype_in
         self.dtype_out = sum_agg.dtype_out
 
@@ -193,16 +370,17 @@ class AggregatorDescriptorVar(AggregatorDescriptorMulti):
         super(AggregatorDescriptorVar, self).__init__(name, expression, short_name, selection=selection, edges=edges)
         self.ddof = ddof
 
-    def add_tasks(self, df, binners):
+    def add_tasks(self, df, binners, progress):
+        progressbar = vaex.utils.progressbars(progress, title=repr(self))
         expression_sum = expression = df[str(self.expression)]
         expression = expression_sum = expression.astype('float64')
         sum_moment = _sum_moment(str(expression_sum), 2, selection=self.selection, edges=self.edges)
         sum_ = sum(str(expression_sum), selection=self.selection, edges=self.edges)
         count_ = count(str(expression), selection=self.selection, edges=self.edges)
 
-        task_sum_moment = sum_moment.add_tasks(df, binners)[0][0]
-        task_sum = sum_.add_tasks(df, binners)[0][0]
-        task_count = count_.add_tasks(df, binners)[0][0]
+        task_sum_moment = sum_moment.add_tasks(df, binners, progress=progressbar)[0][0]
+        task_sum = sum_.add_tasks(df, binners, progress=progressbar)[0][0]
+        task_count = count_.add_tasks(df, binners, progress=progressbar)[0][0]
         self.dtype_in = sum_.dtype_in
         self.dtype_out = sum_.dtype_out
         @vaex.delayed
@@ -260,7 +438,7 @@ def max(expression, selection=None, edges=False):
 
 @register
 def first(expression, order_expression, selection=None, edges=False):
-    '''Creates a max aggregation'''
+    '''Creates a first aggregation'''
     return AggregatorDescriptorBasic('AggFirst', [expression, order_expression], 'first', multi_args=True, selection=selection, edges=edges)
 
 @register
@@ -277,15 +455,56 @@ def var(expression, ddof=0, selection=None, edges=False):
 def nunique(expression, dropna=False, dropnan=False, dropmissing=False, selection=None, edges=False):
     """Aggregator that calculates the number of unique items per bin.
 
-    :param expression: Expression for which to calculate the unique items
+    :param expression: {expression_one}
     :param dropmissing: do not count missing values
     :param dropnan: do not count nan values
     :param dropna: short for any of the above, (see :func:`Expression.isna`)
+    :param selection: {selection1}
     """
     if dropna:
         dropnan = True
         dropmissing = True
     return AggregatorDescriptorNUnique('AggNUnique', expression, 'nunique', dropmissing, dropnan, selection=selection, edges=edges)
+
+@docsubst
+def any(expression=None, selection=None):
+    '''Aggregator that returns True when any of the values in the group are True, or when there is any data in the group that is valid (i.e. not missing values or np.nan).
+    The aggregator returns False if there is no data in the group when the selection argument is used.
+
+    :param expression: {expression_one}
+    :param selection: {selection1}
+    '''
+    if expression is None and selection is None:
+        return count(selection=selection) > -1  # trivial
+    else:
+        if expression is None:
+            return count(selection=selection) > 0
+        else:
+            return sum(expression, selection=selection) > 0
+
+@docsubst
+def all(expression=None, selection=None):
+    '''Aggregator that returns True when all of the values in the group are True,
+    or when all of the data in the group is valid (i.e. not missing values or np.nan).
+    The aggregator returns False if there is no data in the group when the selection argument is used.
+
+    :param expression: {expression_one}
+    :param selection: {selection1}
+    '''
+    if expression is None and selection is None:
+        return count(selection=selection) > -1  # trivial
+    else:
+        if expression is None:
+            # counting how often the selection is true == counting how many rows
+            return sum(selection) == count(selection)
+        else:
+            if selection is None:
+                # counting how often true == counting how much data there is
+                return sum(expression) == count(expression)
+            else:
+                # since we cannot mix different selections:
+                return sum(f'astype({expression}, "bool") & astype({selection}, "bool")') == count(expression)
+
 
 # @register
 # def covar(x, y):

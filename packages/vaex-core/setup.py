@@ -180,6 +180,9 @@ setup(name=name + '-core',
               'parquet = vaex.arrow.opener:ParquetOpener',
               'feather = vaex.arrow.opener:FeatherOpener',
           ],
+          'vaex.memory.tracker': [
+              'default = vaex.memory:MemoryTracker'
+          ],
           'vaex.file.scheme': [
               's3 = vaex.file.s3',
               'fsspec+s3 = vaex.file.s3fs',

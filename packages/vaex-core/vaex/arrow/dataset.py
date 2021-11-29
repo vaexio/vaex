@@ -203,7 +203,8 @@ class DatasetParquet(DatasetArrowBase):
         else:
             paths = [self.path]
         fingerprints = [vaex.file.fingerprint(path, fs_options=self.fs_options, fs=self.fs) for path in paths]
-        return vaex.cache.fingerprint(*fingerprints)
+        fp = vaex.cache.fingerprint(*fingerprints)
+        return f'dataset-{self.snake_name}-{fp}'
 
     def hashed(self):
         return self

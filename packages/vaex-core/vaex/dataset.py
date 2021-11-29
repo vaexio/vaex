@@ -14,6 +14,7 @@ from frozendict import frozendict
 import pyarrow as pa
 
 import vaex
+import vaex.execution
 import vaex.utils
 from vaex.array_types import data_type
 from .column import Column, ColumnIndexed, supported_column_types
@@ -28,7 +29,7 @@ logger = logging.getLogger('vaex.dataset')
 opener_classes = []
 HASH_VERSION = "1"
 HASH_VERSION_KEY = "version"
-
+chunk_size_default = vaex.execution.chunk_size_default or 1024**2
 
 _dataset_types = {}
 lock = threading.Lock()
@@ -306,6 +307,16 @@ def _rechunk(chunk_iter, chunk_size):
     yield from chunk_rechunk(wrapper(), chunk_size)
 
 
+def empty_chunk_iterator(start, end, chunk_size):
+    length = end - start
+    i1 = 0
+    i2 = min(length, i1 + chunk_size)
+    while i1 < length:
+        yield i1, i2, {}
+        i1 = i2
+        i2 = min(length, i1 + chunk_size)
+
+
 class Dataset(collections.abc.Mapping):
     def __init__(self):
         super().__init__()
@@ -455,6 +466,7 @@ class Dataset(collections.abc.Mapping):
         if not isinstance(rhs, Dataset):
             return NotImplemented
         # simple case, if fingerprints are equal, the data is equal
+        
         if self.fingerprint == rhs.fingerprint:
             return True
         # but no the other way around
@@ -462,12 +474,12 @@ class Dataset(collections.abc.Mapping):
         keys_hashed = set(self._ids)
         missing = keys ^ keys_hashed
         if missing:
-            raise ValueError(f'Comparing datasets where the left hand side is missing hashes for columns: {missing} (tip: use dataset.hashed())')
+            return self.fingerprint == rhs.fingerprint
         keys = set(rhs)
         keys_hashed = set(rhs._ids)
         missing = keys ^ keys_hashed
         if missing:
-            raise ValueError(f'Comparing datasets where the right hand side is missing hashes for columns: {missing} (tip: use dataset.hashed())')
+            return self.fingerprint == rhs.fingerprint
         return self._ids == rhs._ids
 
     def __hash__(self):
@@ -475,7 +487,8 @@ class Dataset(collections.abc.Mapping):
         keys_hashed = set(self._ids)
         missing = keys ^ keys_hashed
         if missing:
-            raise ValueError(f'Trying to hash a dataset with unhashed columns: {missing} (tip: use dataset.hashed())')
+            # if we don't have hashes for all columns, we just use the fingerprint
+            return hash(self.fingerprint)
         return hash(tuple(self._ids.items()))
 
     def _default_lazy_chunk_iterator(self, array_map, columns, chunk_size, reverse=False):
@@ -814,16 +827,10 @@ class DatasetConcatenated(Dataset):
         i1 = i2 = 0
         if not columns:
             end = self.row_count if end is None else end
-            length = end - start
-            i2 = min(length, i1 + chunk_size)
-            while i1 < length:
-                yield i1, i2, {}
-                i1 = i2
-                i2 = min(length, i1 + chunk_size)
-            return
-
-        chunk_iterator = self._chunk_iterator_non_strict(columns, chunk_size, reverse=reverse, start=start, end=self.row_count if end is None else end)
-        yield from _rechunk(chunk_iterator, chunk_size)
+            yield from empty_chunk_iterator(start, end, chunk_size)
+        else:
+            chunk_iterator = self._chunk_iterator_non_strict(columns, chunk_size, reverse=reverse, start=start, end=self.row_count if end is None else end)
+            yield from _rechunk(chunk_iterator, chunk_size)
 
     def close(self):
         for ds in self.datasets:
@@ -900,12 +907,6 @@ class DatasetTake(DatasetDecorator):
         ds = cls(dataset, indices, spec['masked'])
         return ds
 
-    def is_masked(self, column):
-        return self.original.is_masked(column)
-
-    def shape(self, column):
-        return self.original.shape(column)
-
     def chunk_iterator(self, columns, chunk_size=None, reverse=False):
         # TODO: we may be able to do this slightly more efficient by first
         # materializing the columns
@@ -920,9 +921,6 @@ class DatasetTake(DatasetDecorator):
         if set(self._ids) == set(self):
             return self
         return type(self)(self.original.hashed(), self.indices, self.masked)
-
-    def close(self):
-        self.original.close()
 
 
 @register
@@ -1009,9 +1007,6 @@ class DatasetFiltered(DatasetDecorator):
             return self
         return type(self)(self.original.hashed(), self._filter)
 
-    def close(self):
-        self.original.close()
-
     def slice(self, start, end):
         if start == 0 and end == self.row_count:
             return self
@@ -1059,19 +1054,10 @@ class DatasetSliced(DatasetDecorator):
     def chunk_iterator(self, columns, chunk_size=None, reverse=False):
         yield from self.original.chunk_iterator(columns, chunk_size=chunk_size, reverse=reverse, start=self.start, end=self.end)
 
-    def is_masked(self, column):
-        return self.original.is_masked(column)
-
-    def shape(self, column):
-        return self.original.shape(column)
-
     def hashed(self):
         if set(self._ids) == set(self):
             return self
         return type(self)(self.original.hashed(), self.start, self.end)
-
-    def close(self):
-        self.original.close()
 
     def slice(self, start, end):
         length = end - start
@@ -1130,19 +1116,10 @@ class DatasetSlicedArrays(DatasetDecorator):
     def chunk_iterator(self, columns, chunk_size=None, reverse=False):
         yield from self._default_chunk_iterator(self._columns, columns, chunk_size, reverse=reverse)
 
-    def is_masked(self, column):
-        return self.original.is_masked(column)
-
-    def shape(self, column):
-        return self.original.shape(column)
-
     def hashed(self):
         if set(self._ids) == set(self):
             return self
         return type(self)(self.original.hashed(), self.start, self.end)
-
-    def close(self):
-        self.original.close()
 
     def slice(self, start, end):
         if start == 0 and end == self.row_count:
@@ -1191,12 +1168,6 @@ class DatasetDropped(DatasetDecorator):
             if column in self._dropped_names:
                 raise KeyError(f'Oops, you tried to get column {column} while it is actually dropped')
         yield from self.original.chunk_iterator(columns, chunk_size=chunk_size, reverse=reverse)
-
-    def is_masked(self, column):
-        return self.original.is_masked(column)
-
-    def shape(self, column):
-        return self.original.shape(column)
 
     def hashed(self):
         if set(self._ids) == set(self):
@@ -1327,7 +1298,13 @@ class DatasetArrays(Dataset):
 
     @property
     def _fingerprint(self):
-        self.__hash__()  # invoke just to check we don't have missing hashes
+        keys = set(self)
+        keys_hashed = set(self._ids)
+        missing = keys ^ keys_hashed
+        if missing:
+            # if we don't have hashes for all columns, we do it like id
+            return f'dataset-{self.snake_name}-uuid4-{self._id}'
+        # self.__hash__()  # invoke just to check we don't have missing hashes
         # but Python's hash functions are not deterministic (cross processs)
         fp = vaex.cache.fingerprint(tuple(self._ids.items()))
         return f'dataset-{self.snake_name}-hashed-{fp}'
@@ -1594,3 +1571,101 @@ class DatasetFile(Dataset):
             path_hashes = self._local_hash_path
             with path_hashes.open('w') as f:
                 vaex.utils.yaml_dump(f, {'columns': dict(self._hash_info)})
+
+
+class DatasetCached(DatasetDecorator):
+    snake_name = "cached"
+    shared_cache = {}
+
+    def __init__(self, original, names, cache=None, to_numpy=False):
+        super(DatasetCached, self).__init__(original)
+        self.original = original
+        self.names = names
+        self._shared = cache is None or cache is self.shared_cache
+        self.cache = cache if cache is not None else self.shared_cache
+        self.to_numpy = to_numpy
+        self._create_columns()
+        self._row_count = self.original.row_count
+
+    @property
+    def _fingerprint(self):
+        return self.original.fingerprint
+
+    def _create_columns(self):
+        columns = {}
+        schema = self.original.schema()
+        for name, column in self.original.items():
+            columns[name] = ColumnProxy(self, name, schema[name])
+        self._columns = frozendict(columns)
+        self._ids = frozendict(self.original._ids)
+
+    def _encode(self, encoding, skip=set()):
+        raise NotImplementedError("cannot serialize cache")
+
+    @classmethod
+    def _decode(cls, encoding, spec):
+        raise NotImplementedError("cannot serialize cache")
+
+    def chunk_iterator(self, columns, chunk_size=None, reverse=False):
+        chunk_size = chunk_size or chunk_size_default
+        columns_all = set(columns)
+        columns_cachable = columns_all & set(self.names)
+        # avoids asking the cache twice, by using .get() and then testing for None
+        columns_cached = {name: self.cache.get(self._cache_key(name)) for name in columns_cachable}
+        columns_cached = {name: array for name, array in columns_cached.items() if array is not None}
+        columns_to_cache = columns_cachable - set(columns_cached)
+        column_required = columns_all - set(columns_cached)
+        cache_chunks = {name: [] for name in columns_to_cache}
+
+        def cached_iterator():
+            chunks_list = [chunks for name, chunks in columns_cached.items()]
+            # chunks_list is of form [[ar1x, ar2x, a3x], [ar1y, ar2y, a3y]]
+            # and now we want to yield
+            #  * i1, i2 {'x': ar1x, 'y': ar1y}
+            #  * i1, i2 {'x': ar2x, 'y': ar2y}
+            #  * i1, i2 {'x': ar3x, 'y': ar3y}
+            names = [name for name, chunks in columns_cached.items()]
+            i1 = 0
+            i2 = 0
+            for chunks in zip(*chunks_list):
+                i2 += len(chunks[0])
+                for chunk in chunks:
+                    assert len(chunk) == len(chunks[0])
+                yield i1, i2, dict(zip(names, chunks))
+                i1 = i2
+
+        if columns_cached:
+            cached_iter = chunk_rechunk(cached_iterator(), chunk_size)
+        else:
+            cached_iter = empty_chunk_iterator(0, self.row_count, chunk_size)
+        if column_required:
+            original_iter = self.original.chunk_iterator(column_required, chunk_size, reverse=reverse)
+        else:
+            original_iter = empty_chunk_iterator(0, self.row_count, chunk_size)
+        original_iter = list(original_iter)
+        cached_iter = list(cached_iter)
+
+        for (o1, o2, ochunks), (c1, c2, cchunks) in zip(original_iter, cached_iter):
+            assert o1 == c1
+            assert o2 == c2
+            yield o1, o2, {**ochunks, **cchunks}
+            for name in columns_to_cache:
+                if self.to_numpy:
+                    ochunks = {k: vaex.array_types.to_numpy(v) for k, v in ochunks.items()}
+                cache_chunks[name].append(ochunks[name])
+        # we write it too the cache in 1 go
+        for name in columns_to_cache:
+            self.cache[self._cache_key(name)] = cache_chunks[name]
+
+    def slice(self, start, end):
+        if start == 0 and end == self.row_count:
+            return self
+        return type(self)(self.original.slice(start, end), self.names, cache=self.cache)
+
+    def hashed(self):
+        if set(self._ids) == set(self):
+            return self
+        return type(self)(self.original.hashed(), self.names, cache=self.cache)
+
+    def _cache_key(self, name):
+        return f"{self.fingerprint}-{name}"

@@ -366,7 +366,7 @@ class StructOperations(collections.abc.Mapping):
 
 class Expression(with_metaclass(Meta)):
     """Expression class"""
-    def __init__(self, ds, expression, ast=None):
+    def __init__(self, ds, expression, ast=None, _selection=False):
         self.ds = ds
         assert not isinstance(ds, Expression)
         if isinstance(expression, Expression):
@@ -377,6 +377,7 @@ class Expression(with_metaclass(Meta)):
         self._expression = expression
         self.df._expressions.append(weakref.ref(self))
         self._ast_names = None
+        self._selection = _selection  # selection have an extra scope
 
     @property
     def _label(self):
@@ -393,7 +394,7 @@ class Expression(with_metaclass(Meta)):
         return self.expression
 
     def fingerprint(self):
-        fp = vaex.cache.fingerprint(self.expression, self.df.fingerprint())
+        fp = vaex.cache.fingerprint(self.expression, self.df.fingerprint(dependencies=self.dependencies()))
         return f'expression-{fp}'
 
     def copy(self, df=None):
@@ -668,6 +669,10 @@ class Expression(with_metaclass(Meta)):
         expr = expresso.translate(self.ast, translate)
         return Expression(self.ds, expr)
 
+    def dependencies(self):
+        '''Get all dependencies of this expression, including ourselves'''
+        return self.variables(ourself=True)
+
     def variables(self, ourself=False, expand_virtual=True, include_virtual=True):
         """Return a set of variables this expression depends on.
 
@@ -680,6 +685,10 @@ class Expression(with_metaclass(Meta)):
         """
         variables = set()
         def record(varname):
+            # always do this for selection
+            if self._selection and self.df.has_selection(varname):
+                selection = self.df.get_selection(varname)
+                variables.update(selection.dependencies(self.df))
             # do this recursively for virtual columns
             if varname in self.ds.virtual_columns and varname not in variables:
                 if (include_virtual and (varname != self.expression)) or (varname == self.expression and ourself):
@@ -976,7 +985,8 @@ class Expression(with_metaclass(Meta)):
 
         counter_type = counter_type_from_dtype(data_type_item, transient)
         counters = [None] * self.ds.executor.thread_pool.nthreads
-        def map(thread_index, i1, i2, ar):
+        def map(thread_index, i1, i2, selection_masks, blocks):
+            ar = blocks[0]
             if counters[thread_index] is None:
                 counters[thread_index] = counter_type(1)
             if data_type.is_list and axis is None:
@@ -993,7 +1003,8 @@ class Expression(with_metaclass(Meta)):
             return 0
         def reduce(a, b):
             return a+b
-        self.ds.map_reduce(map, reduce, [self.expression], delay=False, progress=progress, name='value_counts', info=True, to_numpy=False)
+        progressbar = vaex.utils.progressbars(progress, title="value counts")
+        self.ds.map_reduce(map, reduce, [self.expression], delay=False, progress=progressbar, name='value_counts', info=True, to_numpy=False)
         counters = [k for k in counters if k is not None]
         counter = counters[0]
         for other in counters[1:]:
@@ -1061,18 +1072,19 @@ class Expression(with_metaclass(Meta)):
         return Series(counts, index=keys)
 
     @docsubst
-    def unique(self, dropna=False, dropnan=False, dropmissing=False, selection=None, axis=None, array_type='list', delay=False):
+    def unique(self, dropna=False, dropnan=False, dropmissing=False, selection=None, axis=None, array_type='list', progress=None, delay=False):
         """Returns all unique values.
 
         :param dropmissing: do not count missing values
         :param dropnan: do not count nan values
         :param dropna: short for any of the above, (see :func:`Expression.isna`)
         :param bool axis: Axis over which to determine the unique elements (None will flatten arrays or lists)
+        :param progress: {progress}
         :param bool array_type: {array_type}
         """
-        return self.ds.unique(self, dropna=dropna, dropnan=dropnan, dropmissing=dropmissing, selection=selection, array_type=array_type, axis=axis, delay=delay)
+        return self.ds.unique(self, dropna=dropna, dropnan=dropnan, dropmissing=dropmissing, selection=selection, array_type=array_type, axis=axis, progress=progress, delay=delay)
 
-    def nunique(self, dropna=False, dropnan=False, dropmissing=False, selection=None, axis=None, delay=False):
+    def nunique(self, dropna=False, dropnan=False, dropmissing=False, selection=None, axis=None, progress=None, delay=False):
         """Counts number of unique values, i.e. `len(df.x.unique()) == df.x.nunique()`.
 
         :param dropmissing: do not count missing values
@@ -1080,17 +1092,17 @@ class Expression(with_metaclass(Meta)):
         :param dropna: short for any of the above, (see :func:`Expression.isna`)
         :param bool axis: Axis over which to determine the unique elements (None will flatten arrays or lists)
         """
-        if delay is False and vaex.cache.is_on():
+        def key_function():
             fp = vaex.cache.fingerprint(self.fingerprint(), dropna, dropnan, dropmissing, selection, axis)
-            key = f'nunique-{fp}'
-            value = vaex.cache.get(key, type='computed')
-            if value is None:
-                t0 = time.time()
-                value = len(self.unique(dropna=dropna, dropnan=dropnan, dropmissing=dropmissing, selection=selection, axis=axis, array_type=None))
-                duration_wallclock = time.time() - t0
-                vaex.cache.set(key, value, type='computed', duration_wallclock=duration_wallclock)
-            return value
-        return len(self.unique(dropna=dropna, dropnan=dropnan, dropmissing=dropmissing, selection=selection, axis=axis, delay=delay))
+            return f'nunique-{fp}'
+        @vaex.cache._memoize(key_function=key_function, delay=delay)
+        def f():
+            value = self.unique(dropna=dropna, dropnan=dropnan, dropmissing=dropmissing, selection=selection, axis=axis, array_type=None, progress=progress, delay=delay)
+            if delay:
+                return value.then(len)
+            else:
+                return len(value)
+        return f()
 
     def countna(self):
         """Returns the number of Not Availiable (N/A) values in the expression.
@@ -1117,6 +1129,12 @@ class Expression(with_metaclass(Meta)):
 
     def clip(self, lower=None, upper=None):
         return self.ds.func.clip(self, lower, upper)
+
+    def jit_metal(self, verbose=False):
+        from .metal import FunctionSerializableMetal
+        f = FunctionSerializableMetal.build(self.expression, df=self.ds, verbose=verbose, compile=self.ds.is_local())
+        function = self.ds.add_function('_jit', f, unique=True)
+        return function(*f.arguments)
 
     def jit_numba(self, verbose=False):
         f = FunctionSerializableNumba.build(self.expression, df=self.ds, verbose=verbose, compile=self.ds.is_local())

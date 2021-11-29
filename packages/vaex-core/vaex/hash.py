@@ -1,10 +1,13 @@
-import os
 import copyreg
-import vaex
+import os
+
 import pyarrow as pa
 
-on_rtd = os.environ.get('READTHEDOCS', None) == 'True'
-if not on_rtd:
+import vaex
+import vaex.utils
+
+
+if vaex.utils.has_c_extension:
     from .superutils import *
     from . import superutils
     import dask.base

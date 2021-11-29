@@ -1,5 +1,6 @@
 import vaex.utils
 import pyarrow.fs
+import warnings
 s3fs = vaex.utils.optional_import('s3fs')
 
 import vaex.file.cache
@@ -16,12 +17,19 @@ def translate_options(fs_options):
     # translate options of arrow to s3fs
     fs_options = fs_options.copy()
     not_supported = {
-        'role_arn', 'session_name', 'external_id', 'load_frequency', 'scheme', 'background_writes', 'profile', 'profile_name'
+        'role_arn', 'session_name', 'external_id', 'load_frequency', 'background_writes', 'profile', 'profile_name'
     }
     for key in not_supported:
         if key in fs_options:
              warnings.warn(f'The option {key} is not supported using s3fs instead of arrow, so it will be ignored')
              fs_options.pop(key)
+
+    # If scheme key is present in the fs_options use that, else default it to https
+    if 'endpoint_override' in fs_options.keys():
+        if 'scheme' in fs_options.keys():
+            fs_options['endpoint_override'] = fs_options.pop('scheme') + "://" + fs_options.pop('endpoint_override')
+        else:
+            fs_options['endpoint_override'] = "https://" + fs_options.pop('endpoint_override')
 
     # top level
     mapping = {

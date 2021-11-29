@@ -69,8 +69,7 @@ def test_correlation(df_local):
     def correlation(x, y):
         c = np.cov([x, y], bias=1)
         return c[0,1] / (c[0,0] * c[1,1])**0.5
-
-    np.testing.assert_array_almost_equal(df.correlation([["x", "y"], ["x", "x**2"]], selection=None), [correlation(x, y), correlation(x, x**2)])
+    np.testing.assert_array_almost_equal(df.correlation([["x", "y"], ["x", "x**2"]], selection=None)['correlation'].tolist(), [correlation(x, y), correlation(x, x**2)])
 
     df.select("x < 5")
     np.testing.assert_array_almost_equal(df.correlation("x", "y", selection=None), correlation(x, y))
@@ -175,7 +174,7 @@ def test_count_1d_ordinal():
     bins = 5
     binner = df._binner_ordinal('x', 5)
     agg = vaex.agg.count(edges=True)
-    tasks, result = agg.add_tasks(df, (binner,))
+    tasks, result = agg.add_tasks(df, (binner,), progress=False)
     df.execute()
     assert result.get().tolist() == [0, 2, 1, 1, 0, 0, 1, 1]
 
@@ -509,3 +508,65 @@ def test_agg_count_with_custom_name():
     df_grouped = df.groupby(df.x, sort=True).agg({'mycounts': vaex.agg.count(), 'mycounts2': 'count'})
     assert df_grouped['mycounts'].tolist() == [3, 2, 1]
     assert df_grouped['mycounts2'].tolist() == [3, 2, 1]
+
+
+def test_agg_unary():
+    x = np.arange(5)
+    df = vaex.from_arrays(x=x, g=x//4)
+    agg = -vaex.agg.sum('x')
+    assert repr(agg) == "-vaex.agg.sum('x')"
+    assert df.groupby('g', agg={'sumx': agg})['sumx'].tolist() == [-6, -4]
+
+
+def test_agg_binary():
+    x = np.arange(5)
+    df = vaex.from_arrays(x=x, y=x+1, g=x//4)
+    agg = vaex.agg.sum('x') / vaex.agg.sum('y')
+    assert repr(agg) == "(vaex.agg.sum('x') / vaex.agg.sum('y'))"
+    assert df.groupby('g', agg={'total': agg})['total'].tolist() == [6 / 10, 4 / 5]
+    agg = vaex.agg.sum('x') + 99
+    assert repr(agg) == "(vaex.agg.sum('x') + 99)"
+    assert df.groupby('g', agg={'total': agg})['total'].tolist() == [6 + 99, 4 + 99]
+    agg = 99 + vaex.agg.sum('y')
+    assert repr(agg) == "(99 + vaex.agg.sum('y'))"
+    assert df.groupby('g', agg={'total': agg})['total'].tolist() == [99 + 10, 99 + 5]
+    assert df.groupby('g', agg={'total': vaex.agg.sum('x') / 2})['total'].tolist() == [6/2, 4/2]
+    assert df.groupby('g', agg={'total': 2/vaex.agg.sum('x')})['total'].tolist() == [2/6, 2/4]
+
+
+def test_any():
+    # x  = [0, 1, 2, 3, 4]
+    # g  = [0, 0, 0, 0, 1]
+    # b1 = [0, 0, 1, 0, 0]
+    # b2 = [0, 0, 1, 0, 1]
+    x = np.arange(5)
+    df = vaex.from_arrays(x=x, y=x+1, g=x//4)
+    df['b1'] = x == 2
+    df['b2'] = (x % 2) == 0
+    assert df.groupby('g', agg={'any': vaex.agg.any('b1')})['any'].tolist() == [True, False]
+    assert df.groupby('g', agg={'any': vaex.agg.any('b2')})['any'].tolist() == [True, True]
+
+    assert df.groupby('g', agg={'any': vaex.agg.any('b1', selection=df.b1)})['any'].tolist() == [True, False]
+    assert df.groupby('g', agg={'any': vaex.agg.any('b2', selection=df.b1)})['any'].tolist() == [True, False]
+
+    assert df.groupby('g', agg={'any': vaex.agg.any(selection=df.b1)})['any'].tolist() == [True, False]
+    assert df.groupby('g', agg={'any': vaex.agg.any(selection=df.b2)})['any'].tolist() == [True, True]
+
+
+def test_all():
+    # x  = [0, 1, 2, 3, 4]
+    # g  = [0, 0, 0, 0, 1]
+    # b1 = [0, 0, 1, 0, 0]
+    # b2 = [0, 0, 1, 0, 1]
+    x = np.arange(5)
+    df = vaex.from_arrays(x=x, y=x+1, g=x//4)
+    df['b1'] = x == 2
+    df['b2'] = (x % 2) == 0
+    assert df.groupby('g', agg={'all': vaex.agg.all('b1')})['all'].tolist() == [False, False]
+    assert df.groupby('g', agg={'all': vaex.agg.all('b2')})['all'].tolist() == [False, True]
+
+    assert df.groupby('g', agg={'all': vaex.agg.all('b1', selection=df.b1)})['all'].tolist() == [False, False]
+    assert df.groupby('g', agg={'all': vaex.agg.all('b2', selection=df.b1)})['all'].tolist() == [False, False]
+
+    assert df.groupby('g', agg={'all': vaex.agg.all(selection=df.b1)})['all'].tolist() == [False, False]
+    assert df.groupby('g', agg={'all': vaex.agg.all(selection=df.b2)})['all'].tolist() == [False, True]

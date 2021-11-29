@@ -13,6 +13,7 @@ def f(grid):
 
 f(ds.count(delay=True))
 
+See tests/delayed_test.py for more examples
 """
 
 
@@ -22,6 +23,8 @@ def promisify(value):
         return value
     if isinstance(value, (list, tuple)):
         return aplus.listPromise(*list([promisify(k) for k in value]))
+    if isinstance(value, dict):
+        return aplus.dictPromise({k: promisify(v) for k, v in value.items()})
     else:
         return aplus.Promise.fulfilled(value)
 
@@ -83,5 +86,23 @@ def delayed_args(*args):
 
 
 @delayed
+def delayed_kwargs(**kwargs):
+    return kwargs
+
+
+@delayed
 def delayed_list(l):
     return delayed_args(*l)
+
+
+@delayed
+def delayed_dict(d):
+    return delayed_kwargs(**d)
+
+
+@delayed
+def delayed_apply(f, args, kwargs):
+    @delayed
+    def internal(f, args, kwargs):
+        return f(*args, **kwargs)
+    return internal(f, args, kwargs)

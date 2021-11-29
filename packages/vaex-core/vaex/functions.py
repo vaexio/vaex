@@ -148,7 +148,7 @@ def fillmissing(ar, value):
     See :`ismissing` for the definition of missing values.
     '''
     dtype = vaex.dtype_of(ar)
-    if dtype == str:
+    if dtype.is_arrow:
         return pc.fill_null(ar, value)
     ar = ar if not isinstance(ar, column.Column) else ar.to_numpy()
     mask = ismissing(ar)
@@ -1934,7 +1934,7 @@ def str_rsplit(x, pattern=None, max_splits=-1):
     if pattern is None:
         return pc.utf8_split_whitespace(x, reverse=True, max_splits=max_splits)
     else:
-        return pc.split_pattern(x, reverse=True, max_splits=max_splits)
+        return pc.split_pattern(x, pattern=pattern, reverse=True, max_splits=max_splits)
 
 
 @register_function(scope='str')
@@ -2445,7 +2445,12 @@ def _ordinal_values(x, ordered_set):
     if not isinstance(x, vaex.array_types.supported_array_types) or isinstance(ordered_set, vaex.superutils.ordered_set_string):
         # sometimes the dtype can be object, but seen as an string array
         x = _to_string_sequence(x)
-    return ordered_set.map_ordinal(x)
+    else:
+        x = vaex.array_types.to_numpy(x)
+    indices = ordered_set.map_ordinal(x)
+    if np.ma.isMaskedArray(x):
+        indices[x.mask] = ordered_set.null_value
+    return indices
 
 @register_function()
 def _choose(ar, choices, default=None):
@@ -2736,3 +2741,18 @@ def stack(arrays, strict=False):
 def getitem(ar, item):
     slicer = (slice(None), item)
     return ar.__getitem__(slicer)
+
+
+@register_function()
+def dot_product(a, b):
+    '''Compute the dot product between `a` and `b`.
+
+    :param a: A list of Expressions or a list of values (e.g. a vector)
+    :param b: A list of Expressions or a list of values (e.g. a vector)
+    :return: Vaex expression
+    '''
+    assert len(a) == len(b), 'The lenghts of `a` and `b` must be the same.'
+    result = a[0] * b[0]
+    for an, bn in zip(a[1:], b[1:]):
+        result += an * bn
+    return result

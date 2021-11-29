@@ -64,8 +64,10 @@ def buffer_size():
 def webserver_tornado():
     webserver = vaex.server.tornado_server.WebServer(datasets=[], port=test_port, cache_byte_size=0)
     webserver.serve_threaded()
-    yield webserver
-    webserver.stop_serving()
+    try:
+        yield webserver
+    finally:
+        webserver.stop_serving()
 
 
 @pytest.fixture(scope='session')
@@ -85,9 +87,9 @@ else:
 
 
 @pytest.fixture(scope='session', params=webservers)
-def webserver(request, webserver_fastapi, webserver_tornado, df_server, df_example, df_server_huge):
+def webserver(request, webserver_fastapi, webserver_tornado, df_server, df_server_huge):
     webserver = locals()[request.param]
-    df_example = df_example.copy()
+    df_example = vaex.example()
     df = df_server.copy()
     df = df.materialize('z')  # in the fastapi we drop the state
     df.drop('obj', inplace=True)

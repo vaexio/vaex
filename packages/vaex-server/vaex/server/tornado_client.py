@@ -10,7 +10,6 @@ import vaex
 import vaex.asyncio
 import vaex.server.utils
 from vaex.server import client
-from .executor import Executor
 
 logger = logging.getLogger("vaex.server.tornado_client")
 
@@ -29,11 +28,6 @@ class Client(client.Client):
         self.jobs = {}
         self.msg_reply_futures = {}
 
-        self.event_loop_main = asyncio.get_event_loop()
-        if self.event_loop_main is None:
-            raise RuntimeError('The client cannot work without a running event loop')
-
-        self.executor = Executor(self)
         logger.debug("connect")
         self.connect()
         logger.debug("connected")
@@ -51,7 +45,6 @@ class ClientWebsocket(Client):
 
         msg_encoding = vaex.encoding.Encoding()
         data = vaex.encoding.serialize({'msg_id': msg_id, 'msg': msg, 'auth': auth}, msg_encoding)
-        assert self.event_loop_main is asyncio.get_event_loop()
 
         self.websocket.write_message(data, binary=True)
         return msg_id
@@ -64,8 +57,7 @@ class ClientWebsocket(Client):
             return reply_msg['result'], reply_encoding
 
     def _send(self, msg, msg_id=None, wait_for_reply=True, add_promise=None):
-        loop = asyncio.get_event_loop()
-        return loop.run_until_complete(self._send_async(msg, msg_id))
+        return self.executor.run(self._send_async(msg, msg_id))
 
     def close(self):
         self.websocket.close()
@@ -119,7 +111,7 @@ class ClientWebsocket(Client):
         self.websocket = await tornado.websocket.websocket_connect(self._url, on_message_callback=self._on_websocket_message)
 
     def connect(self):
-        vaex.asyncio.just_run(self.connect_async())
+        return self.executor.run(self.connect_async())
 
 
 def connect(url, **kwargs):

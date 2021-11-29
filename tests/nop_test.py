@@ -12,3 +12,8 @@ def test_nop(ds_local):
     # Try a  nop on a list of columns
     result = df.nop(column_names)
     assert result is None
+
+
+    # or all columns
+    result = df.nop()
+    assert result is None

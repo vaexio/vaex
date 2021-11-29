@@ -496,6 +496,12 @@ def test_string_split():
     assert df.s.str.split(max_splits=1).tolist() == [["aap", "noot  mies"], None, ["kees"], [""]]
 
 
+def test_string_rsplit():
+    df = vaex.from_arrays(s=["aap noot  mies", None, "kees", ""])
+    assert df.s.str.rsplit(pattern='noot').tolist() == [['aap ', '  mies'], None, ['kees'], ['']]
+    assert df.s.str.rsplit(pattern='noot', max_splits=1).tolist() == [['aap ', '  mies'], None, ['kees'], ['']]
+
+
 def test_string_split_upper():
     df = vaex.from_arrays(s=["aap noot  mies", None, "kees", ""])
     assert df.s.str.split().str.upper().tolist() == [["AAP", "NOOT", "MIES"], None, ["KEES"], [""]]

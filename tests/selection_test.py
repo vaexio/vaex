@@ -212,3 +212,29 @@ def test_selection_function_name_collision():
     assert 'float' in vaex.expression.expression_namespace
     assert df.float.tolist() == [1, 2, 3]
     assert df[df.float > 1].float.tolist() == [2, 3]
+
+
+def test_selection_dependencies_only_expressions():
+    df = vaex.from_scalars(x=1, y=2)
+    df['z'] = df.x + df.y
+    df['q'] = df.z
+    e1 = vaex.selections.SelectionExpression("x > 5", None, "and")
+    assert e1.dependencies(df) == {'x'}
+    e2 = vaex.selections.SelectionExpression("z > 5", e1, "and")
+    assert e2.dependencies(df) == {'x', 'z', 'y'}
+    e3 = vaex.selections.SelectionExpression("q > 5", None, "and")
+    assert e3.dependencies(df) == {'x', 'z', 'y', 'q'}
+
+
+def test_selection_dependencies_with_named():
+    x = np.arange(10)
+    y = x**2
+    df = vaex.from_arrays(x=x, y=y)
+    df['z'] = df.x + df.y
+    df['q'] = df.z
+    df.select(df.x < 4, name="lt4")
+    df.select(df.x > 1, name="gt1")
+    df.select("lt4 & gt1", name="combined")
+    assert df.x.sum(selection="combined") == 2 + 3
+    selection = df.get_selection("combined")
+    assert selection.dependencies(df) == {'lt4', 'gt1', 'x'}

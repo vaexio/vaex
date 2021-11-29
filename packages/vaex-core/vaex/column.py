@@ -8,11 +8,12 @@ import numpy as np
 import pyarrow as pa
 
 import vaex
+import vaex.utils
 import vaex.cache
 from .array_types import supported_array_types, supported_arrow_array_types, string_types, is_string_type
 
-on_rtd = os.environ.get('READTHEDOCS', None) == 'True'
-if not on_rtd:
+
+if vaex.utils.has_c_extension:
     import vaex.strings
 
 logger = logging.getLogger("vaex.column")
@@ -62,6 +63,12 @@ class ColumnVirtualRange(Column):
 
     def __getitem__(self,  slice):
         start, stop, step = slice.start, slice.stop, slice.step
+        if start is None:
+            start = self.start
+        if stop is None:
+            stop = self.stop
+        if step is None:
+            step = self.step
         return np.arange(self.start + start, self.start + stop, step, dtype=self.dtype)
 
     def trim(self, i1, i2):

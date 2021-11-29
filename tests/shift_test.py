@@ -352,7 +352,25 @@ def test_shift_dataset(chunk_size=2):
     assert not dss.is_masked('x_shift')
     assert dss_range.is_masked('x_shift')
 
+@pytest.mark.parametrize("chunk_number", [0.5, 1, 2.5, 5.5])
+@pytest.mark.parametrize("period", list(range(-3, 4)))
+def test_shift_large_dataset(chunk_number, period):
+    chunk_size = 1024**2 # same value at _chunk_iterator()
 
+    v=np.random.random(int(chunk_number*chunk_size))
+
+    df = vaex.from_arrays(x=v)
+
+    w = df.shift(period).values.reshape(-1)
+
+    if period<0:
+        assert np.all(w[:period]==v[-period:])
+        assert w[period:].tolist() == [None]*(-period)
+    elif period>0:
+        assert np.all(w[period:]==v[:-period])
+        assert w[:period].tolist() == [None]*period
+    else:
+        assert np.all(w==v)
 
 @pytest.mark.parametrize("periods", [-1, 1, 2, -2])
 def test_diff(df_factory, periods):
@@ -366,3 +384,30 @@ def test_diff(df_factory, periods):
     assert np.all(np.isnan(result) == np.isnan(expected))
     mask = ~np.isnan(result)
     assert result[mask].tolist() == expected[mask].tolist()
+
+def test_diff_list():
+    periods = 2
+    x = np.arange(10, dtype='f8')
+    y = x**2
+    df = vaex.from_arrays(x=x, y=y)
+    dfp = df.to_pandas_df(array_type='numpy')
+    df = df.diff(periods, fill_value=np.nan, column=['x', 'y'])
+    dfp = dfp.diff(periods)
+    result = df['x'].to_numpy()
+    expected = dfp['x'].to_numpy()
+    assert np.all(np.isnan(result) == np.isnan(expected))
+    mask = ~np.isnan(result)
+    assert result[mask].tolist() == expected[mask].tolist()
+    
+@pytest.mark.parametrize("chunk_number", [0.5, 1, 2.5, 5.5])
+def test_diff_large_dataset(chunk_number):
+    chunk_size = 1024**2 # same value at _chunk_iterator()
+
+    v=np.random.random(int(chunk_number*chunk_size))
+
+    df = vaex.from_arrays(x=v)
+
+    w = df.diff().values.reshape(-1)
+
+    assert np.all(w[1:]==np.diff(v))
+    assert w[:1].tolist()==[None]

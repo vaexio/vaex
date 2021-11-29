@@ -1,6 +1,7 @@
 import pytest
 import numpy as np
 import vaex.cache
+from unittest.mock import MagicMock, call
 
 
 def passes(df):
@@ -76,7 +77,12 @@ def test_cached_result(df_local):
         reset(df)
         # now it should be cached
         sum1b_filtered = df.sum('x')
-        passes1b = passes(df)
+        assert passes(df) == 0
+        assert sum1b_filtered == total
+
+        # and it should not care if we add a virtual column we do not use
+        df['foo'] = df.x * 2
+        sum1b_filtered = df.sum('x')
         assert passes(df) == 0
         assert sum1b_filtered == total
 
@@ -123,64 +129,125 @@ def test_cache_set():
         df._set('x')
         assert passes(df) == passes0 + 1
 
+
 def test_nunique():
     df = vaex.from_arrays(x=[0, 1, 2, 2])
     with vaex.cache.memory_infinite(clear=True):
-        hit = vaex.cache._cache_hit
-        miss = vaex.cache._cache_miss
+        vaex.cache._cache_hit = 0
+        vaex.cache._cache_miss = 0
         df.x.nunique()
         # twice in the exector for the set, 1 time in nunique
-        assert vaex.cache._cache_miss == miss + 3
-        assert vaex.cache._cache_hit == hit
+        assert vaex.cache._cache_miss == 3
+        assert vaex.cache._cache_hit == 0
         df.x.nunique()
-        assert vaex.cache._cache_miss == miss + 3
-        assert vaex.cache._cache_hit == hit + 1
+        assert vaex.cache._cache_miss == 3
+        assert vaex.cache._cache_hit == 1
 
 
-def test_cache_groupby():
+@pytest.mark.parametrize("copy", [True, False])
+def test_cache_groupby(copy):
     df = vaex.from_arrays(x=[0, 1, 2, 2], y=['a', 'b', 'c', 'd'])
     df2 = vaex.from_arrays(x=[0, 1, 2, 2], y=['a', 'b', 'c', 'd'])
     fp = df.fingerprint()  # we also want to be sure we don't modify the fingerprint
     with vaex.cache.memory_infinite(clear=True):
         passes0 = passes(df)
 
-        df.groupby('x', agg='count')
+        df.groupby('x', agg='count', copy=copy)
         # we do two passes, one for the set, and 1 for the aggregation
         assert passes(df) == passes0 + 2
-        assert df.fingerprint() == fp
+        if copy:
+            assert df.fingerprint() == fp
 
-        df.groupby('y', agg='count')
+        df.groupby('y', agg='count', copy=copy)
         # we do two passes, one for the set, and 1 for the aggregation
         assert passes(df) == passes0 + 4
-        assert df.fingerprint() == fp
+        if copy:
+            assert df.fingerprint() == fp
 
-        df2.groupby('y', agg='count')
+        vaex.execution.logger.debug("HERE IT GOES")
+        df2.groupby('y', agg='count', copy=copy)
         # different dataframe, same data, no extra passes
         assert passes(df) == passes0 + 4
-        assert df.fingerprint() == fp
+        if copy:
+            assert df.fingerprint() == fp
 
         # now should use the cache
-        df.groupby('x', agg='count')
+        df.groupby('x', agg='count', copy=copy)
         assert passes(df) == passes0 + 4
-        df.groupby('y', agg='count')
+        df.groupby('y', agg='count', copy=copy)
         assert passes(df) == passes0 + 4
-        assert df.fingerprint() == fp
+        if copy:
+            assert df.fingerprint() == fp
 
         # 1 time for combining the two sets, 1 for finding the labels (smaller dataframe), 1 pass for aggregation
-        df.groupby(['x', 'y'], agg='count')
+        df.groupby(['x', 'y'], agg='count', copy=copy)
         assert passes(df) == passes0 + 7
-        assert df.fingerprint() == fp
+        if copy:
+            assert df.fingerprint() == fp
 
-        # but that should be reused the second time, just 1 pass for the evaluations of the labels
-        df.groupby(['x', 'y'], agg='count')
-        assert passes(df) == passes0 + 7 + 1
-        assert df.fingerprint() == fp
+        # but that should be reused the second time, also the evaluation of the labels
+        df.groupby(['x', 'y'], agg='count', copy=copy)
+        assert passes(df) == passes0 + 7
+        if copy:
+            assert df.fingerprint() == fp
 
         # different order triggers a new pass(combining the sets in a different way)
         # and the aggregation phase, which includes the labeling
-        df.groupby(['y', 'x'], agg='count')
-        assert passes(df) == passes0 + 7 + 1 + 3
-        assert df.fingerprint() == fp
+        df.groupby(['y', 'x'], agg='count', copy=copy)
+        assert passes(df) == passes0 + 7 + 3
+        if copy:
+            assert df.fingerprint() == fp
+
+
+def test_cache_selections():
+    df = vaex.from_arrays(x=[0, 1, 2, 2], y=['a', 'b', 'c', 'd'])
+    df2 = vaex.from_arrays(x=[0, 1, 2, 2], y=['a', 'b', 'c', 'd'])
+    fp = df.fingerprint()  # we also want to be sure we don't modify the fingerprint
+    with vaex.cache.memory_infinite(clear=True):
+        df.executor.passes = 0
+        assert df.x.sum(selection=df.y=='b') == 1
+        assert passes(df) == 1
+
+        # same data, different dataframe, no extra pass
+        assert df2.x.sum(selection=df2.y=='b') == 1
+        assert passes(df) == 1
+
+        # named selections
+        df.executor.passes = 0
+        df.select(df.y=='c', name="a")
+        assert df.x.sum(selection="a") == 2
+        assert passes(df) == 1
+
+        df2.select(df2.y=='c', name="a")
+        assert df2.x.sum(selection="a") == 2
+        assert passes(df2) == 1
+
+        df['z'] = df.x * 2
+        df2['z'] = df2.x * 2
+
+        # named selection referring to a virtual column
+        df.executor.passes = 0
+        df.select(df.z==4, name="a")
+        assert df.x.sum(selection="a") == 4
+        assert passes(df) == 1
+
+        df2.select(df2.z==4, name="a")
+        assert df2.x.sum(selection="a") == 4
+        assert passes(df2) == 1
+
+        df['z'] = df.x * 3
+        df2['z'] = df2.x * 1  # different virtual column with same name
+        # named selection referring to a virtual column, but different expressions
+        df.executor.passes = 0
+        df.select(df.z==3, name="a")
+        assert df.x.sum(selection="a") == 1
+        assert passes(df) == 1
+
+        # we should not get the cached version now
+        df2.select(df2.z==3, name="a")
+        assert df2.x.sum(selection="a") == 0
+        assert passes(df2) == 2
+
 
 def test_multi_level_cache():
     l1 = {}
@@ -202,3 +269,69 @@ def test_multi_level_cache():
     assert cache['key1'] == 1
     assert l1 == {'key1': 1}
     assert l2 == {'key1': 1}
+
+
+def test_memoize():
+    f1 = f1_mock = MagicMock()
+    f1b = f1b_mock = MagicMock()
+    f2 = f2_mock = MagicMock()
+
+    f1 = vaex.cache._memoize(f1, key_function=lambda: 'same')
+    f1b = vaex.cache._memoize(f1b, key_function=lambda: 'same')
+    f2 = vaex.cache._memoize(f2, key_function=lambda: 'different')
+
+    with vaex.cache.memory_infinite(clear=True):
+        f1()
+        f1_mock.assert_called_once()
+        f1b_mock.assert_not_called()
+        f2_mock.assert_not_called()
+        f1b()
+        f1_mock.assert_called_once()
+        f1b_mock.assert_not_called()
+        f2_mock.assert_not_called()
+        f2()
+        f1_mock.assert_called_once()
+        f1b_mock.assert_not_called()
+        f2_mock.assert_called_once()
+
+    with vaex.cache.off():
+        f1()
+        f1_mock.assert_has_calls([call(), call()])
+        f1b_mock.assert_not_called()
+        f2_mock.assert_called_once()
+        f1b()
+        f1_mock.assert_has_calls([call(), call()])
+        f1b_mock.assert_called_once()
+        f2_mock.assert_called_once()
+        f2()
+        f1_mock.assert_has_calls([call(), call()])
+        f1b_mock.assert_called_once()
+        f2_mock.assert_has_calls([call(), call()])
+
+
+def test_memoize_with_delay():
+    # using nunique for this
+    df = vaex.from_arrays(x=[0, 1, 2, 2])
+    with vaex.cache.memory_infinite(clear=True):
+        vaex.cache._cache_hit = 0
+        vaex.cache._cache_miss = 0
+        value = df.x.nunique(delay=True)
+        # twice for the tasks of unique
+        assert vaex.cache._cache_miss == 2
+        assert vaex.cache._cache_hit == 0
+        df.execute()
+        assert value.get() == 3
+        # 1 time in nunique
+        assert vaex.cache._cache_miss == 3
+        assert vaex.cache._cache_hit == 0
+
+        value = df.x.nunique()
+        assert value == 3
+        assert vaex.cache._cache_miss == 3
+        assert vaex.cache._cache_hit == 1
+
+
+        value = df.x.nunique(delay=True)
+        assert value.get() == 3
+        assert vaex.cache._cache_miss == 3
+        assert vaex.cache._cache_hit == 2
