@@ -1130,6 +1130,12 @@ class Expression(with_metaclass(Meta)):
     def clip(self, lower=None, upper=None):
         return self.ds.func.clip(self, lower, upper)
 
+    def jit_opencl(self, verbose=False):
+        from .opencl import FunctionSerializableOpenCL
+        f = FunctionSerializableOpenCL.build(self.expression, df=self.ds, verbose=verbose, compile=self.ds.is_local())
+        function = self.ds.add_function('_jit', f, unique=True)
+        return function(*f.arguments)
+
     def jit_metal(self, verbose=False):
         from .metal import FunctionSerializableMetal
         f = FunctionSerializableMetal.build(self.expression, df=self.ds, verbose=verbose, compile=self.ds.is_local())
