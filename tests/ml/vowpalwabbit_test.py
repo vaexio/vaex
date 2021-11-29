@@ -27,10 +27,10 @@ def test_vowpalwabbit(df_iris):
         params=params,
         features=features,
         target='class_')
-    model.fit(ds_train)
+    model.fit(ds_train, passes=5)
     assert 0 < accuracy_score(ds_test.col.class_.values, model.predict(ds_test))
 
-    ds_train = model.transform(ds_train)  # this will add the lightgbm_prediction column
+    ds_train = model.transform(ds_train)  # this will add the vw column
     state = ds_train.state_get()
     ds_test.state_set(state)
 
