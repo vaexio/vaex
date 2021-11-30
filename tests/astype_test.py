@@ -45,3 +45,11 @@ def test_astype_empty(df_factory):
     df = df_factory(x=[1, 2, 3])
     df = df[df.x<0]
     assert len(df.x.as_numpy().values) == 0
+
+
+def test_astype_timedelta(df_factory):
+    x = [23423, -242, 34656]
+    x_result = np.array([23423,  -242, 34656], dtype='timedelta64[s]')
+    df = df_factory(x=x)
+    df['x_expected'] = df.x.astype('timedelta64[s]')
+    assert x_result.tolist() == df.x_expected.tolist()
