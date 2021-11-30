@@ -30,8 +30,7 @@ def create_tracker():
         with lock:
             if not _memory_tracker_types:
                 for entry in pkg_resources.iter_entry_points(group="vaex.memory.tracker"):
-                    if entry.name == memory_tracker_type:
-                        _memory_tracker_types[entry.name] = entry.load()
+                    _memory_tracker_types[entry.name] = entry.load()
     cls = _memory_tracker_types.get(memory_tracker_type)
     if cls is not None:
         return cls()

@@ -130,7 +130,7 @@ class CatBoostModel(state.HasState):
 
             # Set up progressbar
             n_samples = len(df)
-            progressbar = vaex.utils.progressbars(progress)
+            progressbar = vaex.utils.progressbars(progress, title="fit(catboost)")
 
             column_names = self.features + [self.target]
             iterator = df[column_names].to_pandas_df(chunk_size=self.batch_size)

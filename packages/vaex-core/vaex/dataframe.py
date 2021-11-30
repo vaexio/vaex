@@ -423,7 +423,7 @@ class DataFrame(object):
         pre_filter = pre_filter and self.filtered
         task = tasks.TaskMapReduce(self, arguments, map, reduce, info=info, to_numpy=to_numpy, ignore_filter=ignore_filter, selection=selection, pre_filter=pre_filter)
         progressbar = vaex.utils.progressbars(progress)
-        progressbar.add_task(task, name)
+        progressbar.add_task(task, f'map reduce: {name}')
         task = self.executor.schedule(task)
         return self._delay(delay, task)
 
@@ -493,6 +493,8 @@ class DataFrame(object):
         expression = _ensure_string_from_expression(expression)
         task = vaex.tasks.TaskSetCreate(self, expression, flatten, unique_limit=unique_limit, selection=selection, return_inverse=return_inverse)
         task = self.executor.schedule(task)
+        progressbar = vaex.utils.progressbars(progress)
+        progressbar.add_task(task, f"set for {str(expression)}")
         return self._delay(delay, task)
 
     def _index(self, expression, progress=False, delay=False, prime_growth=False, cardinality=None):
@@ -563,6 +565,7 @@ class DataFrame(object):
         :param dropnan: do not count nan values
         :param dropna: short for any of the above, (see :func:`Expression.isna`)
         :param int axis: Axis over which to determine the unique elements (None will flatten arrays or lists)
+        :param progress: {progress}
         :param str array_type: {array_type}
         """
         if dropna:
@@ -596,7 +599,7 @@ class DataFrame(object):
                         inverse[i1:i2] = ordered_set.map_ordinal(ar)
                     def reduce(a, b):
                         pass
-                    self.map_reduce(map, reduce, [expression], delay=delay, name='unique_return_inverse', info=True, to_numpy=False, selection=selection)
+                    self.map_reduce(map, reduce, [expression], delay=delay, name='unique_return_inverse', progress=progress_inverse, info=True, to_numpy=False, selection=selection)
                 # ordered_set.seal()
                 # if array_type == 'python':
                 if data_type_item.is_object:
@@ -638,7 +641,11 @@ class DataFrame(object):
                     return keys, inverse
                 else:
                     return keys
-            return self._delay(delay, process(self._set(expression, progress=progress, selection=selection, flatten=axis is None, delay=delay)))
+            progressbar = vaex.utils.progressbars(progress, title="unique")
+            set_result = self._set(expression, progress=progressbar, selection=selection, flatten=axis is None, delay=True)
+            if return_inverse:
+                progress_inverse = progressbar.add("find inverse")
+            return self._delay(delay, process(set_result))
 
 
     @docsubst
@@ -834,9 +841,16 @@ class DataFrame(object):
             # TODO: temporary disabled
             # len(self) # fill caches and masks
             pass
-        binners = self._create_binners(binby, limits, shape, selection=selection, delay=True)
+        progressbar = vaex.utils.progressbars(progress, title=name)
+        if not isinstance(binby, (list, tuple)) or len(binby) > 0:
+            progressbar_limits = progressbar.add("binners")
+            binners = self._create_binners(binby, limits, shape, selection=selection, delay=True, progress=progressbar_limits)
+        else:
+            binners = ()
+        progressbar_agg = progressbar
         @delayed
-        def compute(expression, binners, selection, edges, progressbar):
+        def compute(expression, binners, selection, edges):
+            binners = tuple(binners)
             if not hasattr(self.local, '_aggregator_nest_count'):
                 self.local._aggregator_nest_count = 0
             self.local._aggregator_nest_count += 1
@@ -848,9 +862,7 @@ class DataFrame(object):
                         agg = vaex.agg.aggregates[name](expression, *extra_expressions, selection=selection, edges=edges)
                     else:
                         agg = vaex.agg.aggregates[name](expression, selection=selection, edges=edges)
-                tasks, result = agg.add_tasks(self, binners)
-                for task in tasks:
-                    progressbar.add_task(task, "%s for %s" % (name, expression))
+                tasks, result = agg.add_tasks(self, binners, progress=progressbar)
                 @delayed
                 def finish(counts):
                     return np.asarray(counts)
@@ -882,8 +894,7 @@ class DataFrame(object):
                 return np.asarray(vaex.utils.unlistify(expression_waslist, counts))
             else:
                 raise RuntimeError(f'Unknown array_type {format}')
-        progressbar = vaex.utils.progressbars(progress)
-        stats = [compute(expression, binners, selection=selection, edges=edges, progressbar=progressbar) for expression in expressions]
+        stats = [compute(expression, binners, selection=selection, edges=edges) for expression in expressions]
         var = finish(binners, *stats)
         return self._delay(delay, var)
 
@@ -1169,7 +1180,7 @@ class DataFrame(object):
                 results.append(cov(mx, my, cxy))
             return results
 
-        progressbar = vaex.utils.progressbars(progress)
+        progressbar = vaex.utils.progressbars(progress, title="covar")
         covars = calculate(limits)
 
         @delayed
@@ -1217,7 +1228,7 @@ class DataFrame(object):
         :return: {return_stat_scalar}
         """
         selection = _normalize_selection(selection)
-        progressbar = vaex.utils.progressbars(progress, name="correlation")
+        progressbar = vaex.utils.progressbars(progress, title="correlation")
         if y is None:
             if not _issequence(x):
                 raise ValueError("if y not given, x is expected to be a list or tuple, not %r" % x)
@@ -1328,7 +1339,6 @@ class DataFrame(object):
         N = len(expressions)
         binby = _ensure_list(binby)
         shape = _expand_shape(shape, len(binby))
-        progressbar = vaex.utils.progressbars(progress)
         limits = self.limits(binby, limits, selection=selection, delay=True)
 
         @delayed
@@ -1358,7 +1368,7 @@ class DataFrame(object):
                 moments2 = sums / counts
             cov_matrix = moments2 - meansxy
             return cov_matrix
-        progressbar = vaex.utils.progressbars(progress)
+        progressbar = vaex.utils.progressbars(progress, title="cov")
         values = calculate(expressions, limits)
         cov_matrix = finish(values)
         return self._delay(delay, cov_matrix)
@@ -1419,7 +1429,7 @@ class DataFrame(object):
         all_same_kind = all(isinstance(data_type.internal, np.dtype) for data_type in data_types) and all([k.kind == data_type0.kind for k in data_types])
         if not (all_same_kind or all([k == data_type0 for k in data_types])):
             raise TypeError("cannot mix different dtypes in 1 minmax call")
-        progressbar = vaex.utils.progressbars(progress, name="minmaxes")
+        progressbar = vaex.utils.progressbars(progress, title="minmaxes")
         limits = self.limits(binby, limits, selection=selection, delay=True)
         all_tasks = [calculate(expression, limits) for expression in expressions]
         result = finish(*all_tasks)
@@ -1660,7 +1670,7 @@ class DataFrame(object):
             return task.get()
 
     @docsubst
-    def limits_percentage(self, expression, percentage=99.73, square=False, selection=False, delay=False):
+    def limits_percentage(self, expression, percentage=99.73, square=False, selection=False, progress=None, delay=False):
         """Calculate the [min, max] range for expression, containing approximately a percentage of the data as defined
         by percentage.
 
@@ -1682,6 +1692,7 @@ class DataFrame(object):
         :return: {return_limits}
         """
         logger.info("limits_percentage for %r, with percentage=%r", expression, percentage)
+        progressbar = vaex.utils.progressbars(progress, title="limits_percentage")
         waslist, [expressions, ] = vaex.utils.listify(expression)
         limits = []
         for expr in expressions:
@@ -1698,7 +1709,7 @@ class DataFrame(object):
                     return l
                 vmin, vmax = limits_minmax
                 size = 1024 * 16
-                counts = self.count(binby=expr, shape=size, limits=limits_minmax, selection=selection, delay=delay)
+                counts = self.count(binby=expr, shape=size, limits=limits_minmax, selection=selection, progress=progressbar, delay=delay)
                 return compute_limits(counts)
                 # limits.append(l)
             limits_minmax = self.minmax(expr, selection=selection, delay=delay)
@@ -1707,7 +1718,7 @@ class DataFrame(object):
         return self._delay(delay, delayed(vaex.utils.unlistify)(waslist, limits))
 
     @docsubst
-    def limits(self, expression, value=None, square=False, selection=None, delay=False, shape=None):
+    def limits(self, expression, value=None, square=False, selection=None, delay=False, progress=None, shape=None):
         """Calculate the [min, max] range for expression, as described by value, which is 'minmax' by default.
 
         If value is a list of the form [minvalue, maxvalue], it is simply returned, this is for convenience when using mixed
@@ -1749,6 +1760,7 @@ class DataFrame(object):
             values = value
         # we cannot hash arrow arrays
         values = [vaex.array_types.to_numpy(k) if isinstance(k, vaex.array_types.supported_arrow_array_types) else k for k in values]
+        progressbar = vaex.utils.progressbars(progress, title="limits")
 
         initial_expressions, initial_values = expressions, values
         expression_values = dict()
@@ -1789,7 +1801,7 @@ class DataFrame(object):
             else:
                 if isinstance(value, six.string_types):
                     if value == "minmax":
-                        limits = self.minmax(expression, selection=selection, delay=True)
+                        limits = self.minmax(expression, selection=selection, progress=progressbar, delay=True)
                     else:
                         match = re.match(r"([\d.]*)(\D*)", value)
                         if match is None:
@@ -2929,7 +2941,8 @@ class DataFrame(object):
         else:
             return self.variables[name]
 
-    def evaluate(self, expression, i1=None, i2=None, out=None, selection=None, filtered=True, array_type=None, parallel=True, chunk_size=None):
+    @docsubst
+    def evaluate(self, expression, i1=None, i2=None, out=None, selection=None, filtered=True, array_type=None, parallel=True, chunk_size=None, progress=None):
         """Evaluate an expression, and return a numpy array with the results for the full column or a part of it.
 
         Note that this is not how vaex should be used, since it means a copy of the data needs to fit in memory.
@@ -2941,15 +2954,17 @@ class DataFrame(object):
         :param int i2: End row index, default is the length of the DataFrame
         :param ndarray out: Output array, to which the result may be written (may be used to reuse an array, or write to
             a memory mapped array)
+        :param progress: {{progress}}
         :param selection: selection to apply
         :return:
         """
         if chunk_size is not None:
-            return self.evaluate_iterator(expression, s1=i1, s2=i2, out=out, selection=selection, filtered=filtered, array_type=array_type, parallel=parallel, chunk_size=chunk_size)
+            return self.evaluate_iterator(expression, s1=i1, s2=i2, out=out, selection=selection, filtered=filtered, array_type=array_type, parallel=parallel, chunk_size=chunk_size, progress=progress)
         else:
-            return self._evaluate_implementation(expression, i1=i1, i2=i2, out=out, selection=selection, filtered=filtered, array_type=array_type, parallel=parallel, chunk_size=chunk_size)
+            return self._evaluate_implementation(expression, i1=i1, i2=i2, out=out, selection=selection, filtered=filtered, array_type=array_type, parallel=parallel, chunk_size=chunk_size, progress=progress)
 
-    def evaluate_iterator(self, expression, s1=None, s2=None, out=None, selection=None, filtered=True, array_type=None, parallel=True, chunk_size=None, prefetch=True):
+    @docsubst
+    def evaluate_iterator(self, expression, s1=None, s2=None, out=None, selection=None, filtered=True, array_type=None, parallel=True, chunk_size=None, prefetch=True, progress=None):
         """Generator to efficiently evaluate expressions in chunks (number of rows).
 
         See :func:`DataFrame.evaluate` for other arguments.
@@ -2959,22 +2974,25 @@ class DataFrame(object):
         >>> import vaex
         >>> df = vaex.example()
         >>> for i1, i2, chunk in df.evaluate_iterator(df.x, chunk_size=100_000):
-        ...     print(f"Total of {i1} to {i2} = {chunk.sum()}")
+        ...     print(f"Total of {{i1}} to {{i2}} = {{chunk.sum()}}")
         ...
         Total of 0 to 100000 = -7460.610158279056
         Total of 100000 to 200000 = -4964.85827154921
         Total of 200000 to 300000 = -7303.271340043915
         Total of 300000 to 330000 = -2424.65234724951
 
+        :param progress: {{progress}}
         :param prefetch: Prefetch/compute the next chunk in parallel while the current value is yielded/returned.
         """
-        offset = 0
+        progressbar = vaex.utils.progressbars(progress, title="evaluate iterator")
         import concurrent.futures
         self._fill_filter_mask()
+        progressbar(0)
         if not prefetch:
             # this is the simple implementation
             for l1, l2, i1, i2 in self._unfiltered_chunk_slices(chunk_size):
                 yield l1, l2, self._evaluate_implementation(expression, i1=i1, i2=i2, out=out, selection=selection, filtered=filtered, array_type=array_type, parallel=parallel, raw=True)
+                progressbar(l2/len(self))
         # But this implementation is faster if the main thread work is single threaded
         else:
             with concurrent.futures.ThreadPoolExecutor(1) as executor:
@@ -2990,10 +3008,12 @@ class DataFrame(object):
                     previous_chunk = previous.result()
                     current = executor.submit(f, i1, i2)
                     yield previous_l1, previous_l2, previous_chunk
+                    progressbar(previous_l2/len(self))
                     previous = current
                     previous_l1, previous_l2 = l1, l2
                 previous_chunk = previous.result()
                 yield previous_l1, previous_l2, previous_chunk
+                progressbar(previous_l2/len(self))
 
     @docsubst
     def to_records(self, index=None, selection=None, column_names=None, strings=True, virtual=True, parallel=True,
@@ -5356,16 +5376,16 @@ class DataFrame(object):
 
     @docsubst
     @stat_1d
-    def _agg(self, aggregator, binners=tuple(), delay=False):
+    def _agg(self, aggregator, binners=tuple(), delay=False, progress=None):
         """
 
         :param delay: {delay}
         :return: {return_stat_scalar}
         """
-        tasks, result = aggregator.add_tasks(self, binners)
+        tasks, result = aggregator.add_tasks(self, binners, progress=progress)
         return self._delay(delay, result)
 
-    def _binner(self, expression, limits=None, shape=None, selection=None, delay=False):
+    def _binner(self, expression, limits=None, shape=None, selection=None, progress=None, delay=False):
         expression = str(expression)
         if limits is not None and not isinstance(limits, (tuple, str)):
             limits = tuple(limits)
@@ -5378,7 +5398,7 @@ class DataFrame(object):
             @delayed
             def create_binner(limits):
                 return self._binner_scalar(expression, limits, shape)
-            binner = create_binner(self.limits(expression, limits, selection=selection, delay=True))
+            binner = create_binner(self.limits(expression, limits, selection=selection, progress=progress, delay=True))
         return self._delay(delay, binner)
 
     def _binner_scalar(self, expression, limits, shape):
@@ -5389,7 +5409,7 @@ class DataFrame(object):
         dtype = self.data_type(expression)
         return BinnerOrdinal(expression, min_value, ordinal_count, dtype)
 
-    def _create_binners(self, binby, limits, shape, selection=None, delay=False):
+    def _create_binners(self, binby, limits, shape, selection=None, progress=None, delay=False):
         if isinstance(binby, (list, tuple)):
             binbys = binby
         else:
@@ -5405,7 +5425,7 @@ class DataFrame(object):
             limits = []
         shapes = _expand_shape(shape, len(binbys))
         for binby, limits1, shape in zip(binbys, limits, shapes):
-            binners.append(self._binner(binby, limits1, shape, selection, delay=True))
+            binners.append(self._binner(binby, limits1, shape, selection, progress=progress, delay=True))
         @delayed
         def finish(*binners):
             return binners
@@ -6134,7 +6154,7 @@ class DataFrameLocal(DataFrame):
             for i1, i2 in vaex.utils.subdivide(logical_length, max_length=chunk_size):
                 yield i1, i2, i1, i2
 
-    def _evaluate_implementation(self, expression, i1=None, i2=None, out=None, selection=None, filtered=True, array_type=None, parallel=True, chunk_size=None, raw=False):
+    def _evaluate_implementation(self, expression, i1=None, i2=None, out=None, selection=None, filtered=True, array_type=None, parallel=True, chunk_size=None, raw=False, progress=None):
         """The real implementation of :func:`DataFrame.evaluate` (not returning a generator).
 
         :param raw: Whether indices i1 and i2 refer to unfiltered (raw=True) or 'logical' offsets (raw=False)
@@ -6236,7 +6256,7 @@ class DataFrameLocal(DataFrame):
                         # for primitive arrays (and no filter/selection) we directly add it to the right place in contiguous numpy array
                         arrays[expr][i1:i2] = blocks[i]
             if expression_to_evaluate:
-                df.map_reduce(assign, lambda *_: None, expression_to_evaluate, ignore_filter=False, selection=selection, pre_filter=use_filter, info=True, to_numpy=False)
+                df.map_reduce(assign, lambda *_: None, expression_to_evaluate, progress=progress, ignore_filter=False, selection=selection, pre_filter=use_filter, info=True, to_numpy=False, name="evaluate")
             def finalize_result(expression):
                 if expression in chunks_map:
                     # put all chunks in order
@@ -6493,7 +6513,7 @@ class DataFrameLocal(DataFrame):
         :param dict fs_options: {fs_options}
         :return:
         """
-        progressbar = vaex.utils.progressbars(progress)
+        progressbar = vaex.utils.progressbars(progress, title="export(arrow)")
         def write(writer):
             progressbar(0)
             N = len(self)
@@ -6593,7 +6613,7 @@ class DataFrameLocal(DataFrame):
         for name in by:
             columns.remove(name)
 
-        progressbar = vaex.utils.progressbars(progress)
+        progressbar = vaex.utils.progressbars(progress, title="export(partitioned)")
         progressbar(0)
         groups = self.groupby(by)
         _, ext, _ = vaex.file.split_ext(path)
@@ -6654,7 +6674,7 @@ class DataFrameLocal(DataFrame):
             df = vaex.from_dict(chunks)
             df.export(p, chunk_size=None, parallel=False, fs_options=fs_options, fs=fs)
             return i2
-        progressbar = vaex.utils.progressbars(progress)
+        progressbar = vaex.utils.progressbars(progress, title="export(many)")
         progressbar(0)
         length = len(self)
         def update_progress(offset):
@@ -6679,12 +6699,15 @@ class DataFrameLocal(DataFrame):
         :return:
         """
         from vaex.hdf5.writer import Writer
+        progressbar = vaex.utils.progressbars(progress, title="export(hdf5)")
+        progressbar_layout = progressbar.add("layout file structure")
+        progressbar_write = progressbar.add("write data")
         with Writer(path=path, group=group, mode=mode, byteorder=byteorder) as writer:
-            writer.layout(self)
+            writer.layout(self, progress=progressbar_layout)
             writer.write(
                 self,
                 chunk_size=chunk_size,
-                progress=progress,
+                progress=progressbar_write,
                 column_count=column_count,
                 parallel=parallel,
                 export_threads=writer_threads)
@@ -6713,7 +6736,7 @@ class DataFrameLocal(DataFrame):
         """
         import pandas as pd
         expressions = self.get_column_names()
-        progressbar = vaex.utils.progressbars(progress)
+        progressbar = vaex.utils.progressbars(progress, title="export(csv)")
         dtypes = self[expressions].dtypes
         n_samples = len(self)
         if chunk_size is None:
@@ -6761,7 +6784,7 @@ class DataFrameLocal(DataFrame):
     #     # self.signal_selection_changed.emit(self)
 
     @docsubst
-    def groupby(self, by=None, agg=None, sort=False, assume_sparse='auto', row_limit=None, copy=True, delay=False):
+    def groupby(self, by=None, agg=None, sort=False, assume_sparse='auto', row_limit=None, copy=True, progress=None, delay=False):
         """Return a :class:`GroupBy` or :class:`DataFrame` object when agg is not None
 
         Examples:
@@ -6820,7 +6843,7 @@ class DataFrameLocal(DataFrame):
         :return: :class:`DataFrame` or :class:`GroupBy` object.
         """
         from .groupby import GroupBy
-        groupby = GroupBy(self, by=by, sort=sort, combine=assume_sparse, row_limit=row_limit, copy=copy)
+        groupby = GroupBy(self, by=by, sort=sort, combine=assume_sparse, row_limit=row_limit, copy=copy, progress=progress)
         @vaex.delayed
         def next(_ignore):
             if agg is None:

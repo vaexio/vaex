@@ -6,7 +6,8 @@ import vaex.utils
 supported_arrow_array_types = (pa.Array, pa.ChunkedArray)
 supported_array_types = (np.ndarray, ) + supported_arrow_array_types
 string_types = [pa.string(), pa.large_string()]
-_type_names = ["float64", "float32", "int8", "int16", "int32", "int64", "uint8", "uint16", "uint32", "uint64"]
+_type_names_int = ["int8", "int16", "int32", "int64", "uint8", "uint16", "uint32", "uint64"]
+_type_names = ["float64", "float32"] + _type_names_int
 map_arrow_to_numpy = {getattr(pa, name)(): np.dtype(name) for name in _type_names}
 map_arrow_to_numpy[pa.bool_()] = np.dtype("?")
 for unit in 's ms us ns'.split():

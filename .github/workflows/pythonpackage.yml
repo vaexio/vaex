@@ -98,13 +98,13 @@ jobs:
         pip install myst_parser
         pip install -e . -v
         # ./ci/03-install-vaex.sh micromamba
-    - name: Install vaex-enterprise
-      if: ${{ (github.event.pull_request.head.repo.full_name == 'vaexio/vaex') && (matrix.os == 'ubuntu-latest') }}
-      run: |
-        cd vaex-enterprise
-        micromamba install -c conda-forge distributed
-        pip install ray
-        pip install -e .
+#    - name: Install vaex-enterprise
+#      if: ${{ (github.event.pull_request.head.repo.full_name == 'vaexio/vaex') && (matrix.os == 'ubuntu-latest') }}
+#      run: |
+#        cd vaex-enterprise
+#        micromamba install -c conda-forge distributed
+#        pip install ray
+#        pip install -e .
     - name: Copy dll
       if: (matrix.os == 'windows-latest')
       uses: ./ci/actions/windll
@@ -146,10 +146,10 @@ jobs:
       run: |
         python -m vaex.ml.spec packages/vaex-ml/vaex/ml/spec_new.json
         diff packages/vaex-ml/vaex/ml/spec_new.json packages/vaex-ml/vaex/ml/spec.json
-    - name: Test with pytest (vaex-enterprise)
-      if: ${{ (github.event.pull_request.head.repo.full_name == 'vaexio/vaex') && (matrix.os == 'ubuntu-latest') }}
-      run: |
-        py.test vaex-enterprise/tests --timeout=1000
+#    - name: Test with pytest (vaex-enterprise)
+#      if: ${{ (github.event.pull_request.head.repo.full_name == 'vaexio/vaex') && (matrix.os == 'ubuntu-latest') }}
+#      run: |
+#        py.test vaex-enterprise/tests --timeout=1000
     - name: Test notebooks
       if: matrix.os != 'windows-latest'
       run: |
@@ -216,6 +216,12 @@ jobs:
     - name: Test import
       run: |
         python -c "import vaex; df = vaex.example()"
+
+    - name: Test comand line
+      run: |
+        vaex convert ~/.vaex/data/helmi-dezeeuw-2000-FeH-v2-10percent.hdf5 test.parquet
+        pip install rich
+        VAEX_PROGRESS_TYPE=rich vaex convert ~/.vaex/data/helmi-dezeeuw-2000-FeH-v2-10percent.hdf5 test.parquet
 
     - name: Test server
       run: |

@@ -77,7 +77,7 @@ function build_simple {
 }
 function build_pcre {
     echo "Buld"
-    build_simple pcre $PCRE_VERSION https://ftp.pcre.org/pub/pcre
+    build_simple pcre $PCRE_VERSION http://ftp.exim.org/pub/pcre/
 }
 echo Build pcre
 build_pcre

@@ -173,7 +173,7 @@ class PCAIncremental(PCA):
         self.n_components = self.n_components or len(self.features)
 
         n_samples = len(df)
-        progressbar = vaex.utils.progressbars(progress)
+        progressbar = vaex.utils.progressbars(progress, title="fit(PCA)")
         pca = sklearn.decomposition.IncrementalPCA(n_components=self.n_components,
                                                    batch_size=self.batch_size,
                                                    whiten=self.whiten)

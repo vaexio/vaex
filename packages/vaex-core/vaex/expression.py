@@ -1003,7 +1003,8 @@ class Expression(with_metaclass(Meta)):
             return 0
         def reduce(a, b):
             return a+b
-        self.ds.map_reduce(map, reduce, [self.expression], delay=False, progress=progress, name='value_counts', info=True, to_numpy=False)
+        progressbar = vaex.utils.progressbars(progress, title="value counts")
+        self.ds.map_reduce(map, reduce, [self.expression], delay=False, progress=progressbar, name='value_counts', info=True, to_numpy=False)
         counters = [k for k in counters if k is not None]
         counter = counters[0]
         for other in counters[1:]:
@@ -1071,18 +1072,19 @@ class Expression(with_metaclass(Meta)):
         return Series(counts, index=keys)
 
     @docsubst
-    def unique(self, dropna=False, dropnan=False, dropmissing=False, selection=None, axis=None, array_type='list', delay=False):
+    def unique(self, dropna=False, dropnan=False, dropmissing=False, selection=None, axis=None, array_type='list', progress=None, delay=False):
         """Returns all unique values.
 
         :param dropmissing: do not count missing values
         :param dropnan: do not count nan values
         :param dropna: short for any of the above, (see :func:`Expression.isna`)
         :param bool axis: Axis over which to determine the unique elements (None will flatten arrays or lists)
+        :param progress: {progress}
         :param bool array_type: {array_type}
         """
-        return self.ds.unique(self, dropna=dropna, dropnan=dropnan, dropmissing=dropmissing, selection=selection, array_type=array_type, axis=axis, delay=delay)
+        return self.ds.unique(self, dropna=dropna, dropnan=dropnan, dropmissing=dropmissing, selection=selection, array_type=array_type, axis=axis, progress=progress, delay=delay)
 
-    def nunique(self, dropna=False, dropnan=False, dropmissing=False, selection=None, axis=None, delay=False):
+    def nunique(self, dropna=False, dropnan=False, dropmissing=False, selection=None, axis=None, progress=None, delay=False):
         """Counts number of unique values, i.e. `len(df.x.unique()) == df.x.nunique()`.
 
         :param dropmissing: do not count missing values
@@ -1095,7 +1097,7 @@ class Expression(with_metaclass(Meta)):
             return f'nunique-{fp}'
         @vaex.cache._memoize(key_function=key_function, delay=delay)
         def f():
-            value = self.unique(dropna=dropna, dropnan=dropnan, dropmissing=dropmissing, selection=selection, axis=axis, array_type=None, delay=delay)
+            value = self.unique(dropna=dropna, dropnan=dropnan, dropmissing=dropmissing, selection=selection, axis=axis, array_type=None, progress=progress, delay=delay)
             if delay:
                 return value.then(len)
             else:
@@ -1127,6 +1129,12 @@ class Expression(with_metaclass(Meta)):
 
     def clip(self, lower=None, upper=None):
         return self.ds.func.clip(self, lower, upper)
+
+    def jit_metal(self, verbose=False):
+        from .metal import FunctionSerializableMetal
+        f = FunctionSerializableMetal.build(self.expression, df=self.ds, verbose=verbose, compile=self.ds.is_local())
+        function = self.ds.add_function('_jit', f, unique=True)
+        return function(*f.arguments)
 
     def jit_numba(self, verbose=False):
         f = FunctionSerializableNumba.build(self.expression, df=self.ds, verbose=verbose, compile=self.ds.is_local())

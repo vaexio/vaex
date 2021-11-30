@@ -84,8 +84,8 @@ class AggregatorExpressionUnary(AggregatorDescriptor):
     def edges(self, value):
         self.agg.edges = value
 
-    def add_tasks(self, df, binners):
-        tasks, result = self.agg.add_tasks(df, binners)
+    def add_tasks(self, df, binners, progress):
+        tasks, result = self.agg.add_tasks(df, binners, progress)
         @vaex.delayed
         def finish(value):
             return self.finish(value)
@@ -125,9 +125,10 @@ class AggregatorExpressionBinary(AggregatorDescriptor):
         self.agg1.edges = value
         self.agg2.edges = value
 
-    def add_tasks(self, df, binners):
-        tasks1, result1 = self.agg1.add_tasks(df, binners)
-        tasks2, result2 = self.agg2.add_tasks(df, binners)
+    def add_tasks(self, df, binners, progress):
+        progressbar = vaex.utils.progressbars(progress, title=repr(self))
+        tasks1, result1 = self.agg1.add_tasks(df, binners, progress=progressbar)
+        tasks2, result2 = self.agg2.add_tasks(df, binners, progress=progressbar)
         @vaex.delayed
         def finish(value1, value2):
             return self.finish(value1, value2)
@@ -164,8 +165,9 @@ class AggregatorExpressionBinaryScalar(AggregatorDescriptor):
     def edges(self, value):
         self.agg.edges = value
 
-    def add_tasks(self, df, binners):
-        tasks, result = self.agg.add_tasks(df, binners)
+    def add_tasks(self, df, binners, progress):
+        progressbar = vaex.utils.progressbars(progress, title=repr(self))
+        tasks, result = self.agg.add_tasks(df, binners, progress=progressbar)
         @vaex.delayed
         def finish(value):
             return self.finish(value)
@@ -223,6 +225,12 @@ class AggregatorDescriptorBasic(AggregatorDescriptor):
         else:
             self.expressions = expression
 
+    def __repr__(self):
+        if self.agg_args:
+            return 'vaex.agg.{}({!r}, {})'.format(self.short_name, str(self.expression), ", ".join(map(str, self.agg_args)))
+        else:
+            return 'vaex.agg.{}({!r})'.format(self.short_name, str(self.expression))
+
     def encode(self, encoding):
         spec = {'aggregation': self.short_name}
         if len(self.expressions) == 0:
@@ -251,10 +259,12 @@ class AggregatorDescriptorBasic(AggregatorDescriptor):
             if self.short_name in ['sum', 'summoment']:
                 self.dtype_out = self.dtype_in.upcast()
 
-    def add_tasks(self, df, binners):
+    def add_tasks(self, df, binners, progress):
+        progressbar = vaex.utils.progressbars(progress)
         self._prepare_types(df)
         task = vaex.tasks.TaskAggregation(df, binners, self)
         task = df.executor.schedule(task)
+        progressbar.add_task(task, repr(self))
         @vaex.delayed
         def finish(value):
             return self.finish(value)
@@ -325,14 +335,15 @@ class AggregatorDescriptorMean(AggregatorDescriptorMulti):
     def __init__(self, name, expression, short_name="mean", selection=None, edges=False):
         super(AggregatorDescriptorMean, self).__init__(name, expression, short_name, selection=selection, edges=edges)
 
-    def add_tasks(self, df, binners):
+    def add_tasks(self, df, binners, progress):
+        progressbar = vaex.utils.progressbars(progress, title=repr(self))
         expression = expression_sum = expression = df[str(self.expression)]
 
         sum_agg = sum(expression_sum, selection=self.selection, edges=self.edges)
         count_agg = count(expression, selection=self.selection, edges=self.edges)
 
-        task_sum = sum_agg.add_tasks(df, binners)[0][0]
-        task_count = count_agg.add_tasks(df, binners)[0][0]
+        task_sum = sum_agg.add_tasks(df, binners, progress=progressbar)[0][0]
+        task_count = count_agg.add_tasks(df, binners, progress=progressbar)[0][0]
         self.dtype_in = sum_agg.dtype_in
         self.dtype_out = sum_agg.dtype_out
 
@@ -359,16 +370,17 @@ class AggregatorDescriptorVar(AggregatorDescriptorMulti):
         super(AggregatorDescriptorVar, self).__init__(name, expression, short_name, selection=selection, edges=edges)
         self.ddof = ddof
 
-    def add_tasks(self, df, binners):
+    def add_tasks(self, df, binners, progress):
+        progressbar = vaex.utils.progressbars(progress, title=repr(self))
         expression_sum = expression = df[str(self.expression)]
         expression = expression_sum = expression.astype('float64')
         sum_moment = _sum_moment(str(expression_sum), 2, selection=self.selection, edges=self.edges)
         sum_ = sum(str(expression_sum), selection=self.selection, edges=self.edges)
         count_ = count(str(expression), selection=self.selection, edges=self.edges)
 
-        task_sum_moment = sum_moment.add_tasks(df, binners)[0][0]
-        task_sum = sum_.add_tasks(df, binners)[0][0]
-        task_count = count_.add_tasks(df, binners)[0][0]
+        task_sum_moment = sum_moment.add_tasks(df, binners, progress=progressbar)[0][0]
+        task_sum = sum_.add_tasks(df, binners, progress=progressbar)[0][0]
+        task_count = count_.add_tasks(df, binners, progress=progressbar)[0][0]
         self.dtype_in = sum_.dtype_in
         self.dtype_out = sum_.dtype_out
         @vaex.delayed

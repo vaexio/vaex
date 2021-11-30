@@ -2512,13 +2512,25 @@ def _astype(x, dtype):
             # arrow does not support timestamp to int/float, so we use numpy
             y = x.to_numpy().astype(dtype)
             return y
+        if pa.types.is_duration(x.type):
+            # for consistency with timedelta, use numpy for this for now
+            y = x.to_numpy().astype(dtype)
+            return y
 
-        if dtype.startswith('datetime64'):  # parse dtype
-            if len(dtype) > len('datetime64'):
-                units = dtype[len('datetime64')+1:-1]
-            else:
-                units = 'ns'
-            dtype = pa.timestamp(units)
+        if (dtype.startswith('datetime64') | dtype.startswith('timedelta64')):
+            if dtype.startswith('datetime64'):  # parse dtype
+                if len(dtype) > len('datetime64'):
+                    units = dtype[len('datetime64')+1:-1]
+                else:
+                    units = 'ns'
+                dtype = pa.timestamp(units)
+
+            else:  # parse dtype
+                if len(dtype) > len('timedelta64'):
+                    units = dtype[len('timedelta64')+1:-1]
+                else:
+                    units = 'ns'
+                dtype = pa.duration(units)
 
         y = x.cast(dtype, safe=False)
         return y

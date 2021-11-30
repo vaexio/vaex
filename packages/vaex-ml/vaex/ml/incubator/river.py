@@ -124,7 +124,7 @@ class RiverModel(state.HasState):
 
         n_samples = len(df)
 
-        progressbar = vaex.utils.progressbars(progress)
+        progressbar = vaex.utils.progressbars(progress, title="fit(river)")
 
         # Portions of the DataFrame to evaluate
         expressions = self.features + [self.target]

@@ -160,7 +160,7 @@ class BinnerInteger(BinnerBase):
 
 class Grouper(BinnerBase):
     """Bins an expression to a set of unique bins, like an SQL like groupby."""
-    def __init__(self, expression, df=None, sort=False, pre_sort=True, row_limit=None, df_original=None, materialize_experimental=False):
+    def __init__(self, expression, df=None, sort=False, pre_sort=True, row_limit=None, df_original=None, materialize_experimental=False, progress=None):
         self.df = df or expression.ds
         self.sort = sort
         self.pre_sort = pre_sort
@@ -172,6 +172,7 @@ class Grouper(BinnerBase):
         # make sure it's an expression
         self.expression = self.df[_ensure_string_from_expression(self.expression)]
         self.label = self.expression._label
+        self.progressbar = vaex.utils.progressbars(progress, title=f"grouper: {repr(self.label)}" )
         dtype = self.expression.dtype
         if materialize_experimental:
             set, values = df_original._set(self.expression, unique_limit=row_limit, return_inverse=True)
@@ -234,7 +235,7 @@ class Grouper(BinnerBase):
                 # for datetimes, we converted to int
                 if dtype.is_datetime:
                     self.bin_values = dtype.create_array(self.bin_values)
-            self._promise = process(df_original._set(self.expression, unique_limit=row_limit, delay=True))
+            self._promise = process(df_original._set(self.expression, unique_limit=row_limit, delay=True, progress=self.progressbar))
 
     def _create_binner(self, df):
         # TODO: we modify the dataframe in place, this is not nice
@@ -247,14 +248,13 @@ class Grouper(BinnerBase):
         self.binby_expression = '_ordinal_values(%s, %s)' % (self.expression, self.setname)
         self.binner = self.df._binner_ordinal(self.binby_expression, self.N)
 
-
 class GrouperCombined(Grouper):
-    def __init__(self, expression, df, multipliers, parents, sort, row_limit=None):
+    def __init__(self, expression, df, multipliers, parents, sort, row_limit=None, progress=None):
         '''Will group by 1 expression, which is build up from multiple expressions.
 
         Used in the sparse/combined group by.
         '''
-        super().__init__(expression, df, sort=sort, row_limit=row_limit)
+        super().__init__(expression, df, sort=sort, row_limit=row_limit, progress=progress)
         assert len(multipliers) == len(parents)
 
         assert multipliers[-1] == 1
@@ -263,6 +263,7 @@ class GrouperCombined(Grouper):
         self.expression = expression
         # efficient way to find the original bin values (parent.bin_value) from the 'compressed'
         # self.bin_values
+        progressbar = self.progressbar.add("extract labels from sparse set")
         @vaex.delayed
         def process(_ignore):
             df = vaex.from_dict({'row': vaex.vrange(0, self.N, dtype='i8'), 'bin_value': self.bin_values})
@@ -272,7 +273,7 @@ class GrouperCombined(Grouper):
                 df[f'index_{i}'] = df[f'leftover_{i-1}'] // multipliers[i]
                 df[f'leftover_{i}'] = df[f'leftover_{i-1}'] % multipliers[i]
             columns = [f'index_{i}' for i in range(len(multipliers))]
-            indices_parents = df.evaluate(columns)
+            indices_parents = df.evaluate(columns, progress=progressbar)
             def compress(ar):
                 if vaex.dtype_of(ar).kind == 'i':
                     ar = vaex.array_types.to_numpy(ar)
@@ -436,11 +437,12 @@ class GrouperLimited(BinnerBase):
         self.binby_expression = "_ordinal_values(%s, %s) %% %s" % (self.expression, self.setname, self.N)
         self.binner = self.df._binner_ordinal(self.binby_expression, self.N)
 
-def _combine(df, groupers, sort, row_limit=None):
+def _combine(df, groupers, sort, row_limit=None, progress=None):
     for grouper in groupers:
         if isinstance(grouper, Binner):
             raise NotImplementedError('Cannot combined Binner with other groupers yet')
 
+    progressbar = vaex.utils.progressbars(progress, title="find sparse entries / compress")
     groupers = groupers.copy()
     max_count_64bit = 2**63-1
     first = groupers.pop(0)
@@ -476,7 +478,7 @@ def _combine(df, groupers, sort, row_limit=None):
             binby_expression = binby_expression * cumulative_counts[i+1]
         binby_expressions[i] = binby_expression
     expression = reduce(operator.add, binby_expressions)
-    grouper = GrouperCombined(expression, df, multipliers=cumulative_counts[1:], parents=combine_now, sort=sort, row_limit=row_limit)
+    grouper = GrouperCombined(expression, df, multipliers=cumulative_counts[1:], parents=combine_now, sort=sort, row_limit=row_limit, progress=progressbar)
     if combine_later:
         @vaex.delayed
         def combine(_ignore):
@@ -490,7 +492,7 @@ def _combine(df, groupers, sort, row_limit=None):
 
 
 class GroupByBase(object):
-    def __init__(self, df, by, sort=False, combine=False, expand=True, row_limit=None, copy=True):
+    def __init__(self, df, by, sort=False, combine=False, expand=True, row_limit=None, copy=True, progress=None):
         '''Note that row_limit only works in combination with combine=True'''
         df_original = df
         if copy:
@@ -498,6 +500,9 @@ class GroupByBase(object):
         self.df = df
         self.sort = sort
         self.expand = expand  # keep as pyarrow struct?
+        self.progressbar = vaex.utils.progressbars(progress, title="groupby/binby")
+        self.progressbar_groupers = self.progressbar.add("groupers")
+        self.progressbar_agg = self.progressbar.add("aggregation")
 
         if not isinstance(by, collections_abc.Iterable)\
             or isinstance(by, six.string_types):
@@ -515,7 +520,7 @@ class GroupByBase(object):
                     if dtype == np.dtype('uint8') or dtype == np.dtype('bool'):
                         by_value = BinnerInteger(expression)  # doesn't modify, always sorted
                     else:
-                        by_value = Grouper(expression, sort=sort, row_limit=row_limit, df_original=df_original)
+                        by_value = Grouper(expression, sort=sort, row_limit=row_limit, df_original=df_original, progress=self.progressbar_groupers)
             self.by.append(by_value)
         @vaex.delayed
         def possible_combine(*binner_promises):
@@ -529,7 +534,7 @@ class GroupByBase(object):
                 self.by = [combined]
                 self.combine = True
             if combine is True and len(self.by) >= 2:
-                promise = set_combined(_combine(self.df, self.by, sort=sort, row_limit=row_limit))
+                promise = set_combined(_combine(self.df, self.by, sort=sort, row_limit=row_limit, progress=self.progressbar_groupers))
             elif combine == 'auto' and len(self.by) >= 2:
                 cells = product([grouper.N for grouper in self.by])
                 dim = len(self.by)
@@ -539,7 +544,7 @@ class GroupByBase(object):
                 # we want each cell to have a least 10x occupacy
                 if occupancy < 10:
                     logger.info(f'Combining {len(self.by)} groupers into 1')
-                    promise = set_combined(_combine(self.df, self.by, sort=sort, row_limit=row_limit))
+                    promise = set_combined(_combine(self.df, self.by, sort=sort, row_limit=row_limit, progress=self.progressbar_groupers))
                     self.combine = True
                 else:
                     self.combine = False
@@ -580,7 +585,7 @@ class GroupByBase(object):
             if column_name is None or override_name is not None:
                 column_name = aggregate.pretty_name(override_name, df)
             aggregate.edges = True  # is this ok to override?
-            values = df._agg(aggregate, self.binners, delay=_USE_DELAY)
+            values = df._agg(aggregate, self.binners, delay=_USE_DELAY, progress=self.progressbar_agg)
             grids[column_name] = values
             if isinstance(aggregate, vaex.agg.AggregatorDescriptorBasic)\
                 and aggregate.name == 'AggCount'\
@@ -739,8 +744,8 @@ class BinBy(GroupByBase):
 
 class GroupBy(GroupByBase):
     """Implementation of the binning and aggregation of data, see :method:`groupby`."""
-    def __init__(self, df, by, sort=False, combine=False, expand=True, row_limit=None, copy=True):
-        super(GroupBy, self).__init__(df, by, sort=sort, combine=combine, expand=expand, row_limit=row_limit, copy=copy)
+    def __init__(self, df, by, sort=False, combine=False, expand=True, row_limit=None, copy=True, progress=None):
+        super(GroupBy, self).__init__(df, by, sort=sort, combine=combine, expand=expand, row_limit=row_limit, copy=copy, progress=progress)
 
     def agg(self, actions, delay=False):
         # TODO: this basically forms a cartesian product, we can do better, use a
@@ -756,7 +761,7 @@ class GroupBy(GroupByBase):
             if counts is None:
                 # TODO: it seems this path is never tested
                 count_agg = vaex.agg.count(edges=True)
-                counts = self.df._agg(count_agg, self.binners, delay=_USE_DELAY)
+                counts = self.df._agg(count_agg, self.binners, delay=_USE_DELAY, progress=self.progressbar_agg)
             arrays = delayed_dict(arrays)
             return counts, arrays
 
