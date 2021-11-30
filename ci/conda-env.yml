@@ -1,8 +1,9 @@
 name: vaex-dev
 channels:
-  - numba/label/dev
   - msys2
-  - conda-forge
+   - conda-forge
+   - pkgs/main
+   - numba/label/dev
 dependencies:
 - aplus
 - astropy
