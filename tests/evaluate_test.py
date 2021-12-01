@@ -145,3 +145,11 @@ def test_arrow_evaluate(parallel):
     assert df.evaluate(df.s.as_arrow(), array_type='arrow', parallel=parallel).type == pa.string()
     assert df.evaluate(df.s.as_arrow(), array_type=None, parallel=parallel).type == pa.string()
     assert df.evaluate(df.l, parallel=parallel).type == pa.list_(l.type.value_type)
+
+
+def test_evaluate_with_selection(df_factory):
+    x = np.arange(3)
+    df = df_factory(x=x)
+    assert df.x.evaluate(selection='x>0', array_type='numpy').tolist() == [1, 2]
+    assert df.x.evaluate(selection='x>0', array_type='arrow').to_pylist() == [1, 2]
+    assert df.x.evaluate(selection='x>0', array_type='python') == [1, 2]
