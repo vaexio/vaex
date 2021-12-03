@@ -20,6 +20,7 @@ dependencies:
 - ipyvolume=0.6.0a6
 - lightgbm
 - matplotlib-base
+- nest-asyncio<1.5.2
 - notebook
 - numba
 - numpy<1.21
@@ -41,7 +42,6 @@ dependencies:
 - scipy
 - tornado
 - xarray
-- pip:
-  - myst_parser
-  - tensorflow==2.6.0
-  - keras==2.6.0
+- myst-parser
+- tensorflow==2.6.0
+- keras==2.6.0
