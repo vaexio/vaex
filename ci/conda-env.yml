@@ -20,6 +20,7 @@ dependencies:
 - matplotlib-base
 - notebook
 - numba
+- nest-asyncio<1.5.2
 - numpy<1.21
 - pandas
 - pcre
