@@ -58,13 +58,13 @@ jobs:
       if: matrix.os != 'windows-latest'
       run: |
         conda activate vaex-dev
-        echo "not needed for now"
-    - name: Extra windows installs
-      if: matrix.os == 'windows-latest'
-      run: |
-        conda activate vaex-dev
-        mamba upgrade scipy ipython dask
-        # not sure why, but the conda env is strange (old dask) if we put this constraint in the conda solver
+        # mamba install -c conda-forge tensorflow==2.6.0 keras==2.6.0
+    # - name: Extra windows installs
+    #   if: matrix.os == 'windows-latest'
+    #   run: |
+    #     conda activate vaex-dev
+    #     mamba upgrade scipy ipython dask
+    #     # not sure why, but the conda env is strange (old dask) if we put this constraint in the conda solver
     - name: free disk space
       if: matrix.os == 'ubuntu-latest'
       run: |

@@ -2,7 +2,6 @@ name: vaex-dev
 channels:
   - msys2
   - conda-forge
-  - pkgs/main
   - numba/label/dev
 dependencies:
 - astropy
@@ -40,7 +39,4 @@ dependencies:
 - scipy
 - tornado
 - xarray
-- pip:
-  - myst_parser
-  - tensorflow==2.6.0
-  - keras==2.6.0
+- myst-parser
