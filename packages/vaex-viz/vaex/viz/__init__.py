@@ -49,4 +49,4 @@ class ExpressionAccessorViz:
             """
             return self.df.viz.histogram(self.expression, what=what, grid=grid, shape=shape, facet=facet, limits=limits, figsize=figsize, f=f, n=n, normalize_axis=normalize_axis,
                                          xlabel=xlabel, ylabel=ylabel, label=label, selection=selection, show=show, tight_layout=tight_layout, hardcopy=hardcopy,
-                                         progress=progress)
+                                         progress=progress, **kwargs)
