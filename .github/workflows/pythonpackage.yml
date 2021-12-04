@@ -197,7 +197,8 @@ jobs:
         environment-file: ci/conda-base-minimal.yml
         extra-specs: |
             python=${{ matrix.python-version }}
-
+            pcre
+    # it shouldn't be needed to use pcre, maybe we should make the wheels similar to how we make distributions
     - name: Cache pip
       uses: actions/cache@v2
       env:
