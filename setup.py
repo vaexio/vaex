@@ -19,7 +19,7 @@ def cwd(path):
 # inspired by https://blog.shazam.com/python-microlibs-5be9461ad979
 
 
-packages = ['vaex-core', 'vaex-viz', 'vaex-hdf5', 'vaex-server', 'vaex-astro', 'vaex-ui', 'vaex-jupyter', 'vaex-ml', 'vaex-meta', 'vaex-graphql', 'vaex-contrib']
+packages = ['vaex-core', 'vaex-viz', 'vaex-hdf5', 'vaex-server', 'vaex-astro', 'vaex-jupyter', 'vaex-ml', 'vaex-meta', 'vaex-graphql', 'vaex-contrib']
 on_rtd = os.environ.get('READTHEDOCS', None) == 'True'
 
 

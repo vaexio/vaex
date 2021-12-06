@@ -10,9 +10,6 @@ environment:
 init:
   - "ECHO %PYTHON_VERSION% %MINICONDA%"
 
-cache:
-  vaex\packages\vaex-core\build
-
 build: false
 
 

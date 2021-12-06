@@ -570,6 +570,7 @@ def test_multihot_encoder(tmpdir, df_factory):
     a = ['cat', 'dog', 'mouse']
     b = ['red', 'blue', 'green', 'yellow', 'purple', 'orange', 'violet', 'magenta', 'lime', 'grey', 'white', 'black']
 
+    np.random.seed(42)
     x_train = np.random.choice(a, size=100, replace=True)
     y_train = np.random.choice(b, size=100, replace=True)
 

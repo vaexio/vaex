@@ -2,10 +2,11 @@ name: vaex-dev
 channels:
   - msys2
   - conda-forge
-  - pkgs/main
   - numba/label/dev
 dependencies:
+- aplus
 - astropy
+- blake3
 - cython
 - cachetools
 - catboost
@@ -18,6 +19,7 @@ dependencies:
 - ipyvolume=0.6.0a6
 - lightgbm
 - matplotlib-base
+- nest-asyncio<1.5.2
 - notebook
 - numba
 - numpy<1.21
@@ -39,7 +41,4 @@ dependencies:
 - scipy
 - tornado
 - xarray
-- pip:
-  - myst_parser
-  - tensorflow==2.6.0
-  - keras==2.6.0
+- myst-parser
