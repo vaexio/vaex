@@ -1,3 +1,4 @@
+from unittest import mock
 from common import *
 
 
@@ -153,3 +154,17 @@ def test_evaluate_with_selection(df_factory):
     assert df.x.evaluate(selection='x>0', array_type='numpy').tolist() == [1, 2]
     assert df.x.evaluate(selection='x>0', array_type='arrow').to_pylist() == [1, 2]
     assert df.x.evaluate(selection='x>0', array_type='python') == [1, 2]
+
+
+def test_evaluate_no_execute():
+    df = vaex.from_dict({"#": [1.1], "with space": ['should work'], "x": [1.]})
+    df['%'] = df['#'] + 1
+    with mock.patch.object(df.executor, 'execute', wraps=df.executor.execute) as method:
+        df.evaluate('x')
+        method.assert_not_called()
+        df.evaluate('df["#"]')
+        method.assert_not_called()
+        df.evaluate(df["#"])
+        method.assert_not_called()
+        df.evaluate(df["%"])
+        method.assert_called_once()

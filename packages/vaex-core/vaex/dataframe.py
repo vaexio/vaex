@@ -6224,6 +6224,8 @@ class DataFrameLocal(DataFrame):
             expression_to_evaluate = list(set(expressions))  # lets assume we have to do them all
 
             for expression in set(expressions):
+                expression_obj = expression
+                expression = self._expr(expression)._label
                 dtypes[expression] = dtype = df.data_type(expression).internal
                 if expression not in df.columns:
                     virtual.add(expression)
@@ -6261,18 +6263,22 @@ class DataFrameLocal(DataFrame):
                             arrays[expression] = arrays[expression][start:end]
                         if isinstance(arrays[expression], vaex.column.Column):
                             arrays[expression] = arrays[expression][0:end-start]  # materialize fancy columns (lazy, indexed)
-                        expression_to_evaluate.remove(expression)
+                        expression_to_evaluate.remove(expression_obj)
             def assign(thread_index, i1, i2, selection_masks, blocks):
-                for i, expr in enumerate(expression_to_evaluate):
-                    if expr in chunks_map:
+                for i, expression in enumerate(expression_to_evaluate):
+                    expression_obj = expression
+                    expression = self._expr(expression)._label
+                    if expression in chunks_map:
                         # for non-primitive arrays we simply keep a reference to the chunk
-                        chunks_map[expr][i1] = blocks[i]
+                        chunks_map[expression][i1] = blocks[i]
                     else:
                         # for primitive arrays (and no filter/selection) we directly add it to the right place in contiguous numpy array
-                        arrays[expr][i1:i2] = blocks[i]
+                        arrays[expression][i1:i2] = blocks[i]
             if expression_to_evaluate:
                 df.map_reduce(assign, lambda *_: None, expression_to_evaluate, progress=progress, ignore_filter=False, selection=selection, pre_filter=use_filter, info=True, to_numpy=False, name="evaluate")
             def finalize_result(expression):
+                expression_obj = expression
+                expression = self._expr(expression)._label
                 if expression in chunks_map:
                     # put all chunks in order
                     chunks = [chunk for (i1, chunk) in sorted(chunks_map[expression].items(), key=lambda i1_and_chunk: i1_and_chunk[0])]
