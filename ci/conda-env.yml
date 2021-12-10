@@ -40,5 +40,6 @@ dependencies:
 - scikit-learn
 - scipy
 - tornado
+- uvicorn<0.16
 - xarray
 - myst-parser
