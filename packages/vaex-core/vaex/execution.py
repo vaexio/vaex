@@ -49,17 +49,20 @@ class Run:
             assert self.tasks[0].df._index_start == task.df._index_start
             assert self.tasks[0].df._index_end == task.df._index_end
         self.dataset = dataset
-        self.pre_filter = tasks[0].pre_filter
-        if any(self.pre_filter != task.pre_filter for task in tasks[1:]):
-            raise ValueError(f"All tasks need to be pre_filter'ed or not pre_filter'ed, it cannot be mixed: {tasks}")
-        if self.pre_filter and not all(task.df.filtered for task in tasks):
-            raise ValueError("Requested pre_filter for task while DataFrame is not filtered")
+        self.pre_filter_per_df = {}
         self.expressions = list(set(expression for task in tasks for expression in task.expressions_all))
         self.tasks_per_df = dict()
         for task in tasks:
             if task.df not in self.tasks_per_df:
                 self.tasks_per_df[task.df] = []
             self.tasks_per_df[task.df].append(task)
+        for task in tasks:
+            if task.df not in self.pre_filter_per_df:
+                self.pre_filter_per_df[task.df] = task.pre_filter
+            else:
+                if self.pre_filter_per_df[task.df] != task.pre_filter:
+                    raise ValueError(f"All tasks need to be pre_filter'ed or not pre_filter'ed, it cannot be mixed: {tasks}")
+
 
         # find the columns from the dataset we need
         dfs = set()
@@ -462,7 +465,8 @@ class ExecutorLocal(Executor):
             from .scopes import _BlockScope
 
             expressions = list(set(expression for task in tasks for expression in task.expressions_all))
-            if run.pre_filter:
+            pre_filter = tasks[0].pre_filter
+            if pre_filter:
                 filter_deps = run.filter_deps[df]
                 filter_scope = _BlockScope(df, i1, i2, None, selection=True, values={**run.variables[df], **{k: chunks[k] for k in filter_deps if k in chunks}})
                 filter_scope.filter_mask = None
@@ -481,7 +485,7 @@ class ExecutorLocal(Executor):
             block_dict = {expression: block_scope.evaluate(expression) for expression in expressions}
             selection_scope = _BlockScope(df, i1, i2, None, selection=True, values={**block_scope.values})
             selection_scope.filter_mask = filter_mask
-            if not run.pre_filter and df.filtered:
+            if not pre_filter and df.filtered:
                 filter_mask = selection_scope.evaluate(vaex.dataframe.FILTER_SELECTION_NAME)
 
             memory_tracker = vaex.memory.create_tracker()
