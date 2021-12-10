@@ -158,6 +158,7 @@ def _merge_tasks_for_df(tasks, df):
             def assign(value, i=i, subtask=subtask):
                 subtask.fulfill(value[i])
             assign(task_merged)
+            task_merged.done(None, subtask.reject)
         tasks_merged.append(task_merged)
     return tasks_non_mergable + tasks_merged
 
@@ -370,9 +371,8 @@ class ExecutorLocal(Executor):
                 # if self.zigzag:
                 #     self.zig = not self.zig
                 def progress(p):
-                    return all(self.signal_progress.emit(p)) and\
-                           all([all(task.signal_progress.emit(p)) for task in tasks]) and\
-                           all([not task.cancelled for task in tasks])
+                    # no global cancel and at least 1 tasks wants to continue, then we continue
+                    return all(self.signal_progress.emit(p)) and any([task.progress(p) for task in tasks])
                 async for _element in self.thread_pool.map_async(self.process_part, dataset.chunk_iterator(run.dataset_deps, chunk_size),
                                                     dataset.row_count,
                                                     progress=progress,
@@ -380,24 +380,11 @@ class ExecutorLocal(Executor):
                     pass  # just eat all element
                 duration_wallclock = time.time() - t0
                 logger.debug("executing took %r seconds", duration_wallclock)
-                cancelled = self.local.cancelled or any(task.cancelled for task in tasks) or run.cancelled
-                logger.debug("cancelled: %r", cancelled)
                 self.local.executing = False
-                if cancelled:
-                    logger.debug("execution aborted")
+                if True:  # kept to keep the diff small
                     for task in tasks:
-                        task.reject(UserAbort("cancelled"))
-                        # remove references
-                        task._result = None
-                        task._results = None
-                        cancelled = True
-                        if isinstance(task, vaex.tasks.TaskAggregations):
-                            for subtask in task.original_tasks:
-                                subtask.reject(UserAbort("cancelled"))
-                else:
-                    for task in tasks:
-                        logger.debug("fulfill task: %r", task)
                         if not task.cancelled:
+                            logger.debug("fulfill task: %r", task)
                             parts = task._parts
                             if not isinstance(parts, list):
                                 parts_queue = parts
@@ -430,7 +417,12 @@ class ExecutorLocal(Executor):
                                         logger.info("added result: %r in cache under key: %r", task_cachable.get(), key)
 
                         else:
-                            task.reject(UserAbort("Task was cancelled"))
+                            logger.debug("rejecting task: %r", task)
+                            # we now reject, in the main thread
+                            if task._toreject:
+                                task.reject(task._toreject)
+                            else:
+                                task.reject(UserAbort("Task was cancelled"))
                             # remove references
                             cancelled = True
                         task._result = None
@@ -510,9 +502,9 @@ class ExecutorLocal(Executor):
                             else:
                                 task_part.process(thread_index, i1, i2, filter_mask, selections, blocks)
                         except Exception as e:
-                            task.reject(e)
-                            run.cancelled = True
-                            raise
+                            # we cannot call .reject, since then we'll handle fallbacks in this thread
+                            task._toreject = e
+                            task.cancelled = True
                         finally:
                             if not isinstance(task._parts, list):
                                 task._parts.put(task_part)

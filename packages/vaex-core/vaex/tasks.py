@@ -68,6 +68,7 @@ class Task(vaex.promise.Promise):
     requires_fingerprint = False
     cacheable = True
     see_all = False
+    _toreject: Exception = None
 
     def __init__(self, df=None, expressions=[], pre_filter=False, name="task"):
         vaex.promise.Promise.__init__(self)
@@ -98,6 +99,11 @@ class Task(vaex.promise.Promise):
             self._fingerprint = f'task-{self.name}-{task_fp}-{df_fp}'
         return self._fingerprint
 
+    def progress(self, fraction):
+        if not self.cancelled:
+            self.cancelled = not all(self.signal_progress.emit(fraction))
+        return not self.cancelled
+
     def _set_progress(self, fraction):
         self.progress_fraction = fraction
         return not self.cancelled  # don't cancel
@@ -116,7 +122,7 @@ class Task(vaex.promise.Promise):
 
     def create_next(self):
         ret = Task(self.df, [])
-        self.signal_progress.connect(ret.signal_progress.emit)
+        self.signal_progress.connect(lambda f: all(ret.signal_progress.emit(f)))
         return ret
 
     # def __repr__(self):
