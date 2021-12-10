@@ -91,7 +91,7 @@ def is_string(ar):
 
 def filter(ar, boolean_mask):
     if isinstance(ar, supported_arrow_array_types):
-        return ar.filter(pa.array(boolean_mask))
+        return ar.filter(to_arrow(boolean_mask))
     else:
         return ar[boolean_mask]
 
