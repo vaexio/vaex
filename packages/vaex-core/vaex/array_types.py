@@ -174,10 +174,16 @@ def convert(x, type, default_type="numpy"):
     elif type == "xarray":
         return to_xarray(x)
     elif type in ['list', 'python']:
-        try:
-            return pa.array(x).tolist()
-        except:
-            return np.array(x).tolist()
+        if isinstance(x, (list, tuple)):
+            result = []
+            for chunk in x:
+                result += convert(chunk, type, default_type=default_type)
+            return result
+        else:
+            try:
+                return pa.array(x).tolist()
+            except:
+                return np.array(x).tolist()
     elif type is None:
         if isinstance(x, (list, tuple)):
             chunks = [convert(k, type) for k in x]

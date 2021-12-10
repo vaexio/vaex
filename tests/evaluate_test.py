@@ -153,3 +153,15 @@ def test_evaluate_with_selection(df_factory):
     assert df.x.evaluate(selection='x>0', array_type='numpy').tolist() == [1, 2]
     assert df.x.evaluate(selection='x>0', array_type='arrow').to_pylist() == [1, 2]
     assert df.x.evaluate(selection='x>0', array_type='python') == [1, 2]
+
+
+@pytest.mark.parametrize("array_type", ['numpy', 'list', 'arrow'])
+def test_evaluate_chunked(df_factory, buffer_size, array_type):
+    x = np.arange(10)
+    y = x**2
+    df = df_factory(x=x)
+    # use a virtual column, since 'x' skips passing over the data
+    df['y'] = df.x ** 2
+    with buffer_size(df, 3):
+        values = df.evaluate('y', array_type=array_type)
+        assert vaex.array_types.tolist(values) == y.tolist()
