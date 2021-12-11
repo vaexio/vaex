@@ -64,7 +64,7 @@ def plot2d_contour(self, x=None, y=None, what="count(*)", limits=None, shape=256
             else:
                 what = what.strip()
                 index = what.index("(")
-                groups = re.match("(.*)\((.*)\)", what).groups()
+                groups = re.match(r"(.*)\((.*)\)", what).groups()
                 if groups and len(groups) == 2:
                     function = groups[0]
                     arguments = groups[1].strip()

@@ -146,7 +146,7 @@ def numpy_mask_from_arrow_mask(bitmap, length):
 def numpy_bool_from_arrow_bitmap(bitmap, length):
     # arrow uses a bitmap https://github.com/apache/arrow/blob/master/format/Layout.md
     # we do have to change the ordering of the bits
-    return np.unpackbits(bitmap).reshape((len(bitmap),8))[:,::-1].reshape(-1)[:length].view(np.bool_)
+    return np.unpackbits(bitmap).reshape((len(bitmap),8))[:,::-1].reshape(-1)[:length].view(bool)
 
 
 def arrow_table_from_vaex_df(ds, column_names=None, selection=None, strings=True, virtual=False):

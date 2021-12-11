@@ -80,13 +80,13 @@ class DataFrameAccessorWidget(object):
         if selection is not None:
             selection = selection.copy()
         x, = self._axes([x], limits)
-        model = vaex.jupyter.model.Histogram(df=self.df, x=x, selection=selection, selection_interact=selection_interact, **kwargs)
+        model = vaex.jupyter.model.Histogram(df=self.df, x=x, selection=selection, **kwargs)
         if shared:
             grid = self.grid
         else:
             grid = vaex.jupyter.model.GridCalculator(self.df, [])
         grid.model_add(model)
-        viz = vaex.jupyter.view.Histogram(model=model)
+        viz = vaex.jupyter.view.Histogram(model=model, selection_interact=selection_interact)
         if toolbar:
             viz.toolbar = _add_toolbar(viz)
         return viz

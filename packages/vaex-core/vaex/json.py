@@ -25,7 +25,7 @@ class DateTime64Serializer:
     def encode(obj):
         value = int(obj.astype(int))
         typename = obj.dtype.name
-        type, unit = re.match('(\w*)\[(\w*)\]', obj.dtype.name).groups()
+        type, unit = re.match(r'(\w*)\[(\w*)\]', obj.dtype.name).groups()
         return {
             'type': type,
             'data': {

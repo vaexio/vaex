@@ -180,7 +180,7 @@ class PCAIncremental(PCA):
 
         for i1, i2, chunk in df.evaluate_iterator(self.features, chunk_size=self.batch_size, array_type='numpy'):
             progressbar(i1 / n_samples)
-            chunk = np.array(chunk).T.astype(np.float64)
+            chunk = np.array(chunk).T.astype(float)
             pca.partial_fit(X=chunk, check_input=False)
         progressbar(1.0)
 
@@ -432,7 +432,7 @@ class OneHotEncoder(Transformer):
                 column_name = self.prefix + feature + '_' + str_value
                 if value is None:
                     copy[column_name] = copy.func.where(copy[feature].ismissing(), self.one, self.zero, dtype=dtype)
-                elif isinstance(value, np.float) and np.isnan(value):
+                elif isinstance(value, float) and np.isnan(value):
                     copy[column_name] = copy.func.where(copy[feature].isnan(), self.one, self.zero, dtype=dtype)
                 else:
                     copy[column_name] = copy.func.where(copy[feature] == value, self.one, self.zero, dtype=dtype)
@@ -811,8 +811,8 @@ class RobustScaler(Transformer):
     with_scaling = traitlets.CBool(default_value=True, help='If True, scale each feature between the specified percentile range.').tag(ui='Checkbox')
     percentile_range = traitlets.Tuple(default_value=(25, 75), help='The percentile range to which to scale each feature to.').tag().tag(ui='FloatRangeSlider')
     prefix = traitlets.Unicode(default_value="robust_scaled_", help=help_prefix).tag(ui='Text')
-    center_ = traitlets.List(traitlets.CFloat(), default_value=None, help='The median of each feature.').tag(output=True)
-    scale_ = traitlets.List(traitlets.CFloat(), default_value=None, help='The percentile range for each feature.').tag(output=True)
+    center_ = traitlets.List(traitlets.CFloat(), default_value=[], help='The median of each feature.').tag(output=True)
+    scale_ = traitlets.List(traitlets.CFloat(), default_value=[], help='The percentile range for each feature.').tag(output=True)
 
     def fit(self, df):
         '''
@@ -1064,11 +1064,11 @@ class WeightOfEvidenceEncoder(Transformer):
 @register
 @generate.register
 class KBinsDiscretizer(Transformer):
-    '''Bin continous features into discrete bins.
+    '''Bin continuous features into discrete bins.
 
-    A stretegy to encode continuous features into discrete bins. The transformed
+    A strategy to encode continuous features into discrete bins. The transformed
     columns contain the bin label each sample falls into. In a way this
-    transformer Label/Ordinal encodes continous features.
+    transformer Label/Ordinal encodes continuous features.
 
     Example:
 

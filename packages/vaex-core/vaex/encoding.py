@@ -200,7 +200,7 @@ class ndarray_encoding:
                 array = np.frombuffer(data, dtype=dtype.numpy).reshape(shape)
             if 'mask' in result_encoded:
                 mask_data = encoding.get_blob(result_encoded['mask'])
-                mask_array = np.frombuffer(mask_data, dtype=np.bool_).reshape(shape)
+                mask_array = np.frombuffer(mask_data, dtype=bool).reshape(shape)
                 array = np.ma.array(array, mask=mask_array)
             return array
 

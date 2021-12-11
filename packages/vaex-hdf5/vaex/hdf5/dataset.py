@@ -43,7 +43,7 @@ def _try_unit(unit):
         # logger.exception("could not parse unit: %r", unit)
         pass
     try:
-        unit_mangle = re.match(".*\[(.*)\]", str(unit)).groups()[0]
+        unit_mangle = re.match(r".*\[(.*)\]", str(unit)).groups()[0]
         unit = astropy.units.Unit(unit_mangle)
     except:
         pass  # logger.exception("could not parse unit: %r", unit)
