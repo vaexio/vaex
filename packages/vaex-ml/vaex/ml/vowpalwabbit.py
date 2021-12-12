@@ -44,7 +44,7 @@ class VowpalWabbitModel(state.HasState):
      0            3               4.5             5.4            1.5         2    2
      1            3.4             1.6             4.8            0.2         1    1
      2            3.1             4.9             6.9            1.5         2    2
-    >>> df_test = booster.transform(df_test)
+    >>> df_test = vw_model.transform(df_test)
     >>> df_test.head(3)
      #    sepal_width    petal_length    sepal_length    petal_width    class_    vowpalwabbit_prediction
      0            3               4.2             5.9            1.5         2    2
