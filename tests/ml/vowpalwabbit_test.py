@@ -10,7 +10,6 @@ import vaex.ml.datasets
 params = {'oaa': '3', 'P': 1, 'enable_logging': True}
 
 
-@pytest.mark.skipif(sys.version_info < (3, 6), reason="requires python3.6 or higher")
 def test_vowpalwabbit(df_iris):
     ds = df_iris
 
