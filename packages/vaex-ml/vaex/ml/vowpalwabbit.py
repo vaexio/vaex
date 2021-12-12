@@ -36,7 +36,7 @@ class VowpalWabbitModel(state.HasState):
     >>> features = ['sepal_width', 'petal_length', 'sepal_length', 'petal_width']
     >>> df_train, df_test = df.ml.train_test_split()
     >>> params = {'oaa': '3', 'P': 1}
-    >>> booster = vaex.ml.vowpalwabbit.VowpalWabbitModel(features=features, target='class_', epochs=100, params=params)
+    >>> vw_model = vaex.ml.vowpalwabbit.VowpalWabbitModel(features=features, target='class_', epochs=100, params=params)
     >>> vw_model.fit(df_train)
     >>> df_train = vw_model.transform(df_train)
     >>> df_train.head(3)
