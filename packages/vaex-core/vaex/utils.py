@@ -288,12 +288,17 @@ def _progressbar_rich(type=None, title="processing", max_value=1):
     import vaex.misc.progressbar as pb
     return pb.ProgressBarRich(0, 1, title=title)
 
+def _progressbar_vuetify(type=None, title="processing", max_value=1):
+    import vaex.misc.progressbar as pb
+    return pb.ProgressBarVuetify(0, 1, title=title)
+
 
 _progressbar_typemap = {}
 _progressbar_typemap['progressbar2'] = _progressbar_progressbar2
 _progressbar_typemap['vaex'] = _progressbar_vaex
 _progressbar_typemap['widget'] = _progressbar_widget
 _progressbar_typemap['rich'] = _progressbar_rich
+_progressbar_typemap['vuetify'] = _progressbar_vuetify
 
 
 def progressbar(type_name=None, title="processing", max_value=1):
