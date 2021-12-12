@@ -53,7 +53,7 @@ class VowpalWabbitModel(state.HasState):
     snake_name = 'vowpalwabbit_model'
     features = traitlets.List(traitlets.Unicode(), help='List of features to use when fitting the Vowpal Wabbit.')
     target = traitlets.Unicode(allow_none=False, help='The name of the target column.')
-    passes = traitlets.CInt(help='Number of iterations.')
+    num_epochs = traitlets.CInt(help='Number of iterations.')
     params = traitlets.Dict(default_value={}, help='parameters to be passed on the to the Vowpal Wabbit model.')
     prediction_name = traitlets.Unicode(default_value='vowpalwabbit_prediction',
                                         help='The name of the virtual column housing the predictions.')
@@ -77,24 +77,40 @@ class VowpalWabbitModel(state.HasState):
         copy.add_virtual_column(self.prediction_name, expression, unique=False)
         return copy
 
-    def fit(self, df, passes=1, chunk_size=500, partial_fit=False):
-        """Fit the VowpalWabbitModel to the DataFrame.
-        :param df: A vaex DataFrame containing the features and target on which to train the model.
-        :param int passes: Number of passes over the data
-        :param int chunk_size: Size of chunks to iterate
-        """
-        passes = passes or self.passes
-        params = {k: v for k, v in self.params.items() if v is not None}
-        target = self.target
-        features = self.features
-        model = self.model if (hasattr(self, 'model') and self.model is not None and partial_fit) else vw(**self.params)
-        for n in range(passes):
+    def _init_vw(self):
+        return vw(**{k: v for k, v in self.params.items() if v is not None})
+
+    def _init_features(self, df):
+        if self.features is None or len(self.features) == 0:
+            self.features = df.get_column_names(regex=f"^((?!{self.target}).)*$")
+        return self.features, self.target
+
+    def _is_trained(self):
+        return hasattr(self, 'model') and self.model is not None
+
+    def _fit(self, model, df, num_epochs=1, chunk_size=500):
+        num_epochs = num_epochs or self.num_epochs
+        features, target = self._init_features(df)
+        for n in range(num_epochs):
             for _, _, X in df.to_pandas_df(chunk_size=chunk_size):
                 if n > 1:
-                    X = shuffle(X)
+                    X = X.sample(frac=1)
                 for ex in DFtoVW.from_colnames(df=X, y=target, x=features).convert_df():
                     model.learn(ex)
-        self.model = model
+        return model
+
+    def partial_fit(self, df, num_epochs=1, chunk_size=500):
+        model = self._init_vw() if not self._is_trained() else self.model
+        self.model = self._fit(model, df=df, num_epochs=num_epochs, chunk_size=chunk_size)
+        return self
+
+    def fit(self, df, num_epochs=1, chunk_size=500):
+        """Fit the VowpalWabbitModel to the DataFrame.
+        :param df: A vaex DataFrame containing the features and target on which to train the model.
+        :param int num_epochs: Number of passes over the data
+        :param int chunk_size: Size of chunks to iterate
+        """
+        self.model = self._fit(model=self._init_vw(), df=df, num_epochs=num_epochs, chunk_size=chunk_size)
         return self
 
     def predict(self, df, **kwargs):
