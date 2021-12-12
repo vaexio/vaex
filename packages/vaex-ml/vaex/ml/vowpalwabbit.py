@@ -5,7 +5,6 @@ import numpy as np
 import pandas as pd
 import traitlets
 import vaex.serialize
-from sklearn.utils import shuffle
 from vowpalwabbit.DFtoVW import DFtoVW
 from vowpalwabbit.pyvw import vw
 
