@@ -111,6 +111,22 @@ def test_passes_filtering():
     assert result2.get() == 8 + 9
 
 
+def test_passes_mixed_filtering():
+    x = np.arange(10)
+    df = vaex.from_arrays(x=x, y=x**2)
+    df1 = df[df.x < 4]
+    df2 = df
+
+    executor = df.executor
+    executor.passes = 0
+    result1 = df1.sum('x', delay=True)
+    result2 = df2.sum('x', delay=True)
+    df.execute()
+    assert executor.passes == 1
+    assert result1.get() == 1 + 2 + 3
+    assert result2.get() == 45
+
+
 def test_multiple_tasks_different_columns_names():
     df1 = vaex.from_scalars(x=1, y=2)
     df2 = vaex.from_scalars(x=1, y=2)
