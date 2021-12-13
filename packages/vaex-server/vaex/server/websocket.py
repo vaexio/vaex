@@ -89,6 +89,7 @@ class WebSocketHandler:
                 tasks = encoding.decode_list('task', msg['tasks'], df=df)
                 self._msg_id_to_tasks[msg_id] = tasks  # keep a reference for cancelling
                 try:
+                    # TODO: this assumes all tasks succeed, but we also support 1 failing
                     results = await self.service.execute(df, tasks, progress=progress)
                 finally:
                     del self._msg_id_to_tasks[msg_id]

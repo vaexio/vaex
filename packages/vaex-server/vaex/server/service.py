@@ -37,6 +37,7 @@ class Service:
         assert df.executor.tasks == []
         tasks = [df.executor.schedule(task) for task in tasks]
         await df.execute_async()
+        # TODO: this assumes all tasks succeed, but we also support 1 failing
         return [task.get() for task in tasks]
 
 

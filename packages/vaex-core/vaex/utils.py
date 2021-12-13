@@ -391,6 +391,10 @@ class _progressbar_wrapper_sum(_progressbar):
 
 
 def progressbars(f=True, next=None, name=None, title=None):
+    if name is None:
+        name = title
+    if title is None:
+        name = title
     if isinstance(f, _progressbar_wrapper_sum):
         if title is None:
             return f
