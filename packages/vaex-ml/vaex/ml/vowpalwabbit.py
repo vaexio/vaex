@@ -54,7 +54,7 @@ class VowpalWabbitModel(state.HasState):
     features = traitlets.List(traitlets.Unicode(), help='List of features to use when fitting the Vowpal Wabbit model.')
     target = traitlets.Unicode(allow_none=False, help='The name of the target column.')
     num_epochs = traitlets.CInt(help='Number of iterations.')
-    params = traitlets.Dict(default_value={}, help='parameters to be passed on the to the Vowpal Wabbit model.')
+    params = traitlets.Dict(default_value={}, help='Parameters to be passed on the to the Vowpal Wabbit model.')
     prediction_name = traitlets.Unicode(default_value='vowpalwabbit_prediction', help='The name of the virtual column housing the predictions.')
 
     def __call__(self, *args):
