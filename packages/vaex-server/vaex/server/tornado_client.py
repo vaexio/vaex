@@ -63,11 +63,8 @@ class ClientWebsocket(Client):
         self.websocket.close()
 
     def _progress(self, fraction, msg_id):
-        cancel = False
-        for task in self._msg_id_to_tasks.get(msg_id, ()):
-            if any(result is False for result in task.signal_progress.emit(fraction)):
-                cancel = True
-                break
+        tasks = self._msg_id_to_tasks.get(msg_id, ())
+        cancel = not any([task.progress(fraction) for task in tasks])
         if cancel:
             for task in self._msg_id_to_tasks.get(msg_id, ()):
                 if not hasattr(task, '_server_side_cancel'):

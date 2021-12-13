@@ -29,6 +29,17 @@ def promisify(value):
         return aplus.Promise.fulfilled(value)
 
 
+def _log_error(name):
+    def _wrapped(exc):
+        if os.environ.get('VAEX_DEBUG', False):
+            print(f"*** DEBUG: Error from {name}", exc)
+        # import vaex
+        # vaex.utils.print_stack_trace()
+        # raise exc
+        return aplus.Promise.rejected(exc)
+    return _wrapped
+
+
 def delayed(f):
     '''Decorator to transparantly accept delayed computation.
 
@@ -56,10 +67,11 @@ def delayed(f):
         for promise in promises:
             def echo_error(exc, promise=promise):
                 print("error with ", promise, "exception is", exc)
-                # raise exc
+                raise exc
 
             def echo(value, promise=promise):
                 print("done with ", repr(promise), "value is", value)
+                return value
             # promise.then(echo, echo_error)
 
         # print promises
@@ -70,13 +82,7 @@ def delayed(f):
             args_real = list([promise.get() for promise in arg_promises])
             return f(*args_real, **kwargs_real)
 
-        def error(exc):
-            if os.environ.get('VAEX_DEBUG', False):
-                print("Error from delayed", exc)
-            # import vaex
-            # vaex.utils.print_stack_trace()
-            raise exc
-        return allarguments.then(call, error)
+        return allarguments.then(call, _log_error("delayed decorator"))
     return wrapped
 
 

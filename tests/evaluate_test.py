@@ -1,3 +1,4 @@
+from unittest import mock
 from common import *
 
 
@@ -165,3 +166,16 @@ def test_evaluate_chunked(df_factory, buffer_size, array_type):
     with buffer_size(df, 3):
         values = df.evaluate('y', array_type=array_type)
         assert vaex.array_types.tolist(values) == y.tolist()
+
+def test_evaluate_no_execute():
+    df = vaex.from_dict({"#": [1.1], "with space": ['should work'], "x": [1.]})
+    df['%'] = df['#'] + 1
+    with mock.patch.object(df.executor, 'execute', wraps=df.executor.execute) as method:
+        df.evaluate('x')
+        method.assert_not_called()
+        df.evaluate('df["#"]')
+        method.assert_not_called()
+        df.evaluate(df["#"])
+        method.assert_not_called()
+        df.evaluate(df["%"])
+        method.assert_called_once()

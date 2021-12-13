@@ -111,6 +111,22 @@ def test_passes_filtering():
     assert result2.get() == 8 + 9
 
 
+def test_passes_mixed_filtering():
+    x = np.arange(10)
+    df = vaex.from_arrays(x=x, y=x**2)
+    df1 = df[df.x < 4]
+    df2 = df
+
+    executor = df.executor
+    executor.passes = 0
+    result1 = df1.sum('x', delay=True)
+    result2 = df2.sum('x', delay=True)
+    df.execute()
+    assert executor.passes == 1
+    assert result1.get() == 1 + 2 + 3
+    assert result2.get() == 45
+
+
 def test_multiple_tasks_different_columns_names():
     df1 = vaex.from_scalars(x=1, y=2)
     df2 = vaex.from_scalars(x=1, y=2)
@@ -260,6 +276,22 @@ def test_executor_from_other_thread():
         thread.start()
         thread.join()
         assert sum(c.get()) == 2
+
+def test_cancel_single_job():
+    df = vaex.from_arrays(x=[1, 2, 3])
+    res1 = df._set(df.x, unique_limit=1, delay=True)
+    res2 = df._set(df.x, delay=True)
+    df.execute()
+    assert res1.isRejected
+    assert res2.isFulfilled
+
+
+def test_exception():
+    df = vaex.from_arrays(x=[1, 2, 3])
+    with pytest.raises(vaex.RowLimitException, match='.* >= 1 .*'):
+        df._set(df.x, unique_limit=1)
+
+
 # def test_add_and_cancel_tasks(df_executor):
 #     df = df_executor
 

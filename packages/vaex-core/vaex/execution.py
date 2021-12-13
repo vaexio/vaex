@@ -49,17 +49,20 @@ class Run:
             assert self.tasks[0].df._index_start == task.df._index_start
             assert self.tasks[0].df._index_end == task.df._index_end
         self.dataset = dataset
-        self.pre_filter = tasks[0].pre_filter
-        if any(self.pre_filter != task.pre_filter for task in tasks[1:]):
-            raise ValueError(f"All tasks need to be pre_filter'ed or not pre_filter'ed, it cannot be mixed: {tasks}")
-        if self.pre_filter and not all(task.df.filtered for task in tasks):
-            raise ValueError("Requested pre_filter for task while DataFrame is not filtered")
+        self.pre_filter_per_df = {}
         self.expressions = list(set(expression for task in tasks for expression in task.expressions_all))
         self.tasks_per_df = dict()
         for task in tasks:
             if task.df not in self.tasks_per_df:
                 self.tasks_per_df[task.df] = []
             self.tasks_per_df[task.df].append(task)
+        for task in tasks:
+            if task.df not in self.pre_filter_per_df:
+                self.pre_filter_per_df[task.df] = task.pre_filter
+            else:
+                if self.pre_filter_per_df[task.df] != task.pre_filter:
+                    raise ValueError(f"All tasks need to be pre_filter'ed or not pre_filter'ed, it cannot be mixed: {tasks}")
+
 
         # find the columns from the dataset we need
         dfs = set()
@@ -158,6 +161,7 @@ def _merge_tasks_for_df(tasks, df):
             def assign(value, i=i, subtask=subtask):
                 subtask.fulfill(value[i])
             assign(task_merged)
+            task_merged.done(None, subtask.reject)
         tasks_merged.append(task_merged)
     return tasks_non_mergable + tasks_merged
 
@@ -370,9 +374,8 @@ class ExecutorLocal(Executor):
                 # if self.zigzag:
                 #     self.zig = not self.zig
                 def progress(p):
-                    return all(self.signal_progress.emit(p)) and\
-                           all([all(task.signal_progress.emit(p)) for task in tasks]) and\
-                           all([not task.cancelled for task in tasks])
+                    # no global cancel and at least 1 tasks wants to continue, then we continue
+                    return all(self.signal_progress.emit(p)) and any([task.progress(p) for task in tasks])
                 async for _element in self.thread_pool.map_async(self.process_part, dataset.chunk_iterator(run.dataset_deps, chunk_size),
                                                     dataset.row_count,
                                                     progress=progress,
@@ -380,24 +383,11 @@ class ExecutorLocal(Executor):
                     pass  # just eat all element
                 duration_wallclock = time.time() - t0
                 logger.debug("executing took %r seconds", duration_wallclock)
-                cancelled = self.local.cancelled or any(task.cancelled for task in tasks) or run.cancelled
-                logger.debug("cancelled: %r", cancelled)
                 self.local.executing = False
-                if cancelled:
-                    logger.debug("execution aborted")
+                if True:  # kept to keep the diff small
                     for task in tasks:
-                        task.reject(UserAbort("cancelled"))
-                        # remove references
-                        task._result = None
-                        task._results = None
-                        cancelled = True
-                        if isinstance(task, vaex.tasks.TaskAggregations):
-                            for subtask in task.original_tasks:
-                                subtask.reject(UserAbort("cancelled"))
-                else:
-                    for task in tasks:
-                        logger.debug("fulfill task: %r", task)
                         if not task.cancelled:
+                            logger.debug("fulfill task: %r", task)
                             parts = task._parts
                             if not isinstance(parts, list):
                                 parts_queue = parts
@@ -430,7 +420,12 @@ class ExecutorLocal(Executor):
                                         logger.info("added result: %r in cache under key: %r", task_cachable.get(), key)
 
                         else:
-                            task.reject(UserAbort("Task was cancelled"))
+                            logger.debug("rejecting task: %r", task)
+                            # we now reject, in the main thread
+                            if task._toreject:
+                                task.reject(task._toreject)
+                            else:
+                                task.reject(UserAbort("Task was cancelled"))
                             # remove references
                             cancelled = True
                         task._result = None
@@ -462,7 +457,8 @@ class ExecutorLocal(Executor):
             from .scopes import _BlockScope
 
             expressions = list(set(expression for task in tasks for expression in task.expressions_all))
-            if run.pre_filter:
+            pre_filter = tasks[0].pre_filter
+            if pre_filter:
                 filter_deps = run.filter_deps[df]
                 filter_scope = _BlockScope(df, i1, i2, None, selection=True, values={**run.variables[df], **{k: chunks[k] for k in filter_deps if k in chunks}})
                 filter_scope.filter_mask = None
@@ -481,7 +477,7 @@ class ExecutorLocal(Executor):
             block_dict = {expression: block_scope.evaluate(expression) for expression in expressions}
             selection_scope = _BlockScope(df, i1, i2, None, selection=True, values={**block_scope.values})
             selection_scope.filter_mask = filter_mask
-            if not run.pre_filter and df.filtered:
+            if not pre_filter and df.filtered:
                 filter_mask = selection_scope.evaluate(vaex.dataframe.FILTER_SELECTION_NAME)
 
             memory_tracker = vaex.memory.create_tracker()
@@ -510,9 +506,9 @@ class ExecutorLocal(Executor):
                             else:
                                 task_part.process(thread_index, i1, i2, filter_mask, selections, blocks)
                         except Exception as e:
-                            task.reject(e)
-                            run.cancelled = True
-                            raise
+                            # we cannot call .reject, since then we'll handle fallbacks in this thread
+                            task._toreject = e
+                            task.cancelled = True
                         finally:
                             if not isinstance(task._parts, list):
                                 task._parts.put(task_part)
