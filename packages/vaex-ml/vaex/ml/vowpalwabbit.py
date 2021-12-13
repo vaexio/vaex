@@ -81,36 +81,37 @@ class VowpalWabbitModel(state.HasState):
         return vw(**{k: v for k, v in self.params.items() if v is not None})
 
     def _init_features(self, df):
+        """
+        If no features were provided, pick all the features but the target
+        """
         if self.features is None or len(self.features) == 0:
             self.features = df.get_column_names(regex=f"^((?!{self.target}).)*$")
-        return self.features, self.target
+        return self.features
 
     def _is_trained(self):
         return hasattr(self, 'model') and self.model is not None
 
-    def _fit(self, model, df, num_epochs=1, chunk_size=500):
-        num_epochs = num_epochs or self.num_epochs
-        features, target = self._init_features(df)
-        for n in range(num_epochs):
-            for _, _, X in df.to_pandas_df(chunk_size=chunk_size):
-                if n > 1:
-                    X = X.sample(frac=1)
-                for ex in DFtoVW.from_colnames(df=X, y=target, x=features).convert_df():
-                    model.learn(ex)
-        return model
-
-    def partial_fit(self, df, num_epochs=1, chunk_size=500):
-        model = self._init_vw() if not self._is_trained() else self.model
-        self.model = self._fit(model, df=df, num_epochs=num_epochs, chunk_size=chunk_size)
-        return self
-
-    def fit(self, df, num_epochs=1, chunk_size=500):
+    def fit(self, df, num_epochs=1, chunk_size=500, progress=None):
         """Fit the VowpalWabbitModel to the DataFrame.
         :param df: A vaex DataFrame containing the features and target on which to train the model.
         :param int num_epochs: Number of passes over the data
         :param int chunk_size: Size of chunks to iterate
         """
-        self.model = self._fit(model=self._init_vw(), df=df, num_epochs=num_epochs, chunk_size=chunk_size)
+        model = self._init_vw() if not self._is_trained() else self.model
+        num_epochs = num_epochs or self.num_epochs
+        features = self._init_features(df)
+        target = self.target
+        progressbar = vaex.utils.progressbars(progress, title="fit(vowpalwabbit)")
+        n_samples = len(df)
+
+        for epoch in range(num_epochs):
+            for i1, i2, X in df.to_pandas_df(chunk_size=chunk_size):
+                progressbar((n_samples * epoch + i1) / (num_epochs * n_samples))
+                if num_epochs > 1:
+                    X = X.sample(frac=1)
+                for ex in DFtoVW.from_colnames(df=X, y=target, x=features).convert_df():
+                    model.learn(ex)
+        self.model = model
         return self
 
     def predict(self, df, **kwargs):

@@ -19,20 +19,21 @@ def test_vowpalwabbit_examples(df_iris):
     ds['z'] = ds.petal_width * 1
 
     params = {'oaa': '3', 'P': 1, 'enable_logging': True}
+    target = 'class_'
     model = vaex.ml.vowpalwabbit.VowpalWabbitModel(
         params=params,
-        target='class_')
-    features, target = model._init_features(ds)
-    assert target == 'class_'
-    assert target not in features and len(features) == len(ds.get_column_names()) - 1
+        target=target)
+    features = model._init_features(ds)
+    assert model.target == target
+    assert model.target not in features and len(features) == len(ds.get_column_names()) - 1
 
     features = ['x', 'y', 'z', 'w']
     model = vaex.ml.vowpalwabbit.VowpalWabbitModel(
         params=params,
         features=features,
-        target='class_')
-    features, target = model._init_features(ds)
-    assert target == 'class_'
+        target=target)
+    features = model._init_features(ds)
+    assert model.target == target
     assert len(features) == 4
     from vowpalwabbit.DFtoVW import DFtoVW
     examples = DFtoVW.from_colnames(df=ds.head(1).to_pandas_df(), y=target, x=features).convert_df()
@@ -55,39 +56,14 @@ def test_vowpalwabbit_fit(df_iris):
         params=params,
         features=features,
         target='class_')
-    model.fit(ds_train, num_epochs=5)
-    assert 0 < accuracy_score(ds_test.col.class_.values, model.predict(ds_test))
-
-    ds_train = model.transform(ds_train)  # this will add the vw column
-    state = ds_train.state_get()
-    ds_test.state_set(state)
-    assert 'vowpalwabbit_prediction' in ds_test
-
-
-def test_vowpalwabbit_partial_fit(df_iris):
-    ds = df_iris
-
-    ds['class_'] = ds['class_'] + 1  # VW classification starts from 1
-    ds['x'] = ds.sepal_length * 1
-    ds['y'] = ds.sepal_width * 1
-    ds['w'] = ds.petal_length * 1
-    ds['z'] = ds.petal_width * 1
-    ds_train, ds_test = ds.ml.train_test_split(test_size=0.2, verbose=False)
-    features = ['x', 'y', 'z', 'w']
-
-    params = {'oaa': '3', 'P': 1, 'enable_logging': True}
-    model = vaex.ml.vowpalwabbit.VowpalWabbitModel(
-        params=params,
-        features=features,
-        target='class_')
     model.fit(ds_train, num_epochs=1)
     score1 = accuracy_score(ds_test.col.class_.values, model.predict(ds_test))
     assert 0 < score1
 
-    model.partial_fit(ds_train, num_epochs=1)
+    model.fit(ds_train, num_epochs=1)
     score2 = accuracy_score(ds_test.col.class_.values, model.predict(ds_test))
 
-    model.partial_fit(ds_train, num_epochs=1)
+    model.fit(ds_train, num_epochs=1)
     score3 = accuracy_score(ds_test.col.class_.values, model.predict(ds_test))
     assert score1 < score2 < score3
 
