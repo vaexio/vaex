@@ -2194,6 +2194,14 @@ class DataFrame(object):
             data_type = axis_data_type[axis]
         return data_type
 
+    def get_columns_by_dtypes(self, dtypes):
+        """
+        returns columns which in dtypes.
+        """
+        if isinstance(dtypes, type):
+            dtypes = [dtypes]
+        return [column for column, dtype in self.dtypes.to_dict().items() if dtype in dtypes]
+
     @property
     def dtypes(self):
         """Gives a Pandas series object containing all numpy dtypes of all columns (except hidden)."""
@@ -5204,7 +5212,17 @@ class DataFrame(object):
         elif isinstance(item, Expression):
             expression = item.expression
             return self.filter(expression)
+        elif isinstance(item, type):
+            columns = self.get_columns_by_dtypes(item)
+            if len(columns) == 0:
+                raise KeyError(f"No columns with type {item}")
+            return self[columns]
         elif isinstance(item, (tuple, list)):
+            if all(isinstance(x, type) for x in item):
+                columns = self.get_columns_by_dtypes(item)
+                if len(columns) == 0:
+                    raise KeyError(f"No columns with types {item}")
+                return self[columns]
             df = self
             if isinstance(item[0], slice):
                 df = df[item[0]]
