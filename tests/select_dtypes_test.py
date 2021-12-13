@@ -12,14 +12,14 @@ def df():
     return df
 
 
-def test_get_columns_by_dtypes(df):
-    assert df.get_columns_by_dtypes(int) == ['a']
-    assert df.get_columns_by_dtypes(float) == ['b']
-    assert df.get_columns_by_dtypes(np.float64) == ['b']
-    assert df.get_columns_by_dtypes(np.float32) == []
-    assert df.get_columns_by_dtypes([int, float]) == ['a', 'b']
-    assert df.get_columns_by_dtypes(str) == ['d', 'e']
-    assert df.get_columns_by_dtypes(bool) == ['c']
+def test_get_column_names_dtypes(df):
+    assert df.get_column_names(dtypes=int) == ['a']
+    assert df.get_column_names(dtypes=float) == ['b']
+    assert df.get_column_names(dtypes=np.float64) == ['b']
+    assert df.get_column_names(dtypes=np.float32) == []
+    assert df.get_column_names(dtypes=[int, float]) == ['a', 'b']
+    assert df.get_column_names(dtypes=str) == ['d', 'e']
+    assert df.get_column_names(dtypes=bool) == ['c']
 
 
 def test_getitem_by_dtypes(df):
