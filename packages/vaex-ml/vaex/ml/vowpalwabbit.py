@@ -51,7 +51,7 @@ class VowpalWabbitModel(state.HasState):
      2            2.9             4.6             6.6            1.3         2    2
     '''
     snake_name = 'vowpalwabbit_model'
-    features = traitlets.List(traitlets.Unicode(), help='List of features to use when fitting the Vowpal Wabbit.')
+    features = traitlets.List(traitlets.Unicode(), help='List of features to use when fitting the Vowpal Wabbit model.')
     target = traitlets.Unicode(allow_none=False, help='The name of the target column.')
     num_epochs = traitlets.CInt(help='Number of iterations.')
     params = traitlets.Dict(default_value={}, help='parameters to be passed on the to the Vowpal Wabbit model.')
