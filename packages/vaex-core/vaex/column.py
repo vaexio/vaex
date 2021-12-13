@@ -85,10 +85,17 @@ class ColumnVirtualConstant(Column):
     def __len__(self):
         return self.length
 
-    def __getitem__(self, slice):
+    def __getitem__(self, item):
         template = pa.array([self.value] * self.chunk_size, type=self.dtype.arrow)
         n_chunks = (self.length + self.chunk_size - 1) // self.chunk_size
-        ar = pa.chunked_array([template] * n_chunks)[slice]
+        if item.step not in [None, 1]:
+            raise ValueError('step can only be 1')
+        start, stop, step = item.start, item.stop, item.step
+        start = start or 0
+        stop = stop or len(self)
+        assert step in [None, 1]
+        item = slice(start, stop, step)
+        ar = pa.chunked_array([template] * n_chunks)[item]
         return ar
 
     def _fingerprint(self):
