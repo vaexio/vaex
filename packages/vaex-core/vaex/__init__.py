@@ -35,6 +35,7 @@ Follow the tutorial at https://docs.vaex.io/en/latest/tutorial.html to learn how
 from __future__ import print_function
 import glob
 import re
+from typing import Dict, List
 from numpy.lib.function_base import copy
 import six
 
@@ -501,6 +502,30 @@ def from_json(path_or_buffer, orient=None, precise_float=False, lines=False, cop
     import pandas as pd
     return from_pandas(pd.read_json(path_or_buffer, orient=orient, precise_float=precise_float, lines=lines, **kwargs),
                        copy_index=copy_index)
+
+
+@docsubst
+def from_records(records : List[Dict], array_type="arrow", defaults={}) -> vaex.dataframe.DataFrame:
+    '''Create a dataframe from a list of dict.
+
+    .. warning:: This is for convenience only, for performance pass arrays to :func:`from_arrays` for instance.
+
+    :param str array_type: {array_type}
+    :param dict defaults: default values if a record has a missing entry
+    '''
+    arrays = dict()
+    for i, record in enumerate(records):
+        for name, value in record.items():
+            if name not in arrays:
+                # prepend None's
+                arrays[name] = [defaults.get(name)] * i
+            arrays[name].append(value)
+        for name in arrays:
+            if name not in record:
+                # missing values get replaced
+                arrays[name].append(defaults.get(name))
+    arrays = {k: vaex.array_types.convert(v, array_type) for k, v in arrays.items()}
+    return vaex.from_dict(arrays)
 
 
 @docsubst

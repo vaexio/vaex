@@ -17,3 +17,4 @@ def test_from_json(ds_local):
     assert len(tmp_df) == len(df)
     assert tmp_df.x.tolist() == df.x.tolist()
     assert tmp_df.bool.tolist() == df.bool.tolist()
+

@@ -156,7 +156,7 @@ def to_xarray(x):
 def convert(x, type, default_type="numpy"):
     import vaex.column
     if type == "numpy":
-        if isinstance(x, (list, tuple)):
+        if isinstance(x, (list, tuple)) and len(x) > 0 and is_array(x[0]):
             return concat([convert(k, type) for k in x])
         else:
             return to_numpy(x, strict=True)
@@ -166,7 +166,7 @@ def convert(x, type, default_type="numpy"):
         else:
             return to_numpy(x, strict=False)
     elif type == "arrow":
-        if isinstance(x, (list, tuple)):
+        if isinstance(x, (list, tuple)) and len(x) > 0 and is_array(x[0]):
             chunks = [convert(k, type) for k in x]
             return concat(chunks)
         else:
