@@ -40,7 +40,8 @@ def test_vowpalwabbit_examples(df_iris):
     examples[0] == '2 | x:5.9 y:3.0 z:1.5 w:4.2'
 
 
-def test_vowpalwabbit_fit(df_iris):
+
+def test_vowpalwabbit(df_iris):
     ds = df_iris
 
     ds['class_'] = ds['class_'] + 1  # VW classification starts from 1
@@ -54,18 +55,22 @@ def test_vowpalwabbit_fit(df_iris):
     params = {'oaa': '3', 'P': 1, 'enable_logging': True}
     model = vaex.ml.vowpalwabbit.VowpalWabbitModel(
         params=params,
+        num_epochs=1,
         features=features,
         target='class_')
-    model.fit(ds_train, num_epochs=1)
+    model.fit(ds_train)
     score1 = accuracy_score(ds_test.col.class_.values, model.predict(ds_test))
     assert 0 < score1
 
-    model.fit(ds_train, num_epochs=1)
+    model.fit(ds_train)
     score2 = accuracy_score(ds_test.col.class_.values, model.predict(ds_test))
 
-    model.fit(ds_train, num_epochs=1)
+    model.fit(ds_train)
     score3 = accuracy_score(ds_test.col.class_.values, model.predict(ds_test))
     assert score1 < score2 < score3
+
+    transformed = model.transform(ds_test)
+    assert 'vowpalwabbit_prediction' in transformed
 
 
 @pytest.mark.skipif(sys.version_info < (3, 6), reason="requires python3.6 or higher")
