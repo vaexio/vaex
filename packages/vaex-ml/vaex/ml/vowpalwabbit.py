@@ -35,7 +35,7 @@ class VowpalWabbitModel(state.HasState):
     >>> features = ['sepal_width', 'petal_length', 'sepal_length', 'petal_width']
     >>> df_train, df_test = df.ml.train_test_split()
     >>> params = {'oaa': '3', 'P': 1}
-    >>> vw_model = vaex.ml.vowpalwabbit.VowpalWabbitModel(features=features, target='class_', epochs=100, params=params)
+    >>> vw_model = vaex.ml.vowpalwabbit.VowpalWabbitModel(features=features, target='class_', epochs=100, batch_size=1000, params=params)
     >>> vw_model.fit(df_train)
     >>> df_train = vw_model.transform(df_train)
     >>> df_train.head(3)
@@ -56,10 +56,17 @@ class VowpalWabbitModel(state.HasState):
     num_epochs = traitlets.CInt(help='Number of iterations.')
     params = traitlets.Dict(default_value={}, help='Parameters to be passed on the to the Vowpal Wabbit model.')
     prediction_name = traitlets.Unicode(default_value='vowpalwabbit_prediction', help='The name of the virtual column housing the predictions.')
+    batch_size = traitlets.Int(default_value=1_000_000, allow_none=False, help='Number of samples to be sent to the model in each batch.')
+    params = traitlets.Dict(default_value={}, help='parameters to be passed on the to the Vowpal Wabbit model.')
+    prediction_name = traitlets.Unicode(default_value='vowpalwabbit_prediction',
+                                        help='The name of the virtual column housing the predictions.')
 
-    def __call__(self, *args):
+    def __call__(self, *args, **kwargs):
         data2d = np.array(args).T
-        return self.predict(data2d)
+        X = pd.DataFrame(data2d, columns=self.features)
+        X[self.target] = 1  # DFtoVW.from_columns issue - will be ignored in predictions
+        examples = DFtoVW.from_colnames(df=X, y=self.target, x=self.features).convert_df()
+        return np.array([self.model.predict(ex) for ex in examples])
 
     def transform(self, df):
         '''Transform a DataFrame such that it contains the predictions of the
@@ -90,31 +97,26 @@ class VowpalWabbitModel(state.HasState):
     def _is_trained(self):
         return hasattr(self, 'model') and self.model is not None
 
-    def fit(self, df, num_epochs=1, chunk_size=500, progress=None):
+    def fit(self, df, progress=None):
         """Fit the VowpalWabbitModel to the DataFrame.
         :param df: A vaex DataFrame containing the features and target on which to train the model.
-        :param int num_epochs: Number of passes over the data
-        :param int chunk_size: Size of chunks to iterate
         """
         model = self._init_vw() if not self._is_trained() else self.model
-        num_epochs = num_epochs or self.num_epochs
         features = self._init_features(df)
-        target = self.target
         progressbar = vaex.utils.progressbars(progress, title="fit(vowpalwabbit)")
         n_samples = len(df)
-
-        for epoch in range(num_epochs):
-            for i1, i2, X in df.to_pandas_df(chunk_size=chunk_size):
-                progressbar((n_samples * epoch + i1) / (num_epochs * n_samples))
-                if num_epochs > 1:
+        for epoch in range(self.num_epochs):
+            for i1, i2, X in df.to_pandas_df(chunk_size=self.batch_size):
+                progressbar((n_samples * epoch + i1) / (self.num_epochs * n_samples))
+                if self.num_epochs > 1:
                     X = X.sample(frac=1)
-                for ex in DFtoVW.from_colnames(df=X, y=target, x=features).convert_df():
+                for ex in DFtoVW.from_colnames(df=X, y=self.target, x=features).convert_df():
                     model.learn(ex)
         self.model = model
         return self
 
-    def predict(self, df, **kwargs):
-        '''Get an in-memory numpy array with the predictions of the VowpalWabbitModel on a vaex DataFrame.
+    def predict(self, df):
+        '''Get an in-memory numpy array with the predictions of the VowpalWabbitModel.
         This method accepts the key word arguments of the predict method from VowpalWabbit.
 
         :param df: A vaex DataFrame.
@@ -122,13 +124,7 @@ class VowpalWabbitModel(state.HasState):
         :returns: A in-memory numpy array containing the VowpalWabbitModel predictions.
         :rtype: numpy.array
         '''
-        if self.model is None:
-            raise RuntimeError("model is not fitted")
-        X = pd.DataFrame(df, columns=self.features) if isinstance(df, np.ndarray) else df[
-            self.features].to_pandas_df()
-        X[self.target] = 1  # DFtoVW.from_colnames issue - will be ignored in predictions
-        examples = DFtoVW.from_colnames(df=X, y=self.target, x=self.features).convert_df()
-        return np.array([self.model.predict(ex) for ex in examples])
+        return self.transform(df)[self.prediction_name].values
 
     def _encode_vw(self):
         if self.model is None:
