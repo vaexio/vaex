@@ -338,20 +338,18 @@ class DataFrame(object):
         #  TODO: we don't support DictionaryType for remote dataframes
         if self.is_local() and column in self.columns:
             # TODO: we don't support categories as expressions
-            x = self.columns[column]
-            if isinstance(x, (pa.Array, pa.ChunkedArray)):
-                arrow_type = x.type
-                if isinstance(arrow_type, pa.DictionaryType):
-                    return True
+            dtype = vaex.dtype_of(self.columns[column])
+            if dtype.is_encoded:
+                return True
         return column in self._categories
 
     def _category_dictionary(self, column):
         '''Return the dictionary for a column if it is an arrow dict type'''
         if column in self.columns:
             x = self.columns[column]
-            arrow_type = x.type
-            # duplicate code in array_types.py
-            if isinstance(arrow_type, pa.DictionaryType):
+            dtype = vaex.dtype(x.dtype)
+            if dtype.is_encoded:
+                x = x[:1]  # could be a proxy
                 # we're interested in the type of the dictionary or the indices?
                 if isinstance(x, pa.ChunkedArray):
                     # take the first dictionaryu
@@ -576,9 +574,18 @@ class DataFrame(object):
             raise ValueError('only axis=None is supported')
         expression = _ensure_string_from_expression(expression)
         if self._future_behaviour and self.is_category(expression):
-            keys = pa.array(self.category_labels(expression))
-            keys = vaex.array_types.convert(keys, array_type)
-            return self._delay(delay, vaex.promise.Promise.fulfilled(keys))
+            if self.filtered:
+                keys = pa.array(self.category_labels(expression))
+                @delayed
+                def encode(codes):
+                    used_keys = keys.take(codes)
+                    return vaex.array_types.convert(used_keys, array_type)
+                codes = self[expression].index_values().unique(delay=True)
+                return self._delay(delay, encode(codes))
+            else:
+                keys = pa.array(self.category_labels(expression))
+                keys = vaex.array_types.convert(keys, array_type)
+                return self._delay(delay, vaex.promise.Promise.fulfilled(keys))
         else:
             @delayed
             def process(ordered_set):
@@ -5608,6 +5615,8 @@ class DataFrameLocal(DataFrame):
         if not self._future_behaviour:
             return type
         if self.is_category(expression):
+            if vaex.dtype(type).is_encoded:
+                return type  # already encoded
             value_type = vaex.array_types.to_arrow(self.category_labels(expression)).type
             type = vaex.array_types.to_arrow_type(type)
             type = self._dict_mapping.get(type, type)
