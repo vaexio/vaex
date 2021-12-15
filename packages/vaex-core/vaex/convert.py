@@ -25,10 +25,12 @@ def _convert_name(filenames, shuffle=False, suffix=None):
         return base + ".hdf5"
 
 
-def convert(path_input, fs_options_input, fs_input, path_output, fs_options_output, fs_output, progress=None, *args, **kwargs):
+def convert(path_input, fs_options_input, fs_input, path_output, fs_options_output, fs_output, progress=None, delete_on_error=True, *args, **kwargs):
     @vaex.cache.output_file(
         path_input=path_input, fs_options_input=fs_options_input, fs_input=fs_input,
-        path_output=path_output, fs_options_output=fs_options_output, fs_output=fs_output)
+        path_output=path_output, fs_options_output=fs_options_output, fs_output=fs_output,
+        delete_on_error=delete_on_error,
+        )
     def cached_output(*args, **kwargs):
         ds = vaex.dataset.open(path_input, fs_options=fs_options_input, fs=fs_input, *args, **kwargs)
         if ds is not None:

@@ -6706,7 +6706,7 @@ class DataFrameLocal(DataFrame):
         progressbar(1)
 
     @docsubst
-    def export_hdf5(self, path, byteorder="=", progress=None, chunk_size=default_chunk_size, parallel=True, column_count=1, writer_threads=0, group='/table', mode='w'):
+    def export_hdf5(self, path, byteorder="=", progress=None, chunk_size=default_chunk_size, parallel=True, column_count=1, writer_threads=0, group='/table', mode='w', delete_on_error=False):
         """Exports the DataFrame to a vaex hdf5 file
 
         :param str path: path for file
@@ -6717,13 +6717,14 @@ class DataFrameLocal(DataFrame):
         :param int writer_threads: Use threads for writing or not, only useful when column_count > 1.
         :param str group: Write the data into a custom group in the hdf5 file.
         :param str mode: If set to "w" (write), an existing file will be overwritten. If set to "a", one can append additional data to the hdf5 file, but it needs to be in a different group.
+        :param bool delete_on_error: Delete file if an exception occurs (default).
         :return:
         """
         from vaex.hdf5.writer import Writer
         progressbar = vaex.utils.progressbars(progress, title="export(hdf5)")
         progressbar_layout = progressbar.add("layout file structure")
         progressbar_write = progressbar.add("write data")
-        with Writer(path=path, group=group, mode=mode, byteorder=byteorder) as writer:
+        with Writer(path=path, group=group, mode=mode, byteorder=byteorder, delete_on_error=delete_on_error) as writer:
             writer.layout(self, progress=progressbar_layout)
             writer.write(
                 self,

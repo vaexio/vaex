@@ -190,7 +190,7 @@ def _get_scheme_handler(path):
     raise ValueError(f'Do not know how to open {path}, no handler for {scheme} is known')
 
 
-def remove(path):
+def remove(path, fs_options={}, fs=None):
     scheme, path = split_scheme(path)
     if scheme:
         raise ValueError('Cannot delete non-local files yet')

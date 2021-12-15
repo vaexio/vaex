@@ -17,7 +17,7 @@ max_int32 = 2**31-1
 
 
 class Writer:
-    def __init__(self, path, group="/table", mode="w", byteorder="="):
+    def __init__(self, path, group="/table", mode="w", byteorder="=", delete_on_error=True):
         self.path = path
         self.byteorder = byteorder
         self.h5 = h5py.File(path, mode)
@@ -26,6 +26,7 @@ class Writer:
         self.table.attrs["type"] = "table"
         self.columns = self.h5.require_group(f"{group}/columns")
         self.mmap = None
+        self.delete_on_error = delete_on_error
         self._layout_called = False
 
     def close(self):
@@ -37,8 +38,10 @@ class Writer:
     def __enter__(self):
         return self
 
-    def __exit__(self, *args):
+    def __exit__(self, type, value, traceback):
         self.close()
+        if self.delete_on_error and type is not None:
+            vaex.file.remove(self.path)
 
     def layout(self, df, progress=None):
         assert not self._layout_called, "Layout called twice"

@@ -392,7 +392,7 @@ def fingerprint(*args, **kwargs):
         uuid.uuid4 = original
 
 
-def output_file(callable=None, path_input=None, fs_options_input={}, fs_input=None, path_output=None, fs_options_output={}, fs_output=None):
+def output_file(callable=None, path_input=None, fs_options_input={}, fs_input=None, path_output=None, fs_options_output={}, fs_output=None, delete_on_error=True):
     """Decorator to do cached conversion from path_input → path_output.
 
     Caching is active if with the input file, the *args, and **kwargs are unchanged, otherwise callable
@@ -417,13 +417,23 @@ def output_file(callable=None, path_input=None, fs_options_input={}, fs_input=No
                 with FileLock(f"vaex-convert-{fp}.lock"):
                     if not vaex.file.exists(path_output, fs_options=fs_options_output_, fs=fs_output):
                         log.info('file %s does not exist yet, running conversion %s → %s', path_output_meta, path_input, path_output)
-                        value = callable(*args, **kwargs)
+                        try:
+                            value = callable(*args, **kwargs)
+                        except:
+                            if delete_on_error and vaex.file.exists(path_output, fs_options=fs_options_output_, fs=fs_output):
+                                vaex.file.remove(path_output, fs_options=fs_options_output, fs=fs_output)
+                            raise
                         write_fingerprint()
                         return value
 
                 if not vaex.file.exists(path_output_meta, fs_options=fs_options_output_, fs=fs_output):
                     log.info('file including fingerprint not found (%) or does not exist yet, running conversion %s → %s', path_output_meta, path_input, path_output)
-                    value = callable(*args, **kwargs)
+                    try:
+                        value = callable(*args, **kwargs)
+                    except:
+                        if delete_on_error:
+                            vaex.file.remove(path_output, fs_options=fs_options_output, fs=fs_output)
+                        raise
                     write_fingerprint()
                     return value
 
