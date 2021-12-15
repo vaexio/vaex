@@ -1,3 +1,4 @@
+from typing import List
 import warnings
 
 from .utils import get_env_type, RegistryCallable
@@ -13,15 +14,15 @@ _progressbar_default = get_env_type(str, 'VAEX_PROGRESS', None)
 
 
 # these are registered in the entry_points
-def _progressbar_vaex(type=None, title="processing", max_value=1):
+def simple(type=None, title="processing", max_value=1):
     import vaex.misc.progressbar as pb
     return pb.ProgressBar(0, 1, title=title)
 
-def _progressbar_widget(type=None, title="processing", max_value=1):
+def widget(type=None, title="processing", max_value=1):
     import vaex.misc.progressbar as pb
     return pb.ProgressBarWidget(0, 1, title=title)
 
-def _progressbar_rich(type=None, title="processing", max_value=1):
+def rich(type=None, title="processing", max_value=1):
     import vaex.misc.progressbar as pb
     return pb.ProgressBarRich(0, 1, title=title)
 
@@ -34,10 +35,12 @@ class ProgressTree:
     def __init__(self, children=None, next=None, bar=None, parent=None, name=None):
         global _last_progress_tree, _last_traceback
         self.next = next
-        self.children = children or list()
+        self.children : List[ProgressTree] = children or list()
         self.finished = False
         self.last_fraction = None
         self.fraction = 0
+        self.root = self if parent is None else parent.root
+        self.passes_start = None
         self.bar = bar
         self.parent = parent
         self.name = name
@@ -110,6 +113,15 @@ class ProgressTree:
         def on_error(exc):
             if pb.bar:
                 pb.bar.set_status(str(exc))
+                pb(pb.last_fraction)
+                pb.finished = True
+        def on_start(executor):
+            passes = executor.passes
+            if self.root.passes_start is None:
+                self.root.passes_start = passes
+            if pb.bar:
+                pb.bar.set_passes(passes - self.root.passes_start + 1)
+        task.signal_start.connect(on_start)
         task.then(None, on_error).end()
         return pb
 
@@ -120,6 +132,8 @@ class ProgressTree:
                 self.bar.set_status(self.status)
             return True
         fraction = fraction_or_status
+        if fraction != 1.0:
+            self.finished = False
         if self.cancelled:
             return False
         # ignore fraction
@@ -127,7 +141,7 @@ class ProgressTree:
         if len(self.children) == 0:
             self.fraction = fraction
         else:
-            self.fraction = sum([c.fraction for c in self.children]) / len(self.children)
+            self.fraction = sum([c.fraction if not c.finished else 1 for c in self.children]) / len(self.children)
         fraction = self.fraction
         if fraction != self.last_fraction:  # avoid too many calls
             if fraction == 1 and not self.finished:  # make sure we call finish only once

@@ -9,6 +9,7 @@ import math
 import multiprocessing
 import logging
 import queue
+from typing import List
 
 import dask.utils
 import numpy as np
@@ -162,6 +163,7 @@ def _merge_tasks_for_df(tasks, df):
                 subtask.fulfill(value[i])
             assign(task_merged)
             task_merged.done(None, subtask.reject)
+            task_merged.signal_start.connect(subtask.signal_start.emit)
         tasks_merged.append(task_merged)
     return tasks_non_mergable + tasks_merged
 
@@ -169,7 +171,7 @@ def _merge_tasks_for_df(tasks, df):
 class Executor:
     """An executor is responsible to executing tasks, they are not reentrant, but thread safe"""
     def __init__(self, async_method=async_default):
-        self.tasks = []
+        self.tasks : List[Task] = []
         self.async_method = async_method
         self.signal_begin = vaex.events.Signal("begin")
         self.signal_progress = vaex.events.Signal("progress")
@@ -319,6 +321,9 @@ class ExecutorLocal(Executor):
                         except Exception as e:
                             task.reject(e)
                             raise
+
+                for task in run.tasks:
+                    task.signal_start.emit(self)
 
                 for task in run.tasks:
                     task._results = []

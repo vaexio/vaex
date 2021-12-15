@@ -184,9 +184,10 @@ setup(name=name + '-core',
               'default = vaex.memory:MemoryTracker'
           ],
           'vaex.progressbar': [
-              'vaex = vaex.progress:_progressbar_vaex',
-              'widget = vaex.progress:_progressbar_widget',
-              'rich = vaex.progress:_progressbar_rich',
+              'vaex = vaex.progress:simple',
+              'simple = vaex.progress:simple',
+              'widget = vaex.progress:widget',
+              'rich = vaex.progress:rich',
           ],
           'vaex.file.scheme': [
               's3 = vaex.file.s3',

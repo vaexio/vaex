@@ -1716,7 +1716,7 @@ class DataFrame(object):
             limits_minmax = self.minmax(expr, selection=selection, delay=delay)
             limits1 = compute(limits_minmax=limits_minmax)
             limits.append(limits1)
-        return self._delay(delay, delayed(vaex.utils.unlistify)(waslist, limits))
+        return self._delay(delay, progressbar.exit_on(delayed(vaex.utils.unlistify)(waslist, limits)))
 
     @docsubst
     def limits(self, expression, value=None, square=False, selection=None, delay=False, progress=None, shape=None):
@@ -1817,7 +1817,7 @@ class DataFrame(object):
                             elif type in ["ss", "sigmasquare"]:
                                 limits = self.limits_sigma(number, square=True)
                             elif type in ["%", "percent"]:
-                                limits = self.limits_percentage(expression, number, selection=selection, delay=True)
+                                limits = self.limits_percentage(expression, number, selection=selection, delay=True, progress=progressbar)
                             elif type in ["%s", "%square", "percentsquare"]:
                                 limits = self.limits_percentage(expression, number, selection=selection, square=True, delay=True)
                 elif value is None:
@@ -1878,7 +1878,7 @@ class DataFrame(object):
                 return vaex.utils.unlistify(waslist, limits_outer), vaex.utils.unlistify(waslist, shapes_list)
             else:
                 return vaex.utils.unlistify(waslist, limits_outer)
-        return self._delay(delay, finish(limits_list))
+        return self._delay(delay, progressbar.exit_on(finish(limits_list)))
 
     def mode(self, expression, binby=[], limits=None, shape=256, mode_shape=64, mode_limits=None, progressbar=False, selection=None):
         """Calculate/estimate the mode."""

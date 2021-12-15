@@ -17,6 +17,9 @@ class ProgressBarBase(object):
         self.prevfraction = 0
         self.status = None
 
+    def set_passes(self, passes):
+        pass
+
     def exit(self):
         pass
 
@@ -147,6 +150,31 @@ class ProgressBarWidget(ProgressBarBase):
     def finish(self):
         self(self.max_value)
 
+import rich.progress
+from rich.text import Text
+
+
+class TimeElapsedColumn(rich.progress.ProgressColumn):
+    """Renders time elapsed."""
+
+    def render(self, task: "Task") -> Text:
+        """Show time remaining."""
+        elapsed = task.finished_time if task.finished else task.elapsed
+        if elapsed is None:
+            return Text("-:--:--", style="progress.elapsed")
+        from datetime import timedelta
+        delta = timedelta(seconds=(elapsed))
+        time = str(delta)[:-4]
+        if time.startswith('0:00:'):
+            time = time[5:]
+        time = time
+        passes = task.fields.get('passes')
+        if passes is not None:
+            time += f'[{passes}]'
+        else:
+            time += '   '
+        return Text(time, style="progress.elapsed")
+
 
 class ProgressBarRich(ProgressBarBase):
     def __init__(self, min_value, max_value, title=None, progress=None, indent=0, parent=None):
@@ -162,8 +190,8 @@ class ProgressBarRich(ProgressBarBase):
                 rich.progress.TextColumn("[progress.description]{task.description}"),
                 rich.progress.BarColumn(),
                 rich.progress.TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
-                rich.progress.TimeRemainingColumn(),
-                rich.progress.TimeElapsedColumn(),
+                # rich.progress.TimeRemainingColumn(),
+                TimeElapsedColumn(),
                 rich.progress.TextColumn("[red]{task.fields[status]}"),
                 console=self.console,
                 transient=False,
@@ -182,8 +210,9 @@ class ProgressBarRich(ProgressBarBase):
         self.steps = 0
         self.indent = indent
 
-        padding = max(0, 50 - (self.indent * 4) - len(self.title))
-        self.task = self.progress.add_task(f"[red]{self.title}" + (" " * padding), total=1000, start=False, status=self.status or '')
+        padding = max(0, 45- (self.indent * 4) - len(self.title))
+        self.passes = None
+        self.task = self.progress.add_task(f"[red]{self.title}" + (" " * padding), total=1000, start=False, status=self.status or '', passes=self.passes)
         self.started = False
         self.subtasks = []
 
@@ -197,7 +226,7 @@ class ProgressBarRich(ProgressBarBase):
             steps = int(value * 1000)
             delta = steps - self.steps
             if delta > 0:
-                self.progress.update(self.task, advance=delta, refresh=False)
+                self.progress.update(self.task, advance=delta, refresh=False, passes=self.passes)
             else:
                 start_time = self.progress.tasks[0].start_time
                 self.progress.reset(self.task, completed=steps, refresh=False, status=self.status or '')
@@ -220,3 +249,6 @@ class ProgressBarRich(ProgressBarBase):
     def set_status(self, status):
         self.status = status
         self.progress.update(self.task, status=self.status)
+
+    def set_passes(self, passes):
+        self.passes = passes
