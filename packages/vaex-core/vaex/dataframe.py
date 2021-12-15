@@ -347,7 +347,7 @@ class DataFrame(object):
         '''Return the dictionary for a column if it is an arrow dict type'''
         if column in self.columns:
             x = self.columns[column]
-            dtype = vaex.dtype(x.dtype)
+            dtype = vaex.dtype_of(x)
             if dtype.is_encoded:
                 x = x[:1]  # could be a proxy
                 # we're interested in the type of the dictionary or the indices?
