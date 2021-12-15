@@ -279,11 +279,10 @@ class ExecutorLocal(Executor):
             t0 = time.time()
             self.local.cancelled = False
             self.signal_begin.emit()
-            cancelled = False
             # keep getting a list of tasks
             # we currently process tasks (grouped) per df
             # but also, tasks can add new tasks
-            while not cancelled:
+            while True:
                 tasks = self.local.tasks = self._pop_tasks()
 
                 # wo don't allow any thread from our thread pool to enter (a computation should never produce a new task)
@@ -427,7 +426,6 @@ class ExecutorLocal(Executor):
                             else:
                                 task.reject(UserAbort("Task was cancelled"))
                             # remove references
-                            cancelled = True
                         task._result = None
                         task._results = None
                     self.signal_end.emit()
