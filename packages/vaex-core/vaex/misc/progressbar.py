@@ -1,7 +1,9 @@
 from __future__ import print_function
 import os
 import sys
+import threading
 import time
+import vaex.utils
 
 
 class ProgressBarBase(object):
@@ -135,6 +137,67 @@ class ProgressBarWidget(ProgressBarBase):
         self(self.max_value)
 
 
+
+class Psutil(threading.Thread):
+    disk = ""
+    memory = ""
+    net = ""
+    wants_to_stop = False
+
+    def stop(self):
+        self.wants_to_stop = True
+
+    def run(self):
+        import psutil
+        t0 = time.time()
+        disk_prev = psutil.disk_io_counters()
+        net_prev = psutil.net_io_counters()
+        while not self.wants_to_stop:
+            available = psutil.virtual_memory().available
+            total = psutil.virtual_memory().total
+            used = total - available
+            usedp = int(used / total * 100)
+            availablep = int(available / total * 100)
+
+            total = vaex.utils.filesize_format(total)
+            available = vaex.utils.filesize_format(available)
+            used = vaex.utils.filesize_format(used)
+            self.memory = f'Memory:  total={total} avail={available} ({availablep}%) used={used} ({usedp}%)'
+
+            time.sleep(0.5)
+            disk_curr = psutil.disk_io_counters()
+            net_curr = psutil.net_io_counters()
+            t1 = time.time()
+
+            dt = t1 - t0
+            read = disk_curr.read_bytes - disk_prev.read_bytes
+            readps = vaex.utils.filesize_format(read / dt)
+            write = disk_curr.write_bytes - disk_prev.write_bytes
+            writeps = vaex.utils.filesize_format(write / dt)
+            self.disk = f'Disk:    read={readps}/s write={writeps}/s'
+
+            dt = t1 - t0
+            read = net_curr.bytes_recv -  net_prev.bytes_recv
+            readps = vaex.utils.filesize_format(read / dt)
+            write = net_curr.bytes_sent - net_prev.bytes_sent
+            writeps = vaex.utils.filesize_format(write / dt)
+            self.net = f'Network: read={readps}/s write={writeps}/s'
+
+            disk_prev = disk_curr
+            net_prev = net_curr
+            t0 = t1
+
+        t0 = time.time()
+
+    def __rich_console__(self, console, options):
+        yield self.memory
+        yield self.disk
+        yield self.net
+
+
+
+show_extra = vaex.utils.get_env_type(bool, 'VAEX_PROGRESS_EXTRA', False)
+
 class ProgressBarRich(ProgressBarBase):
     def __init__(self, min_value, max_value, title=None, progress=None, indent=0, parent=None):
         super(ProgressBarRich, self).__init__(min_value, max_value)
@@ -159,8 +222,12 @@ class ProgressBarRich(ProgressBarBase):
             self.progress = progress
         if parent is None:
             self.node = rich.tree.Tree(self.progress)
+            # TODO: make this configutable
+            if show_extra:
+                self.info = Psutil(daemon=True)
+                self.info.start()
             from rich.live import Live
-            self.live = Live(self.node, refresh_per_second=5, console=self.console)
+            self.live = Live(self, refresh_per_second=3, console=self.console)
             self.live.start()
         else:
             self.node = parent.add(self.progress)
@@ -168,10 +235,17 @@ class ProgressBarRich(ProgressBarBase):
         self.steps = 0
         self.indent = indent
 
+        if len(title) > 60:
+            title = title[:60-3] + "..."
         padding = max(0, 50 - (self.indent * 4) - len(title))
         self.task = self.progress.add_task(f"[red]{title}" + (" " * padding), total=1000, start=False)
         self.started = False
         self.subtasks = []
+
+    def __rich_console__(self, console, options):
+        if show_extra:
+            yield self.info
+        yield self.node
 
     def add_child(self, parent, task, title):
         return ProgressBarRich(self.min_value, self.max_value, title, indent=self.indent+1, parent=self.node)
