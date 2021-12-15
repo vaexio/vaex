@@ -143,21 +143,21 @@ class ColumnWriterPrimitive:
 
         self.h5group = h5parent.require_group(name)
         if dtype.kind in 'mM':
-            self.array = self.h5group.require_dataset('data', shape=shape, dtype=np.int64)
+            self.array = self.h5group.require_dataset('data', shape=shape, dtype=np.int64, track_times=False)
             self.array.attrs["dtype"] = dtype.name
         elif dtype.kind == 'U':
             # numpy uses utf32 for unicode
             char_length = dtype.itemsize // 4
             shape = (N, char_length)
-            self.array = self.h5group.require_dataset('data', shape=shape, dtype=np.uint8)
+            self.array = self.h5group.require_dataset('data', shape=shape, dtype=np.uint8, track_times=False)
             self.array.attrs["dtype"] = 'utf32'
             self.array.attrs["dlength"] = char_length
         else:
-            self.array = self.h5group.require_dataset('data', shape=shape, dtype=dtype.numpy.newbyteorder(byteorder))
+            self.array = self.h5group.require_dataset('data', shape=shape, dtype=dtype.numpy.newbyteorder(byteorder), track_times=False)
         self.array[0] = self.array[0]  # make sure the array really exists
 
         if has_null:
-            self.mask = self.h5group.require_dataset('mask', shape=shape, dtype=np.bool)
+            self.mask = self.h5group.require_dataset('mask', shape=shape, dtype=np.bool, track_times=False)
             self.mask[0] = self.mask[0]  # make sure the array really exists
         else:
             self.mask = None
@@ -212,17 +212,17 @@ class ColumnWriterString:
         data_shape = (byte_length, )
         indices_shape = (self.count+1, )
 
-        self.array = self.h5group.require_dataset('data', shape=data_shape, dtype='S1')
+        self.array = self.h5group.require_dataset('data', shape=data_shape, dtype='S1', track_times=False)
         self.array.attrs["dtype"] = 'str'
         if byte_length > 0:
             self.array[0] = self.array[0]  # make sure the array really exists
 
-        self.index_array = self.h5group.require_dataset('indices', shape=indices_shape, dtype=dtype_indices)
+        self.index_array = self.h5group.require_dataset('indices', shape=indices_shape, dtype=dtype_indices, track_times=False)
         self.index_array[0] = self.index_array[0]  # make sure the array really exists
 
         if self.has_null > 0:
             null_shape = ((self.count + 7) // 8, )  # TODO: arrow requires padding right?
-            self.null_bitmap_array = self.h5group.require_dataset('null_bitmap', shape=null_shape, dtype='u1')
+            self.null_bitmap_array = self.h5group.require_dataset('null_bitmap', shape=null_shape, dtype='u1', track_times=False)
             self.null_bitmap_array[0] = self.null_bitmap_array[0]  # make sure the array really exists
         else:
             self.null_bitmap_array = None

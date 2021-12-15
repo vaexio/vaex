@@ -156,10 +156,10 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
                 shape = (N,)
                 print(dtype)
                 if dtype.type == np.datetime64:
-                    array = h5file_output.require_dataset("/data/%s" % column_name, shape=shape, dtype=np.int64)
+                    array = h5file_output.require_dataset("/data/%s" % column_name, shape=shape, dtype=np.int64, track_times=False)
                     array.attrs["dtype"] = dtype.name
                 else:
-                    array = h5file_output.require_dataset("/data/%s" % column_name, shape=shape, dtype=dtype)
+                    array = h5file_output.require_dataset("/data/%s" % column_name, shape=shape, dtype=dtype, track_times=False)
                 array[0] = array[0]  # make sure the array really exists
         return Hdf5MemoryMapped(path, write=write)
 
