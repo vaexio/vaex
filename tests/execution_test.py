@@ -292,6 +292,17 @@ def test_exception():
         df._set(df.x, unique_limit=1)
 
 
+def test_continue_next_task_after_cancel():
+    df = vaex.from_arrays(x=[1, 2, 3])
+    res1 = df._set(df.x, unique_limit=1, delay=True)
+    def on_error(exception):
+        return df._set(df.x, delay=True)
+    result = res1.then(None, on_error)
+    df.execute()
+    assert res1.isRejected
+    assert result.isFulfilled
+
+
 # def test_add_and_cancel_tasks(df_executor):
 #     df = df_executor
 
