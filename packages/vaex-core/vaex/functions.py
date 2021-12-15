@@ -283,7 +283,9 @@ def scalar_timedelta(amount, unit):
 def _pandas_dt_fix(x):
     # see https://github.com/pandas-dev/pandas/issues/23276
     # not sure which version this is fixed in
-    if isinstance(x, pa.lib.TimestampArray):
+    if isinstance(x, pa.lib.TimestampArray) or (
+        isinstance(x, pa.lib.ChunkedArray) and isinstance(x.type, pa.lib.TimestampType)
+    ):
         return x.to_pandas()
     if not x.flags['WRITEABLE']:
         x = x.copy()
