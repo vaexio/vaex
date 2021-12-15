@@ -6,6 +6,8 @@ import time
 
 class ProgressBarBase(object):
     def __init__(self, min_value, max_value, title='vaex', format="%(percentage) 6.2f%% %(timeinfo)s cpu: %(cpu_usage)d%%"):
+        if title is None:
+            title = "vaex"
         self.min_value = min_value
         self.max_value = max_value
         self.format = format
@@ -13,6 +15,13 @@ class ProgressBarBase(object):
         self.value = self.min_value
         self.fraction = 0
         self.prevfraction = 0
+        self.status = None
+
+    def exit(self):
+        pass
+
+    def set_status(self, status):
+        self.status = status
 
     def update_fraction(self):
         if (self.max_value-self.min_value) == 0:
@@ -62,6 +71,7 @@ class ProgressBarBase(object):
         self.update_fraction()
         return self.format % self.info()
 
+
 class ProgressBar(ProgressBarBase):
     """
         Implementation of progress bar on a console
@@ -102,10 +112,13 @@ class ProgressBar(ProgressBarBase):
 
     def __repr__(self):
         output = ''
-        self.update_fraction()
-        count = int(round(self.fraction * self.width))
-        space = self.width - count
-        bar = self.title + " [" + (self.barchar * count) + (self.emptychar * space) + "]"
+        if self.status:
+            bar = f"[{self.status}".ljust(self.width-1, ' ') + ']'
+        else:
+            self.update_fraction()
+            count = int(round(self.fraction * self.width))
+            space = self.width - count
+            bar = self.title + " [" + (self.barchar * count) + (self.emptychar * space) + "]"
         output = "\r" + bar + super(ProgressBar, self).__repr__()
         if self.fraction == 1:
             output += "\n" # last time print a newline char
@@ -137,7 +150,7 @@ class ProgressBarWidget(ProgressBarBase):
 
 class ProgressBarRich(ProgressBarBase):
     def __init__(self, min_value, max_value, title=None, progress=None, indent=0, parent=None):
-        super(ProgressBarRich, self).__init__(min_value, max_value)
+        super(ProgressBarRich, self).__init__(min_value, max_value, title=title)
         import rich.progress
         import rich.table
         import rich.tree
@@ -151,6 +164,7 @@ class ProgressBarRich(ProgressBarBase):
                 rich.progress.TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
                 rich.progress.TimeRemainingColumn(),
                 rich.progress.TimeElapsedColumn(),
+                rich.progress.TextColumn("[red]{task.fields[status]}"),
                 console=self.console,
                 transient=False,
                 expand=False,
@@ -168,8 +182,8 @@ class ProgressBarRich(ProgressBarBase):
         self.steps = 0
         self.indent = indent
 
-        padding = max(0, 50 - (self.indent * 4) - len(title))
-        self.task = self.progress.add_task(f"[red]{title}" + (" " * padding), total=1000, start=False)
+        padding = max(0, 50 - (self.indent * 4) - len(self.title))
+        self.task = self.progress.add_task(f"[red]{self.title}" + (" " * padding), total=1000, start=False, status=self.status or '')
         self.started = False
         self.subtasks = []
 
@@ -184,6 +198,10 @@ class ProgressBarRich(ProgressBarBase):
             delta = steps - self.steps
             if delta > 0:
                 self.progress.update(self.task, advance=delta, refresh=False)
+            else:
+                start_time = self.progress.tasks[0].start_time
+                self.progress.reset(self.task, completed=steps, refresh=False, status=self.status or '')
+                self.progress.tasks[0].start_time = start_time
             self.steps = steps
         self.value = value
 
@@ -193,4 +211,12 @@ class ProgressBarRich(ProgressBarBase):
     def finish(self):
         self(self.max_value)
         if self.parent is None:
+            self.progress.refresh()
+
+    def exit(self):
+        if self.parent is None:
             self.live.stop()
+
+    def set_status(self, status):
+        self.status = status
+        self.progress.update(self.task, status=self.status)

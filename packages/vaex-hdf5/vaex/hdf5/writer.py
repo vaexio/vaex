@@ -116,7 +116,7 @@ class Writer:
         if export_threads:
             pool = concurrent.futures.ThreadPoolExecutor(export_threads)
         for column_names_subgroup in vaex.itertools.chunked(column_names, column_count):
-            for i1, i2, values in df.evaluate(column_names_subgroup, chunk_size=chunk_size, filtered=True, parallel=parallel, array_type='numpy-arrow'):
+            for i1, i2, values in df.evaluate(column_names_subgroup, chunk_size=chunk_size, filtered=True, parallel=parallel, progress=progressbar, array_type='numpy-arrow'):
                 def write(arg):
                     i, name = arg
                     self.column_writers[name].write(values[i])

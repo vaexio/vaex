@@ -500,9 +500,8 @@ class GroupByBase(object):
         self.df = df
         self.sort = sort
         self.expand = expand  # keep as pyarrow struct?
-        self.progressbar = vaex.utils.progressbars(progress, title="groupby/binby")
+        self.progressbar = vaex.utils.progressbars(progress)
         self.progressbar_groupers = self.progressbar.add("groupers")
-        self.progressbar_agg = self.progressbar.add("aggregation")
 
         if not isinstance(by, collections_abc.Iterable)\
             or isinstance(by, six.string_types):
@@ -558,18 +557,16 @@ class GroupByBase(object):
                 self.binners = tuple(by.binner for by in self.by)
                 self.shape = [by.N for by in self.by]
                 self.dims = self.groupby_expression[:]
+                self.progressbar_groupers(1)
             return process(promise)
 
-        self._promise_by = possible_combine(*[by._promise for by in self.by])
+        self._promise_by = self.progressbar_groupers.exit_on(possible_combine(*[by._promise for by in self.by]))
 
     @property
     def _coords1d(self):
         return [k.bin_values for k in self.by]
 
-    def _agg(self, actions):
-        return self._promise_by.then(lambda x: self._agg_impl(actions))
-
-    def _agg_impl(self, actions):
+    def _agg(self, actions, progressbar_agg):
         df = self.df
         if isinstance(actions, collections_abc.Mapping):
             actions = list(actions.items())
@@ -585,7 +582,7 @@ class GroupByBase(object):
             if column_name is None or override_name is not None:
                 column_name = aggregate.pretty_name(override_name, df)
             aggregate.edges = True  # is this ok to override?
-            values = df._agg(aggregate, self.binners, delay=_USE_DELAY, progress=self.progressbar_agg)
+            values = df._agg(aggregate, self.binners, delay=_USE_DELAY, progress=progressbar_agg)
             grids[column_name] = values
             if isinstance(aggregate, vaex.agg.AggregatorDescriptorBasic)\
                 and aggregate.name == 'AggCount'\
@@ -701,15 +698,12 @@ class GroupByBase(object):
 
 class BinBy(GroupByBase):
     """Implementation of the binning and aggregation of data, see :method:`binby`."""
-    def __init__(self, df, by, sort=False):
-        super(BinBy, self).__init__(df, by, sort=sort)
+    def __init__(self, df, by, sort=False, progress=None):
+        super(BinBy, self).__init__(df, by, sort=sort, progress=progress)
 
-    def agg(self, actions, merge=False, delay=False):
+    def agg(self, actions, merge=False, delay=False, progress=None):
+        progressbar_agg = vaex.progress.tree(progress)
         import xarray as xr
-        @vaex.delayed
-        def aggregate(promise_by):
-            arrays = super(BinBy, self)._agg(actions)
-            return delayed_dict(arrays)
 
         @vaex.delayed
         def process(arrays):
@@ -735,7 +729,8 @@ class BinBy(GroupByBase):
                 dims = ['statistic'] + self.dims
                 return xr.DataArray(final_array, coords=coords, dims=dims)
 
-        result = process(aggregate(self._promise_by))
+        result = process(self._agg(actions, progressbar_agg))
+        progressbar_agg.exit_on(result)
         if delay:
             return result
         else:
@@ -747,12 +742,13 @@ class GroupBy(GroupByBase):
     def __init__(self, df, by, sort=False, combine=False, expand=True, row_limit=None, copy=True, progress=None):
         super(GroupBy, self).__init__(df, by, sort=sort, combine=combine, expand=expand, row_limit=row_limit, copy=copy, progress=progress)
 
-    def agg(self, actions, delay=False):
+    def agg(self, actions, delay=False, progress=None):
+        progressbar = vaex.progress.tree(progress)
         # TODO: this basically forms a cartesian product, we can do better, use a
         # 'multistage' hashmap
         @vaex.delayed
         def aggregate(promise_by):
-            arrays = super(GroupBy, self)._agg(actions)
+            arrays = super(GroupBy, self)._agg(actions, progressbar)
             # we don't want non-existing pairs (e.g. Amsterdam in France does not exist)
             # but also, e.g. GrouperInteger will always expect missing values
             # but they may not aways exist
@@ -761,7 +757,7 @@ class GroupBy(GroupByBase):
             if counts is None:
                 # TODO: it seems this path is never tested
                 count_agg = vaex.agg.count(edges=True)
-                counts = self.df._agg(count_agg, self.binners, delay=_USE_DELAY, progress=self.progressbar_agg)
+                counts = self.df._agg(count_agg, self.binners, delay=_USE_DELAY, progress=progressbar)
             arrays = delayed_dict(arrays)
             return counts, arrays
 
@@ -814,6 +810,7 @@ class GroupBy(GroupByBase):
             df_grouped = vaex.from_dataset(dataset)
             return df_grouped
         result = process(delayed_list(aggregate(self._promise_by)))
+        progressbar.exit_on(result)
         if delay:
             return result
         else:

@@ -2,7 +2,7 @@ import os
 import logging
 import vaex.utils
 import collections
-from dataclasses import dataclass
+
 
 try:
     collections_abc = collections.abc

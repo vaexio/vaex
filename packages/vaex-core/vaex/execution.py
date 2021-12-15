@@ -374,7 +374,13 @@ class ExecutorLocal(Executor):
                 #     self.zig = not self.zig
                 def progress(p):
                     # no global cancel and at least 1 tasks wants to continue, then we continue
-                    return all(self.signal_progress.emit(p)) and any([task.progress(p) for task in tasks])
+                    ok_tasks = any([task.progress(p) for task in tasks])
+                    ok_executor = all(self.signal_progress.emit(p))
+                    if not ok_tasks:
+                        logger.debug("Pass cancelled because all tasks cancelled: %r", tasks)
+                    if not ok_executor:
+                        logger.debug("Pass cancelled because of the global progress event: %r", self.signal_progress.callbacks)
+                    return ok_tasks and ok_executor
                 async for _element in self.thread_pool.map_async(self.process_part, dataset.chunk_iterator(run.dataset_deps, chunk_size),
                                                     dataset.row_count,
                                                     progress=progress,

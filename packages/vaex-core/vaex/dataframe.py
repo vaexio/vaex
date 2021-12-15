@@ -646,7 +646,7 @@ class DataFrame(object):
             set_result = self._set(expression, progress=progressbar, selection=selection, flatten=axis is None, delay=True)
             if return_inverse:
                 progress_inverse = progressbar.add("find inverse")
-            return self._delay(delay, process(set_result))
+            return self._delay(delay, progressbar.exit_on(process(set_result)))
 
 
     @docsubst
@@ -897,7 +897,7 @@ class DataFrame(object):
                 raise RuntimeError(f'Unknown array_type {format}')
         stats = [compute(expression, binners, selection=selection, edges=edges) for expression in expressions]
         var = finish(binners, *stats)
-        return self._delay(delay, var)
+        return self._delay(delay, progressbar.exit_on(var))
 
     @docsubst
     def count(self, expression=None, binby=[], limits=None, shape=default_shape, selection=False, delay=False, edges=False, progress=None, array_type=None):
@@ -6720,18 +6720,18 @@ class DataFrameLocal(DataFrame):
         :return:
         """
         from vaex.hdf5.writer import Writer
-        progressbar = vaex.utils.progressbars(progress, title="export(hdf5)")
-        progressbar_layout = progressbar.add("layout file structure")
-        progressbar_write = progressbar.add("write data")
-        with Writer(path=path, group=group, mode=mode, byteorder=byteorder) as writer:
-            writer.layout(self, progress=progressbar_layout)
-            writer.write(
-                self,
-                chunk_size=chunk_size,
-                progress=progressbar_write,
-                column_count=column_count,
-                parallel=parallel,
-                export_threads=writer_threads)
+        with vaex.utils.progressbars(progress, title="export(hdf5)") as progressbar:
+            progressbar_layout = progressbar.add("layout file structure")
+            progressbar_write = progressbar.add("write data")
+            with Writer(path=path, group=group, mode=mode, byteorder=byteorder) as writer:
+                writer.layout(self, progress=progressbar_layout)
+                writer.write(
+                    self,
+                    chunk_size=chunk_size,
+                    progress=progressbar_write,
+                    column_count=column_count,
+                    parallel=parallel,
+                    export_threads=writer_threads)
 
     @docsubst
     def export_fits(self, path, progress=None):
@@ -6861,20 +6861,24 @@ class DataFrameLocal(DataFrame):
             Throws a :py:`vaex.RowLimitException` when the condition is not met.
         :param bool copy: Copy the dataframe (shallow, does not cost memory) so that the fingerprint of the original dataframe is not modified.
         :param bool delay: {delay}
+        :param progress: {progress}
         :return: :class:`DataFrame` or :class:`GroupBy` object.
         """
         from .groupby import GroupBy
-        groupby = GroupBy(self, by=by, sort=sort, combine=assume_sparse, row_limit=row_limit, copy=copy, progress=progress)
+        progressbar = vaex.utils.progressbars(progress, title="groupby")
+        groupby = GroupBy(self, by=by, sort=sort, combine=assume_sparse, row_limit=row_limit, copy=copy, progress=progressbar)
+        if agg:
+            progressbar_agg = progressbar.add('aggregators')
         @vaex.delayed
         def next(_ignore):
             if agg is None:
                 return groupby
             else:
-                return groupby.agg(agg, delay=delay)
-        return self._delay(delay, next(groupby._promise_by))
+                return groupby.agg(agg, delay=delay, progress=progressbar_agg)
+        return self._delay(delay, progressbar.exit_on(next(groupby._promise_by)))
 
     @docsubst
-    def binby(self, by=None, agg=None, sort=False, delay=False):
+    def binby(self, by=None, agg=None, sort=False, delay=False, progress=None):
         """Return a :class:`BinBy` or :class:`DataArray` object when agg is not None
 
         The binby operation does not return a 'flat' DataFrame, instead it returns an N-d grid
@@ -6885,17 +6889,21 @@ class DataFrameLocal(DataFrame):
             where the keys indicate the target column names, and the values the operations, or the a list of aggregates.
             When not given, it will return the binby object.
         :param bool delay: {delay}
+        :param progress: {progress}
         :return: :class:`DataArray` or :class:`BinBy` object.
         """
         from .groupby import BinBy
-        binby = BinBy(self, by=by, sort=sort)
+        progressbar = vaex.utils.progressbars(progress, title="binby")
+        binby = BinBy(self, by=by, sort=sort, progress=progressbar)
+        if agg:
+            progressbar_agg = progressbar.add('aggregators')
         @vaex.delayed
         def next(_ignore):
             if agg is None:
                 return binby
             else:
-                return binby.agg(agg, delay=delay)
-        return self._delay(delay, next(binby._promise_by))
+                return binby.agg(agg, delay=delay, progress=progressbar_agg)
+        return self._delay(delay, progressbar.exit_on(next(binby._promise_by)))
 
     def _selection(self, create_selection, name, executor=None, execute_fully=False):
         def create_wrapper(current):
