@@ -224,6 +224,8 @@ jobs:
         vaex convert ~/.vaex/data/helmi-dezeeuw-2000-FeH-v2-10percent.hdf5 test.parquet
         pip install rich
         VAEX_PROGRESS_TYPE=rich vaex convert ~/.vaex/data/helmi-dezeeuw-2000-FeH-v2-10percent.hdf5 test.parquet
+        vaex settings yaml
+        vaex settings md
 
     - name: Test server
       run: |

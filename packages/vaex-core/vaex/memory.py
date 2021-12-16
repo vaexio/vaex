@@ -3,10 +3,9 @@ import math
 import threading
 
 import pkg_resources
+import vaex.settings
 
-memory_tracker_type = os.environ.get("VAEX_MEMORY_TRACKER", "default")
-# thread local variable, where 'global' tracker go, options are
-# * agg
+# thread local variable, where 'global' tracker go
 local = threading.local()
 _memory_tracker_types = {}
 lock = threading.Lock()
@@ -26,6 +25,7 @@ class MemoryTracker:
 
 
 def create_tracker():
+    memory_tracker_type = vaex.settings.main.memory_tracker.type
     if not _memory_tracker_types:
         with lock:
             if not _memory_tracker_types:

@@ -2,9 +2,10 @@ __author__ = 'maartenbreddels'
 import sys
 import vaex.utils
 import vaex as vx
+import vaex.settings
 import os
 # data_dir = "/tmp/vaex/data"
-data_dir = vaex.utils.get_private_dir("data")
+data_dir = vaex.settings.main.data.path
 
 try:
     from urllib import urlretrieve  # py2
@@ -30,6 +31,7 @@ class Hdf5Download(object):
 
     @property
     def filename(self):
+        os.makedirs(data_dir, exist_ok=True)
         return os.path.join(data_dir, _url_to_filename(self.url))
 
     def download(self, force=False):

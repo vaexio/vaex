@@ -21,7 +21,7 @@ logger = logging.getLogger("vaex.file")
 dataset_type_map = {}
 
 osname = vaex.utils.osname
-no_mmap = os.environ.get('VAEX_NO_MMAP', False)
+no_mmap = not vaex.settings.main.mmap
 
 
 
