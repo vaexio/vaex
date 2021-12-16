@@ -311,7 +311,7 @@ class DatasetArrowIPCFile(DatasetArrowFileBase):
         self._source = vaex.file.open(path=self.path, mode='rb', fs_options=self.fs_options, fs=self.fs, mmap=True, for_arrow=True)
         reader = pa.ipc.open_file(self._source)
         batches = [reader.get_batch(i) for i in range(reader.num_record_batches)]
-        table = pa.Table.from_batches(batches)
+        table = pa.Table.from_batches(batches, schema=reader.schema)
         self._columns = dict(zip(table.schema.names, table.columns))
 
 
@@ -321,7 +321,7 @@ class DatasetArrowIPCStream(DatasetArrowFileBase):
     def _create_columns(self):
         self._source = vaex.file.open(path=self.path, mode='rb', fs_options=self.fs_options, fs=self.fs, mmap=True, for_arrow=True)
         reader = pa.ipc.open_stream(self._source)
-        table = pa.Table.from_batches(reader)
+        table = pa.Table.from_batches(reader, schema=reader.schema)
         self._columns = dict(zip(table.schema.names, table.columns))
 
 
