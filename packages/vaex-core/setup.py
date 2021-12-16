@@ -183,6 +183,12 @@ setup(name=name + '-core',
           'vaex.memory.tracker': [
               'default = vaex.memory:MemoryTracker'
           ],
+          'vaex.progressbar': [
+              'vaex = vaex.progress:simple',
+              'simple = vaex.progress:simple',
+              'widget = vaex.progress:widget',
+              'rich = vaex.progress:rich',
+          ],
           'vaex.file.scheme': [
               's3 = vaex.file.s3',
               'fsspec+s3 = vaex.file.s3fs',

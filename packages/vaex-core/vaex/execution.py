@@ -9,6 +9,7 @@ import math
 import multiprocessing
 import logging
 import queue
+from typing import List
 
 import dask.utils
 import numpy as np
@@ -162,6 +163,7 @@ def _merge_tasks_for_df(tasks, df):
                 subtask.fulfill(value[i])
             assign(task_merged)
             task_merged.done(None, subtask.reject)
+            task_merged.signal_start.connect(subtask.signal_start.emit)
         tasks_merged.append(task_merged)
     return tasks_non_mergable + tasks_merged
 
@@ -169,7 +171,7 @@ def _merge_tasks_for_df(tasks, df):
 class Executor:
     """An executor is responsible to executing tasks, they are not reentrant, but thread safe"""
     def __init__(self, async_method=async_default):
-        self.tasks = []
+        self.tasks : List[Task] = []
         self.async_method = async_method
         self.signal_begin = vaex.events.Signal("begin")
         self.signal_progress = vaex.events.Signal("progress")
@@ -321,6 +323,9 @@ class ExecutorLocal(Executor):
                             raise
 
                 for task in run.tasks:
+                    task.signal_start.emit(self)
+
+                for task in run.tasks:
                     task._results = []
                     if not any(task.signal_progress.emit(0)):
                         logger.debug("task cancelled immediately")
@@ -374,7 +379,13 @@ class ExecutorLocal(Executor):
                 #     self.zig = not self.zig
                 def progress(p):
                     # no global cancel and at least 1 tasks wants to continue, then we continue
-                    return all(self.signal_progress.emit(p)) and any([task.progress(p) for task in tasks])
+                    ok_tasks = any([task.progress(p) for task in tasks])
+                    ok_executor = all(self.signal_progress.emit(p))
+                    if not ok_tasks:
+                        logger.debug("Pass cancelled because all tasks cancelled: %r", tasks)
+                    if not ok_executor:
+                        logger.debug("Pass cancelled because of the global progress event: %r", self.signal_progress.callbacks)
+                    return ok_tasks and ok_executor
                 async for _element in self.thread_pool.map_async(self.process_part, dataset.chunk_iterator(run.dataset_deps, chunk_size),
                                                     dataset.row_count,
                                                     progress=progress,

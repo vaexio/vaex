@@ -36,6 +36,7 @@ dependencies:
 - pytest-timeout
 - python-graphviz
 - py-xgboost
+- rich
 - s3fs>=2021.8.0
 - scikit-learn
 - scipy

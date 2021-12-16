@@ -77,6 +77,7 @@ setup(
             's3fs',
             'graphviz',
             'myst_parser',
+            'rich',
             # For generating the documentation
             'sphinx',
             'nbsphinx',

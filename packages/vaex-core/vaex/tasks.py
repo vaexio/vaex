@@ -75,6 +75,7 @@ class Task(vaex.promise.Promise):
         self.df = df
         self.expressions = expressions
         self.expressions_all = list(expressions)
+        self.signal_start = vaex.events.Signal("start of task")
         self.signal_progress = vaex.events.Signal("progress (float)")
         self.progress_fraction = 0
         self.signal_progress.connect(self._set_progress)

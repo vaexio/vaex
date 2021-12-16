@@ -55,6 +55,7 @@ import vaex.datasets
 # del ServerRest, DataFrame
 
 import vaex.settings
+import vaex.progress
 import logging
 import pkg_resources
 import os
