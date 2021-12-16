@@ -46,8 +46,9 @@ def test_progress_error():
             df._set('x', progress=progressbar, unique_limit=1)
         except vaex.RowLimitException:
             pass
-        assert progressbar.finished
         assert progressbar.children[0].bar.status.startswith('Resulting set would')
+        assert progressbar.children[0].finished
+        assert progressbar.finished
         # assert progressbar.children[0].bar.status == 'from cache'
 
 

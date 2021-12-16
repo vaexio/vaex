@@ -115,6 +115,8 @@ class ProgressTree:
                 pb.bar.set_status(str(exc))
                 pb(pb.last_fraction)
                 pb.finished = True
+                if pb.root is not pb:
+                    pb.root(None)
         def on_start(executor):
             passes = executor.passes
             if self.root.passes_start is None:
