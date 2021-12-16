@@ -622,6 +622,8 @@ class DataFrame(object):
                     keys = np.array(keys)
                 else:
                     keys = ordered_set.key_array()
+                    if data_type_item.is_datetime or data_type_item.is_timedelta:
+                        keys = keys.view(data_type_item.numpy)
                     deletes = []
                     if dropmissing and ordered_set.has_null:
                         deletes.append(ordered_set.null_value)
