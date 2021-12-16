@@ -23,3 +23,16 @@ def test_chunks(df_trimmed, tmpdir):
     df_read = vaex.open(path)
     assert isinstance(df_read.columns['x'], pa.ChunkedArray)
     assert df_read.x.tolist() == df.x.tolist()
+
+
+@pytest.mark.parametrize("as_stream", [True, False])
+def test_empty(tmpdir, as_stream):
+    path = str(tmpdir.join('test.arrow'))
+    schema = pa.schema([pa.field("x", pa.string())])
+    with open(path, mode='wb') as f:
+        if as_stream:
+            writer = pa.ipc.new_stream(f, schema)
+        else:
+            writer = pa.ipc.new_file(f, schema)
+        writer.close()
+    vaex.open(path)
