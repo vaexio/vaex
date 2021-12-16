@@ -6807,7 +6807,9 @@ class DataFrameLocal(DataFrame):
     def drop_duplicates(self, columns=None):
         """Return a :class:`DataFrame` object with no duplicates in the given columns.
 
-        :param columns: Columns to remove duplicates by, default to all columns. If only one columns, no need to pass in a list (str or `df.col_name` will work).
+        .. warning:: The resulting dataframe will be in memory, use with caution.
+
+        :param columns: Column or list of column to remove duplicates by, default to all columns.
         :return: :class:`DataFrame` object with duplicates filtered away.
         """
         if columns is None:
@@ -6815,7 +6817,7 @@ class DataFrameLocal(DataFrame):
         if type(columns) is str:
             columns = [columns]
 
-        return self.groupby(columns, agg={'__hidden_count': vaex.agg.count()})
+        return self.groupby(columns, agg={'__hidden_count': vaex.agg.count()}).drop('__hidden_count')
 
     @docsubst
     def groupby(self, by=None, agg=None, sort=False, assume_sparse='auto', row_limit=None, copy=True, progress=None, delay=False):

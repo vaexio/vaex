@@ -13,6 +13,7 @@ def test_all_columns(df):
 
     assert (all_drop.values == default_drop.values).all()
     assert len(all_drop) == 4
+    assert '__hidden_count' not in default_drop.get_column_names(hidden=True)
 
 
 def test_drop_single_column(df):
