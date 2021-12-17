@@ -75,43 +75,42 @@ __kernel void vaex_kernel(%s,
         self.program = cl.Program(self.context, sourcecode).build()
 
         def wrapper(*args):
-            # with lock:
-            if 1:
-                queue = cl.CommandQueue(self.context)
-                args = [vaex.array_types.to_numpy(ar) for ar in args]
-                nannies = []
-                def getbuf(name, value=None, dtype=np.dtype("float32"), N=None, write=False):
-                    buf = getattr(storage, name, None)
-                    if value is not None:
-                        N = len(value)
-                        dtype = value.dtype
-                    if dtype.name == "float64":
-                        warnings.warn("Casting input argument from float64 to float32 since Metal does not support float64")
-                        dtype = np.dtype("float32")
-                    nbytes = N * dtype.itemsize
-                    if buf is not None and buf.size != nbytes:
-                        # doesn't match size, create a new one
-                        buf = None
-                    # create a buffer
-                    if buf is None:
-                        buf = cl.Buffer(self.context, mf.READ_ONLY if not write else mf.READ_WRITE, size=nbytes)# | mf.COPY_HOST_PTR, hostbuf=value.astype(dtype, copy=False).view('uint8'))
-                        setattr(storage, name, buf)
-                    # copy data to buffer
-                    if value is not None:
-                        data = value.astype(dtype, copy=False)
-                        mv = memoryview(data)
-                        ret = cl.enqueue_copy(queue, buf, mv)
-                        nannies.append(ret)
-                        # print(ret)
-                    return buf
-                input_buffers = [getbuf(name, chunk) for name, chunk in zip(self.arguments, args)]
-                output_buffer = getbuf('vaex_output', N=len(args[0]), dtype=dtype_out, write=True)
-                buffers = input_buffers + [output_buffer]
+            queue = cl.CommandQueue(self.context)
+            args = [vaex.array_types.to_numpy(ar) for ar in args]
+            nannies = []
+            def getbuf(name, value=None, dtype=np.dtype("float32"), N=None, write=False):
+                buf = getattr(storage, name, None)
+                if value is not None:
+                    N = len(value)
+                    dtype = value.dtype
+                if dtype.name == "float64":
+                    warnings.warn("Casting input argument from float64 to float32 since Metal does not support float64")
+                    dtype = np.dtype("float32")
+                nbytes = N * dtype.itemsize
+                if buf is not None and buf.size != nbytes:
+                    # doesn't match size, create a new one
+                    buf = None
+                # create a buffer
+                if buf is None:
+                    print("create", nbytes)
+                    buf = cl.Buffer(self.context, mf.READ_ONLY if not write else mf.READ_WRITE, size=nbytes)
+                    setattr(storage, name, buf)
+                # copy data to buffer
+                if value is not None:
+                    data = value.astype(dtype, copy=False)
+                    mv = memoryview(data)
+                    ret = cl.enqueue_copy(queue, buf, mv)
+                    nannies.append(ret)
+                    # print(ret)
+                return buf
+            input_buffers = [getbuf(name, chunk) for name, chunk in zip(self.arguments, args)]
+            output_buffer = getbuf('vaex_output', N=len(args[0]), dtype=dtype_out, write=True)
+            buffers = input_buffers + [output_buffer]
 
-                self.program.vaex_kernel(queue, args[0].shape, None, *buffers)
-                
-                result = np.empty(shape=(len(args[0])), dtype=dtype_out)
-                cl.enqueue_copy(queue, result, output_buffer)
-                queue.finish()
-                return result
+            self.program.vaex_kernel(queue, args[0].shape, None, *buffers)
+            
+            result = np.empty(shape=(len(args[0])), dtype=dtype_out)
+            cl.enqueue_copy(queue, result, output_buffer)
+            queue.finish()
+            return result
         return wrapper
