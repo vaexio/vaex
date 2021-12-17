@@ -3,6 +3,7 @@ import numpy as np
 pytest.importorskip("sklearn.metrics")
 from sklearn import metrics
 
+import vaex.datasets
 import vaex.ml
 import vaex.ml.metrics
 from vaex.ml.metrics import ensure_string_arguments
@@ -18,7 +19,7 @@ df_multi_class_strings = vaex.from_arrays(x=['dog', 'cat', 'dog', 'dog', 'cat', 
 
 
 def test_ensure_string_arguments():
-    df = vaex.ml.datasets.load_iris()
+    df = vaex.datasets.iris()
     assert ensure_string_arguments(df.class_) == ['class_']
     set(ensure_string_arguments(df.class_, df.sepal_length)) == set(['class_', 'sepal_length'])
     set(ensure_string_arguments('petal_width', df.sepal_length)) == set(['petal_width', 'sepal_length'])
@@ -78,21 +79,21 @@ def test_confusion_matrix(df):
 
 
 def test_mean_absolute_error():
-    df = vaex.ml.datasets.load_iris()
+    df = vaex.datasets.iris()
     vaex_result = df.ml.metrics.mean_absolute_error(df.petal_width, df.petal_length)
     sklearn_result = metrics.mean_absolute_error(df.petal_width.values, df.petal_length.values)
     assert vaex_result == sklearn_result
 
 
 def test_mean_squared_error():
-    df = vaex.ml.datasets.load_iris()
+    df = vaex.datasets.iris()
     vaex_result = df.ml.metrics.mean_squared_error(df.petal_width, df.petal_length)
     sklearn_result = metrics.mean_squared_error(df.petal_width.values, df.petal_length.values)
     assert vaex_result == sklearn_result
 
 
 def test_r2_score():
-    df = vaex.ml.datasets.load_iris()
+    df = vaex.datasets.iris()
     vaex_result = df.ml.metrics.r2_score(df.petal_width, df.petal_length)
     sklearn_result = metrics.r2_score(df.petal_width.values, df.petal_length.values)
     np.testing.assert_array_almost_equal(vaex_result, sklearn_result, decimal=7)

@@ -2,8 +2,8 @@ import pytest
 pytest.importorskip("sklearn")
 import sys
 import numpy as np
+import vaex.datasets
 import vaex.ml.linear_model
-import vaex.ml.datasets
 
 features = ['petal_length', 'petal_width', 'sepal_length', 'sepal_width']
 

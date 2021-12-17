@@ -71,7 +71,7 @@ class ANNOYModel(state.HasState):
 
 
 if __name__ == "__main__":
-    ds = vaex.ml.datasets.load_iris()
+    ds = vaex.datasets.iris()
     ds_train, ds_test = ds.ml.train_test_split()
     features = ds_train.column_names[:4]
     m = ANNOYModel(features=features, n_trees=50)

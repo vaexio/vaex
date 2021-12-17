@@ -150,7 +150,7 @@ def test_filter_rename_column():
 
 
 def test_state_load_gcs():
-    df = vaex.ml.datasets.load_iris()
+    df = vaex.datasets.iris()
     f = vaex.file.open('gs://vaex-data/testing/test_iris_state.json', fs_options={'token': 'anon', 'cache': True})
     import io
     f = io.TextIOWrapper(f, encoding='utf8')

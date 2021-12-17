@@ -636,8 +636,8 @@ class GroupByBase(object):
         Example:
 
         >>> import vaex
-        >>> import vaex.ml
-        >>> df = vaex.ml.datasets.load_titanic()
+        >>> import vaex.datasets
+        >>> df = vaex.datasets.titanic()
         >>> g1 = df.groupby(by='pclass')
         >>> df_group1 = g1.get_group(1)
         >>> df_group1.head(3)
@@ -647,7 +647,7 @@ class GroupByBase(object):
           2  Allison, Miss. Helen Loraine           1  female   2       151.55
 
 
-        >>> df = vaex.ml.datasets.load_titanic()
+        >>> df = vaex.datasets.titanic()
         >>> g2 = df.groupby(by=['pclass', 'sex'])
         >>> df_group2 = g2.get_group([1, 'female'])
         >>> df_group2.head(3)
