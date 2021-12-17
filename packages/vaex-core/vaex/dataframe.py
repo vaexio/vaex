@@ -6891,7 +6891,7 @@ class DataFrameLocal(DataFrame):
         return self._delay(delay, progressbar.exit_on(next(groupby._promise_by)))
 
     @docsubst
-    def binby(self, by=None, agg=None, sort=False, delay=False, progress=None):
+    def binby(self, by=None, agg=None, sort=False, copy=True, delay=False, progress=None):
         """Return a :class:`BinBy` or :class:`DataArray` object when agg is not None
 
         The binby operation does not return a 'flat' DataFrame, instead it returns an N-d grid
@@ -6901,13 +6901,14 @@ class DataFrameLocal(DataFrame):
         :param dict, list or agg agg: Aggregate operation in the form of a string, vaex.agg object, a dictionary
             where the keys indicate the target column names, and the values the operations, or the a list of aggregates.
             When not given, it will return the binby object.
+        :param bool copy: Copy the dataframe (shallow, does not cost memory) so that the fingerprint of the original dataframe is not modified.
         :param bool delay: {delay}
         :param progress: {progress}
         :return: :class:`DataArray` or :class:`BinBy` object.
         """
         from .groupby import BinBy
         progressbar = vaex.utils.progressbars(progress, title="binby")
-        binby = BinBy(self, by=by, sort=sort, progress=progressbar)
+        binby = BinBy(self, by=by, sort=sort, progress=progressbar, copy=copy)
         if agg:
             progressbar_agg = progressbar.add('aggregators')
         @vaex.delayed

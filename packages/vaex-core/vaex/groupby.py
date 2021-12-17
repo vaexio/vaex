@@ -698,8 +698,8 @@ class GroupByBase(object):
 
 class BinBy(GroupByBase):
     """Implementation of the binning and aggregation of data, see :method:`binby`."""
-    def __init__(self, df, by, sort=False, progress=None):
-        super(BinBy, self).__init__(df, by, sort=sort, progress=progress)
+    def __init__(self, df, by, sort=False, progress=None, copy=True):
+        super(BinBy, self).__init__(df, by, sort=sort, progress=progress, copy=copy)
 
     def agg(self, actions, merge=False, delay=False, progress=None):
         progressbar_agg = vaex.progress.tree(progress)
