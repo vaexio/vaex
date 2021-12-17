@@ -3000,7 +3000,11 @@ class DataFrame(object):
                 iter = self._unfiltered_chunk_slices(chunk_size)
                 def f(i1, i2):
                     return self._evaluate_implementation(expression, i1=i1, i2=i2, out=out, selection=selection, filtered=filtered, array_type=array_type, parallel=parallel, raw=True)
-                previous_l1, previous_l2, previous_i1, previous_i2 = next(iter)
+                try:
+                    previous_l1, previous_l2, previous_i1, previous_i2 = next(iter)
+                except StopIteration:
+                    # empty dataframe/filter
+                    return
                 # we submit the 1st job
                 previous = executor.submit(f, previous_i1, previous_i2)
                 for l1, l2, i1, i2 in iter:
@@ -6297,7 +6301,14 @@ class DataFrameLocal(DataFrame):
             return result
         else:
             assert df is self
+            if i1 == i2:  # empty arrays
+                values = [array_types.convert(self.data_type(e).create_array([]), array_type) for e in expressions]
+                if not was_list:
+                    return values[0]
+                return values
             if not raw and self.filtered and filtered:
+
+
                 self._fill_filter_mask()  # fill caches and masks
                 mask = self._selection_masks[FILTER_SELECTION_NAME]
                 # if _DEBUG:

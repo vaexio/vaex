@@ -122,6 +122,8 @@ def subdivide_mask(mask, parts=None, max_length=None, logical_length=None):
     """
     if logical_length is None:
         logical_length = np.asarray(mask).sum()
+    if logical_length == 0:
+        return
     raw_length = len(np.asarray(mask))
     if max_length is None:
         max_length = (logical_length + parts - 1) / parts

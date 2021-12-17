@@ -179,3 +179,16 @@ def test_evaluate_no_execute():
         method.assert_not_called()
         df.evaluate(df["%"])
         method.assert_called_once()
+
+
+@pytest.mark.parametrize("parallel", [True, False])
+@pytest.mark.parametrize("prefetch", [True, False])
+def test_evaluate_empty(parallel, prefetch):
+    df = vaex.from_arrays(x=[1, 2])
+    dff = df[df.x > 10]
+    assert dff.x.tolist() == []
+    assert dff.evaluate('x', parallel=parallel).tolist() == []
+    for i1, i2, chunks in dff.evaluate_iterator('x', chunk_size=10, parallel=parallel, prefetch=prefetch):
+        raise RuntimeError('unexpected')
+    for i1, i2, chunks in dff.to_arrow_table('x', chunk_size=10, parallel=parallel):
+        raise RuntimeError('unexpected')
