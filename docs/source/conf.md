@@ -47,7 +47,13 @@ thread_count: 10
 
 When updating `vaex/settings.py`, run the `vaex settings watch` to generate this documentation below automatically when saving the file.
 
+## Schema
 
+A JSON schema can be generated using
+
+```
+$ vaex settings schema > vaex-settings.schema.json
+```
 
 <!-- autogenerate markdown below -->
 
