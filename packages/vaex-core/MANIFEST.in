@@ -1,3 +1,5 @@
 include LICENSE.txt
 recursive-include vendor *.hpp *.cpp *.h *.c *.ipp
 recursive-include src *.hpp *.cpp *.h *.c
+include vaex/datasets/iris.hdf5
+include vaex/datasets/titanic.hdf5

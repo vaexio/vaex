@@ -1,5 +1,2 @@
 include LICENSE.txt
-include vaex/ml/datasets/iris.hdf5
-include vaex/ml/datasets/titanic.hdf5
-include vaex/ml/datasets/titanic.hdf5
 include vaex/ml/spec.json
