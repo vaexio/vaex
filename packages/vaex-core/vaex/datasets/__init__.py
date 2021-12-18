@@ -1,6 +1,7 @@
 import vaex.utils
 import vaex
 import os
+import numpy as np
 # data_dir = "/tmp/vaex/data"
 data_dir = vaex.settings.main.data.path
 
@@ -120,7 +121,6 @@ def iris_1e5():
 
 def iris_1e6():
     '''Returns the iris set repeated so it include ~1e6 rows'''
-
     return _iris('iris_1e6', iris_1e5, int(1e6))
 
 
