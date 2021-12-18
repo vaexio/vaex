@@ -614,7 +614,7 @@ def connect(url, **kwargs):
     return connect(url, **kwargs)
 
 def example():
-    return vaex.datasets.astronomy()
+    return vaex.datasets.helmi_simulation_data()
 
 # create named logger, for all loglevels
 logger = logging.getLogger('vaex')

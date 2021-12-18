@@ -162,7 +162,7 @@ def taxi():
     '''
     return Hdf5Download("https://github.com/vaexio/vaex-datasets/releases/download/1.1/yellow_taxi_2012_zones.parquet").fetch()
 
-def astronomy(full=False):
+def helmi_simulation_data(full=False):
     '''Result of an N-body simulation of the accretion of 33 satellite galaxies into a Milky Way dark matter halo.
 
     Data was greated by Helmi & de Zeeuw 2000.
@@ -176,6 +176,18 @@ def astronomy(full=False):
         return Hdf5Download("https://github.com/vaexio/vaex-datasets/releases/download/v1.0/helmi-dezeeuw-2000-FeH-v2-10percent.hdf5").fetch()
     return Hdf5Download("https://github.com/vaexio/vaex-datasets/releases/download/v1.0/helmi-dezeeuw-2000-FeH-v2.hdf5").fetch()
 
+def tgas(full=False):
+    '''The Tycho-Gaia Astronomical Solution Dataset.
 
-# tgas = Hdf5Download("https://github.com/vaexio/vaex-datasets/releases/download/v1.0/tgas.hdf5")
-# tgas_1percent = Hdf5Download("https://github.com/vaexio/vaex-datasets/releases/download/v1.0/tgas_1percent.hdf5")
+    This dataset combines data of the Hipparcos and Tycho catalogues with the Gaia DR1
+    catalogue in order to provide a full astrometric solution for the Gaia data for
+    the stars in common.
+
+    :param bool full: If True, it returns the full output of the simulation, i.e 2 million rows. Otherwise only 1% is returned.
+
+    For more information about this datasets visit https://gea.esac.esa.int/archive/documentation/GDR1/Data_processing/chap_cu3tyc/
+    '''
+    if full:
+        return Hdf5Download("https://github.com/vaexio/vaex-datasets/releases/download/v1.0/tgas.hdf5").fetch()
+    else:
+        return Hdf5Download("https://github.com/vaexio/vaex-datasets/releases/download/v1.0/tgas_1percent.hdf5").fetch()
