@@ -28,7 +28,6 @@ import vaex.server
 import vaex.settings
 import vaex.server.websocket
 
-global_lock = asyncio.Lock()
 logger = logging.getLogger("vaex.server")
 VAEX_FAVICON = 'https://vaex.io/img/logos/vaex_alt.png'
 HERE = pathlib.Path(__file__).parent
@@ -137,9 +136,7 @@ async def dataset(dataset_id: str = path_dataset):
 async def get_df(name):
     if name not in datasets:
         raise HTTPException(status_code=404, detail=f"dataset {name!r} not found")
-    # for now we only allow 1 request to execute at a time
-    async with global_lock:
-        yield vaex.from_dataset(datasets[name])
+    yield vaex.from_dataset(datasets[name])
 
 
 async def _compute_histogram(input: HistogramInput) -> HistogramOutput:
