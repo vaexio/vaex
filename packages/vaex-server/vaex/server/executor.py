@@ -12,6 +12,9 @@ class Executor(vaex.execution.Executor):
         # TODO: turn evaluate into a task
         return self.client._rmi(df, methodname, args, kwargs)
 
+    def execute(self):
+        self.run(self.execute_async())
+
     async def execute_async(self):
         self.signal_begin.emit()
         cancelled = False
