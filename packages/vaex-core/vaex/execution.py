@@ -2,6 +2,7 @@ from __future__ import division, print_function
 import ast
 import asyncio
 from collections import defaultdict
+import contextlib
 import os
 import time
 import threading
@@ -183,6 +184,16 @@ class Executor:
             self.isnested = contextvars.ContextVar('executor', default=False)
         self.lock = threading.Lock()
         self.event_loop = asyncio.new_event_loop()
+
+    @contextlib.asynccontextmanager
+    async def auto_execute(self):
+        '''This async executor will start executing tasks automatically when a task is awaited for.'''
+        vaex.promise.auto_await_executor.set(self)
+        try:
+            yield
+            await self.execute_async()
+        finally:
+            vaex.promise.auto_await_executor.set(None)
 
     async def execute_async(self):
         raise NotImplementedError
