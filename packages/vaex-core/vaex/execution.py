@@ -175,10 +175,10 @@ class Executor:
         self.event_loop = asyncio.new_event_loop()
 
     async def execute_async(self):
-        pass
+        raise NotImplementedError
 
     def execute(self):
-        return self.run(self.execute_async())
+        raise NotImplementedError
 
     def run(self, coro):
         async_method = self.async_method or vaex.settings.main.async_
@@ -267,6 +267,14 @@ class ExecutorLocal(Executor):
         return chunk_size
 
     async def execute_async(self):
+        for _ in self.execute_generator():
+            await asyncio.sleep(1e-5)  # allow task switch
+
+    def execute(self):
+        for _ in self.execute_generator():
+            pass  # just eat all elements
+
+    def execute_generator(self):
         logger.debug("starting with execute")
 
         with self.lock:  # setup thread local initial values
@@ -382,11 +390,12 @@ class ExecutorLocal(Executor):
                     if not ok_executor:
                         logger.debug("Pass cancelled because of the global progress event: %r", self.signal_progress.callbacks)
                     return ok_tasks and ok_executor
-                async for _element in self.thread_pool.map_async(self.process_part, dataset.chunk_iterator(run.dataset_deps, chunk_size),
+                for _element in self.thread_pool.map(self.process_part, dataset.chunk_iterator(run.dataset_deps, chunk_size),
                                                     dataset.row_count,
                                                     progress=progress,
                                                     cancel=lambda: self._cancel(run), unpack=True, run=run):
                     pass  # just eat all element
+                    yield
                 duration_wallclock = time.time() - t0
                 logger.debug("executing took %r seconds", duration_wallclock)
                 self.local.executing = False
