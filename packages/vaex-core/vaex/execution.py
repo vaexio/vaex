@@ -23,6 +23,13 @@ import vaex.vaexfast
 import vaex.events
 import vaex.settings
 
+try:
+    # support py 36 for the moment
+    import contextvars
+    has_contextvars = True
+except ImportError:
+    has_contextvars = False
+
 
 logger = logging.getLogger("vaex.execution")
 
@@ -171,6 +178,9 @@ class Executor:
         self.signal_end = vaex.events.Signal("end")
         self.signal_cancel = vaex.events.Signal("cancel")
         self.local = threading.local()  # to make it non-reentrant
+        if has_contextvars:
+            # used for calling execute_async from different async callstacks
+            self.isnested = contextvars.ContextVar('executor', default=False)
         self.lock = threading.Lock()
         self.event_loop = asyncio.new_event_loop()
 
@@ -296,13 +306,15 @@ class ExecutorLocal(Executor):
                 chunk_executor_thread = threading.current_thread() in self.thread_pool._threads
                 import traceback
                 trace = ''.join(traceback.format_stack())
-                if chunk_executor_thread or self.local.executing:
+                if chunk_executor_thread or self.local.executing and (has_contextvars is False or self.isnested.get() is True):
                     logger.error("nested execute call")
                     raise RuntimeError("nested execute call: %r %r\nlast trace:\n%s\ncurrent trace:\n%s" % (chunk_executor_thread, self.local.executing, self.local.last_trace, trace))
                 else:
                     self.local.last_trace = trace
 
                 self.local.executing = True
+                if has_contextvars:
+                    self.isnested.set(True)
 
                 if not tasks:
                     break
@@ -399,6 +411,8 @@ class ExecutorLocal(Executor):
                 duration_wallclock = time.time() - t0
                 logger.debug("executing took %r seconds", duration_wallclock)
                 self.local.executing = False
+                if has_contextvars:
+                    self.isnested.set(False)
                 if True:  # kept to keep the diff small
                     for task in tasks:
                         if not task.cancelled:
@@ -450,6 +464,8 @@ class ExecutorLocal(Executor):
             raise
         finally:
             self.local.executing = False
+            if has_contextvars:
+                self.isnested.set(False)
 
     def process_part(self, thread_index, i1, i2, chunks, run):
         if not run.cancelled:

@@ -1,3 +1,4 @@
+import asyncio
 from unittest.mock import MagicMock
 from concurrent.futures import ThreadPoolExecutor
 import concurrent.futures
@@ -206,6 +207,29 @@ def test_reentrant_catch(df_local):
         with pytest.raises(RuntimeError) as exc:
             df.count(df.x, progress=progress)
         assert 'nested' in str(exc.value)
+
+
+@pytest.mark.asyncio
+async def test_async_safe(df_local):
+    df = df_local
+    with vaex.cache.off():
+        async def do():
+            promise = df.x.count(delay=True)
+            import random
+            r = random.random() * 0.01
+            await asyncio.sleep(r)
+            await df.execute_async()
+            return await promise
+        awaitables = []
+        passes = df.executor.passes = 0
+        N = 1000
+        with small_buffer(df):
+            for i in range(N):
+                awaitables.append(do())
+        import asyncio
+        values = await asyncio.gather(*awaitables)
+        assert df.executor.passes < N
+
 
 
 @pytest.mark.skipif(platform.system().lower() == 'windows', reason="hangs appveyor very often, bug?")
