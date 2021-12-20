@@ -36,3 +36,13 @@ def test_empty(tmpdir, as_stream):
             writer = pa.ipc.new_file(f, schema)
         writer.close()
     vaex.open(path)
+
+
+@pytest.mark.parametrize("filename", ['test.parquet', 'test.arrow'])
+def test_empty(tmpdir, filename):
+    df = vaex.from_arrays(x=[1,2])
+    path = tmpdir / filename
+    dff = df[df.x > 3]
+    dff.export(path)
+    df2 = vaex.open(path)
+    assert df2.x.tolist() == []
