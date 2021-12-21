@@ -24,6 +24,25 @@ def test_evaluate_iterator(df_local, chunk_size, prefetch, parallel):
             total += chunk.sum()
         assert total == z.sum()
 
+@pytest.mark.parametrize("chunk_size", [2, 5])
+def test_to_numpy(df_local, chunk_size):
+    df = df_local
+    total = 0
+    num_columns = len(df.get_column_names())
+    for i1, i2, chunk in df.to_numpy(chunk_size=chunk_size):
+        total += len(chunk)
+        assert type(chunk) == np.ndarray
+        assert chunk.shape[1] == num_columns
+
+    assert total == len(df)
+
+@pytest.mark.parametrize("chunk_size", [2, 5])
+def test_to_chunks(df_local, chunk_size):
+    df = df_local
+    total = 0
+    for i1, i2, chunk in df.to_chunks(chunk_size=chunk_size):
+        total += len(chunk)
+    assert total == len(df)
 
 @pytest.mark.parametrize("chunk_size", [2, 5])
 @pytest.mark.parametrize("parallel", [True, False])

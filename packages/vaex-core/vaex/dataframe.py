@@ -3118,6 +3118,69 @@ class DataFrame(object):
         return [array_types.convert(chunk, array_type) for chunk in self.evaluate(column_names, selection=selection, parallel=parallel)]
 
     @docsubst
+    def to_numpy(self, column_names=None, selection=None, strings=True, virtual=True, parallel=True, chunk_size=None, progress=None):
+        """Return a numpy array of the values
+
+        :param column_names: list of column names, to export, when None DataFrame.get_column_names(strings=strings, virtual=virtual) is used
+        :param selection: {selection}
+        :param strings: argument passed to DataFrame.get_column_names when column_names is None
+        :param virtual: argument passed to DataFrame.get_column_names when column_names is None
+        :param parallel: {evaluate_parallel}
+        :param chunk_size: {chunk_size}
+        :param progress: {progress}
+        :return: list of arrays
+        """
+        column_names = column_names or self.get_column_names(strings=strings, virtual=virtual)
+        column_names = _ensure_strings_from_expressions(column_names)
+        progressbar = vaex.utils.progressbars(progress, title="to_numpy")
+        if chunk_size is not None:
+            def iterator():
+                for i1, i2, chunks in self.evaluate_iterator(column_names, selection=selection, parallel=parallel,
+                                                             chunk_size=chunk_size, progress=progressbar):
+                    chunk = np.array(chunks).T
+                    yield i1, i2, chunk
+
+            return iterator()
+        return self[column_names].as_numpy().values
+
+    @docsubst
+    def to_chunks(self, chunk_size=1_000_000, num_epochs=1, shuffle=False, progress=None):
+        """Generator to efficiently evaluate expressions in chunks (number of rows).
+
+        See :func:`DataFrame.evaluate` for other arguments.
+
+        Example:
+
+        >>> import vaex
+        >>> df = vaex.example()
+        >>> for i1, i2, chunk in df.to_chunks(chunk_size=100_000):
+        ...     print(f"Total of {{i1}} to {{i2}} = {{len(chunk)}}")
+        ...
+        Total of 0 to 100000 = 100000
+        Total of 100000 to 200000 = 100000
+        Total of 200000 to 300000 = 100000
+        Total of 300000 to 330000 = 30000
+
+        :param progress: {{progress}}
+        :param chunk_size: the chunk size of each chunk
+        :param num_epochs: The number of iterations of the dataframe
+        :param shuffle: If True, shuffle every chunk after the dirst epoch.
+        """
+        progressbar = vaex.utils.progressbars(progress, title="chunks")
+        progressbar(0)
+
+        n_samples = len(self)
+        for epoch in range(num_epochs):
+            for ndx in range(0, n_samples, chunk_size):
+                i1, i2 = ndx, min(ndx + chunk_size, n_samples)
+                chunk = self[i1:i2]
+                if epoch > 1 and shuffle:
+                    chunk = chunk.sampel(frac=1)
+                yield i1, i2, chunk
+                progressbar((n_samples * epoch + ndx) / (num_epochs * n_samples))
+        progressbar(1.0)
+
+    @docsubst
     def to_dict(self, column_names=None, selection=None, strings=True, virtual=True, parallel=True, chunk_size=None, array_type=None):
         """Return a dict containing the ndarray corresponding to the evaluated data
 
