@@ -172,3 +172,17 @@ def test_state_drop():
     dfc.state_set(df.state_get())
     assert 'x' not in dfc
     assert 'x' not in dfc.dataset
+
+
+def test_state_drop_dependency():
+    df_train = vaex.from_dict({'a': [1,2,3]})
+    df_train['a_temp'] = df_train['a']
+    df_train['b'] = df_train['a_temp'] * 2
+    df_train = df_train.drop(["a_temp"])
+
+    df_test = vaex.from_dict({'a': [5, 6]})
+    state = df_train.state_get()
+    df_test.state_set(state)
+
+    assert 'a_temp' not in df_test
+    assert df_test.b.tolist() == [10, 12]
