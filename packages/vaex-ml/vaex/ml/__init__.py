@@ -45,61 +45,77 @@ class DataFrameAccessorML(object):
                 df.set_active_range(*initial)
         return train, test
 
-    def to_x_y(self, features=None, y=None, num_epochs=1, chunk_size=None, selection=None, strings=True, virtual=True, parallel=True, progress=None, array_type='pandas'):
-        """Return a tuple X,y which fits the sklearn pattern
+    def to_x_y(self, features=None, target=None, num_epochs=1, chunk_size=None, shuffle=False,
+               selection=None, strings=True, virtual=True, parallel=True, progress=None, array_type='pandas'):
+        """Return a tuple X, y which fits the sklearn pattern
 
-        :param column_names: list of column names, to export, when None DataFrame.get_column_names(strings=strings, virtual=virtual) is used
+        :param features: list of column names. If not provided, takes every column which is not the y
+        :param target: The column name to provide as y, if not provided, returns None as the y
+        :param num_epochs: number of iterations over the data
+        :param chunk_size: {chunk_size}
+        :param shuffle: if True, for epoch > 1 shuffle each chunk.
         :param selection: {selection}
         :param strings: argument passed to DataFrame.get_column_names when column_names is None
         :param virtual: argument passed to DataFrame.get_column_names when column_names is None
         :param parallel: {evaluate_parallel}
-        :param chunk_size: {chunk_size}
         :param progress: {progress}
-        :param array_type: Can be "pandas" or "numpy"
-        :return: list of arrays
+        :param array_type: if "pandas", X is a pandas dataframe and y pandas series, else both are numpy arrays. default is "pandas".
+        :return: tuple(X, y) as numpy arrays or Pandas dataframe and series
         """
         x_column_names = features or self.df.get_column_names(strings=strings, virtual=virtual)
         x_column_names = _ensure_strings_from_expressions(x_column_names)
-        target_column = y
-        if y in x_column_names:
-            x_column_names.remove(y)
-        column_names = x_column_names if target_column is None else x_column_names + [target_column]
+        if target in x_column_names:
+            x_column_names.remove(target)
+        column_names = x_column_names if target is None else x_column_names + [target]
         num_features = len(x_column_names)
         n_samples = len(self.df)
-        n_samples = len(self.df)
+        y = None
         if chunk_size is not None or num_epochs > 1:
             progressbar = vaex.utils.progressbars(progress, title="to_x_y")
             progressbar(0)
             if chunk_size is None:
                 chunk_size = n_samples
-            for epoch in range(num_epochs):
-                if array_type == 'pandas':
-                    def iterator():
+            if array_type == 'pandas':
+                def iterator():
+                    for epoch in range(num_epochs):
                         for i1, i2, chunks in self.df.to_pandas_df(column_names=column_names, selection=selection,
                                                               parallel=parallel, chunk_size=chunk_size):
+                            if shuffle and epoch > 0:
+                                chunks = chunks.sample(frac=1)
                             X = chunks[x_column_names]
-                            y = chunks[target_column] if target_column is not None else None
+                            if target:
+                                y = chunks[target]
                             yield X, y
                             progressbar((n_samples * epoch + i1) / (num_epochs * n_samples))
-                else:
-                    def iterator():
+                    progressbar(1.0)
+            else:
+                def iterator():
+                    for epoch in range(num_epochs):
                         for i1, i2, chunks in self.df.to_numpy(column_names=column_names, selection=selection, parallel=parallel,
                                                                      chunk_size=chunk_size):
-                            X = chunks[:, 0:num_features]
-                            y = chunks[:, -1] if target_column is not None else None
+                            if shuffle and epoch > 0:
+                                np.random.shuffle(chunks)
+                            X = chunks[:, 0 : num_features]
+                            if target is not None:
+                                y = chunks[:, -1]
                             yield X, y
                             progressbar((n_samples * epoch + i1) / (num_epochs * n_samples))
-                return iterator()
-            progressbar(1.0)
+                    progressbar(1.0)
+            return iterator()
+        copy = self.df.sample(frac=1) if shuffle else self.df.copy()
+
+        if array_type == 'pandas':
+            copy = copy.to_pandas_df(column_names)
         else:
-            if array_type == 'pandas':
-                pandas_df = self.df.to_pandas_df(column_names)
-                X = pandas_df[x_column_names]
-                y = pandas_df[target_column] if target_column is not None else None
-                return X,y
-            X = self.df[x_column_names].as_numpy().values
-            y = self.df[y].values if target_column is not None else None
-            return X, y
+            copy = copy.as_numpy()
+        X = copy[x_column_names]
+        if target is not None:
+            y = copy[target]
+        if array_type != 'pandas':
+            X = X.values
+            if y is not None:
+                y = y.values
+        return X, y
 
 
 

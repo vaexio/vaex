@@ -176,37 +176,66 @@ def test_to_x_y(df_iris):
     ds = df_iris
     features = ['petal_width', 'petal_length']
     target = 'class_'
+    length = len(ds)
+    num_features = len(features)
 
-    X, y = ds.ml.to_x_y(features, array_type='pandas')
+    X, y = ds.ml.to_x_y(features=features, array_type='pandas')
     assert type(X) == pd.DataFrame
     assert y is None
-    assert X.shape == (150, 2)
+    assert X.shape == (length, num_features)
     assert list(X.columns) == features
 
-    X, y = ds.ml.to_x_y(features, array_type='numpy')
+    X, y = ds.ml.to_x_y(features=features, array_type='numpy')
     assert type(X) == np.ndarray
     assert y is None
-    assert X.shape == (150, 2)
+    assert X.shape == (length, num_features)
 
-    X, y = ds.ml.to_x_y(features, y=target, array_type='pandas')
+    X, y = ds.ml.to_x_y(features=features, target=target, array_type='pandas')
     assert type(X) == pd.DataFrame
     assert type(y) == pd.Series
 
-    X, y = ds.ml.to_x_y(features, y=target, array_type='numpy')
+    X, y = ds.ml.to_x_y(features=features, target=target, array_type='numpy')
     assert type(X) == np.ndarray
     assert type(y) == np.ndarray
 
-    features = ['petal_width', 'petal_length']
-    target = 'class_'
+    X, y = ds.ml.to_x_y() # All columns are features -> practically to_pandas_df
+    assert X.shape == (length, 5)
+    assert y is None
 
-    total = 0
-    for X,y in ds.ml.to_x_y(features, y=target, array_type='pandas', num_epochs=2):
-        total += len(X)
+    X, y = ds.ml.to_x_y(features=features)
+    assert X.shape == (length, num_features)
+    assert y is None
 
-    assert len(ds) * 2 == total
+    X, y = ds.ml.to_x_y(target=target)
+    assert X.shape == (length, 4)
+    assert len(y) == length
 
+    assert sum([X.shape[0] for X, y in ds.ml.to_x_y(features=features, target=target, array_type='pandas', num_epochs=2)]) == 2 * \
+        len(ds)
+    assert sum([X.shape[0] for X, y in ds.ml.to_x_y(features=features, target=target, array_type='pandas', num_epochs=2)]) == 2 * \
+        len(ds)
+    assert sum([X.shape[0] for X, y in ds.ml.to_x_y(features=features, target=target, array_type='pandas', chunk_size=100)]) == len(
+        ds)
+    assert sum([X.shape[0] for X, y in ds.ml.to_x_y(features=features, target=target, array_type='numpy', chunk_size=100)]) == len(
+        ds)
 
+    X1, y1 = ds.ml.to_x_y(features=features, target=target, shuffle=True)
+    X2, y2 = ds.ml.to_x_y(features=features, target=target, shuffle=True)
+    assert any(y1 != y2)
+    assert any(X1[features[0]] != X2[features[0]])
 
+    X1, y1 = ds.ml.to_x_y(features=features, target=target, shuffle=True, array_type='numpy')
+    X2, y2 = ds.ml.to_x_y(features=features, target=target, shuffle=True, array_type='numpy')
+    assert any(y1 != y2)
+    assert any(X1[0] != X2[0])
+
+    chunks1 = [X for X, y in ds.ml.to_x_y(features=features, target=target, chunk_size=100, shuffle=True, num_epochs=2)]
+    chunks2 = [X for X, y in ds.ml.to_x_y(features=features, target=target, chunk_size=100, shuffle=True, num_epochs=2)]
+    assert any(chunks1[-1].iloc[0] != chunks2[-1].iloc[0])
+
+    chunks1 = [X for X, y in ds.ml.to_x_y(features=features, target=target, array_type='numpy', chunk_size=100, shuffle=True, num_epochs=2)]
+    chunks2 = [X for X, y in ds.ml.to_x_y(features=features, target=target, array_type='numpy', chunk_size=100, shuffle=True, num_epochs=2)]
+    assert 0 < (chunks1[-1] != chunks2[-1]).sum()
 
 
 def test_train_test_split_values(df_factory):
