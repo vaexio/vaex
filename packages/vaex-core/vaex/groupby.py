@@ -743,7 +743,7 @@ class GroupBy(GroupByBase):
         super(GroupBy, self).__init__(df, by, sort=sort, combine=combine, expand=expand, row_limit=row_limit, copy=copy, progress=progress)
 
     def agg(self, actions, delay=False, progress=None):
-        progressbar = vaex.progress.tree(progress)
+        progressbar = vaex.progress.tree(progress, title="aggregators")
         # TODO: this basically forms a cartesian product, we can do better, use a
         # 'multistage' hashmap
         @vaex.delayed

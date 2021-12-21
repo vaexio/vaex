@@ -46,6 +46,8 @@ class ProgressTree:
         self.name = name
         self.cancelled = False
         self.oncancel = lambda: None
+        if self.bar:
+            self.bar.start()
         if parent is None:
             if _last_progress_tree is None:
                 _last_progress_tree = self
@@ -68,6 +70,8 @@ class ProgressTree:
 
     def __enter__(self):
         _progress_tree_stack.append(self)
+        if self.bar:
+            self.bar.start()
         return self
 
     def __exit__(self, *args):
@@ -101,6 +105,10 @@ class ProgressTree:
         self.finished = False
         self.fraction = sum([c.fraction for c in self.children]) / len(self.children)
         self(self.fraction)
+        if self.root.bar:
+            # could be that it was stopped
+            self.root.bar.start()
+
         return pb
 
     def add_task(self, task, name=None, status_ready="from cache"):
@@ -179,7 +187,8 @@ def tree(f=None, next=None, name=None, title=None):
     if title is None:
         name = title
     if isinstance(f, ProgressTree):
-        if title is None:
+        # collapse nameless or similarly named progressbars in 1
+        if title is None or f.bar and f.bar.title == title:
             return f
         else:
             return f.add(title)
