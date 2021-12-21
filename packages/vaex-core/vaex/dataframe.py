@@ -2206,6 +2206,18 @@ class DataFrame(object):
         '''Similar to df.dtypes, but returns a dict'''
         return {column_name:self.data_type(column_name) for column_name in self.get_column_names()}
 
+    @docsubst
+    def schema_arrow(self, reduce_large=False):
+        '''Similar to :method:`schema`, but returns an arrow schema
+
+        :param bool reduce_large: change large_string to normal string
+        '''
+        def reduce(type):
+            if reduce_large and type == pa.large_string():
+                type = pa.string()
+            return type
+        return pa.schema({name: reduce(dtype.arrow) for name, dtype in self.schema().items()})
+
     def is_masked(self, column):
         '''Return if a column is a masked (numpy.ma) column.'''
         column = _ensure_string_from_expression(column)
@@ -6561,7 +6573,7 @@ class DataFrameLocal(DataFrame):
                 writer.write_table(table)
 
         if vaex.file.is_path_like(to):
-            schema = self[0:1].to_arrow_table(parallel=False, reduce_large=reduce_large).schema
+            schema = self.schema_arrow()
             with vaex.file.open(path=to, mode='wb', fs_options=fs_options, fs=fs) as sink:
                 if as_stream:
                     with pa.RecordBatchStreamWriter(sink, schema) as writer:
@@ -6610,7 +6622,7 @@ class DataFrameLocal(DataFrame):
         :return:
         """
         import pyarrow.parquet as pq
-        schema = self[0:1].to_arrow_table(parallel=False, reduce_large=True).schema
+        schema = self.schema_arrow(reduce_large=True)
         with vaex.file.open(path=path, mode='wb', fs_options=fs_options, fs=fs) as sink:
             with pq.ParquetWriter(sink, schema, **kwargs) as writer:
                 self.export_arrow(writer, progress=progress, chunk_size=chunk_size, parallel=parallel, reduce_large=True)

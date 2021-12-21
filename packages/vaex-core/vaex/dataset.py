@@ -593,6 +593,8 @@ class ColumnProxy(vaex.column.Column):
                     array_chunks.append(ar)
             if len(array_chunks) == 1:
                 return array_chunks[0]
+            if len(array_chunks) == 0:
+                return vaex.dtype(self.dtype).create_array([])
             return vaex.array_types.concat(array_chunks)
         else:
             raise NotImplementedError
