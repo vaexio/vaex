@@ -240,3 +240,13 @@ def test_export_generates_same_hdf5_shasum(tmpdir, dtypes):
             shasum2.update(data)
 
     assert shasum1.hexdigest() == shasum2.hexdigest()
+
+
+def test_export_json(tmpdir, df_filtered):
+    df = df_filtered
+    path = tmpdir / 'test.json'
+    df.export_json(path)
+    df2 = vaex.from_json(path, orient='records')
+    # for column in df.get_column_names():
+    for column in ['x', 'name']:
+        assert df[column].tolist() == df2[column].tolist()
