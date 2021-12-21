@@ -109,6 +109,7 @@ def iris_subsample(N, error_percentage=5, ds=None):
             ds_out.add_column(feature, data_out)
     return ds_out
 
+
 def iris_1e4():
     '''Returns the iris set repeated so it include ~1e4 rows'''
     return _iris('iris_1e4', iris, int(1e4))
@@ -155,12 +156,14 @@ def titanic():
     dirname = os.path.dirname(__file__)
     return vaex.open(os.path.join(dirname, 'titanic.hdf5'))
 
+
 def taxi():
     '''One year of NYC Yellow Cab data.
 
     The original raw data can be downloaded from https://www1.nyc.gov/site/tlc/about/tlc-trip-record-data.page
     '''
     return Hdf5Download("https://github.com/vaexio/vaex-datasets/releases/download/1.1/yellow_taxi_2012_zones.parquet").fetch()
+
 
 def helmi_simulation_data(full=False):
     '''Result of an N-body simulation of the accretion of 33 satellite galaxies into a Milky Way dark matter halo.
@@ -175,6 +178,7 @@ def helmi_simulation_data(full=False):
     if full is False:
         return Hdf5Download("https://github.com/vaexio/vaex-datasets/releases/download/v1.0/helmi-dezeeuw-2000-FeH-v2-10percent.hdf5").fetch()
     return Hdf5Download("https://github.com/vaexio/vaex-datasets/releases/download/v1.0/helmi-dezeeuw-2000-FeH-v2.hdf5").fetch()
+
 
 def tgas(full=False):
     '''The Tycho-Gaia Astronomical Solution Dataset.
@@ -191,3 +195,7 @@ def tgas(full=False):
         return Hdf5Download("https://github.com/vaexio/vaex-datasets/releases/download/v1.0/tgas.hdf5").fetch()
     else:
         return Hdf5Download("https://github.com/vaexio/vaex-datasets/releases/download/v1.0/tgas_1percent.hdf5").fetch()
+
+
+# TODO: deprecate in v5
+helmi_de_zeeuw = Hdf5Download("https://github.com/vaexio/vaex-datasets/releases/download/v1.0/helmi-dezeeuw-2000-FeH-v2.hdf5")

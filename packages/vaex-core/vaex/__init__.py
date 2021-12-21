@@ -614,6 +614,14 @@ def connect(url, **kwargs):
     return connect(url, **kwargs)
 
 def example():
+    '''Result of an N-body simulation of the accretion of 33 satellite galaxies into a Milky Way dark matter halo.
+
+    Data was greated by Helmi & de Zeeuw 2000.
+    The data contains the position (x, y, z), velocitie (vx, vy, vz), the energy (E),
+    the angular momentum (L, Lz) and iron content (FeH) of the particles.
+
+    :rtype: DataFrame
+    '''
     return vaex.datasets.helmi_simulation_data()
 
 # create named logger, for all loglevels
