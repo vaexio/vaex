@@ -20,6 +20,9 @@ class ProgressBarBase(object):
     def set_passes(self, passes):
         pass
 
+    def start(self):
+        pass
+
     def exit(self):
         pass
 
@@ -167,7 +170,7 @@ class TimeElapsedColumn(rich.progress.ProgressColumn):
         time = str(delta)[:-4]
         if time.startswith('0:00:'):
             time = time[5:]
-        time = time
+        time = time + 's'
         passes = task.fields.get('passes')
         if passes is not None:
             time += f'[{passes}]'
@@ -203,7 +206,6 @@ class ProgressBarRich(ProgressBarBase):
             self.node = rich.tree.Tree(self.progress)
             from rich.live import Live
             self.live = Live(self.node, refresh_per_second=5, console=self.console)
-            self.live.start()
         else:
             self.node = parent.add(self.progress)
         # we do 1000 discrete steps
@@ -240,7 +242,12 @@ class ProgressBarRich(ProgressBarBase):
     def finish(self):
         self(self.max_value)
         if self.parent is None:
-            self.progress.refresh()
+            self.live.refresh()
+
+    def start(self):
+        if self.parent is None and not self.live.is_started:
+            self.live.refresh()
+            self.live.start()
 
     def exit(self):
         if self.parent is None:
