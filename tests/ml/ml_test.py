@@ -1,3 +1,4 @@
+import pandas as pd
 import pytest
 import numpy as np
 import vaex
@@ -169,6 +170,43 @@ def test_minmax_scaler(df_iris):
     # Fit-transform
     scaler = vaex.ml.MinMaxScaler(features=['petal_width', 'petal_length'])
     ds = scaler.fit_transform(ds)
+
+
+def test_to_x_y(df_iris):
+    ds = df_iris
+    features = ['petal_width', 'petal_length']
+    target = 'class_'
+
+    X, y = ds.ml.to_x_y(features, array_type='pandas')
+    assert type(X) == pd.DataFrame
+    assert y is None
+    assert X.shape == (150, 2)
+    assert list(X.columns) == features
+
+    X, y = ds.ml.to_x_y(features, array_type='numpy')
+    assert type(X) == np.ndarray
+    assert y is None
+    assert X.shape == (150, 2)
+
+    X, y = ds.ml.to_x_y(features, y=target, array_type='pandas')
+    assert type(X) == pd.DataFrame
+    assert type(y) == pd.Series
+
+    X, y = ds.ml.to_x_y(features, y=target, array_type='numpy')
+    assert type(X) == np.ndarray
+    assert type(y) == np.ndarray
+
+    features = ['petal_width', 'petal_length']
+    target = 'class_'
+
+    total = 0
+    for X,y in ds.ml.to_x_y(features, y=target, array_type='pandas', num_epochs=2):
+        total += len(X)
+
+    assert len(ds) * 2 == total
+
+
+
 
 
 def test_train_test_split_values(df_factory):

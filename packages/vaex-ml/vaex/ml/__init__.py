@@ -1,7 +1,8 @@
 import warnings
 import json
 import os
-
+import numpy as np
+import pandas as pd
 import vaex
 from . import datasets
 from .pipeline import Pipeline
@@ -17,7 +18,6 @@ class DataFrameAccessorML(object):
         state = self.df.state_get()
         state.pop('active_range')  # we are not interested in this..
         return StateTransfer(state=state)
-
 
     def train_test_split(self, test_size=0.2, strings=True, virtual=True, verbose=True):
         '''Will split the DataFrame in train and test part, assuming it is shuffled.
@@ -44,6 +44,65 @@ class DataFrameAccessorML(object):
             if initial is not None:
                 df.set_active_range(*initial)
         return train, test
+
+    def to_x_y(self, features=None, y=None, num_epochs=1, chunk_size=None, selection=None, strings=True, virtual=True, parallel=True, progress=None, array_type='pandas'):
+        """Return a tuple X,y which fits the sklearn pattern
+
+        :param column_names: list of column names, to export, when None DataFrame.get_column_names(strings=strings, virtual=virtual) is used
+        :param selection: {selection}
+        :param strings: argument passed to DataFrame.get_column_names when column_names is None
+        :param virtual: argument passed to DataFrame.get_column_names when column_names is None
+        :param parallel: {evaluate_parallel}
+        :param chunk_size: {chunk_size}
+        :param progress: {progress}
+        :param array_type: Can be "pandas" or "numpy"
+        :return: list of arrays
+        """
+        x_column_names = features or self.df.get_column_names(strings=strings, virtual=virtual)
+        x_column_names = _ensure_strings_from_expressions(x_column_names)
+        target_column = y
+        if y in x_column_names:
+            x_column_names.remove(y)
+        column_names = x_column_names if target_column is None else x_column_names + [target_column]
+        num_features = len(x_column_names)
+        n_samples = len(self.df)
+        n_samples = len(self.df)
+        if chunk_size is not None or num_epochs > 1:
+            progressbar = vaex.utils.progressbars(progress, title="to_x_y")
+            progressbar(0)
+            if chunk_size is None:
+                chunk_size = n_samples
+            for epoch in range(num_epochs):
+                if array_type == 'pandas':
+                    def iterator():
+                        for i1, i2, chunks in self.df.to_pandas_df(column_names=column_names, selection=selection,
+                                                              parallel=parallel, chunk_size=chunk_size):
+                            X = chunks[x_column_names]
+                            y = chunks[target_column] if target_column is not None else None
+                            yield X, y
+                            progressbar((n_samples * epoch + i1) / (num_epochs * n_samples))
+                else:
+                    def iterator():
+                        for i1, i2, chunks in self.df.to_numpy(column_names=column_names, selection=selection, parallel=parallel,
+                                                                     chunk_size=chunk_size):
+                            X = chunks[:, 0:num_features]
+                            y = chunks[:, -1] if target_column is not None else None
+                            yield X, y
+                            progressbar((n_samples * epoch + i1) / (num_epochs * n_samples))
+                return iterator()
+            progressbar(1.0)
+        else:
+            if array_type == 'pandas':
+                pandas_df = self.df.to_pandas_df(column_names)
+                X = pandas_df[x_column_names]
+                y = pandas_df[target_column] if target_column is not None else None
+                return X,y
+            X = self.df[x_column_names].as_numpy().values
+            y = self.df[y].values if target_column is not None else None
+            return X, y
+
+
+
 
 
 filename_spec = os.path.join(os.path.dirname(__file__), 'spec.json')
