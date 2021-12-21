@@ -327,6 +327,20 @@ def test_continue_next_task_after_cancel():
     assert result.isFulfilled
 
 
+@pytest.mark.asyncio
+async def test_auto_execute():
+    df = vaex.from_arrays(x=[2, 4])
+    async def means():
+        count, sum = await asyncio.gather(df.x.count(delay=True), df.x.sum(delay=True))
+        mean = await df.x.mean(delay=True)
+        return sum / count, mean
+    async with df.executor.auto_execute():
+        mean1, mean2 = await means()
+        assert mean1 == 3
+        assert mean2 == 3
+
+
+
 # def test_add_and_cancel_tasks(df_executor):
 #     df = df_executor
 
