@@ -6559,20 +6559,19 @@ class DataFrameLocal(DataFrame):
         :param dict fs_options: {fs_options}
         :return:
         """
-        progressbar = vaex.utils.progressbars(progress, title="export(arrow)")
         def write(writer):
-            progressbar(0)
             N = len(self)
             if chunk_size:
-                for i1, i2, table in self.to_arrow_table(chunk_size=chunk_size, parallel=parallel, reduce_large=reduce_large):
-                    writer.write_table(table)
-                    progressbar(i2/N)
-                progressbar(1.)
+                with vaex.progress.tree(progress, title="export(arrow)") as progressbar:
+                    for i1, i2, table in self.to_arrow_table(chunk_size=chunk_size, parallel=parallel, reduce_large=reduce_large):
+                        writer.write_table(table)
+                        progressbar(i2/N)
+                    progressbar(1.)
             else:
                 table = self.to_arrow_table(chunk_size=chunk_size, parallel=parallel, reduce_large=reduce_large)
                 writer.write_table(table)
 
-        if vaex.file.is_path_like(to):
+        if vaex.file.is_path_like(to) or vaex.file.is_file_object(to):
             schema = self.schema_arrow()
             with vaex.file.open(path=to, mode='wb', fs_options=fs_options, fs=fs) as sink:
                 if as_stream:
