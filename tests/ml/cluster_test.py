@@ -2,8 +2,8 @@ import pytest
 pytest.importorskip("sklearn")
 import tempfile
 import numpy as np
+import vaex.datasets
 import vaex.ml.cluster
-import vaex.ml.datasets
 
 
 init = np.array([[0, 1/5], [1.2/2, 4/5], [2.5/2, 6/5]])
@@ -31,7 +31,7 @@ def test_serialize(df_iris):
 
 
 def test_kmeans_random_state():
-    df = vaex.ml.datasets.load_iris()
+    df = vaex.datasets.iris()
     # TODO: make init take a ndarray
     kmeans = vaex.ml.cluster.KMeans(n_clusters=3, features=features, init='random', random_state=42, max_iter=1)
     kmeans.fit(df)
@@ -53,7 +53,7 @@ def test_kmeans_random_state():
 
 @pytest.mark.parametrize("max_iter", [1, 2, 10])
 def test_kmeans(max_iter):
-    df = vaex.ml.datasets.load_iris()
+    df = vaex.datasets.iris()
     # TODO: make init take a ndarray
     kmeans_vaex = kmeans = vaex.ml.cluster.KMeans(n_clusters=3, features=features,
                                                   init=init.tolist(), max_iter=max_iter, verbose=True, n_init=3)

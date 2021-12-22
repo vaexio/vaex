@@ -3,13 +3,13 @@ pytest.importorskip("annoy")
 
 import annoy
 import vaex.ml.incubator.annoy
-import vaex.ml.datasets
+import vaex.datasets
 import test_utils
 
 
 @test_utils.skip_incubator
 def test_annoy():
-    ds = vaex.ml.datasets.load_iris()
+    ds = vaex.datasets.iris()
     ds_train, ds_test = ds.ml.train_test_split(0.05)
     features = ds_train.column_names[:4]
     model = vaex.ml.incubator.annoy.ANNOYModel(features=features, n_neighbours=5, metric='euclidean', n_trees=100)
@@ -30,7 +30,7 @@ def test_annoy_validation():
     Please see https://github.com/spotify/annoy/issues/188 for more details.
     '''
     def vaex_annoy():  # annoy from within vaex
-        ds = vaex.ml.datasets.load_iris()
+        ds = vaex.datasets.iris()
         ds_train, ds_test = ds.ml.train_test_split(0.05, verbose=False)
         features = ds_train.column_names[:4]
         model = vaex.ml.incubator.annoy.ANNOYModel(features=features, n_neighbours=5, metric='euclidean', n_trees=100)
@@ -39,7 +39,7 @@ def test_annoy_validation():
         return pred.tolist()
 
     def annoy_annoy():  # the stand-alone annoy
-        ds = vaex.ml.datasets.load_iris()
+        ds = vaex.datasets.iris()
         ds_train, ds_test = ds.ml.train_test_split(0.05, verbose=False)
         features = ds_train.column_names[:4]
         index = annoy.AnnoyIndex(4, metric='euclidean')
@@ -58,7 +58,7 @@ def test_annoy_validation():
 
 @test_utils.skip_incubator
 def test_annoy_serialize():
-    ds = vaex.ml.datasets.load_iris()
+    ds = vaex.datasets.iris()
     ds_train, ds_test = ds.ml.train_test_split(0.05, verbose=False)
     features = ds_train.column_names[:4]
     model = vaex.ml.incubator.annoy.ANNOYModel(features=features, n_neighbours=5, metric='euclidean', n_trees=100)

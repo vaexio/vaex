@@ -70,7 +70,7 @@ class KMeans(vaex.ml.transformations.Transformer):
 
     >>> import vaex.ml
     >>> import vaex.ml.cluster
-    >>> df = vaex.ml.datasets.load_iris()
+    >>> df = vaex.datasets.iris()
     >>> features = ['sepal_width', 'petal_length', 'sepal_length', 'petal_width']
     >>> cls = vaex.ml.cluster.KMeans(n_clusters=3, features=features, init='random', max_iter=10)
     >>> cls.fit(df)

@@ -28,7 +28,7 @@ class XGBoostModel(state.HasState):
 
     >>> import vaex
     >>> import vaex.ml.xgboost
-    >>> df = vaex.ml.datasets.load_iris()
+    >>> df = vaex.datasets.iris()
     >>> features = ['sepal_width', 'petal_length', 'sepal_length', 'petal_width']
     >>> df_train, df_test = df.ml.train_test_split()
     >>> params = {

@@ -5,7 +5,6 @@ import os
 import numpy as np
 import pygbm as lgb
 import vaex.ml.incubator.pygbm
-import vaex.ml.datasets
 from vaex.utils import _ensure_strings_from_expressions
 import test_utils
 
@@ -26,7 +25,7 @@ param = {'learning_rate': 0.1,     # learning rate
 
 @test_utils.skip_incubator
 def test_py_gbm_virtual_columns():
-    ds = vaex.ml.datasets.load_iris()
+    ds = vaex.datasets.iris()
     ds['x'] = ds.sepal_length * 1
     ds['y'] = ds.sepal_width * 1
     ds['w'] = ds.petal_length * 1
@@ -42,7 +41,7 @@ def test_pygbm():
     for filename in 'blah.col.meta blah.col.page'.split():
         if os.path.exists(filename):
             os.remove(filename)
-    ds = vaex.ml.datasets.load_iris()
+    ds = vaex.datasets.iris()
     ds_train, ds_test = ds.ml.train_test_split(test_size=0.2, verbose=False)
     features = ['sepal_length', 'sepal_width', 'petal_length', 'petal_width']
     booster = vaex.ml.incubator.pygbm.PyGBMModel(num_round=10, param=param,
@@ -55,13 +54,13 @@ def test_pygbm():
 
     ds = booster.transform(ds)   # this will add the pygbm_prediction column
     state = ds.state_get()
-    ds = vaex.ml.datasets.load_iris()
+    ds = vaex.datasets.iris()
     ds.state_set(state)
     assert np.all(ds.col.class_ == ds.evaluate(ds.pygbm_prediction))
 
 @test_utils.skip_incubator
 def test_pygbm_serialize(tmpdir):
-    ds = vaex.ml.datasets.load_iris()
+    ds = vaex.datasets.iris()
     features = ['sepal_length', 'sepal_width', 'petal_length', 'petal_width']
     target = 'class_'
 

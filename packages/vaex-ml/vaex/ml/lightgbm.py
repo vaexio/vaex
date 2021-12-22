@@ -34,7 +34,7 @@ class LightGBMModel(state.HasState):
 
     >>> import vaex.ml
     >>> import vaex.ml.lightgbm
-    >>> df = vaex.ml.datasets.load_iris()
+    >>> df = vaex.datasets.iris()
     >>> features = ['sepal_width', 'petal_length', 'sepal_length', 'petal_width']
     >>> df_train, df_test = df.ml.train_test_split()
     >>> params = {

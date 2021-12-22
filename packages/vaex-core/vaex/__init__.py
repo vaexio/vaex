@@ -69,6 +69,8 @@ except:
     print("version file not found, please run git/hooks/post-commit or git/hooks/post-checkout and/or install them as hooks (see git/README)", file=sys.stderr)
     raise
 
+vaex = vaex.utils.optional_import("vaex", modules=["vaex.ml"])
+
 __version__ = version.get_versions()
 
 
@@ -611,21 +613,16 @@ def connect(url, **kwargs):
     from vaex.server import connect
     return connect(url, **kwargs)
 
-
 def example():
-    """Returns an example DataFrame which comes with vaex for testing/learning purposes.
+    '''Result of an N-body simulation of the accretion of 33 satellite galaxies into a Milky Way dark matter halo.
+
+    Data was greated by Helmi & de Zeeuw 2000.
+    The data contains the position (x, y, z), velocitie (vx, vy, vz), the energy (E),
+    the angular momentum (L, Lz) and iron content (FeH) of the particles.
 
     :rtype: DataFrame
-    """
-    return vaex.datasets.helmi_de_zeeuw_10percent.fetch()
-
-
-def zeldovich(dim=2, N=256, n=-2.5, t=None, scale=1, seed=None):
-    """Creates a zeldovich DataFrame.
-    """
-    import vaex.file
-    return vaex.file.other.Zeldovich(dim=dim, N=N, n=n, t=t, scale=scale)
-
+    '''
+    return vaex.datasets.helmi_simulation_data()
 
 # create named logger, for all loglevels
 logger = logging.getLogger('vaex')

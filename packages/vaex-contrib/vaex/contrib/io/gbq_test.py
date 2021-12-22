@@ -44,7 +44,7 @@ def test_to_table():
     dataset = 'test_dataset'
     table = 'test_upload_table_titanic'
 
-    df = vaex.ml.datasets.load_titanic()
+    df = vaex.datasets.titanic()
 
     to_table(df=df, dataset=dataset, table=table)
 

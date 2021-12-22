@@ -3,7 +3,7 @@ pytest.importorskip("catboost")
 import catboost as cb
 import numpy as np
 import vaex.ml.catboost
-import vaex.ml.datasets
+import vaex.datasets
 from sklearn.metrics import roc_auc_score, accuracy_score
 
 # the parameters of the model
@@ -60,14 +60,14 @@ def test_catboost(df_iris):
     assert np.all(ds_test.col.class_.values == np.argmax(ds_test.catboost_prediction.values, axis=1))
 
 
-def test_catboost_batch_training():
+def test_catboost_batch_training(df_iris):
     """
     We train three models. One on 10 samples. the second on 100 samples with batches of 10,
     and the third too on 100 samples with batches of 10, but we weight the models as if only the first batch matters.
     A model trained on more data, should do better than the model who only trained on 10 samples,
     and the weighted model will do exactly as good as the one who trained on 10 samples as it ignore the rest by weighting.
     """
-    ds = vaex.ml.datasets.load_iris()
+    ds = df_iris
     ds_train, ds_test = ds.ml.train_test_split(test_size=0.2, verbose=False)
     features = ['sepal_length', 'sepal_width', 'petal_length', 'petal_width']
     target = 'class_'
