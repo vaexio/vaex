@@ -4118,7 +4118,7 @@ class DataFrame(object):
             [k for k in self.variables.keys() if not hidden or not k.startswith('__')] +\
             [k for k in self.functions.keys() if not hidden or not k.startswith('__')]
 
-    def get_column_names(self, virtual=True, strings=True, hidden=False, regex=None, dtypes=None):
+    def get_column_names(self, virtual=True, strings=True, hidden=False, regex=None, dtype=None):
         """Return a list of column names
 
         Example:
@@ -4134,19 +4134,19 @@ class DataFrame(object):
         ['x', 'x2']
         >>> df.get_column_names(regex='x.*')
         ['x', 'x2']
-        >>> df.get_column_names(dtypes=[str])
+        >>> df.get_column_names(dtype=[str])
         ['s']
 
         :param virtual: If False, skip virtual columns
         :param hidden: If False, skip hidden columns
         :param strings: If False, skip string columns
         :param regex: Only return column names matching the (optional) regular expression
-        :param dtypes: A list of dtypes to consider
+        :param dtype: A list of dtypes to consider
         :param alias: Return the alias (True) or internal name (False).
         :rtype: list of str
         """
-        if isinstance(dtypes, type):
-            dtypes = [dtypes]
+        if isinstance(dtype, type):
+            dtype = [dtype]
 
         def column_filter(name):
             '''Return True if column with specified name should be returned'''
@@ -4158,12 +4158,12 @@ class DataFrame(object):
                 return False
             if not hidden and name.startswith('__'):
                 return False
-            if dtypes and self.dtypes[name] not in dtypes:
+            if dtype and self.dtypes[name] not in dtype:
                 return False
             return True
-        if hidden and virtual and regex is None and dtypes is None and strings is True:
+        if hidden and virtual and regex is None and dtype is None and strings is True:
             return list(self.column_names)  # quick path
-        if not hidden and virtual and regex is None and dtypes is None and strings is True:
+        if not hidden and virtual and regex is None and dtype is None and strings is True:
             return [k for k in self.column_names if not k.startswith('__')]  # also a quick path
         return [name for name in self.column_names if column_filter(name)]
 
@@ -5215,13 +5215,13 @@ class DataFrame(object):
             expression = item.expression
             return self.filter(expression)
         elif isinstance(item, type):
-            columns = self.get_column_names(dtypes=item)
+            columns = self.get_column_names(dtype=item)
             if len(columns) == 0:
                 raise KeyError(f"No columns with type {item}")
             return self[columns]
         elif isinstance(item, (tuple, list)):
             if all(isinstance(x, type) for x in item):
-                columns = self.get_column_names(dtypes=item)
+                columns = self.get_column_names(dtype=item)
                 if len(columns) == 0:
                     raise KeyError(f"No columns with types {item}")
                 return self[columns]
