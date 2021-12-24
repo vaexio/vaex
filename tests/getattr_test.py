@@ -70,6 +70,18 @@ def test_expression(ds_local):
     assert np.array(dss).T.tolist() == [(ds.y/10).values.tolist(), (ds.x/5).values.tolist()]
 
 
+def test_expression_iterator(ds_local):
+    ds = ds_local
+
+    assert len(ds) == len(ds.x)
+    assert len(ds[ds.x > 1]) == len(ds[ds.x > 1].x)
+
+    ds = ds_local.head(10)
+    for (x_value, y_value), x_iter_value, y_iter_value in zip(ds[['x', 'y']].values, ds.x, ds.y):
+        assert x_value == x_iter_value
+        assert y_value == y_iter_value
+
+
 @pytest.mark.skip(reason="Not implemented yet, should work, might need refactoring of copy")
 def test_expression_virtual(ds_local):
     ds = ds_local

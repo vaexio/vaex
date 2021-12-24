@@ -531,6 +531,21 @@ class Expression(with_metaclass(Meta)):
         import pandas as pd
         return pd.Series(self.values)
 
+    def __len__(self):
+        return len(self.df)
+
+    def __iter__(self):
+        n_samples = len(self)
+        chunk_size = 1000
+
+        def iterator():
+            for ndx in range(0, n_samples, chunk_size):
+                i1, i2 = ndx, min(ndx + chunk_size, n_samples)
+                values = self[i1:i2].values.tolist()
+                for value in values:
+                    yield value
+        return iterator()
+
     def __getitem__(self, slicer):
         """Provides row and optional field access (struct arrays) via bracket notation.
 
