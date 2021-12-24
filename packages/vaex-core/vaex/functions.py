@@ -283,7 +283,7 @@ def scalar_timedelta(amount, unit):
 def _pandas_dt_fix(x):
     # see https://github.com/pandas-dev/pandas/issues/23276
     # not sure which version this is fixed in
-    if isinstance(x, pa.lib.TimestampArray):
+    if vaex.array_types.is_arrow_array(x) and isinstance(x.type, pa.lib.TimestampType):
         return x.to_pandas()
     if not x.flags['WRITEABLE']:
         x = x.copy()
