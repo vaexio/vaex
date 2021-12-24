@@ -292,11 +292,11 @@ class ExecutorLocal(Executor):
         # level, such that we don't need await in the downstream code
         # so we can reuse the same code in a sync way
         gen = self.execute_generator(use_async=True)
+        value = None
         while True:
             try:
-                value = next(gen)
+                value = gen.send(value)
                 value = await value
-                gen.send(value)
             except StopIteration:
                 break
 
