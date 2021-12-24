@@ -17,6 +17,7 @@ from typing import MutableMapping
 import warnings
 import numbers
 import keyword
+from filelock import FileLock
 import pkg_resources
 
 import dask.utils
@@ -945,3 +946,16 @@ def dropnan(sequence, expect=None):
 def progressbars(*args, **kwargs):
     from .progress import tree
     return tree(*args, **kwargs)
+
+
+import contextlib
+@contextlib.contextmanager
+def file_lock(name):
+    '''Context manager for creating a file lock in the file lock directory.
+
+    :param name: A unique name for the context (e.g. a fingerprint) on which the filename is based.
+    '''
+    path = os.path.join(vaex.settings.main.path_lock, name)
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with FileLock(path):
+        yield

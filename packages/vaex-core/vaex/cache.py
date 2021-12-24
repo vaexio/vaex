@@ -54,13 +54,13 @@ from typing import ChainMap, MutableMapping
 import logging
 import shutil
 import uuid
+import os
 import pickle
 import threading
 
 
 import dask.base
 import pyarrow as pa
-from filelock import FileLock
 from vaex.promise import Promise
 
 import vaex.utils
@@ -415,33 +415,35 @@ def output_file(callable=None, path_input=None, fs_options_input={}, fs_input=No
                         f.write(f"# this file exists so that we know when not to do the\n# {path_input} → {path_output} conversion\n")
                         vaex.utils.yaml_dump(f, {'fingerprint': fp})
 
-                with FileLock(f"vaex-convert-{fp}.lock"):
+                lockname = os.path.join('convert', f"{fp}.lock")
+                with vaex.utils.file_lock(lockname):
                     if not vaex.file.exists(path_output, fs_options=fs_options_output_, fs=fs_output):
                         log.info('file %s does not exist yet, running conversion %s → %s', path_output_meta, path_input, path_output)
                         value = callable(*args, **kwargs)
                         write_fingerprint()
                         return value
 
-                if not vaex.file.exists(path_output_meta, fs_options=fs_options_output_, fs=fs_output):
-                    log.info('file including fingerprint not found (%) or does not exist yet, running conversion %s → %s', path_output_meta, path_input, path_output)
-                    value = callable(*args, **kwargs)
-                    write_fingerprint()
-                    return value
 
-                # load fingerprint
-                with vaex.file.open(path_output_meta, fs_options=fs_options_output_, fs=fs_output) as f:
-                    output_meta = vaex.utils.yaml_load(f)
+                    if not vaex.file.exists(path_output_meta, fs_options=fs_options_output_, fs=fs_output):
+                        log.info('file including fingerprint not found (%) or does not exist yet, running conversion %s → %s', path_output_meta, path_input, path_output)
+                        value = callable(*args, **kwargs)
+                        write_fingerprint()
+                        return value
 
-                if output_meta is None or output_meta['fingerprint'] != fp:
-                    if output_meta is None:
-                        log.error('fingerprint for %s (%s) was empty', path_input, path_output_meta)
+                    # load fingerprint
+                    with vaex.file.open(path_output_meta, fs_options=fs_options_output_, fs=fs_output) as f:
+                        output_meta = vaex.utils.yaml_load(f)
+
+                    if output_meta is None or output_meta['fingerprint'] != fp:
+                        if output_meta is None:
+                            log.error('fingerprint for %s (%s) was empty', path_input, path_output_meta)
+                        else:
+                            log.info('fingerprint for %s is out of date, rerunning conversion to %s', path_input, path_output)
+                        value = callable(*args, **kwargs)
+                        write_fingerprint()
+                        return value
                     else:
-                        log.info('fingerprint for %s is out of date, rerunning conversion to %s', path_input, path_output)
-                    value = callable(*args, **kwargs)
-                    write_fingerprint()
-                    return value
-                else:
-                    log.info('fingerprint for %s did not change, reusing converted file %s', path_input, path_output)
+                        log.info('fingerprint for %s did not change, reusing converted file %s', path_input, path_output)
             return call
         return wrapper2
     return wrapper1()
