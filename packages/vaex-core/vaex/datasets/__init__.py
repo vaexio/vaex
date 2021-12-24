@@ -45,7 +45,7 @@ class Hdf5Download(object):
 
     def fetch(self, force_download=False):
         self.download(force=force_download)
-        return vaex.open(self.filename, convert=not self.filename.endswith('.hdf5'))
+        return vaex.open(self.filename, convert=not self.filename.endswith('.hdf5'), progress=True)
 
     def wget_command(self, i):
         assert i == 0
