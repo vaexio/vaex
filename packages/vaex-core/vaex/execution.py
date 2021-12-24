@@ -422,11 +422,10 @@ class ExecutorLocal(Executor):
                     if not ok_executor:
                         logger.debug("Pass cancelled because of the global progress event: %r", self.signal_progress.callbacks)
                     return ok_tasks and ok_executor
-                for element in self.thread_pool.map(self.process_part, dataset.chunk_iterator(run.dataset_deps, chunk_size),
+                yield from self.thread_pool.map(self.process_part, dataset.chunk_iterator(run.dataset_deps, chunk_size),
                                                     dataset.row_count,
                                                     progress=progress,
-                                                    cancel=lambda: self._cancel(run), unpack=True, run=run, use_async=use_async):
-                    yield element  # this can be an awaitable, when use_async=True
+                                                    cancel=lambda: self._cancel(run), unpack=True, run=run, use_async=use_async)
                 duration_wallclock = time.time() - t0
                 logger.debug("executing took %r seconds", duration_wallclock)
                 self.local.executing = False
