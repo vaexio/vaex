@@ -134,6 +134,8 @@ class Settings(BaseSettings):
     process_count: Optional[int] = Field(title="Number of processes to use for multiprocessing (e.g. apply), defaults to thread_count setting", gt=0)
     thread_count: Optional[int] = Field(env='VAEX_NUM_THREADS', title="Number of threads to use for computations, defaults to multiprocessing.cpu_count()", gt=0)
     thread_count_io: Optional[int] = Field(env='VAEX_NUM_THREADS_IO', title="Number of threads to use for IO, defaults to thread_count_io + 1", gt=0)
+    path_lock: str = Field(os.path.join(_default_home, "lock"), env="VAEX_LOCK", title="Directory to store lock files for vaex, which defaults to `${VAEX_HOME}/lock/`, "\
+        " Due to possible race conditions lock files cannot be removed while processes using Vaex are running (on Unix systems).")
 
 
     # avoid name collisions of VAEX_CACHE with configurting the whole object via json in env var
