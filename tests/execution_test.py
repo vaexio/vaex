@@ -8,7 +8,7 @@ import threading
 import pytest
 import numpy as np
 
-from common import small_buffer
+from common import CallbackCounter, small_buffer
 import vaex
 
 
@@ -170,6 +170,32 @@ def test_merge_same_aggregation_tasks():
     df.execute()
     assert task1 is task2
     assert np.all(result1.get() == result2.get())
+
+
+def test_stop_early():
+    df = vaex.from_arrays(x=np.arange(100))
+    counter = CallbackCounter(True)
+    # with limit_raise=False, we can stop early
+    df._hash_map_unique('x', delay=True, limit=1, limit_raise=False, progress=counter)
+    assert len(df.executor.tasks) == 1
+    task = df.executor.tasks[0]
+    with small_buffer(df, 3):
+        df.execute()
+    assert task.stopped is True
+    # thus progress should not be == 1 at the last call
+    assert counter.last_args[0] < 1
+
+    # if another task is added, we should continue
+    df._hash_map_unique('x', delay=True, limit=1, limit_raise=False, progress=counter)
+    task = df.executor.tasks[0]
+    df.count('x', delay=True)
+    assert len(df.executor.tasks) == 2
+    with small_buffer(df, 3):
+        df.execute()
+    assert task.stopped is True
+    # thus progress should be == 1 at the last call
+    assert counter.last_args[0] == 1
+
 
 
 def test_signals(df):

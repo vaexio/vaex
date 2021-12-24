@@ -131,7 +131,7 @@ class hash_common {
     using hasher_map = typename hashmap_type::hasher;
     using hasher_map_choice = typename hashmap_type::hasher; // typename vaex::hash<key_type>;
 
-    hash_common(int16_t nmaps) : maps(nmaps), maplocks(nmaps), nan_count(0), null_count(0), sealed(false) {}
+    hash_common(int16_t nmaps, int64_t limit = -1) : maps(nmaps), limit(limit), maplocks(nmaps), nan_count(0), null_count(0), sealed(false) {}
 
     void update1(key_type &key) {
         std::size_t hash = hasher_map_choice()(key);
@@ -249,6 +249,7 @@ class hash_common {
     }
 
     std::vector<hashmap_type> maps;
+    int64_t limit;
     std::vector<std::mutex> maplocks;
     int64_t nan_count;
     int64_t null_count;

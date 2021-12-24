@@ -367,7 +367,8 @@ class StructOperations(collections.abc.Mapping):
 class Expression(with_metaclass(Meta)):
     """Expression class"""
     def __init__(self, ds, expression, ast=None, _selection=False):
-        self.ds = ds
+        import vaex.dataframe
+        self.ds : vaex.dataframe.DataFrame = ds
         assert not isinstance(ds, Expression)
         if isinstance(expression, Expression):
             expression = expression.expression
@@ -1072,32 +1073,37 @@ class Expression(with_metaclass(Meta)):
         return Series(counts, index=keys)
 
     @docsubst
-    def unique(self, dropna=False, dropnan=False, dropmissing=False, selection=None, axis=None, array_type='list', progress=None, delay=False):
+    def unique(self, dropna=False, dropnan=False, dropmissing=False, selection=None, axis=None, limit=None, limit_raise=True, array_type='list', progress=None, delay=False):
         """Returns all unique values.
 
         :param dropmissing: do not count missing values
         :param dropnan: do not count nan values
         :param dropna: short for any of the above, (see :func:`Expression.isna`)
         :param bool axis: Axis over which to determine the unique elements (None will flatten arrays or lists)
+        :param int limit: {limit}
+        :param bool limit_raise: {limit_raise}
         :param progress: {progress}
         :param bool array_type: {array_type}
         """
-        return self.ds.unique(self, dropna=dropna, dropnan=dropnan, dropmissing=dropmissing, selection=selection, array_type=array_type, axis=axis, progress=progress, delay=delay)
+        return self.ds.unique(self, dropna=dropna, dropnan=dropnan, dropmissing=dropmissing, selection=selection, array_type=array_type, axis=axis, limit=limit, limit_raise=limit_raise, progress=progress, delay=delay)
 
-    def nunique(self, dropna=False, dropnan=False, dropmissing=False, selection=None, axis=None, progress=None, delay=False):
+    @docsubst
+    def nunique(self, dropna=False, dropnan=False, dropmissing=False, selection=None, axis=None, limit=None, limit_raise=True, progress=None, delay=False):
         """Counts number of unique values, i.e. `len(df.x.unique()) == df.x.nunique()`.
 
         :param dropmissing: do not count missing values
         :param dropnan: do not count nan values
         :param dropna: short for any of the above, (see :func:`Expression.isna`)
+        :param int limit: {limit}
+        :param bool limit_raise: {limit_raise}
         :param bool axis: Axis over which to determine the unique elements (None will flatten arrays or lists)
         """
         def key_function():
-            fp = vaex.cache.fingerprint(self.fingerprint(), dropna, dropnan, dropmissing, selection, axis)
+            fp = vaex.cache.fingerprint(self.fingerprint(), dropna, dropnan, dropmissing, selection, axis, limit)
             return f'nunique-{fp}'
         @vaex.cache._memoize(key_function=key_function, delay=delay)
         def f():
-            value = self.unique(dropna=dropna, dropnan=dropnan, dropmissing=dropmissing, selection=selection, axis=axis, array_type=None, progress=progress, delay=delay)
+            value = self.unique(dropna=dropna, dropnan=dropnan, dropmissing=dropmissing, selection=selection, axis=axis, limit=limit, limit_raise=limit_raise, array_type=None, progress=progress, delay=delay)
             if delay:
                 return value.then(len)
             else:

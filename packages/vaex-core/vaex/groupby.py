@@ -1,14 +1,17 @@
 from functools import reduce
 import logging
 import operator
-import numpy as np
-import vaex
 import collections
 import six
 
+import numpy as np
 import pyarrow as pa
+
 from vaex.delayed import delayed_args, delayed_dict, delayed_list
 from vaex.utils import _ensure_list, _ensure_string_from_expression
+import vaex
+import vaex.hash
+
 
 try:
     collections_abc = collections.abc
@@ -189,63 +192,44 @@ class Grouper(BinnerBase):
             self.sort_indices = None
         else:
             @vaex.delayed
-            def process(set):
-                self.bin_values = set.key_array()
+            def process(hashmap_unique):
+                self.bin_values = hashmap_unique.keys()
 
-                if isinstance(self.bin_values, vaex.superstrings.StringList64):
-                    # TODO: find out why this more efficient path does not work
-                    # col = vaex.column.ColumnStringArrow.from_string_sequence(self.bin_values)
-                    # self.bin_values = pa.array(col)
-                    self.bin_values = pa.array(self.bin_values.to_numpy())
                 if vaex.dtype_of(self.bin_values) == int:
                     max_value = self.bin_values.max()
                     self.bin_values = self.bin_values.astype(vaex.utils.required_dtype_for_max(max_value))
                 logger.debug('Constructed grouper for expression %s with %i values', str(expression), len(self.bin_values))
 
-                if set.has_null and (dtype.is_primitive or dtype.is_datetime):
-                    mask = np.zeros(shape=self.bin_values.shape, dtype="?")
-                    mask[set.null_value] = 1
-                    self.bin_values = np.ma.array(self.bin_values, mask=mask)
                 if self.sort:
-                    self.bin_values = vaex.array_types.to_arrow(self.bin_values)
-                    indices = pa.compute.sort_indices(self.bin_values)#[offset:])
                     if pre_sort:
-                        self.bin_values = pa.compute.take(self.bin_values, indices)
-                        # arrow sorts with null last
-                        null_value = -1 if not set.has_null else len(self.bin_values)-1
-                        fingerprint = set.fingerprint + "-sorted"
-                        if dtype.is_string:
-                            bin_values = vaex.column.ColumnStringArrow.from_arrow(self.bin_values)
-                            string_sequence = bin_values.string_sequence
-                            set = type(set)(string_sequence, null_value, set.nan_count, set.null_count, fingerprint)
-                        else:
-                            set = type(set)(self.bin_values, null_value, set.nan_count, set.null_count, fingerprint)
+                        hashmap_unique, self.bin_values = hashmap_unique.sorted(keys=self.bin_values, return_keys=True)
                         self.sort_indices = None
                     else:
+                        indices = pa.compute.sort_indices(self.bin_values)
                         self.sort_indices = vaex.array_types.to_numpy(indices)
                         # the bin_values will still be pre sorted, maybe that is confusing (implementation detail)
                         self.bin_values = pa.compute.take(self.bin_values, self.sort_indices)
                 else:
                     self.sort_indices = None
-                self.set = set
+                self.hashmap_unique = hashmap_unique
 
-                self.basename = 'set_%s' % vaex.utils._python_save_name(str(self.expression) + "_" + set.fingerprint)
+                self.basename = 'hashmap_unique_%s' % vaex.utils._python_save_name(str(self.expression) + "_" + hashmap_unique.fingerprint)
 
                 self.N = len(self.bin_values)
                 # for datetimes, we converted to int
                 if dtype.is_datetime:
                     self.bin_values = dtype.create_array(self.bin_values)
-            self._promise = process(df_original._set(self.expression, unique_limit=row_limit, delay=True, progress=self.progressbar))
+            self._promise = process(df_original._hash_map_unique(self.expression, limit=row_limit, delay=True, progress=self.progressbar))
 
     def _create_binner(self, df):
         # TODO: we modify the dataframe in place, this is not nice
         assert df.dataset == self.df.dataset, "you passed a dataframe with a different dataset to the grouper/binned"
         self.df = df
         if self.basename not in self.df.variables:
-            self.setname = df.add_variable(self.basename, self.set, unique=True)
+            self.hash_map_unique_name = df.add_variable(self.basename, self.hashmap_unique, unique=True)
         else:
-            self.setname = self.basename
-        self.binby_expression = '_ordinal_values(%s, %s)' % (self.expression, self.setname)
+            self.hash_map_unique_name = self.basename
+        self.binby_expression = '_ordinal_values(%s, %s)' % (self.expression, self.hash_map_unique_name)
         self.binner = self.df._binner_ordinal(self.binby_expression, self.N)
 
 class GrouperCombined(Grouper):
@@ -325,22 +309,19 @@ class GrouperCategory(BinnerBase):
         self.min_value = self.df.category_offset(self.expression_original)
         self.bin_values = self.df.category_labels(self.expression_original, aslist=False)
         self.N = self.df.category_count(self.expression_original)
-        dtype = self.expression.dtype
+        dtype = self.expression.dtype  # should be the dtype of the 'codes'
         if self.sort:
             # not pre-sorting is faster
             sort_indices = pa.compute.sort_indices(self.bin_values)
             self.bin_values = pa.compute.take(self.bin_values, sort_indices)
             if self.pre_sort:
+                # we will map from int to int
                 sort_indices = vaex.array_types.to_numpy(sort_indices)
-                # TODO: this is kind of like expression.map
-                from .hash import ordered_set_type_from_dtype
-
-                ordered_set_type = ordered_set_type_from_dtype(dtype)
                 fingerprint = self.expression.fingerprint() + "-grouper-sort-mapper"
-                self.set = ordered_set_type(sort_indices + self.min_value, -1, 0, 0, fingerprint)
+                self.hash_map_unique = vaex.hash.HashMapUnique.from_keys(sort_indices + self.min_value, null_value=-1, null_count=0, fingerprint=fingerprint)
                 self.min_value = 0
                 self.sort_indices = None
-                self.basename = "set_%s" % vaex.utils._python_save_name(str(self.expression) + "_" + self.set.fingerprint)
+                self.basename = "hash_map_unique_%s" % vaex.utils._python_save_name(str(self.expression) + "_" + self.hash_map_unique.fingerprint)
             else:
                 self.sort_indices = sort_indices
         else:
@@ -362,10 +343,10 @@ class GrouperCategory(BinnerBase):
         self.df = df
         if self.sort and self.pre_sort:
             if self.basename not in self.df.variables:
-                self.setname = df.add_variable(self.basename, self.set, unique=True)
+                self.var_name = df.add_variable(self.basename, self.hash_map_unique, unique=True)
             else:
-                self.setname = self.basename
-            self.binby_expression = "_ordinal_values(%s, %s)" % (self.expression, self.setname)
+                self.var_name = self.basename
+            self.binby_expression = "_ordinal_values(%s, %s)" % (self.expression, self.var_name)
             self.binner = self.df._binner_ordinal(self.binby_expression, self.N, 0)
         else:
             self.binby_expression = str(self.expression)
@@ -407,21 +388,12 @@ class GrouperLimited(BinnerBase):
         except ValueError:
             null_value = -1
             null_count = 0
-        if vaex.dtype_of(self.values) == float:
-            nancount = np.isnan(self.values).sum()
-        else:
-            nancount = 0
 
         fp = vaex.cache.fingerprint(values)
         fingerprint = f"set-grouper-fixed-{fp}"
-        if dtype.is_string:
-            values = vaex.column.ColumnStringArrow.from_arrow(self.values)
-            string_sequence = values.string_sequence
-            self.set = set_type(string_sequence, null_value, nancount, null_count, fingerprint)
-        else:
-            self.set = set_type(self.values, null_value, nancount, null_count, fingerprint)
+        self.hash_map_unique = vaex.hash.HashMapUnique.from_keys(self.values, null_value=null_value, null_count=null_count, fingerprint=fingerprint)
 
-        self.basename = "set_%s" % vaex.utils._python_save_name(str(self.expression) + "_" + self.set.fingerprint)
+        self.basename = "hash_map_unique_%s" % vaex.utils._python_save_name(str(self.expression) + "_" + self.hash_map_unique.fingerprint)
         self.binby_expression = expression
         self.sort_indices = None
         self._promise = vaex.promise.Promise.fulfilled(None)
@@ -430,11 +402,11 @@ class GrouperLimited(BinnerBase):
         assert df.dataset == self.df.dataset, "you passed a dataframe with a different dataset to the grouper/binned"
         self.df = df
         if self.basename not in self.df.variables:
-            self.setname = df.add_variable(self.basename, self.set, unique=True)
+            self.var_name = df.add_variable(self.basename, self.hash_map_unique, unique=True)
         else:
-            self.setname = self.basename
+            self.var_name = self.basename
         # modulo N will map -1 (value not found) to N-1
-        self.binby_expression = "_ordinal_values(%s, %s) %% %s" % (self.expression, self.setname, self.N)
+        self.binby_expression = "_ordinal_values(%s, %s) %% %s" % (self.expression, self.var_name, self.N)
         self.binner = self.df._binner_ordinal(self.binby_expression, self.N)
 
 def _combine(df, groupers, sort, row_limit=None, progress=None):

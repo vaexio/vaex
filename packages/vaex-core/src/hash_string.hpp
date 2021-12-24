@@ -34,7 +34,7 @@ class hash_base : public hash_common<Derived, T, hashmap<T, int64_t>> {
     // using hasher_map = typename Base::hasher_map;
     using hasher_map_choice = typename Base::hasher_map_choice;
 
-    hash_base(int nmaps = 1) : Base(nmaps){};
+    hash_base(int nmaps = 1, int64_t limit = -1) : Base(nmaps, limit){};
 
     size_t bytes_used() const {
         int64_t buffer_size = 0; // collect buffer size
@@ -53,6 +53,9 @@ class hash_base : public hash_common<Derived, T, hashmap<T, int64_t>> {
         if (bucket_size < chunk_size) {
             throw std::runtime_error("bucket size should be larger than chunk_size");
         }
+        if (this->limit >= -1 && return_values) {
+            throw std::runtime_error("Cannot combine limit with return_inverse");
+        }
         int64_t size = strings->length;
 
         // for strings we always use offsets, we don't copy the data
@@ -66,6 +69,8 @@ class hash_base : public hash_common<Derived, T, hashmap<T, int64_t>> {
 
         {
             using offset_type = int32_t;
+
+            bool full = false; // if we reached the limit, we can quickly get out
 
             py::gil_scoped_release gil;
             size_t nmaps = this->maps.size();
@@ -124,10 +129,17 @@ class hash_base : public hash_common<Derived, T, hashmap<T, int64_t>> {
                     }
                 }
             }
-            for (size_t map_index = 0; map_index < nmaps; map_index++) {
-                if (offsets[map_index].size()) {
-                    const std::lock_guard<std::mutex> lock(this->maplocks[map_index]);
-                    flush_bucket(map_index);
+            if(this->limit >= 0) {
+                if(this->count() >= this->limit) {
+                    full = true;
+                }
+            }
+            if(!full) {
+                for (size_t map_index = 0; map_index < nmaps; map_index++) {
+                    if (offsets[map_index].size()) {
+                        const std::lock_guard<std::mutex> lock(this->maplocks[map_index]);
+                        flush_bucket(map_index);
+                    }
                 }
             }
             if (null_offsets.size()) {
@@ -314,7 +326,7 @@ class ordered_set : public hash_base<ordered_set<T>, T, T, V> {
     using typename Base::storage_type_view;
     using typename Base::value_type;
 
-    ordered_set(int nmaps = 1) : Base(nmaps), null_value(0x7fffffff), ordinal_code_offset_null(0) {}
+    ordered_set(int nmaps = 1, int64_t limit = -1) : Base(nmaps, limit), null_value(0x7fffffff), ordinal_code_offset_null(0) {}
 
     virtual value_type nan_index() { return -1; }
     virtual value_type null_index() { return null_value; }
@@ -537,7 +549,7 @@ class index_hash : public hash_base<index_hash<T>, T, T, V> {
     typedef hashmap<key_type, std::vector<int64_t>> overflow_type;
 
     // TODO: might be better to use a node based hasmap, we don't want to move large vectors
-    index_hash(int nmaps) : Base(nmaps), overflows(nmaps), has_duplicates(false) {}
+    index_hash(int nmaps, int64_t limit = -1) : Base(nmaps, limit), overflows(nmaps), has_duplicates(false) {}
 
     int64_t length() const {
         int64_t c = this->count();

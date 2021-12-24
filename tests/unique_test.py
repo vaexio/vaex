@@ -126,3 +126,29 @@ def test_unique_datetime_timedelta():
     assert set(unique_delta) == {datetime.timedelta(0),
                                  datetime.timedelta(days=1),
                                  datetime.timedelta(days=2)}
+
+
+def test_unique_limit_primitive():
+    x = np.arange(100)
+    df = vaex.from_arrays(x=x)
+    with pytest.raises(vaex.RowLimitException, match='.*Resulting hash_map_unique.*'):
+        values = df.x.unique(limit=11)
+    values = df.x.unique(limit=11, limit_raise=False)
+    assert len(values) == 11
+    with pytest.raises(vaex.RowLimitException, match='.*Resulting hash_map_unique.*'):
+        df.x.nunique(limit=11)
+    assert df.x.nunique(limit=11, limit_raise=False) == 11
+    df.x.nunique(limit=100)
+
+
+def test_unique_limit_string():
+    x = np.arange(100)
+    df = vaex.from_arrays(x=[str(k) for k in x])
+    with pytest.raises(vaex.RowLimitException, match='.*Resulting hash_map_unique.*'):
+        values = df.x.unique(limit=11)
+    values = df.x.unique(limit=11, limit_raise=False)
+    assert len(values) == 11
+    with pytest.raises(vaex.RowLimitException, match='.*Resulting hash_map_unique.*'):
+        df.x.nunique(limit=11)
+    assert df.x.nunique(limit=11, limit_raise=False) == 11
+    df.x.nunique(limit=100)

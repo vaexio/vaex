@@ -2438,19 +2438,18 @@ for name in dir(scopes['str']):
 
 # expression_namespace['str_strip'] = str_strip
 
+# kept for backwards compatibility
 @register_function()
-def _ordinal_values(x, ordered_set):
-    from vaex.column import _to_string_sequence
+def _ordinal_values(x, hashmap_unique):
+    return hashmap_apply(x, hashmap_unique)
 
-    if not isinstance(x, vaex.array_types.supported_array_types) or isinstance(ordered_set, vaex.superutils.ordered_set_string):
-        # sometimes the dtype can be object, but seen as an string array
-        x = _to_string_sequence(x)
-    else:
-        x = vaex.array_types.to_numpy(x)
-    indices = ordered_set.map_ordinal(x)
-    if np.ma.isMaskedArray(x):
-        indices[x.mask] = ordered_set.null_value
+
+@register_function()
+def hashmap_apply(x, hashmap):
+    '''Apply values to hashmap'''
+    indices = hashmap.map(x)
     return indices
+
 
 @register_function()
 def _choose(ar, choices, default=None):

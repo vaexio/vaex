@@ -416,12 +416,15 @@ class ExecutorLocal(Executor):
                 def progress(p):
                     # no global cancel and at least 1 tasks wants to continue, then we continue
                     ok_tasks = any([task.progress(p) for task in tasks])
+                    all_stopped = all([task.stopped for task in tasks])
                     ok_executor = all(self.signal_progress.emit(p))
+                    if all_stopped:
+                        logger.debug("Pass cancelled because all tasks are stopped: %r", tasks)
                     if not ok_tasks:
                         logger.debug("Pass cancelled because all tasks cancelled: %r", tasks)
                     if not ok_executor:
                         logger.debug("Pass cancelled because of the global progress event: %r", self.signal_progress.callbacks)
-                    return ok_tasks and ok_executor
+                    return ok_tasks and ok_executor and not all_stopped
                 yield from self.thread_pool.map(self.process_part, dataset.chunk_iterator(run.dataset_deps, chunk_size),
                                                     dataset.row_count,
                                                     progress=progress,
@@ -531,6 +534,8 @@ class ExecutorLocal(Executor):
             memory_tracker = vaex.memory.create_tracker()
             task_checkers = vaex.tasks.create_checkers()
             for task in tasks:
+                if task.stopped:
+                    continue
                 assert df is task.df
                 blocks = [block_dict[expression] for expression in task.expressions_all]
                 def fix(ar):
@@ -547,19 +552,30 @@ class ExecutorLocal(Executor):
                             task_parts = [task._parts[thread_index]]
                         else:
                             task_parts = [task._parts.get()]
+                    some_parts_stopped = False
                     for task_index, task_part in enumerate(task_parts):
-                        try:
-                            if task.see_all:
-                                task_part.process(task_index, i1, i2, filter_mask, selections, blocks)
-                            else:
-                                task_part.process(thread_index, i1, i2, filter_mask, selections, blocks)
-                        except Exception as e:
-                            # we cannot call .reject, since then we'll handle fallbacks in this thread
-                            task._toreject = e
-                            task.cancelled = True
-                        finally:
-                            if not isinstance(task._parts, list):
-                                task._parts.put(task_part)
+                        if not task_part.stopped:
+                            try:
+                                if task.see_all:
+                                    task_part.process(task_index, i1, i2, filter_mask, selections, blocks)
+                                else:
+                                    task_part.process(thread_index, i1, i2, filter_mask, selections, blocks)
+                            except Exception as e:
+                                # we cannot call .reject, since then we'll handle fallbacks in this thread
+                                task._toreject = e
+                                task.cancelled = True
+                            finally:
+                                if not isinstance(task._parts, list):
+                                    task._parts.put(task_part)
+                            # we could be done after processing
+                            if task_part.stopped:
+                                some_parts_stopped = True
+                        else:
+                            some_parts_stopped = True
+                        if some_parts_stopped:
+                            break
+                    if some_parts_stopped:  # if 1 is done, the whole task is done
+                        task.stopped = True
                 if memory_tracker.track_live:
                     for part in task_parts:
                         memory_tracker.using(part.memory_usage())
