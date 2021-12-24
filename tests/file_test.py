@@ -1,4 +1,5 @@
 from pathlib import Path
+import io
 import threading
 import pytest
 import fsspec.implementations.memory
@@ -175,3 +176,11 @@ def test_write_arrow_in_stream(tmpdir):
             fdisk.write(chunk)
     df_disk = vaex.open(path)
     assert df_disk.x.tolist() == [1, 2]
+
+
+def test_not_close_open_file():
+    df = vaex.from_arrays(x=[1,2])
+    with io.BytesIO() as f:
+        df.export_arrow(f)
+        assert not f.closed
+    assert f.closed
