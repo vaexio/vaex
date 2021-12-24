@@ -77,7 +77,7 @@ async def test_progress_calls_async(df):
         assert x == x2
         assert y == y2
         assert counter.counter > 0
-        assert counter.last_args[0], 1.0
+        assert counter.last_args[0] == 1.0
 
 
 def test_cancel(df):

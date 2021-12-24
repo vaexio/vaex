@@ -67,7 +67,7 @@ class ThreadPoolIndex(concurrent.futures.ThreadPoolExecutor):
         self.nthreads = self._max_workers
         self._debug_sleep = 0
 
-    def map(self, callable, iterator, count, on_error=None, progress=None, cancel=None, unpack=False, **kwargs_extra):
+    def map(self, callable, iterator, count, on_error=None, progress=None, cancel=None, unpack=False, use_async=False, **kwargs_extra):
         progress = progress or (lambda x: True)
         cancelled = False
 
@@ -94,13 +94,24 @@ class ThreadPoolIndex(concurrent.futures.ThreadPoolExecutor):
                 if cancelled:
                     break
         if self.nthreads == 1:  # when using 1 thread, it makes debugging easier (better stacktrace)
-            iterator = self._map(wrapped, cancellable_iter())
+            if use_async:
+                iterator = self._map_async(wrapped, cancellable_iter())
+            else:
+                iterator = self._map(wrapped, cancellable_iter())
         else:
-            iterator = super(ThreadPoolIndex, self).map(wrapped, cancellable_iter())
+            if use_async:
+                loop = asyncio.get_event_loop()
+                iterator = (loop.run_in_executor(self, lambda value=value: wrapped(value)) for value in cancellable_iter())
+            else:
+                iterator = super(ThreadPoolIndex, self).map(wrapped, cancellable_iter())
         total = 0
         iterator = iter(buffer(iterator, self._max_workers + 3))
         try:
             for value in iterator:
+                if use_async:
+                    value = yield value
+                else:
+                    yield value
                 if value != None:
                     total += value
                 progress_value = (total) / count
@@ -111,7 +122,6 @@ class ThreadPoolIndex(concurrent.futures.ThreadPoolExecutor):
                         cancelled = True
                         cancel()
                         break
-                yield value
         finally:
             if not cancelled:
                 cancelled = True
@@ -127,3 +137,9 @@ class ThreadPoolIndex(concurrent.futures.ThreadPoolExecutor):
     def _map(self, callable, iterator):
         for i in iterator:
             yield callable(i)
+
+    def _map_async(self, callable, iterator):
+        for i in iterator:
+            future = asyncio.Future()
+            future.set_result(callable(i))
+            yield future

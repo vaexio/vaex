@@ -288,14 +288,23 @@ class ExecutorLocal(Executor):
         return chunk_size
 
     async def execute_async(self):
-        for _ in self.execute_generator():
-            await asyncio.sleep(1e-5)  # allow task switch
+        # consume awaitables from the generator, and await them here at the top
+        # level, such that we don't need await in the downstream code
+        # so we can reuse the same code in a sync way
+        gen = self.execute_generator(use_async=True)
+        value = None
+        while True:
+            try:
+                value = gen.send(value)
+                value = await value
+            except StopIteration:
+                break
 
     def execute(self):
         for _ in self.execute_generator():
             pass  # just eat all elements
 
-    def execute_generator(self):
+    def execute_generator(self, use_async=False):
         logger.debug("starting with execute")
 
         with self.lock:  # setup thread local initial values
@@ -413,12 +422,10 @@ class ExecutorLocal(Executor):
                     if not ok_executor:
                         logger.debug("Pass cancelled because of the global progress event: %r", self.signal_progress.callbacks)
                     return ok_tasks and ok_executor
-                for _element in self.thread_pool.map(self.process_part, dataset.chunk_iterator(run.dataset_deps, chunk_size),
+                yield from self.thread_pool.map(self.process_part, dataset.chunk_iterator(run.dataset_deps, chunk_size),
                                                     dataset.row_count,
                                                     progress=progress,
-                                                    cancel=lambda: self._cancel(run), unpack=True, run=run):
-                    pass  # just eat all element
-                    yield
+                                                    cancel=lambda: self._cancel(run), unpack=True, run=run, use_async=use_async)
                 duration_wallclock = time.time() - t0
                 logger.debug("executing took %r seconds", duration_wallclock)
                 self.local.executing = False
