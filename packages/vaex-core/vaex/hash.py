@@ -2,6 +2,7 @@ import copyreg
 import sys
 import os
 
+import dask.base
 import pyarrow as pa
 import numpy as np
 
@@ -14,7 +15,6 @@ import vaex.utils
 if vaex.utils.has_c_extension:
     from .superutils import *
     from . import superutils
-    import dask.base
 
     ordered_set = tuple([cls for name, cls in vars(superutils).items() if name.startswith('ordered_set')])
 
