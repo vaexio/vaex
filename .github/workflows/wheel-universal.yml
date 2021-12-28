@@ -158,6 +158,7 @@ jobs:
         TWINE_USERNAME: __token__
         TWINE_PASSWORD: ${{ secrets.pypi_password_vaex_server }}
       run: |
+        openssl sha256 dist/*
         twine upload dist/vaex-server* dist/vaex_server*
 
     - uses: actions/upload-artifact@v1
