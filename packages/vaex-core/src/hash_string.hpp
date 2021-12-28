@@ -53,7 +53,7 @@ class hash_base : public hash_common<Derived, T, hashmap<T, int64_t>> {
         if (bucket_size < chunk_size) {
             throw std::runtime_error("bucket size should be larger than chunk_size");
         }
-        if (this->limit >= -1 && return_values) {
+        if (this->limit >= 0 && return_values) {
             throw std::runtime_error("Cannot combine limit with return_inverse");
         }
         int64_t size = strings->length;

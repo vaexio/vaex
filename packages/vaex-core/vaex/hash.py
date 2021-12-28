@@ -106,7 +106,7 @@ class HashMapUnique:
     @classmethod
     def from_keys(cls, keys, null_value, null_count, dtype=None, fingerprint=''):
         dtype = vaex.dtype_of(keys) if dtype is None else dtype
-        if vaex.dtype_of(keys) == float:
+        if dtype == float:
             nancount = np.isnan(keys).sum()
         else:
             nancount = 0
@@ -174,6 +174,20 @@ class HashMapUnique:
         if np.ma.isMaskedArray(keys):
             indices[keys.mask] = self.null_value
         return indices
+
+    def isin(self, values):
+        if vaex.column._is_stringy(values) or self.dtype_item == str:
+            values = vaex.column._to_string_column(values)
+            values = _to_string_sequence(values)
+            # return x.string_sequence.isin(values)
+            return self._internal.isin(values)
+        else:
+            if np.ma.isMaskedArray(values):
+                isin = self._internal.isin(values.data)
+                isin[values.mask] = False
+                return isin
+            else:
+                return self._internal.isin(values)
 
     @property
     def has_null(self):

@@ -2479,14 +2479,8 @@ def _map(ar, value_to_index, choices, default_value=None, use_missing=False, axi
         import vaex.arrow.utils
         ar, wrapper = vaex.arrow.utils.list_unwrap(ar)
 
-    if not isinstance(ar, vaex.array_types.supported_array_types) or isinstance(value_to_index, vaex.superutils.ordered_set_string):
-        # sometimes the dtype can be object, but seen as an string array
-        ar = _to_string_sequence(ar)
-        # -1 points to missing
-        indices = value_to_index.map_ordinal(ar) + 1
-    else:
-        ar = vaex.array_types.to_numpy(ar)
-        indices = value_to_index.map_ordinal(ar) + 1
+    ar = vaex.array_types.to_numpy(ar)
+    indices = value_to_index.map(ar) + 1
     values = choices.take(indices)
     if np.ma.isMaskedArray(ar):
         mask = np.ma.getmaskarray(ar).copy()
@@ -2566,19 +2560,8 @@ def _isin(x, values):
 
 
 @register_function(name='isin_set', on_expression=False)
-def _isin_set(x, set):
-    if vaex.column._is_stringy(x) or isinstance(set, vaex.superutils.ordered_set_string):
-        x = vaex.column._to_string_column(x)
-        x = _to_string_sequence(x)
-        # return x.string_sequence.isin(values)
-        return set.isin(x)
-    else:
-        if np.ma.isMaskedArray(x):
-            isin = set.isin(x.data)
-            isin[x.mask] = False
-            return isin
-        else:
-            return set.isin(x)
+def _isin_set(x, hashmap_unique):
+    return hashmap_unique.isin(x)
 
 
 @register_function()

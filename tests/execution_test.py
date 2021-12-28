@@ -329,7 +329,7 @@ def test_executor_from_other_thread():
 
 def test_cancel_single_job():
     df = vaex.from_arrays(x=[1, 2, 3])
-    res1 = df._set(df.x, unique_limit=1, delay=True)
+    res1 = df._set(df.x, limit=1, delay=True)
     res2 = df._set(df.x, delay=True)
     df.execute()
     assert res1.isRejected
@@ -339,12 +339,12 @@ def test_cancel_single_job():
 def test_exception():
     df = vaex.from_arrays(x=[1, 2, 3])
     with pytest.raises(vaex.RowLimitException, match='.* >= 1 .*'):
-        df._set(df.x, unique_limit=1)
+        df._set(df.x, limit=1)
 
 
 def test_continue_next_task_after_cancel():
     df = vaex.from_arrays(x=[1, 2, 3])
-    res1 = df._set(df.x, unique_limit=1, delay=True)
+    res1 = df._set(df.x, limit=1, delay=True)
     def on_error(exception):
         return df._set(df.x, delay=True)
     result = res1.then(None, on_error)
