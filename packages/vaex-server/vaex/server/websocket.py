@@ -72,7 +72,9 @@ class WebSocketHandler:
                 # but never send old or same values
                 if (last_progress is None or (f - last_progress) > 0.05 or f == 1.0) and (last_progress is None or f > last_progress):
                     def wrapper():
-                        progress_futures.append(asyncio.create_task(send_progress()))
+                        # see https://docs.python.org/3/library/asyncio-task.html#asyncio.create_task
+                        # TODO: replace after we drop 36 support progress_futures.append(asyncio.create_task(send_progress()))
+                        progress_futures.append(asyncio.ensure_future(send_progress()))
                     ioloop.call_soon_threadsafe(wrapper)
                 return True
 

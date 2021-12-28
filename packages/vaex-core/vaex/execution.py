@@ -28,7 +28,7 @@ try:
     # support py 36 for the moment
     import contextvars
     has_contextvars = True
-except ImportError:
+except ModuleNotFoundError:
     has_contextvars = False
 
 
@@ -185,15 +185,19 @@ class Executor:
         self.lock = threading.Lock()
         self.event_loop = asyncio.new_event_loop()
 
-    @contextlib.asynccontextmanager
-    async def auto_execute(self):
-        '''This async executor will start executing tasks automatically when a task is awaited for.'''
-        vaex.promise.auto_await_executor.set(self)
-        try:
-            yield
-            await self.execute_async()
-        finally:
-            vaex.promise.auto_await_executor.set(None)
+    if hasattr(contextlib, 'asynccontextmanager'):
+        @contextlib.asynccontextmanager
+        async def auto_execute(self):
+            '''This async executor will start executing tasks automatically when a task is awaited for.'''
+            vaex.promise.auto_await_executor.set(self)
+            try:
+                yield
+                await self.execute_async()
+            finally:
+                vaex.promise.auto_await_executor.set(None)
+    else:
+        async def auto_execute(self):
+            raise NotImplemented('Only on Python >3.7')
 
     async def execute_async(self):
         raise NotImplementedError
