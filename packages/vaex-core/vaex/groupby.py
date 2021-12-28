@@ -178,7 +178,7 @@ class Grouper(BinnerBase):
         self.progressbar = vaex.utils.progressbars(progress, title=f"grouper: {repr(self.label)}" )
         dtype = self.expression.dtype
         if materialize_experimental:
-            set, values = df_original._set(self.expression, unique_limit=row_limit, return_inverse=True)
+            set, values = df_original._set(self.expression, limit=row_limit, return_inverse=True)
             # TODO: add column should have a unique argument
             self.df.add_column(f'__materialized_{self.label}', values)
 
