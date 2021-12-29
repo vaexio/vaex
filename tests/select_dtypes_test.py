@@ -24,6 +24,7 @@ def test_get_column_names_dtypes(df):
 
 def test_getitem_by_dtypes(df):
     assert df[int].get_column_names() == ['a']
+    assert df[df.a.dtype].get_column_names() == ['a']
     assert df[float].get_column_names() == ['b']
     assert df[np.float64].get_column_names() == ['b']
     assert df[int, float].get_column_names() == ['a', 'b']
