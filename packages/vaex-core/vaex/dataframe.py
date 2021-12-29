@@ -4141,7 +4141,7 @@ class DataFrame(object):
         :param hidden: If False, skip hidden columns
         :param strings: If False, skip string columns
         :param regex: Only return column names matching the (optional) regular expression
-        :param dtype: A list of dtypes to consider
+        :param dtype: Only return column names that have this dtype (pass a list to accept multiple dtypes)
         :param alias: Return the alias (True) or internal name (False).
         :rtype: list of str
         """
