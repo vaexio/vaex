@@ -5214,7 +5214,7 @@ class DataFrame(object):
         elif isinstance(item, Expression):
             expression = item.expression
             return self.filter(expression)
-        elif isinstance(item, type):
+        elif isinstance(item, (type, vaex.datatype.DataType)):
             columns = self.get_column_names(dtype=item)
             if len(columns) == 0:
                 raise KeyError(f"No columns with type {item}")
