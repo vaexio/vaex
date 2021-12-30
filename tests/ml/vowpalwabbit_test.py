@@ -1,13 +1,18 @@
 import sys
 
+import numpy as np
 import pytest
 
 pytest.importorskip("vowpalwabbit")
-from sklearn.metrics import accuracy_score
+
 import vaex.ml.vowpalwabbit
 import vaex.ml.datasets
 
 params = {'oaa': '3', 'P': 1, 'enable_logging': True}
+
+
+def accuracy_score(predictions, true_values):
+    return (true_values == predictions).sum() / len(true_values)
 
 
 def test_vowpalwabbit_examples(df_iris):
@@ -38,7 +43,6 @@ def test_vowpalwabbit_examples(df_iris):
     from vowpalwabbit.DFtoVW import DFtoVW
     examples = DFtoVW.from_colnames(df=ds.head(1).to_pandas_df(), y=target, x=features).convert_df()
     examples[0] == '2 | x:5.9 y:3.0 z:1.5 w:4.2'
-
 
 
 def test_vowpalwabbit(df_iris):

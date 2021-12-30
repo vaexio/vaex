@@ -42,4 +42,5 @@ dependencies:
 - pip:
   - myst_parser
   - tensorflow==2.6.0
+  - vowpalwabbit
   - keras==2.6.0
