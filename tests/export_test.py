@@ -4,6 +4,7 @@ from pathlib import Path
 import tempfile
 import pandas as pd
 import platform
+import hashlib
 
 
 DATA_PATH = Path(__file__).parent
@@ -74,6 +75,30 @@ def test_export_basic(ds_local, tmpdir):
         ds.export(path)
         df = vaex.open(path)
 
+
+def test_export_hdf5_2d(tmpdir):
+    x = np.arange((2*3*4)).reshape((2, 3, 4))
+    df = vaex.from_arrays(x=x)
+    path = str(tmpdir.join('test.hdf5'))
+    df.export_hdf5(path)
+    df2 = vaex.open(path)
+    assert df.x.tolist() == df2.x.tolist()
+    assert df2.x.shape == (2, 3, 4)
+
+
+def test_export_hdf5_2d_masked(tmpdir):
+    x = np.arange((2*3*4)).reshape((2, 3, 4))
+    mask = x == 5
+    x = np.ma.array(x, mask=mask)
+    df = vaex.from_arrays(x=x)
+    path = str(tmpdir.join('test.hdf5'))
+    df.export_hdf5(path)
+    df2 = vaex.open(path)
+    assert df.x.tolist() == df2.x.tolist()
+    assert df2.x.shape == (2, 3, 4)
+
+
+
 def test_export_open_hdf5(ds_local):
     ds = ds_local
     ds = ds.drop(ds.obj)
@@ -116,6 +141,16 @@ def test_export_string_mask(tmpdir):
     df_arrow = vaex.open(path)
     assert df.s.tolist() == df_arrow.s.tolist()
 
+def test_export_unicode_column_name_hdf5(tmpdir):
+    # prepare many columns for multithreaded export
+    src_dict = {"あ": [1, 2, 3], "a": [1, 2, 3], "b": [1, 2, 3],
+            "c": [1, 2, 3], "d": [1, 2, 3], "a1": [1, 2, 3],
+            "b2": [1, 2, 3], "c3": [1, 2, 3], "d4": [1, 2, 3]}
+    path = str(tmpdir.join('test.hdf5'))
+    df = vaex.from_dict(src_dict)
+    df.export(path)
+    df_open = vaex.open(path)
+    assert df_open["あ"].tolist() == [1, 2, 3]
 
 # N = 2**32+2
 # @pytest.mark.skipif(not os.environ.get('VAEX_EXPORT_BIG', False),
@@ -168,6 +203,40 @@ def test_multi_file_naive_read_convert_export(tmpdir, dtypes):
 def test_export_csv(df_local, tmpdir):
     df = df_local
     path = str(tmpdir.join('test.csv'))
-    df.export_csv(path)
+    df.export_csv(path, index=False)
 
     assert '123456' in vaex.open(path)
+
+
+@pytest.mark.parametrize("dtypes", [{}, {'name': np.object, 'age': 'Int64', 'weight': np.float}])
+def test_export_generates_same_hdf5_shasum(tmpdir, dtypes):
+    current_dir = os.path.dirname(__file__)
+
+    path1 = '/data/sample_1.csv'
+
+    pdf1 = pd.read_csv(current_dir + path1, dtype=dtypes)
+    vdf1 = vaex.from_pandas(pdf1)
+    output_path1 = str(tmpdir.join('sample_1.hdf5'))
+    vdf1.export_hdf5(output_path1)
+
+    shasum1 = hashlib.sha1()
+    with open(output_path1, 'rb') as f:
+        while True:
+            data = f.read(65536)
+            if not data:
+                break
+            shasum1.update(data)
+
+    vdf2 = vaex.from_pandas(pdf1)
+    output_path2 = str(tmpdir.join('sample_2.hdf5'))
+    vdf2.export_hdf5(output_path2)
+
+    shasum2 = hashlib.sha1()
+    with open(output_path2, 'rb') as f:
+        while True:
+            data = f.read(65536)
+            if not data:
+                break
+            shasum2.update(data)
+
+    assert shasum1.hexdigest() == shasum2.hexdigest()

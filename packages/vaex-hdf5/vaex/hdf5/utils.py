@@ -5,12 +5,15 @@ from vaex.column import ColumnNumpyLike, ColumnMaskedNumpy
 
 
 # these helper functions are quite similar to the dataset methods
-def mmap_array(mmap, file, offset, dtype, length):
+def mmap_array(mmap, file, offset, dtype, shape):
+    length = np.product(shape)
     if mmap is None:
+        if len(shape) > 1:
+            raise RuntimeError('not supported, high d arrays from non local files')
         return ColumnFile(file, offset, length, dtype, write=True, tls=None)
     else:
-        return np.frombuffer(mmap, dtype=dtype, count=length, offset=offset)
-
+        array = np.frombuffer(mmap, dtype=dtype, count=length, offset=offset)
+        return array.reshape(shape)
 
 def h5mmap(mmap, file, data, mask=None):
     offset = data.id.get_offset()
@@ -31,8 +34,7 @@ def h5mmap(mmap, file, data, mask=None):
                 dtype = data.attrs["dtype"]
                 if dtype == 'utf32':
                     dtype = np.dtype('U' + str(data.attrs['dlength']))
-        #self.addColumn(column_name, offset, len(data), dtype=dtype)
-        array = mmap_array(mmap, file, offset, dtype=dtype, length=len(data))
+        array = mmap_array(mmap, file, offset, dtype=dtype, shape=shape)
         if mask is not None:
             mask_array = h5mmap(mmap, file, mask)
             if isinstance(array, np.ndarray):

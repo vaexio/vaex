@@ -15,7 +15,10 @@ def test_pickle_roundtrip(df_local):
         df2 = df2.drop('obj')
     df['x'].tolist() == df2['x'].tolist()
     df.x.tolist() == df2.x.tolist()
-    assert df.compare(df2) == ([], [], [], [])
+    result = list(df.compare(df2))
+    result[2] = []  # ignore dtype mismatches, it seems that pickling a big endian numpy arrays will make it little endian
+    result = tuple(result)
+    assert result == ([], [], [], [])
 
 
 def test_pick_file(tmpdir, file_extension):
@@ -35,7 +38,7 @@ def test_pick_file(tmpdir, file_extension):
         df.export(path)
         df = vaex.open(path)
         data = pickle.dumps(df)
-        assert len(data) < 700
+        assert len(data) < 1000
         assert df.x.sum() == xsum
         assert df.y.sum() == ysum
 
@@ -85,7 +88,7 @@ def test_merge_files(df_file, tmpdir):
     df_join = vaex.open(path)
     df_join.rename('x', 'z')
     df = df_file.join(df_join)
-    assert len(pickle.dumps(df)) < 2000
+    assert len(pickle.dumps(df)) < 2300
     df2 = pickle.loads(pickle.dumps(df))
     assert df.compare(df2) == ([], [], [], [])
     assert df2.sum('x-z') == 0

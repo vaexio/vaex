@@ -1,5 +1,6 @@
 
 [![Documentation](https://readthedocs.org/projects/vaex/badge/?version=latest)](https://docs.vaex.io)
+[![Slack](https://img.shields.io/badge/slack-chat-green.svg)](https://join.slack.com/t/vaexio/shared_invite/zt-shhxzf5i-Cf5n2LtkoYgUjOjbB3bGQQ)
 
 # What is Vaex?
 
@@ -73,6 +74,14 @@ Vaex doesn't copy/materialize the 'right' table when joining, saving gigabytes o
  * Integration into [Jupyter and Voila for interactive notebooks and dashboards](https://vaex.readthedocs.io/en/latest/tutorial_jupyter.html)
  * [Machine Learning without (explicit) pipelines](https://vaex.readthedocs.io/en/latest/tutorial_ml.html)
 
+
+## Contributing
+
+See [contributing](CONTRIBUTING.md) page.
+
+## Slack
+
+Join the discussion in our [Slack](https://join.slack.com/t/vaexio/shared_invite/zt-shhxzf5i-Cf5n2LtkoYgUjOjbB3bGQQ) channel!
 
 # Learn more about Vaex
  * Articles

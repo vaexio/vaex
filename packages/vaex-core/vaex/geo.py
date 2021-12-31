@@ -397,6 +397,8 @@ def geo_inside_polygon(x, y, px, py):
     :param px: list of y coordinates for the polygon
     :return: Expression, which is true if point is inside, else false.
     """
+    x = vaex.array_types.to_numpy(x)
+    y = vaex.array_types.to_numpy(y)
     x = as_flat_array(x, np.float64)
     y = as_flat_array(y, np.float64)
     px = as_flat_array(np.asarray(px), np.float64)
@@ -435,6 +437,8 @@ def geo_inside_polygons(x, y, pxs, pys, any=True):
     :param any: return true if in any polygon, or all polygons
     :return: Expression , which is true if point is inside, else false.
     """
+    x = vaex.array_types.to_numpy(x)
+    y = vaex.array_types.to_numpy(y)
     x = as_flat_array(x, np.float64)
     y = as_flat_array(y, np.float64)
     mask = np.zeros(len(x), dtype=np.bool)
@@ -442,6 +446,8 @@ def geo_inside_polygons(x, y, pxs, pys, any=True):
     N = len(pxs)
     submask = np.zeros(len(x), dtype=np.bool)
     if N > 0:
+        pxs = [vaex.arrow.numpy_dispatch.unwrap(k) for k in pxs]
+        pys = [vaex.arrow.numpy_dispatch.unwrap(k) for k in pys]
         for i in range(0, N):
             px = as_flat_array(pxs[i], np.float64)
             py = as_flat_array(pys[i], np.float64)
@@ -482,8 +488,13 @@ def geo_inside_which_polygon(x, y, pxs, pys):
     :param px: list of N ndarrays with y coordinates for the polygon
     :return: Expression, 0 based index to which polygon the point belongs (or missing/masked value)
     """
+    x = vaex.array_types.to_numpy(x)
+    y = vaex.array_types.to_numpy(y)
     x = as_flat_array(x, np.float64)
     y = as_flat_array(y, np.float64)
+    # list do not get unwrapped
+    pxs = [vaex.arrow.numpy_dispatch.unwrap(k) for k in pxs]
+    pys = [vaex.arrow.numpy_dispatch.unwrap(k) for k in pys]
     pxs = as_flat_array(np.asarray(pxs), np.float64)
     pys = as_flat_array(np.asarray(pys), np.float64)
     polygon_indices = np.zeros(len(x), dtype=np.int32)
@@ -518,6 +529,8 @@ def geo_inside_which_polygon(x, y, pxs, pys):
 @vaex.register_function()
 def geo_inside_which_polygons(x, y, pxss, pyss, meanxss, meanyss, radiii, any):
     # real implementation of geo.inside_which_polygon
+    x = vaex.array_types.to_numpy(x)
+    y = vaex.array_types.to_numpy(y)
     x = as_flat_array(x, np.float64)
     y = as_flat_array(y, np.float64)
     polygon_indices = np.zeros(len(x), dtype=np.int32)
@@ -529,6 +542,8 @@ def geo_inside_which_polygons(x, y, pxss, pyss, meanxss, meanyss, radiii, any):
     for i in range(N):
         pxs = pxss[i]
         pys = pyss[i]
+        pxs = [vaex.arrow.numpy_dispatch.unwrap(k) for k in pxs]
+        pys = [vaex.arrow.numpy_dispatch.unwrap(k) for k in pys]
         meanxs = meanxss[i]
         meanys = meanyss[i]
         radii = radiii[i]

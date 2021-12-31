@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Vaex dataframe server</title>
+    <link href='https://fonts.googleapis.com/css?family=Roboto:100,300,400,500,700,900' rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/@mdi/font@4.x/css/materialdesignicons.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/vuetify@2.x/dist/vuetify.min.css" rel="stylesheet">
+    <link rel="shortcut icon" href="https://vaex.io/img/logos/vaex_alt.png">
+    <script src="https://cdn.jsdelivr.net/npm/vue@2.x/dist/vue.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/vuetify@2.x/dist/vuetify.js"></script>
+</head>
+
+<body>
+    <div id="app">
+        <v-app>
+            <v-app-bar app color="white" height="100">
+                <v-avatar class="mr-3" color="grey lighten-5" size="70">
+                    <v-img contain max-height="70%" src="https://vaex.io/img/logos/logo.svg"></v-img>
+                </v-avatar>
+
+                <v-toolbar-title class="font-weight-black headline">
+                    Vaex dataframe server
+                </v-toolbar-title>
+            </v-app-bar>
+
+            <v-main>
+                <v-container>
+                    <h1>About Vaex</h1>
+                    To learn more about Vaex, visit
+                    <a href="http://vaex.io/docs/" target="_blank">vaex.io/docs</a>
+                </v-container>
+                <v-container>
+                    <h1>REST API</h1>
+                    <a href="/docs" target="_blank">The REST API is documented using Swagger.</a>
+                </v-container>
+                <v-container>
+                    <h1>GraphQL</h1>
+                    <div v-if="graphql">
+                        <a href="/graphql" target="_blank">Try the GraphQL interface</a>
+                    </div>
+                    <div v-if="!graphql">
+                        GraphQL is not enabled.
+                        Run with<code>VAEX_SERVER_GRAPHQL=1</code> or pass the <code>--graphql</code> flag
+                        </code>
+                    </div>
+                </v-container>
+                <v-container>
+                    <h1>Remote dataframe</h1>
+
+                    For the remote dataframe API, the following datasets are available:
+                    <v-card v-for="dataset in datasets" class="ma-2">
+                        <v-card-title>{{dataset.name}}</v-card-title>
+                        <v-card-subtitle>{{dataset.rows.toLocaleString()}} rows</v-card-subtitle>
+                        <v-card-text>
+                            To connect, use the following Python code:
+                            <div>
+                                <code style="background-color: unset;">df = vaex.open('{{ vaexURL(dataset) }}')</code>
+                                <v-tooltip bottom>
+                                    <template v-slot:activator="{ on, attrs }">
+                                        <v-btn text class="align-self-end" v-bind="attrs" v-on="on"
+                                            @click="copyToClipboard($event.currentTarget.parentNode.firstChild)">
+                                            <v-icon>mdi-clipboard-text-outline</v-icon>
+                                        </v-btn>
+                                    </template>
+                                    <span>Copy to clipboard</span>
+                                </v-tooltip>
+                            </div>
+                            <div v-if="dataset.schema.length > 10">
+                                First 10 columns:
+                                <ul>
+                                    <li v-for="col in dataset.schema.slice(0, 10)">
+                                        {{col.name}} - {{col.type}}
+                                    </li>
+                                </ul>
+                            </div>
+                            <div v-if="dataset.schema.length <= 10">
+                                Columns:
+                                <ul>
+                                    <li v-for="col in dataset.schema.slice(0, 10)">
+                                        {{col.name}} - {{col.type}}
+                                    </li>
+                                </ul>
+                            </div>
+                        </v-card-text>
+                    </v-card>
+                </v-container>
+            </v-main>
+
+            <v-footer class="justify-center" color="#292929" height="100">
+                <div class="title font-weight-light grey--text text--lighten-1 text-center">
+                    Vaex.io
+                </div>
+            </v-footer>
+        </v-app>
+    </div>
+    <script>
+        var app = new Vue({
+            el: '#app',
+            vuetify: new Vuetify(),
+            data: function () {
+                return {
+                    datasets: [],
+                    graphql: false,
+                }
+            },
+            computed: {
+                baseUrl: function () {
+                    return window.location.origin;
+                }
+            },
+            methods: {
+                vaexURL: function (dataset) {
+                    const base = window.location.host
+                    const scheme = window.location.protocol == 'http:' ? 'vaex+ws' : 'vaex+wss'
+                    return `${scheme}://${base}/${dataset.name}`
+                },
+                copyToClipboard(el) {
+                    var copyText = document.createElement('input');
+                    document.body.appendChild(copyText)
+                    copyText.value = el.textContent;
+
+                    /* Select the text field */
+                    copyText.select();
+                    copyText.setSelectionRange(0, 99999); /*For mobile devices*/
+
+                    /* Copy the text inside the text field */
+                    document.execCommand("copy");
+
+                    document.body.removeChild(copyText)
+                }
+            }
+        })
+        // DATA
+    </script>
+</body>
+
+</html>

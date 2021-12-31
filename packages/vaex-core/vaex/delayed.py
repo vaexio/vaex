@@ -13,6 +13,7 @@ def f(grid):
 
 f(ds.count(delay=True))
 
+See tests/delayed_test.py for more examples
 """
 
 
@@ -22,8 +23,20 @@ def promisify(value):
         return value
     if isinstance(value, (list, tuple)):
         return aplus.listPromise(*list([promisify(k) for k in value]))
+    if isinstance(value, dict):
+        return aplus.dictPromise({k: promisify(v) for k, v in value.items()})
     else:
         return aplus.Promise.fulfilled(value)
+
+
+def _log_error(name):
+    def _wrapped(exc):
+        if os.environ.get('VAEX_DEBUG', False):
+            print(f"*** DEBUG: Error from {name}", exc)
+        # import vaex
+        # vaex.utils.print_stack_trace()
+        raise exc
+    return _wrapped
 
 
 def delayed(f):
@@ -53,10 +66,11 @@ def delayed(f):
         for promise in promises:
             def echo_error(exc, promise=promise):
                 print("error with ", promise, "exception is", exc)
-                # raise exc
+                raise exc
 
             def echo(value, promise=promise):
                 print("done with ", repr(promise), "value is", value)
+                return value
             # promise.then(echo, echo_error)
 
         # print promises
@@ -67,13 +81,7 @@ def delayed(f):
             args_real = list([promise.get() for promise in arg_promises])
             return f(*args_real, **kwargs_real)
 
-        def error(exc):
-            if os.environ.get('VAEX_DEBUG', False):
-                print("Error from delayed", exc)
-            # import vaex
-            # vaex.utils.print_stack_trace()
-            raise exc
-        return allarguments.then(call, error)
+        return allarguments.then(call, _log_error("delayed decorator"))
     return wrapped
 
 
@@ -83,5 +91,23 @@ def delayed_args(*args):
 
 
 @delayed
+def delayed_kwargs(**kwargs):
+    return kwargs
+
+
+@delayed
 def delayed_list(l):
     return delayed_args(*l)
+
+
+@delayed
+def delayed_dict(d):
+    return delayed_kwargs(**d)
+
+
+@delayed
+def delayed_apply(f, args, kwargs):
+    @delayed
+    def internal(f, args, kwargs):
+        return f(*args, **kwargs)
+    return internal(f, args, kwargs)

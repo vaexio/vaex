@@ -49,17 +49,44 @@ def test_concat():
 
 
 def test_concat_unequals_virtual_columns():
-    ds1 = vaex.from_scalars(x=1, y=2)
-    ds2 = vaex.from_scalars(x=2, y=3)
+    df1 = vaex.from_scalars(x=1, y=2)
+    df2 = vaex.from_scalars(x=2, y=3)
     # w has same expression
-    ds1['w'] = ds1.x + ds1.y
-    ds2['w'] = ds2.x + ds2.y
+    df1['w'] = df1.x + df1.y
+    df2['w'] = df2.x + df2.y
     # z does not
-    ds1['z'] = ds1.x + ds1.y
-    ds2['z'] = ds2.x * ds2.y
-    ds = vaex.concat([ds1, ds2])
-    assert ds.w.tolist() == [1+2, 2+3]
-    assert ds.z.tolist() == [1+2, 2*3]
+    df1['z'] = df1.x + df1.y
+    df2['z'] = df2.x * df2.y
+    df = vaex.concat([df1, df2])
+    assert df.w.tolist() == [1+2, 2+3]
+    assert df.z.tolist() == [1+2, 2*3]
+
+
+def test_concat_functions():
+    def foo(a, b):
+        return a + b
+    df1 = vaex.from_scalars(x=1, y=2)
+    df2 = vaex.from_scalars(x=2, y=3)
+    df1.add_function('foo', foo)
+    df2.add_function('foo', foo)
+    # w has same expression and function
+    df1['w'] = df1.func.foo(df1.x, df1.y)
+    df2['w'] = df2.func.foo(df2.x, df2.y)
+    assert df1.w.tolist() == [3]
+    df = vaex.concat([df1, df2])
+    assert df.w.tolist() == [1+2, 2+3]
+
+    # now bar is a new function
+    def bar1(a, b):
+        return a + b
+    def bar2(a, b):
+        return a + b
+    df1 = vaex.from_scalars(x=1, y=2)
+    df2 = vaex.from_scalars(x=2, y=3)
+    df1.add_function('bar', bar1)
+    df2.add_function('bar', bar2)
+    with pytest.raises(ValueError):
+        df = vaex.concat([df1, df2])
 
 
 def test_concat_keep_virtual():
@@ -158,6 +185,18 @@ def test_concat_virtual_column_names():
     assert list(df) == ['x', 'z']
 
 
+def test_concat_virtual_column_name_with_column():
+    df1 = vaex.from_arrays(x=np.arange(3))
+    df2 = vaex.from_arrays(x=np.arange(4))
+    df1['z'] = df1.x ** 2
+    df = df1.concat(df2)
+    # test that virtual column with missing column name 
+    assert df.get_column_names() == ['x', 'z']
+    assert list(df) == ['x', 'z']
+    assert df.x.tolist() == [0, 1, 2, 0, 1, 2, 3]
+    assert df.z.tolist() == [0, 1, 4, None, None, None, None]
+
+
 def test_concat_missing_values():
     df1 = vaex.from_arrays(x=[1, 2, 3], y=[np.nan, 'b', 'c'])
     df2 = vaex.from_arrays(x=[4, 5, np.nan], y=['d', 'e', 'f'])
@@ -234,3 +273,20 @@ def test_concat_with_null_type_numpy_and_arrow(typed):
     df = df1.concat(df2)
     assert df.x.data_type() == arrow_type
     assert df.x.tolist() == [1, 2, None, None]
+
+
+def test_concat_strict(df_factory):
+    df1 = df_factory(x=[1, 2])
+    df2 = df_factory(x=[3, None, 4])
+    df = vaex.concat([df1, df2], resolver='strict')
+    assert df.x.tolist() == [1, 2, 3, None, 4]
+
+
+def test_concat_timestamp():
+    df1 = pa.Table.from_arrays([pa.array(['2020-01-31', '2020-01-31']).cast('timestamp[us]')], names=['ts'])
+    df2 = pa.Table.from_arrays([pa.array(['2020-12-31', '2020-12-31']).cast('timestamp[ns]')], names=['ts'])
+    df1_vx = vaex.from_arrow_table(df1)
+    df2_vx = vaex.from_arrow_table(df2)
+    df = vaex.concat([df1_vx, df2_vx])
+    assert df.ts.tolist() == df1['ts'].to_pylist() + df2['ts'].to_pylist()
+    assert df.ts.dtype.internal == pa.timestamp('ns')

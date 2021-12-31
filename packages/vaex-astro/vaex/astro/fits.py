@@ -8,8 +8,10 @@ import astropy.io.fits as fits
 import numpy as np
 
 import vaex.dataset
+from vaex.dataset_misc import _try_unit
 from vaex.dataset_mmap import DatasetMemoryMapped
 import vaex.export
+from vaex.utils import _python_save_name
 
 
 logger = logging.getLogger("vaex.astro.fits")
@@ -64,12 +66,12 @@ class FitsBinTable(DatasetMemoryMapped):
                                         dtypecode += str(arraylength)
                                     logger.debug("column type: %r", (column.name, offset, dtype, length, column.format, column.dim))
                                     if arraylength == 1 or dtypecode[0] == "a":
-                                        ar = self._map_array(offset=offset, dtype=dtype, length=length)
+                                        ar = self._map_array(offset=offset, dtype=dtype, shape=(length,))
                                         self.add_column(column_name, ar)
                                     else:
                                         for i in range(arraylength):
                                             name = column_name+"_" +str(i)
-                                            self.addColumn(name, offset=offset+bytessize*i//arraylength, dtype=">" +dtypecode, length=length, stride=arraylength)
+                                            self.add_column(name, offset=offset+bytessize*i//arraylength, dtype=">" +dtypecode, length=length, stride=arraylength)
                                 if flatlength > 0: # flatlength can be
                                     offset += bytessize * length
                                 self._check_null(table, column_name, column, i)
@@ -82,8 +84,8 @@ class FitsBinTable(DatasetMemoryMapped):
                             #import pdb
                             #pdb.set_trace()
                             if array.dtype.kind in "fiubSU":
-                                column_name = _python_save_name(column.name, used=self.columns.keys())
-                                self.addColumn(column_name, array=array)
+                                column_name = _python_save_name(column.name, used=self._columns.keys())
+                                self.add_column(column_name, data=array)
                                 self._get_column_meta_data(table, column_name, column, i)
                                 self._check_null(table, column_name, column, i)
             self._try_votable(fitsfile[0])
@@ -168,7 +170,7 @@ def empty(filename, length, column_names, data_types, data_shapes, ucds, units, 
 			pass
 
 		def write(key, value, comment=""):
-			first_part = "{key:8}= {value:20} / ".format(key=key, value=value)
+			first_part = "{key:8}= {value:>20} / ".format(key=key, value=value)
 			f.write(first_part.encode("ascii"))
 			leftover = 80 - len(first_part)
 			f.write(("{comment:"+str(leftover) +"}").format(comment=comment).encode("ascii"))

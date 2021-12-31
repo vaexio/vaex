@@ -20,6 +20,12 @@ def test_column_names(df_arrow):
     assert '__x' in ds.get_column_names(regex='__x', hidden=True)
 
 
+def test_column_name_and_function_name(tmpdir):
+    df = vaex.from_scalars(foo=1, x=1)
+    df.add_function('foo', lambda x: x+1)
+    assert df.foo.tolist() == [1]
+
+
 def test_add_invalid_name(tmpdir):
     # support invalid names and keywords
     df = vaex.from_dict({'X!1': x, 'class': x*2})
@@ -81,3 +87,10 @@ def test_invalid_name_read(tmpdir):
     df = vaex.open(path)
     assert df['1'].tolist() == x.tolist()
     assert (df.copy()['1']*2).tolist() == (x*2).tolist()
+
+
+def test_special_names():
+    # df.data accessed self.columns, which cause an exception, resulting in
+    # getattr(df, 'data', None) to return None
+    df = vaex.from_arrays(data=[1, 2])
+    assert df['data'].tolist() == [1, 2]

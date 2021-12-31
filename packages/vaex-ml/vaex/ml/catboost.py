@@ -26,7 +26,7 @@ class CatBoostModel(state.HasState):
 
     >>> import vaex
     >>> import vaex.ml.catboost
-    >>> df = vaex.ml.datasets.load_iris()
+    >>> df = vaex.datasets.iris()
     >>> features = ['sepal_width', 'petal_length', 'sepal_length', 'petal_width']
     >>> df_train, df_test = df.ml.train_test_split()
     >>> params = {
@@ -130,7 +130,7 @@ class CatBoostModel(state.HasState):
 
             # Set up progressbar
             n_samples = len(df)
-            progressbar = vaex.utils.progressbars(progress)
+            progressbar = vaex.utils.progressbars(progress, title="fit(catboost)")
 
             column_names = self.features + [self.target]
             iterator = df[column_names].to_pandas_df(chunk_size=self.batch_size)

@@ -74,3 +74,16 @@ def test_slice_negative(df):
     df2 = df[:-1]
     assert df2.x.tolist() == df.x.to_numpy()[:-1].tolist()
     assert len(df2) == len(df)-1
+
+
+def test_getitem():
+    x = np.array([[1, 7], [2, 8], [3, 9]])
+    df = vaex.from_arrays(x=x)
+    assert len(df) == 3
+    assert df.x[:,0].tolist() == [1, 2, 3]
+    assert df.x[:,1].tolist() == [7, 8, 9]
+    assert df.x[:,-1].tolist() == [7, 8, 9]
+
+    assert df.x[1:,0].tolist() == [2, 3]
+    assert df.x[:2,1].tolist() == [7, 8]
+    assert df.x[1:-1,-1].tolist() == [8,]

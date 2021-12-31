@@ -47,6 +47,10 @@ def test_sum(df, ds_trimmed):
     np.testing.assert_array_almost_equal(df.sum("y", selection=True, binby=["x"], limits=[0, 10], shape=2), [np.nansum(y[:5]), 0])
 
 
+def test_sum_with_space(df):
+    df['with space'] = df.x
+    assert df.sum(df['with space'])
+
 def test_correlation_basics(df_local):
     df = df_local  # TODO: why does this not work with remote?
     correlation = df.correlation(df.y, df.y)
@@ -65,8 +69,7 @@ def test_correlation(df_local):
     def correlation(x, y):
         c = np.cov([x, y], bias=1)
         return c[0,1] / (c[0,0] * c[1,1])**0.5
-
-    np.testing.assert_array_almost_equal(df.correlation([["x", "y"], ["x", "x**2"]], selection=None), [correlation(x, y), correlation(x, x**2)])
+    np.testing.assert_array_almost_equal(df.correlation([["x", "y"], ["x", "x**2"]], selection=None)['correlation'].tolist(), [correlation(x, y), correlation(x, x**2)])
 
     df.select("x < 5")
     np.testing.assert_array_almost_equal(df.correlation("x", "y", selection=None), correlation(x, y))
@@ -149,9 +152,8 @@ def test_count_1d():
 
     bins = 5
     binner = df._binner_scalar('x', [0, 5], bins)
-    grid = vaex.superagg.Grid([binner])
     agg = vaex.agg.count(edges=True)
-    grid = df._agg(agg, grid)
+    grid = df._agg(agg, (binner,))
     assert grid.tolist() == [0, 2, 1, 1, 0, 0, 1, 1]
 
 
@@ -171,10 +173,10 @@ def test_count_1d_ordinal():
 
     bins = 5
     binner = df._binner_ordinal('x', 5)
-    grid = vaex.superagg.Grid([binner])
     agg = vaex.agg.count(edges=True)
-    grid = df._agg(agg, grid)
-    assert grid.tolist() == [0, 2, 1, 1, 0, 0, 1, 1]
+    tasks, result = agg.add_tasks(df, (binner,), progress=False)
+    df.execute()
+    assert result.get().tolist() == [0, 2, 1, 1, 0, 0, 1, 1]
 
 
 
@@ -366,7 +368,7 @@ def test_agg_selections_equal():
     df = vaex.from_arrays(x=x, y=y, z=z, w=w)
 
 
-    df_grouped = df.groupby(df.x).agg({'counts': vaex.agg.count(),
+    df_grouped = df.groupby(df.x, sort=True).agg({'counts': vaex.agg.count(),
                                       'sel_counts': vaex.agg.count(selection=df.y==1.)
                                       })
     assert df_grouped['counts'].tolist() == [3, 2, 2]
@@ -380,7 +382,7 @@ def test_agg_selection_nodata():
 
     df = vaex.from_arrays(x=x, y=y, z=z, w=w)
 
-    df_grouped = df.groupby(df.x).agg({'counts': vaex.agg.count(),
+    df_grouped = df.groupby(df.x, sort=True).agg({'counts': vaex.agg.count(),
                                       'dog_counts': vaex.agg.count(selection=df.w == 'dog')
                                       })
 
@@ -468,7 +470,7 @@ def test_format_xarray_and_list(df_local):
     assert isinstance(count, list)
 
     df = df[:3]
-    df['g'] = df.x
+    df['g'] = df.x.astype('int32')
     df.categorize(df.g, labels=['aap', 'noot', 'mies'], inplace=True)
     count = df.count(binby='g', array_type='xarray')
     assert count.coords['g'].data.tolist() == ['aap', 'noot', 'mies']
@@ -482,7 +484,89 @@ def test_format_xarray_and_list(df_local):
 def test_list_sum(offset):
     data = [1, 2, None], None, [], [1, 3, 4, 5]
     df = vaex.from_arrays(i=pa.array(data).slice(offset))
+    assert df.i.ndim == 1
     assert df.i.sum() == [16, 13][offset]
     assert df.i.sum(axis=1).tolist() == [3, None, 0, 13][offset:]
     assert df.i.sum(axis=[0, 1]) == [16, 13][offset]
     # assert df.i.sum(axis=0)  # not supported, not sure what this should return
+
+
+def test_array_sum():
+    x = np.arange(6)
+    X = np.array([x[0:-1], x[1:]])
+    df = vaex.from_arrays(X=X)
+    assert df.X.ndim == 2
+    assert df.X.sum() == X.sum()
+    assert df.X.sum(axis=1).tolist() == X.sum(axis=1).tolist()
+    assert df.X.sum(axis=[0, 1]) == X.sum().tolist()
+    # assert df.X.sum(axis=0) == X.sum(axis=0)# not supported
+
+
+def test_agg_count_with_custom_name():
+    x = np.array([0, 0, 0, 1, 1, 2])
+    df = vaex.from_arrays(x=x)
+    df_grouped = df.groupby(df.x, sort=True).agg({'mycounts': vaex.agg.count(), 'mycounts2': 'count'})
+    assert df_grouped['mycounts'].tolist() == [3, 2, 1]
+    assert df_grouped['mycounts2'].tolist() == [3, 2, 1]
+
+
+def test_agg_unary():
+    x = np.arange(5)
+    df = vaex.from_arrays(x=x, g=x//4)
+    agg = -vaex.agg.sum('x')
+    assert repr(agg) == "-vaex.agg.sum('x')"
+    assert df.groupby('g', agg={'sumx': agg})['sumx'].tolist() == [-6, -4]
+
+
+def test_agg_binary():
+    x = np.arange(5)
+    df = vaex.from_arrays(x=x, y=x+1, g=x//4)
+    agg = vaex.agg.sum('x') / vaex.agg.sum('y')
+    assert repr(agg) == "(vaex.agg.sum('x') / vaex.agg.sum('y'))"
+    assert df.groupby('g', agg={'total': agg})['total'].tolist() == [6 / 10, 4 / 5]
+    agg = vaex.agg.sum('x') + 99
+    assert repr(agg) == "(vaex.agg.sum('x') + 99)"
+    assert df.groupby('g', agg={'total': agg})['total'].tolist() == [6 + 99, 4 + 99]
+    agg = 99 + vaex.agg.sum('y')
+    assert repr(agg) == "(99 + vaex.agg.sum('y'))"
+    assert df.groupby('g', agg={'total': agg})['total'].tolist() == [99 + 10, 99 + 5]
+    assert df.groupby('g', agg={'total': vaex.agg.sum('x') / 2})['total'].tolist() == [6/2, 4/2]
+    assert df.groupby('g', agg={'total': 2/vaex.agg.sum('x')})['total'].tolist() == [2/6, 2/4]
+
+
+def test_any():
+    # x  = [0, 1, 2, 3, 4]
+    # g  = [0, 0, 0, 0, 1]
+    # b1 = [0, 0, 1, 0, 0]
+    # b2 = [0, 0, 1, 0, 1]
+    x = np.arange(5)
+    df = vaex.from_arrays(x=x, y=x+1, g=x//4)
+    df['b1'] = x == 2
+    df['b2'] = (x % 2) == 0
+    assert df.groupby('g', agg={'any': vaex.agg.any('b1')})['any'].tolist() == [True, False]
+    assert df.groupby('g', agg={'any': vaex.agg.any('b2')})['any'].tolist() == [True, True]
+
+    assert df.groupby('g', agg={'any': vaex.agg.any('b1', selection=df.b1)})['any'].tolist() == [True, False]
+    assert df.groupby('g', agg={'any': vaex.agg.any('b2', selection=df.b1)})['any'].tolist() == [True, False]
+
+    assert df.groupby('g', agg={'any': vaex.agg.any(selection=df.b1)})['any'].tolist() == [True, False]
+    assert df.groupby('g', agg={'any': vaex.agg.any(selection=df.b2)})['any'].tolist() == [True, True]
+
+
+def test_all():
+    # x  = [0, 1, 2, 3, 4]
+    # g  = [0, 0, 0, 0, 1]
+    # b1 = [0, 0, 1, 0, 0]
+    # b2 = [0, 0, 1, 0, 1]
+    x = np.arange(5)
+    df = vaex.from_arrays(x=x, y=x+1, g=x//4)
+    df['b1'] = x == 2
+    df['b2'] = (x % 2) == 0
+    assert df.groupby('g', agg={'all': vaex.agg.all('b1')})['all'].tolist() == [False, False]
+    assert df.groupby('g', agg={'all': vaex.agg.all('b2')})['all'].tolist() == [False, True]
+
+    assert df.groupby('g', agg={'all': vaex.agg.all('b1', selection=df.b1)})['all'].tolist() == [False, False]
+    assert df.groupby('g', agg={'all': vaex.agg.all('b2', selection=df.b1)})['all'].tolist() == [False, False]
+
+    assert df.groupby('g', agg={'all': vaex.agg.all(selection=df.b1)})['all'].tolist() == [False, False]
+    assert df.groupby('g', agg={'all': vaex.agg.all(selection=df.b2)})['all'].tolist() == [False, True]

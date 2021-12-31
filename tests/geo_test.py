@@ -54,32 +54,32 @@ def test_virtual_columns_spherical():
     assert ds.evaluate('b')[0] == 0
 
 
-def test_inside_polygon_single():
-    df = vaex.from_arrays(x=[1, 2, 3], y=[2, 3, 4])
+def test_inside_polygon_single(df_factory):
+    df = df_factory(x=[1, 2, 3], y=[2, 3, 4])
     px = np.array([1.5, 2.5, 2.5, 1.5])
     py = np.array([2.5, 2.5, 3.5, 3.5])
     df['inside'] = df.geo.inside_polygon(df.x, df.y, px, py)
     assert df.inside.values.tolist() == [False, True, False]
 
 
-def test_inside_polygons():
-    df = vaex.from_arrays(x=[1, 2, 3], y=[2, 3, 4])
+def test_inside_polygons(df_factory):
+    df = df_factory(x=[1, 2, 3], y=[2, 3, 4])
     px = np.array([1.5, 2.5, 2.5, 1.5])
     py = np.array([2.5, 2.5, 3.5, 3.5])
     df['inside'] = df.geo.inside_polygons(df.x, df.y, [px, px + 1], [py, py + 1], any=True)
     assert df.inside.values.tolist() == [False, True, True]
 
 
-def test_which_polygon_single():
-    df = vaex.from_arrays(x=[1, 2, 3], y=[2, 3, 4])
+def test_which_polygon_single(df_factory):
+    df = df_factory(x=[1, 2, 3], y=[2, 3, 4])
     px = np.array([1.5, 2.5, 2.5, 1.5])
     py = np.array([2.5, 2.5, 3.5, 3.5])
     df['polygon_index'] = df.geo.inside_which_polygon(df.x, df.y, [px, px + 1], [py, py + 1])
     assert df.polygon_index.values.tolist() == [None, 0, 1]
 
 
-def test_which_polygons():
-    df = vaex.from_arrays(x=[1, 2, 3], y=[2, 3, 4])
+def test_which_polygons(df_factory):
+    df = df_factory(x=[1, 2, 3], y=[2, 3, 4])
     # polygon1a = np.array( [(1.5, 2.5, 2.5, 1.5), (2.5, 2.5, 3.5, 3.5)] )
     # polygon1b = (polygon1a.T + [1, 1]).T
     px = np.array([1.5, 2.5, 2.5, 1.5])

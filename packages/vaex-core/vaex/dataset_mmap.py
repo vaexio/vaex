@@ -21,15 +21,15 @@ logger = logging.getLogger("vaex.file")
 dataset_type_map = {}
 
 osname = vaex.utils.osname
-no_mmap = os.environ.get('VAEX_NO_MMAP', False)
+no_mmap = not vaex.settings.main.mmap
 
 
 
 class DatasetMemoryMapped(vaex.dataset.DatasetFile):
     """Represents a dataset where the data is memory mapped for efficient reading"""
 
-    def __init__(self, path, write=False, nommap=False):
-        super().__init__(path=path, write=write)
+    def __init__(self, path, write=False, nommap=False, fs_options={}, fs=None):
+        super().__init__(path=path, write=write, fs_options=fs_options, fs=fs)
         self.nommap = nommap
         self.file_map = {}
         self.fileno_map = {}
@@ -91,16 +91,20 @@ class DatasetMemoryMapped(vaex.dataset.DatasetFile):
         for name, file in self.file_map.items():
             file.close()
 
-    def _map_array(self, offset=None, length=None, dtype=np.float64, path=None):
+    def _map_array(self, offset=None, shape=None, dtype=np.float64, path=None):
         if path is None:
             path = self.path
-        return self._do_map(path, offset, length, dtype)
+        return self._do_map(path, offset, shape, dtype)
     
-    def _do_map(self, path, offset, length, dtype):        
+    def _do_map(self, path, offset, shape, dtype):
+        length = np.product(shape)
         if self.nommap:
+            if len(shape) > 1:
+                raise RuntimeError('not supported, high d arrays from non local files')
             file = self._get_file(path)
             column = ColumnFile(file, offset, length, dtype, write=self.write, path=self.path, tls=self.tls_map[path])
         else:
             mapping = self._get_mapping(path)
             column = np.frombuffer(mapping, dtype=dtype, count=length, offset=offset)
+            column = column.reshape(shape)
         return column

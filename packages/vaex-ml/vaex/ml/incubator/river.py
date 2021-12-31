@@ -28,6 +28,7 @@ class RiverModel(state.HasState):
     method is evaluated lazily, and no memory copies are made.
 
     Example:
+
     >>> import vaex
     >>> import vaex.ml
     >>> from vaex.ml.incubator.river import RiverModel
@@ -123,7 +124,7 @@ class RiverModel(state.HasState):
 
         n_samples = len(df)
 
-        progressbar = vaex.utils.progressbars(progress)
+        progressbar = vaex.utils.progressbars(progress, title="fit(river)")
 
         # Portions of the DataFrame to evaluate
         expressions = self.features + [self.target]

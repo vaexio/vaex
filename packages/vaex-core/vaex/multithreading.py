@@ -24,10 +24,20 @@ main_pool = None
 main_io_pool = None
 
 
+thread_pools = {}
+
+
+def get_thread_pool(nthreads):
+    if nthreads not in thread_pools:
+        thread_pools[nthreads] = ThreadPoolIndex(nthreads)
+    return thread_pools[nthreads]
+
+
 def get_main_pool():
     global main_pool
     if main_pool is None:
         main_pool = ThreadPoolIndex()
+        thread_pools[main_pool.nthreads] = main_pool
     return main_pool
 
 
@@ -57,7 +67,7 @@ class ThreadPoolIndex(concurrent.futures.ThreadPoolExecutor):
         self.nthreads = self._max_workers
         self._debug_sleep = 0
 
-    async def map_async(self, callable, iterator, count, on_error=None, progress=None, cancel=None, unpack=False, **kwargs_extra):
+    def map(self, callable, iterator, count, on_error=None, progress=None, cancel=None, unpack=False, use_async=False, **kwargs_extra):
         progress = progress or (lambda x: True)
         cancelled = False
 
@@ -74,28 +84,59 @@ class ThreadPoolIndex(concurrent.futures.ThreadPoolExecutor):
                     # print("SLEEP", self._debug_sleep)
                     time.sleep(self._debug_sleep)
                 return callable(self.local.index, *args, **kwargs, **kwargs_extra)
-        # convert to list so we can count
         time_last = time.time() - 100
         min_delta_t = 1. / 10  # max 10 per second
+        # we don't want to keep consuming the chunk iterator when we cancel
+        chunk_iterator = iterator
+        def cancellable_iter():
+            for value in chunk_iterator:
+                yield value
+                if cancelled:
+                    break
         if self.nthreads == 1:  # when using 1 thread, it makes debugging easier (better stacktrace)
-            iterator = self._map_async(wrapped, iterator)
+            if use_async:
+                iterator = self._map_async(wrapped, cancellable_iter())
+            else:
+                iterator = self._map(wrapped, cancellable_iter())
         else:
-            loop = asyncio.get_event_loop()
-            iterator = (loop.run_in_executor(self, lambda value=value: wrapped(value)) for value in iterator)
-
+            if use_async:
+                loop = asyncio.get_event_loop()
+                iterator = (loop.run_in_executor(self, lambda value=value: wrapped(value)) for value in cancellable_iter())
+            else:
+                iterator = super(ThreadPoolIndex, self).map(wrapped, cancellable_iter())
         total = 0
-        for i, value in buffer(enumerate(iterator), self._max_workers + 3):
-            value = await value
-            if value != None:
-                total += value
-            progress_value = (total) / count
-            time_now = time.time()
-            if progress_value == 1 or (time_now - time_last) > min_delta_t:
-                time_last = time_now
-                if progress(progress_value) is False:
-                    cancelled = True
-                    cancel()
-            yield value
+        iterator = iter(buffer(iterator, self._max_workers + 3))
+        try:
+            for value in iterator:
+                if use_async:
+                    value = yield value
+                else:
+                    yield value
+                if value != None:
+                    total += value
+                progress_value = (total) / count
+                time_now = time.time()
+                if progress_value == 1 or (time_now - time_last) > min_delta_t:
+                    time_last = time_now
+                    if progress(progress_value) is False:
+                        cancelled = True
+                        cancel()
+                        break
+        finally:
+            if not cancelled:
+                cancelled = True
+            # consume the rest of the iterators and await them to avoid un-awaited exceptions, which trigger a
+            # 'Future exception was never retrieved' printout
+            # TODO: since we don't use async any more, I think we can get rid of this
+            for value in iterator:
+                try:
+                    pass
+                except:
+                    pass
+
+    def _map(self, callable, iterator):
+        for i in iterator:
+            yield callable(i)
 
     def _map_async(self, callable, iterator):
         for i in iterator:

@@ -26,78 +26,115 @@ def test_progress(progress):
     df.sum('x', progress=progress)
 
 
+def test_progress_cache():
+    df = vaex.from_arrays(x=vaex.vrange(0, 10000))
+    with vaex.cache.on():
+        with vaex.progress.tree('vaex') as progressbar:
+            df._set('x', progress=progressbar)
+            assert progressbar.finished
+
+        with vaex.progress.tree('rich') as progressbar:
+            df._set('x', progress=progressbar)
+            assert progressbar.children[0].finished
+            assert progressbar.children[0].bar.status == 'from cache'
+
+
+def test_progress_error():
+    df = vaex.from_arrays(x=vaex.vrange(0, 10000))
+    with vaex.progress.tree('rich') as progressbar:
+        try:
+            df._set('x', progress=progressbar, unique_limit=1)
+        except vaex.RowLimitException:
+            pass
+        assert progressbar.children[0].bar.status.startswith('Resulting set would')
+        assert progressbar.children[0].finished
+        assert progressbar.finished
+        # assert progressbar.children[0].bar.status == 'from cache'
+
+
 # progress only supported for local df's
 def test_progress_calls(df, event_loop):
-    x, y = df.sum([df.x, df.y], progress=True)
-    counter = CallbackCounter(True)
-    task = df.sum([df.x, df.y], delay=True, progress=counter)
-    df.execute()
-    x2, y2 = task.get()
-    assert x == x2
-    assert y == y2
-    assert counter.counter > 0
-    assert counter.last_args[0], 1.0
+    with vaex.cache.off():
+        x, y = df.sum([df.x, df.y], progress=True)
+        counter = CallbackCounter(True)
+        task = df.sum([df.x, df.y], delay=True, progress=counter)
+        df.execute()
+        x2, y2 = task.get()
+        assert x == x2
+        assert y == y2
+        assert counter.counter > 0
+        assert counter.last_args[0], 1.0
 
 
 @pytest.mark.asyncio
 async def test_progress_calls_async(df):
-    x, y = df.sum([df.x, df.y], progress=True)
-    counter = CallbackCounter(True)
-    task = df.sum([df.x, df.y], delay=True, progress=counter)
-    await df.executor.execute_async()
-    x2, y2 = await task
-    assert x == x2
-    assert y == y2
-    assert counter.counter > 0
-    assert counter.last_args[0], 1.0
+    with vaex.cache.off():
+        x, y = df.sum([df.x, df.y], progress=True)
+        counter = CallbackCounter(True)
+        task = df.sum([df.x, df.y], delay=True, progress=counter)
+        await df.executor.execute_async()
+        x2, y2 = await task
+        assert x == x2
+        assert y == y2
+        assert counter.counter > 0
+        assert counter.last_args[0] == 1.0
 
 
 def test_cancel(df):
-    magic = MagicMock()
-    df.executor.signal_cancel.connect(magic)
-    def progress(f):
-        return False
-    with pytest.raises(vaex.execution.UserAbort):
-        assert df.x.min(progress=progress) is None
-    magic.assert_called_once()
+    with vaex.cache.off():
+        magic = MagicMock()
+        df.executor.signal_cancel.connect(magic)
+        def progress(f):
+            return False
+        with pytest.raises(vaex.execution.UserAbort):
+            result = df.x.min(progress=progress)
+            assert result is None
+        magic.assert_called_once()
 
 
 @pytest.mark.asyncio
 async def test_cancel_async(df):
-    magic = MagicMock()
-    df.executor.signal_cancel.connect(magic)
-    def progress(f):
-        return False
-    with pytest.raises(vaex.execution.UserAbort):
-        value = df.x.min(progress=progress, delay=True)
-        await df.execute_async()
-        await value
-    magic.assert_called_once()
+    with vaex.cache.off():
+        magic = MagicMock()
+        df.executor.signal_cancel.connect(magic)
+        def progress(f):
+            return False
+        with pytest.raises(vaex.execution.UserAbort):
+            value = df.x.min(progress=progress, delay=True)
+            await df.execute_async()
+            await value
+        magic.assert_called_once()
 
 # @pytest.mark.timeout(1)
 def test_cancel_huge(client):
-    df = client['huge']
-    import threading
-    main_thread = threading.current_thread()
-    def progress(f):
-        assert threading.current_thread() == main_thread
-        return f > 0.01
-    with pytest.raises(vaex.execution.UserAbort):
-        assert df.x.min(progress=progress) is None
-    assert df.x.min() is not None
+    with vaex.cache.off():
+        df = client['huge']
+        import threading
+        main_thread = threading.current_thread()
+        max_progress = 0
+        def progress(f):
+            nonlocal max_progress
+            assert threading.current_thread() == main_thread
+            max_progress = max(max_progress, f)
+            return f > 0.01
+        with pytest.raises(vaex.execution.UserAbort):
+            assert df.x.min(progress=progress) is None
+        # assert df.x.min() is not None
+        assert max_progress < 0.1
 
 
 @pytest.mark.asyncio
 async def test_cancel_huge_async(client):
-    df = client['huge']
-    import threading
-    main_thread = threading.current_thread()
+    with vaex.cache.off():
+        df = client['huge']
+        import threading
+        main_thread = threading.current_thread()
 
-    def progress(f):
-        print("progress", f)
-        assert threading.current_thread() == main_thread
-        return f > 0.01
-    with pytest.raises(vaex.execution.UserAbort):
-        df.x.min(progress=progress, delay=True)
-        await df.execute_async()
-    assert df.x.min() is not None
+        def progress(f):
+            print("progress", f)
+            assert threading.current_thread() == main_thread
+            return f > 0.01
+        with pytest.raises(vaex.execution.UserAbort):
+            df.x.min(progress=progress, delay=True)
+            await df.execute_async()
+        # assert df.x.min() is not None

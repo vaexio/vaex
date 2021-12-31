@@ -381,6 +381,9 @@ class ExpressionString(ast.NodeVisitor):
     def visit_List(self, node):
         return "[{}]".format(", ".join([self.visit(k) for k in node.elts]))
 
+    def pow(self, left, right):
+        return "({left} ** {right})".format(left=left, right=right)
+
     def visit_BinOp(self, node):
         newline = indent = ""
         if self.pretty:
@@ -405,7 +408,7 @@ class ExpressionString(ast.NodeVisitor):
             elif isinstance(node.op, ast.Sub):
                 return "({left} - {right})".format(left=left, right=right)
             elif isinstance(node.op, ast.Pow):
-                return "({left} ** {right})".format(left=left, right=right)
+                return self.pow(left, right)
             elif isinstance(node.op, ast.BitAnd):
                 return "({left} & {right})".format(left=left, right=right)
             elif isinstance(node.op, ast.BitOr):
@@ -623,7 +626,7 @@ def slices(expression):
 
 def parse_expression(expression_string):
     expr = ast.parse(expression_string).body[0]
-    assert isinstance(expr, ast.Expr), "not an expression"
+    assert isinstance(expr, ast.Expr), f"not an expression {str(expr)}"
     return expr.value
 
 

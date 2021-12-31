@@ -1,5 +1,6 @@
 import logging
 import numpy as np
+import dask.base
 
 import vaex.expression
 from .utils import _split_and_combine_mask, as_flat_float
@@ -12,19 +13,19 @@ def _select_replace(maskold, masknew):
 
 
 def _select_and(maskold, masknew):
-    return masknew if maskold is None else maskold & masknew
+    return masknew if maskold is None else np.asarray(maskold) & np.asarray(masknew)
 
 
 def _select_or(maskold, masknew):
-    return masknew if maskold is None else maskold | masknew
+    return masknew if maskold is None else np.asarray(maskold) | np.asarray(masknew)
 
 
 def _select_xor(maskold, masknew):
-    return masknew if maskold is None else maskold ^ masknew
+    return masknew if maskold is None else np.asarray(maskold) ^ np.asarray(masknew)
 
 
 def _select_subtract(maskold, masknew):
-    return ~masknew if maskold is None else (maskold) & ~masknew
+    return ~masknew if maskold is None else np.asarray(maskold) & ~np.asarray(masknew)
 
 
 _select_functions = {"replace": _select_replace,
@@ -43,6 +44,14 @@ class Selection(object):
     def execute(self, datexecutor, execute_fully=False):
         if execute_fully and self.previous_selection:
             self.previous_selection.execute(executor=executor, execute_fully=execute_fully)
+
+    def dependencies(self, df):
+        deps = set()
+        for e in self.expressions:
+            deps |= df._selection_expression(e).dependencies()
+        if self.previous_selection:
+            deps |= self.previous_selection.dependencies(df)
+        return deps
 
     def _depending_columns(self, ds):
         '''Find all columns that this selection depends on for df ds'''
@@ -73,18 +82,16 @@ class SelectionDropNa(Selection):
     def _rename(self, df, old, new):
         pass  # TODO: do we need to rename the column_names?
 
-    def evaluate(self, df, name, i1, i2, filter_mask):
+    def evaluate(self, df, name, i1, i2, scope):
         if self.previous_selection:
-            previous_mask = df.evaluate_selection_mask(name, i1, i2, selection=self.previous_selection, filter_mask=filter_mask)
+            previous_mask = self.previous_selection.evaluate(df, name, i1, i2, scope)
         else:
             previous_mask = None
-        if filter_mask is not None:
-            mask = np.full(filter_mask.astype(np.uint8).sum(), True)
-        else:
-            mask = np.ones(i2 - i1, dtype=np.bool)
-
+        mask = None
         for name in self.column_names:
-            data = df._evaluate(name, i1, i2, filter_mask=filter_mask)
+            data = scope.evaluate(name)
+            if mask is None:
+                mask = np.full(len(data), True)
             if self.drop_nan and self.drop_masked:
                 mask &= ~vaex.array_types.to_numpy(vaex.functions.isna(data))
             elif self.drop_nan:
@@ -122,12 +129,13 @@ class SelectionExpression(Selection):
             previous = self.previous_selection.to_dict()
         return dict(type="expression", boolean_expression=str(self.boolean_expression), mode=self.mode, previous_selection=previous)
 
-    def evaluate(self, df, name, i1, i2, filter_mask):
+    def evaluate(self, df, name, i1, i2, scope):
         if self.previous_selection:
-            previous_mask = df._evaluate_selection_mask(name, i1, i2, selection=self.previous_selection, filter_mask=filter_mask)
+            previous_mask = self.previous_selection.evaluate(df, name, i1, i2, scope)
         else:
             previous_mask = None
-        result = df._evaluate_selection_mask(self.boolean_expression, i1, i2, filter_mask=filter_mask)
+        # result = df._evaluate_selection_mask(self.boolean_expression, i1, i2)
+        result = scope.evaluate(self.boolean_expression)
         if isinstance(result, bool):
             N = i2 - i1
             current_mask = np.full(N, result)
@@ -154,8 +162,8 @@ class SelectionInvert(Selection):
             previous = self.previous_selection.to_dict()
         return dict(type="invert", previous_selection=previous)
 
-    def evaluate(self, df, name, i1, i2, filter_mask):
-        previous_mask = df._evaluate_selection_mask(name, i1, i2, selection=self.previous_selection, filter_mask=filter_mask)
+    def evaluate(self, df, name, i1, i2, scope):
+        previous_mask = np.asarray(self.previous_selection.evaluate(df, name, i1, i2, scope))
         return ~previous_mask
 
 
@@ -168,22 +176,19 @@ class SelectionLasso(Selection):
         self.yseq = yseq
         self.expressions = [boolean_expression_x, boolean_expression_y]
 
-    def evaluate(self, df, name, i1, i2, filter_mask):
+    def evaluate(self, df, name, i1, i2, scope):
         if self.previous_selection:
-            previous_mask = df._evaluate_selection_mask(name, i1, i2, selection=self.previous_selection, filter_mask=filter_mask)
+            # previous_mask = df._evaluate_selection_mask(name, i1, i2, selection=self.previous_selection)
+            previous_mask = self.previous_selection.evaluate(df, name, i1, i2, scope)
         else:
             previous_mask = None
-        if filter_mask is not None:
-            N = filter_mask.astype(np.uint8).sum()
-        else:
-            N = i2 - i1
-        current_mask = np.full(N, False)
         x, y = np.array(self.xseq, dtype=np.float64), np.array(self.yseq, dtype=np.float64)
         meanx = x.mean()
         meany = y.mean()
         radius = np.sqrt((meanx - x)**2 + (meany - y)**2).max()
-        blockx = df._evaluate(self.boolean_expression_x, i1=i1, i2=i2, filter_mask=filter_mask)
-        blocky = df._evaluate(self.boolean_expression_y, i1=i1, i2=i2, filter_mask=filter_mask)
+        blockx = scope.evaluate(self.boolean_expression_x)
+        blocky = scope.evaluate(self.boolean_expression_y)
+        current_mask = np.full(len(blockx), False)
         # TODO: can we do without arrow->numpy conversion?
         blockx = vaex.array_types.to_numpy(blockx)
         blocky = vaex.array_types.to_numpy(blocky)
@@ -231,3 +236,7 @@ def selection_from_dict(values):
         return SelectionDropNa(**kwargs)
     else:
         raise ValueError("unknown type: %r, in dict: %r" % (values["type"], values))
+
+@dask.base.normalize_token.register(Selection)
+def normalize(e):
+    return e.to_dict()

@@ -14,6 +14,7 @@ def test_copy(df):
     assert 'myvar' in dfc.variables
     dfc.x.values
 
+
 def test_non_existing_column(df_local):
     df = df_local
     with pytest.raises(NameError, match='.*Did you.*'):
@@ -83,3 +84,19 @@ def test_copy_selection():
     dfc = df.copy(['z'])  # only the selection depends on x
     dfc._invalidate_caches()
     assert dfc.z.sum(selection='selection_a') == 5
+
+
+def test_copy_tree_shake():
+    df = vaex.from_arrays(x=[0, 1, 2], y=[2, 3, 4])
+    df.add_variable('t', 1)
+    assert 't' in df.copy().variables
+
+    df.add_variable('t', 1)
+    assert 't' not in df.copy(treeshake=True).variables
+
+    # once we depend on it, we always copy
+    df.add_virtual_column('z', 'x*t')
+    assert 't' in df.copy().variables
+    assert 't' in df.copy(treeshake=True).variables
+    assert 't' in df.copy(['y']).variables
+    assert 't' not in df.copy(['y'], treeshake=True).variables

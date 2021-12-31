@@ -1,4 +1,196 @@
-# vaex 4.0.0 (unreleased)
+# vaex 4.7.0
+## vaex-core 4.7.0
+   * Features
+      * Allow casting integers to timedelta64 type [#1741](https://github.com/vaexio/vaex/pull/1741)
+      * When a single task can fail, other can continue [#1762](https://github.com/vaexio/vaex/pull/1762)
+      * Improved rich progress bar support [#1771](https://github.com/vaexio/vaex/pull/1771)
+      * vaex.from_records to build a dataframe from a list of dicts [#1767](https://github.com/vaexio/vaex/pull/1767)
+      * Settings in Vaex can be configured in a uniform way [#1743](https://github.com/vaexio/vaex/pull/1743)
+      * Unique for datetime64 and timedelta64 expressions [#1016](https://github.com/vaexio/vaex/pull/1016)
+      * Copy argument for binby, similar to groupby [4e7fd8e](https://github.com/vaexio/vaex/commit/4e7fd8e154c151323410cc1bedec96dd8a9667cb)
+   * Performance
+      * Improve performance for filtered dataframes [1685](https://github.com/vaexio/vaex/pull/1685)
+   * Fixes
+      * S3: endpoint override combined with globbing [#1739](https://github.com/vaexio/vaex/pull/1739)
+      * Support having filtered and unfiltered tasks in 1 pass over the data [#1761](https://github.com/vaexio/vaex/pull/1761)
+      * Continue next tasks even when old ones are cancelled [#1769](https://github.com/vaexio/vaex/pull/1769)
+      * Handle empty arrow files [#1773](https://github.com/vaexio/vaex/pull/1773)
+      * Evaluate and evaluate_iterator did not work for empty filtered dataframes [#1775](https://github.com/vaexio/vaex/pull/1775)
+
+## vaex-hdf5 0.11.1
+   * Features
+      * do not track times to have determinstic output (useful for lineage/hash output) [#1772](https://github.com/vaexio/vaex/pull/1772)
+
+## vaex-ml 0.16
+Requires vaex-core 4.7 for uniform settings
+
+## vaex-server 0.8
+Requires vaex-core 4.7 for uniform settings
+
+## vaex-jupyter 0.7
+Requires vaex-core 4.7 for uniform settings
+   * Features
+      * Editor widget for settings [#1743](https://github.com/vaexio/vaex/pull/1743)
+
+## vaex-viz 0.5.1
+  * Fixes
+   * Histogram method on expression to propagate kwargs [#1757](https://github.com/vaexio/vaex/pull/1757)
+
+
+# vaex 4.6.0
+## vaex-core 4.6.0
+   * Features
+      * OSX Metal support for jitting expressions [#584](https://github.com/vaexio/vaex/pull/584)
+      * Improved progress support, including Rich progress bars [#1738](https://github.com/vaexio/vaex/pull/1738)
+      * Control number of columns and rows being printed [#1672](https://github.com/vaexio/vaex/pull/1672)
+      * Groupby with regular bins (similar to binby) [#1589](https://github.com/vaexio/vaex/pull/1589)
+      * Groupby with a limited number of values, and 'OTHERS' [#1641](https://github.com/vaexio/vaex/pull/1641)
+      * New aggregators: vaex.agg.any and vaex.agg.all [#1630](https://github.com/vaexio/vaex/pull/1630)
+      * Better API for correlation and mutual information [#536](https://github.com/vaexio/vaex/pull/536)
+      * Materialize datasets columns for better performance of non-memory mapping files (e.g. parquet) [#1625](https://github.com/vaexio/vaex/pull/1625)
+      * Avoid using nest_asyncio [#1546](https://github.com/vaexio/vaex/pull/1546)
+      * Multi level cache support (e.g. memory and disk) [#1580](https://github.com/vaexio/vaex/pull/1580)
+      * Do not mutate dataframe when comparing dates. [#1584](https://github.com/vaexio/vaex/pull/1584)
+   * Performance
+      * Fingerprint for tasks are more stable when the dataframe changes, but not the task description, for more cache hits. [#1627](https://github.com/vaexio/vaex/pull/1627)
+      * Faster conversion between Arrow and NumPy [#1625](https://github.com/vaexio/vaex/pull/1625)
+      * Cache sparse-finding/combining of high-d groupby [#1588](https://github.com/vaexio/vaex/pull/1588)
+      * Allow (lazy) math and computations with aggregators [#1612](https://github.com/vaexio/vaex/pull/1612)
+      * Less passes over the data when multiple dataframes use the same dataset [#1594](https://github.com/vaexio/vaex/pull/1594)
+      * Share evaluation of expressions of selections [#1594](https://github.com/vaexio/vaex/pull/1594)
+      * Delay support for groupby [#1594](https://github.com/vaexio/vaex/pull/1594)
+   * Fixes
+      * Missing values in groupby were not well supported [#1637](https://github.com/vaexio/vaex/pull/1637)
+      * Groupby over boolean [#1632](https://github.com/vaexio/vaex/pull/1632)
+      * Negative periods for diff and shift [#1608](https://github.com/vaexio/vaex/pull/1608)
+      * Arrow timestamp promotion during concatenation [#1551](https://github.com/vaexio/vaex/pull/1551)
+
+## vaex-server 0.7
+Requires vaex-core 4.6
+
+## vaex-ml 0.15
+Requires vaex-core 4.6
+   * Performance
+      * Dot product with many columns does not use expressions, but dedicated function [#1671](https://github.com/vaexio/vaex/pull/1671)
+
+# vaex 4.5.0
+## vaex-core 4.5.1
+   * Features
+      * Filelocks for multi process convert=True cooperation [#1573](https://github.com/vaexio/vaex/pull/1573)
+   * Performance
+      * Fingerprint speedups [#1574](https://github.com/vaexio/vaex/pull/1574)
+      * Expression.nunique asked unique for Python list (slow) [#1576](https://github.com/vaexio/vaex/pull/1576)
+      * Groupby was slow for particular data (with low bits 0) [#1571](https://github.com/vaexio/vaex/pull/1571)
+      * Blob encoding is faster due to blake3 [#1575](https://github.com/vaexio/vaex/pull/1575)
+      * Stop iterating over dataset when exception occurs when computing [#1577](https://github.com/vaexio/vaex/pull/1577)
+
+## vaex-core 4.5.0
+   * Features
+      * Protect file creation parts with lock files [#1541](https://github.com/vaexio/vaex/pull/1541)
+      * Expression.str.extract to extract parts of strings using regex to a struct [#1423](https://github.com/vaexio/vaex/pull/1423)
+   * Performance
+      * We now cache Expression.nunique() [#1565](https://github.com/vaexio/vaex/pull/1565)
+      * Hashmaps memory is shared among threads (does not scale linear with number of threads), and avoids a merge phase [#1525](https://github.com/vaexio/vaex/pull/1525)
+      * Hashmaps serialize efficiently [#1525](https://github.com/vaexio/vaex/pull/1525)
+      * Avoid falling back to eval to get the dtype [#1514](https://github.com/vaexio/vaex/pull/1514)
+
+## vaex-hdf5 0.10.0
+   * Features
+      * Write higher dimensional arrays to hdf5 files [#1563](https://github.com/vaexio/vaex/pull/1563)
+
+## vaex-ml 0.14.0
+   * Features
+      * MultiHotEncoder [#1537](https://github.com/vaexio/vaex/pull/1537)
+      * Various ML metrics [#1529](https://github.com/vaexio/vaex/pull/1529)
+
+## vaex-astro 0.9
+   Requires vaex 4.5.0 due to private API change.
+
+## vaex-server 0.6.1
+   * Fixes
+      * Missing imports (now checked in CI) [#1516](https://github.com/vaexio/vaex/pull/1516)
+
+## vaex-contrib 0.1.0
+   * Features
+      * Import from and export to Google BigQuery [#1470](https://github.com/vaexio/vaex/pull/1470)
+
+
+# vaex 4.4.0
+## vaex-core 4.4.0
+   * Performance
+      * Reuse filter data when slicing a dataframe [#1287](https://github.com/vaexio/vaex/pull/1287)
+      * Faster astype('str') [#1411](https://github.com/vaexio/vaex/pull/1411)
+      * Task refactor, which allows for more caching [#1433](https://github.com/vaexio/vaex/pull/1433)
+   * Features
+      * df.to_records() for output to JSON [#1364](https://github.com/vaexio/vaex/pull/1364)
+      * df.dt.quarter and df.dt.halfyear [#1441](https://github.com/vaexio/vaex/pull/1364)https://github.com/vaexio/vaex/pull/1441)
+      * Arrow struct support [#1447](https://github.com/vaexio/vaex/pull/1364)https://github.com/vaexio/vaex/pull/1447)
+   * Fixes
+      * df.concat did not copy functions  [#1287](https://github.com/vaexio/vaex/pull/1287)
+      * Dropping columns when name was invalid identifier [#1434](https://github.com/vaexio/vaex/pull/1434)
+      * Old dates wrapped due to negative ints and casting to unsigned [#1504](https://github.com/vaexio/vaex/pull/1504)
+      * Timestamp to NumPy datetime64 would ignore units [#1513](https://github.com/vaexio/vaex/pull/1513)
+      * Thread unsafety could trigger issues in Plotly dash [#1512](https://github.com/vaexio/vaex/pull/1512)
+
+## vaex-server 0.6.0
+   * Complete refactor, now using FastAPI by default [#1300](https://github.com/vaexio/vaex/pull/1300)
+
+## vaex-ml 0.13.0
+   * Tensorflow/keras support [#1510](https://github.com/vaexio/vaex/pull/1510)
+
+## vaex-hdf5 0.9.0
+   * Features
+      * Support writing/reading from custom hdf5 groups [#1439](https://github.com/vaexio/vaex/pull/1510)
+      * Support laying out an empty hdf5 file for writing [#1439](https://github.com/vaexio/vaex/pull/1510)
+   * Fixes
+      * File order close issue on Windows [#1479](https://github.com/vaexio/vaex/pull/1479)
+
+# vaex 4.3.0
+## vaex-core 4.3.0
+   * Performance
+      * Reuse filter data when slicing a dataframe [#1287](https://github.com/vaexio/vaex/pull/1287)
+   * Features
+      * Cache task results, with support for Redis and diskcache [#1393](https://github.com/vaexio/vaex/pull/1393)
+      * df.func.stack for stacking columns into Nd arrays [#1287](https://github.com/vaexio/vaex/pull/1287)
+      * Sliding windows / shift / diff / sum [#1287](https://github.com/vaexio/vaex/pull/1287)
+      * Embed join/groupby/shift in dataset (opt in via df._future(), will be default in vaex v5) [#1287](https://github.com/vaexio/vaex/pull/1287)
+      * df.fingerprint() - a cross runtime unique key for caching [#1287](https://github.com/vaexio/vaex/pull/1287)
+      * limit rows in groupby using early stop [#1391](https://github.com/vaexio/vaex/pull/1391)
+      * Compare date columns to string values formatted in ISO 8601 format 621a341b54f9b4112f24e2ffd86612753df19fef
+   * Fixes
+      * df.concat did not copy functions  [#1287](https://github.com/vaexio/vaex/pull/1287)
+      * Filters with column name equals to function names a159777e2dc13ec762914c51c8b5550efec5f845
+
+# vaex 4.2.0
+## vaex-core 4.2.0
+   * Performance
+      * Perform groupby in a sparse way for less memory usage/performance (up to 250x faster) [#1381](https://github.com/vaexio/vaex/pull/1381)
+   * Features
+      * Sorted groupby [#1339](https://github.com/vaexio/vaex/pull/1339)
+   * Fixes
+      * Proper use of logging framework [#1384](https://github.com/vaexio/vaex/pull/1384)
+      * Aggregating with 'count' would ignore custom names [#1345](https://github.com/vaexio/vaex/pull/1345)
+      * Join supports datetime column
+## vaex-ml 0.12.0
+   * Features
+      * River integration [#1256](https://github.com/vaexio/vaex/pull/1256)
+      * Random projections [#1305](https://github.com/vaexio/vaex/pull/1256)
+      * Incremental PCA [#1289](https://github.com/vaexio/vaex/pull/1289)
+## vaex-server 0.4.1
+   * Features
+      * SSL support 5dc29edd5b15eb4e1fe9c6981c67edd477481484
+
+# vaex 4.1.0 (2021-Mar-18)
+## vaex-core 4.1.0
+   * Features
+      *  groupby datetime support [#1265](https://github.com/vaexio/vaex/pull/1265)
+   * Fixes
+      * Improved fsspec support [#1268](https://github.com/vaexio/vaex/pull/1268)
+   * Performance
+      * df.extract() uses mask instead of indices 398b682fe9042b3336120e9013e15bbd638620ed
+
+
+# vaex 4.0.0 (2021-Mar-9)
    * Breaking changes:
       * Arrow is now a core dependency, vaex-arrow is deprecated. All methods that return string, will return Arrow arrays [#517](https://github.com/vaexio/vaex/pull/517)
       * Opening an .arrow file will expose the arrays as Apache Arrow arrays, not numpy arrays. [#984](https://github.com/vaexio/vaex/pull/984)
@@ -8,10 +200,10 @@
 ## vaex-arrow (DEPRECATED)
    This is now part of vaex-core.
 
-## vaex-astro 0.8.0 (unreleased)
+## vaex-astro 0.8.0
   * Requirement changed to vaex-core >=4,<5
 
-## vaex-core 4.0.0 (unreleased)
+## vaex-core 4.0.0
    * Fixes
       * Repeated dropna/dropnan/dropmissing could report cached length. [#874](https://github.com/vaexio/vaex/pull/874)
       * Trimming concatenated columns. [#860](https://github.com/vaexio/vaex/pull/860)
@@ -33,33 +225,33 @@
 ## vaex-distributed (DEPRECATED)
    This is now part of vaex-enterprise (was a proof of content, never functional).
 
-## vaex-graphql 0.2.0 (unreleased)
+## vaex-graphql 0.2.0
   * Requirement changed to vaex-core >=4,<5
 
-## vaex-hdf5 0.7.0 (unreleased)
+## vaex-hdf5 0.7.0
    * Requirement changed vaex-core >=4,<5
 
-## vaex-jupyter 0.6.0 (unreleased)
+## vaex-jupyter 0.6.0
   * Requirement changed to vaex-core >=4,<5
 
-## vaex-ml 0.11.0 (unreleased)
+## vaex-ml 0.11.0
    * Features
       * Batch training for CatBoost. [#819](https://github.com/vaexio/vaex/pull/819)
       * Support for `predict_proba` and `predict_log_proba` for sklearn classifiers. [#927](https://github.com/vaexio/vaex/pull/927)
 
-## vaex-server 0.4.0 (unreleased)
+## vaex-server 0.4.0
   * Requirement changed to vaex-core >=4,<5
 
-## vaex-viz 0.5.0 (unreleased)
+## vaex-viz 0.5.0
   * Requirement changed to vaex-core >=4,<5
 
-# vaex 3.1.0 (unreleased)
+# vaex 3.1.0
 
 ## vaex-jupyter 0.5.2 (2020-6-12)
    * Features
       * Normalize histogram and change selection mode. [#826](https://github.com/vaexio/vaex/pull/826)
 
-## vaex-ml 0.11.0-dev0 (unreleased)
+## vaex-ml 0.11.0-dev0
     * Features
       * Autogenerate the fast (or functional) API [#512](https://github.com/vaexio/vaex/pull/512)
 

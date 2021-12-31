@@ -1,11 +1,27 @@
 import asyncio
+import contextlib
 import sys
 
+
+@contextlib.contextmanager
+def with_event_loop(event_loop=None):
+    loop_previous = asyncio.get_event_loop()
+    if event_loop is None:
+        loop_new = asyncio.new_event_loop()
+    else:
+        loop_new = event_loop
+    asyncio.set_event_loop(loop_new)
+    # private API, but present from CPython 3.3ish-3.10+
+    asyncio.events._set_running_loop(None)
+    try:
+        yield
+    finally:
+        asyncio.set_event_loop(loop_previous)
 
 def check_ipython():
     IPython = sys.modules.get('IPython')
     if IPython:
-        IPython_version = tuple(map(int, IPython.__version__.split('.')))
+        IPython_version = tuple(map(int, IPython.__version__.split('.')[:3]))
         if IPython_version < (7, 0, 0):
             raise RuntimeError(f'You are using IPython {IPython.__version__} while we require 7.0.0, please update IPython')
 

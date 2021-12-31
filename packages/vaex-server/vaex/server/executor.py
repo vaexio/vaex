@@ -12,16 +12,23 @@ class Executor(vaex.execution.Executor):
         # TODO: turn evaluate into a task
         return self.client._rmi(df, methodname, args, kwargs)
 
+    def execute(self):
+        self.run(self.execute_async())
+
     async def execute_async(self):
         self.signal_begin.emit()
         cancelled = False
+        # TODO: we only support UserAbort, not task._toreject
         while not cancelled:
             tasks_df = self.local.tasks = self._pop_tasks()
             if not tasks_df:
                 break
             df = tasks_df[0].df
-            tasks_df[0].signal_progress.connect(self.signal_progress.emit)
             for task in tasks_df:
+                # we hook on the global progress indicator to all tasks
+                # this way cancelling via the global progress event will cancel
+                # all tasks
+                task.signal_progress.connect(lambda x: all(self.signal_progress.emit(x)))
                 task.signal_progress.emit(0)
             try:
                 results = await self.client.execute_async(df, tasks_df)

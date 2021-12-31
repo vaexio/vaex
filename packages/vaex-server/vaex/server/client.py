@@ -4,6 +4,7 @@ import warnings
 
 import vaex
 from .dataframe import DataFrameRemote
+from .executor import Executor
 
 
 def create_df(name, info, executor):
@@ -21,7 +22,7 @@ class Client:
     def __init__(self, secure=False):
         self.secure = secure
         self.df_map = {}
-        self.executor = None
+        self.executor = Executor(self)
         self._msg_id_to_tasks = {}
 
     def _check_version(self):
@@ -54,7 +55,7 @@ class Client:
 
     def __getitem__(self, name):
         if name not in self.df_map:
-            raise KeyError("no such DataFrame '%s' at server, possible names: %s" % (name, " ".join(self.df_map.keys())))
+            raise KeyError("no such DataFrame '%s' at server, possible names: %s" % (name, ", ".join(self.df_map.keys())))
         return self.df_map[name]
 
     def _list(self):

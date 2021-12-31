@@ -1,3 +1,4 @@
+import pytest
 from common import *
 import numpy as np
 
@@ -29,6 +30,8 @@ def test_datetime_operations():
     assert df.date.dt.dayofweek.tolist() == pandas_df.date.dt.dayofweek.values.tolist()
     assert df.date.dt.floor('H').tolist() == pandas_df.date.dt.floor('H').values.tolist()
     assert df.date.dt.date.tolist() == pandas_df.date.dt.date.values.tolist()
+    assert df.date.dt.quarter.tolist() == pandas_df.date.dt.quarter.tolist()
+    assert df.date.dt.halfyear.tolist() == [2, 1, 2, 1, 2, 1]  # this method does not exist in pandas yet
 
 
 def test_datetime_agg():
@@ -70,8 +73,8 @@ def test_timedelta_arithmetics():
 
     df = vaex.from_arrays(x=x, y=y)
     df['diff'] = df.x-df.y
-    df['diff_dev_hours'] = df.diff / np.timedelta64(1, 'h')
-    df['diff_add_days'] = df.diff + np.timedelta64(5, 'D')
+    df['diff_dev_hours'] = df['diff'] / np.timedelta64(1, 'h')
+    df['diff_add_days'] = df['diff'] + np.timedelta64(5, 'D')
 
     # normal numerical/numpy values
     diff = df.x.values-df.y.values
@@ -83,22 +86,26 @@ def test_timedelta_arithmetics():
     assert diff_add_days.tolist() == df['diff_add_days'].values.tolist()
 
     # check the min/max values for the TimeDelta column
-    assert df.diff.min() == df.diff.values.min()
-    assert df.diff.max() == df.diff.values.max()
+    assert df['diff'].min() == df['diff'].values.min()
+    assert df['diff'].max() == df['diff'].values.max()
 
 
-def test_datetime_binary_operations():
+
+@pytest.mark.parametrize("as_string", [True, False])
+def test_datetime_binary_operations(as_string):
     x = np.array(['2019-01-04T21:23:00', '2019-02-04T05:00:10', '2019-03-04T15:15:15', '2019-06-21T10:31:15'],
                  dtype=np.datetime64)
     y = np.array(['2018-06-14T12:11:00', '2019-02-02T22:19:00', '2017-11-18T10:11:19', '2019-07-12T11:00:00'],
                  dtype=np.datetime64)
 
-    sample_date = np.datetime64('2019-03-15')
+    sample_date = '2019-03-15'
+    if not as_string:
+        sample_date = np.datetime64(sample_date)
     df = vaex.from_arrays(x=x, y=y)
 
     # Try simple binary operations
-    assert (df.x > sample_date).tolist() == list(df.x.values > sample_date)
-    assert (df.x <= sample_date).tolist() == list(df.x.values <= sample_date)
+    assert (df.x > sample_date).tolist() == list(df.x.values > np.datetime64(sample_date))
+    assert (df.x <= sample_date).tolist() == list(df.x.values <= np.datetime64(sample_date))
     assert (df.x > df.y).tolist() == list(df.x.values > df.y.values)
 
 
@@ -144,3 +151,32 @@ def test_create_str_column_from_datetime64():
     date_format = "%Y/%m/%d"
 
     assert df.date.dt.strftime(date_format).values.tolist() == pandas_df.date.dt.strftime(date_format).values.tolist()
+
+
+def test_non_ns_units():
+    date1 = np.datetime64('1900-10-12T03:31:00')
+    date2 = np.datetime64('2011-01-01T07:02:01')
+    dates = np.array([date1, date2], dtype='M8[ms]')
+    df = vaex.from_arrays(dates=pa.array(dates))
+    assert np.all(df.dates.to_numpy() == dates)
+
+def test_datetime_operations_after_astype(df_factory):
+    df = df_factory(x=[
+        '2009-10-12T03:31:00',
+        '2016-02-11T10:17:34',
+        '2015-11-12T11:34:22',
+    ])
+    df['x_dt'] = df.x.astype('datetime64')
+    df['x_hour'] = df.x_dt.dt.hour
+    assert df.x_hour.tolist() == [3, 10, 11]
+
+
+def test_no_change_fingerprint():
+    # before this would introduce a variable into the dataframe, thus mutate it
+    x = np.array(['2019-01-04T21:23:00', '2019-02-04T05:00:10'], dtype=np.datetime64)
+    sample_date = np.datetime64('2019-03-15')
+    df = vaex.from_arrays(x=x)
+    fp = df.fingerprint()
+
+    answer = df.x > sample_date
+    assert df.fingerprint() == fp

@@ -2,6 +2,44 @@ from common import *
 import vaex.ml
 
 
+def test_state_skip_main(df_factory):
+    df = df_factory(x=[1, 2]).hashed()._future()
+    dff = df[df.x > 1]
+    dff._push_down_filter()
+    state = dff.state_get()
+    assert dff.dataset.id in state['objects']
+    assert df.dataset.id not in state['objects']
+
+
+def test_state_skip_slice(df_factory):
+    df = df_factory(x=[1, 2, 2]).hashed()._future()
+    dfs = df[:2]
+    state = dfs.state_get()
+    assert dfs.dataset.id in state['objects']
+    # assert df.dataset.id not in state['objects']
+
+
+def test_apply_state():
+    x = [1, 2, 3, 4, 5]
+    df = vaex.from_arrays(x=x)
+    dfc = df.copy()
+    df['y'] = df.x.apply(lambda x: x**2)
+    dfc.state_set(df.state_get())
+    assert df.y.tolist() == dfc.y.tolist()
+
+
+def test_isin(tmpdir):
+    df = vaex.from_arrays(x=np.array(['a', 'b', 'c'], dtype='O'),
+                          y=np.array([1, 2, 3], dtype='O'))._future()
+
+    df2 = df.copy()
+    df2['test'] = df2.x.isin(['a'])
+    df2.state_write(tmpdir / 'state.json')
+    # import pdb; pdb.set_trace()
+    df.state_load(tmpdir / 'state.json')
+    assert df.test.tolist() == df2.test.tolist()
+
+
 def test_state_get_set(ds_local):
     ds = ds_local
 
@@ -18,6 +56,15 @@ def test_state_get_set(ds_local):
     assert 'v' in ds_copy.get_column_names()
 
 
+def test_state_rename(df_factory):
+    df = df_factory(x=[1])
+    dfc = df.copy()
+    df.rename('x', 'y')
+    df.y.tolist() == [1]
+    dfc.state_set(df.state_get())
+    assert dfc.y.tolist() == [1]
+
+
 def test_state_mem_waste(df_trimmed):
     df = df_trimmed
     assert df._selection_masks == {}
@@ -28,7 +75,7 @@ def test_state_mem_waste(df_trimmed):
 
 def test_state_variables(df_local_non_arrow, tmpdir):
     filename = str(tmpdir.join('state.json'))
-    df = df_local_non_arrow
+    df = df_local_non_arrow._future()
     df_copy = df.copy()
     t_test = np.datetime64('2005-01-01')
     df.add_variable('dt_var', t_test)
@@ -36,15 +83,16 @@ def test_state_variables(df_local_non_arrow, tmpdir):
 
     # this virtual column will add a variable (the timedelta)
     df['seconds'] = df.timedelta / np.timedelta64(1, 's')
-    assert len(df.variables) == len(variables) + 1
-    var_name = list(set(df.variables) - set(variables))[0]
+
+    # an array
+    df.add_variable('some_array', np.arange(10))
 
     df.state_write(filename)
 
     df_copy.state_load(filename)
-    assert isinstance(df_copy.variables[var_name], np.timedelta64)
     assert df.seconds.tolist() == df_copy.seconds.tolist()
     assert df_copy.variables['dt_var'] == t_test
+    assert df_copy.variables['some_array'].tolist() == df.variables['some_array'].tolist()
 
 
 def test_state_transfer_reassign(df):
@@ -102,7 +150,7 @@ def test_filter_rename_column():
 
 
 def test_state_load_gcs():
-    df = vaex.ml.datasets.load_iris()
+    df = vaex.datasets.iris()
     f = vaex.file.open('gs://vaex-data/testing/test_iris_state.json', fs_options={'token': 'anon', 'cache': True})
     import io
     f = io.TextIOWrapper(f, encoding='utf8')
@@ -115,3 +163,12 @@ def test_state_load_gcs():
     assert df.minmax_petal_width.minmax().tolist() == [0, 1]
     assert df.norm_sepal_length.mean().round(decimals=5) == 0
     assert df.norm_sepal_length.std().round(decimals=5) == 1
+
+
+def test_state_drop():
+    df = vaex.from_scalars(x=1, y=2)
+    dfc = df.copy()
+    df = df.drop('x')
+    dfc.state_set(df.state_get())
+    assert 'x' not in dfc
+    assert 'x' not in dfc.dataset

@@ -2,9 +2,6 @@ import warnings
 import json
 import os
 
-import vaex
-from . import datasets
-from .pipeline import Pipeline
 from vaex.utils import _ensure_strings_from_expressions
 
 
@@ -94,8 +91,9 @@ if os.path.exists(filename_spec):
 
 from .transformations import PCA, PCAIncremental, RandomProjections
 from .transformations import StandardScaler, MinMaxScaler, MaxAbsScaler, RobustScaler
-from .transformations import LabelEncoder, OneHotEncoder, FrequencyEncoder
+from .transformations import LabelEncoder, OneHotEncoder, MultiHotEncoder, FrequencyEncoder
 from .transformations import CycleTransformer
 from .transformations import BayesianTargetEncoder
 from .transformations import WeightOfEvidenceEncoder
 from .transformations import GroupByTransformer, KBinsDiscretizer
+from .pipeline import Pipeline

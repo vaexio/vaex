@@ -4,24 +4,54 @@ import base64
 import io
 import json
 import numbers
+import pickle
 import uuid
 import struct
+import collections.abc
 
 import numpy as np
 import pyarrow as pa
 import vaex
 from .datatype import DataType
 
+import blake3
+
+
 registry = {}
 
 
 def register(name):
     def wrapper(cls):
-        assert name not in registry
+        assert name not in registry, f'{name} already in registry: {registry[name]}'
         registry[name] = cls
         return cls
     return wrapper
 
+
+
+
+def make_class_registery(groupname):
+    _encoding_types = {}
+    def register_helper(cls):
+        name = cls.snake_name #name or getattr(cls, 'snake_name') or cls.__name__
+        _encoding_types[name] = cls
+        return cls
+
+    @register(groupname)
+    class encoding:
+        @staticmethod
+        def encode(encoding, obj):
+            spec = obj.encode(encoding)
+            spec[f'{groupname}-type'] = obj.snake_name
+            return spec
+
+        @staticmethod
+        def decode(encoding, spec, **kwargs):
+            spec = spec.copy()
+            type = spec.pop(f'{groupname}-type')
+            cls = _encoding_types[type]
+            return cls.decode(encoding, spec, **kwargs)
+    return register_helper
 
 @register("json")  # this will pass though data as is
 class vaex_json_encoding:
@@ -63,40 +93,66 @@ class vaex_evaluate_results_encoding:
         if isinstance(result, (list, tuple)):
             return [cls.encode(encoding, k) for k in result]
         else:
-            if isinstance(result, np.ndarray):
-                return {'type': 'ndarray', 'data': encoding.encode('ndarray', result)}
-            elif isinstance(result, vaex.array_types.supported_arrow_array_types):
-                return {'type': 'arrow-array', 'data': encoding.encode('arrow-array', result)}
-            elif isinstance(result, numbers.Number):
-                try:
-                    result = result.item()  # for numpy scalars
-                except:  # noqa
-                    pass
-                return {'type': 'json', 'data': result}
-            else:
-                raise ValueError('Cannot encode: %r' % result)
+           return encoding.encode('array', result)
 
     @classmethod
     def decode(cls, encoding, result_encoded):
         if isinstance(result_encoded, (list, tuple)):
             return [cls.decode(encoding, k) for k in result_encoded]
         else:
-            return encoding.decode(result_encoded['type'], result_encoded['data'])
+            return encoding.decode('array', result_encoded)
 
+
+@register("array")
+class array_encoding:
+    @classmethod
+    def encode(cls, encoding, result):
+        if isinstance(result, np.ndarray):
+            return {'type': 'ndarray', 'data': encoding.encode('ndarray', result)}
+        elif isinstance(result, vaex.array_types.supported_arrow_array_types):
+            return {'type': 'arrow-array', 'data': encoding.encode('arrow-array', result)}
+        if isinstance(result, vaex.column.Column):
+            return {'type': 'column', 'data': encoding.encode('column', result)}
+        elif isinstance(result, numbers.Number):
+            try:
+                result = result.item()  # for numpy scalars
+            except:  # noqa
+                pass
+            return {'type': 'json', 'data': result}
+        else:
+            raise ValueError('Cannot encode: %r' % result)
+
+    @classmethod
+    def decode(cls, encoding, result_encoded):
+        return encoding.decode(result_encoded['type'], result_encoded['data'])
 
 
 @register("arrow-array")
 class arrow_array_encoding:
     @classmethod
     def encode(cls, encoding, array):
-        blob = pa.serialize(array).to_buffer()
-        return {'arrow-serialized-blob': encoding.add_blob(blob)}
+        schema = pa.schema({'x': array.type})
+        with pa.BufferOutputStream() as sink:
+            with pa.ipc.new_stream(sink, schema) as writer:
+                writer.write_table(pa.table({'x': array}))
+        blob = sink.getvalue()
+        return {'arrow-ipc-blob': encoding.add_blob(blob)}
 
     @classmethod
     def decode(cls, encoding, result_encoded):
-        blob = encoding.get_blob(result_encoded['arrow-serialized-blob'])
-        return pa.deserialize(blob)
-
+        if 'arrow-serialized-blob' in result_encoded:  # backward compatibility
+            blob = encoding.get_blob(result_encoded['arrow-serialized-blob'])
+            return pa.deserialize(blob)
+        else:
+            blob = encoding.get_blob(result_encoded['arrow-ipc-blob'])
+            with pa.BufferReader(blob) as source:
+                with pa.ipc.open_stream(source) as reader:
+                    table = reader.read_all()
+                    assert table.num_columns == 1
+                    ar = table.column(0)
+                    if len(ar.chunks) == 1:
+                        ar = ar.chunks[0]
+            return ar
 
 @register("ndarray")
 class ndarray_encoding:
@@ -149,15 +205,40 @@ class ndarray_encoding:
             return array
 
 
+@register("numpy-scalar")
+class numpy_scalar_encoding:
+    @classmethod
+    def encode(cls, encoding, scalar):
+        if scalar.dtype.kind in 'mM':
+            value = int(scalar.astype(int))
+        else:
+            value = scalar.item()
+        return {'value': value, 'dtype': encoding.encode('dtype', DataType(scalar.dtype))}
+
+    @classmethod
+    def decode(cls, encoding, scalar_spec):
+        dtype = encoding.decode('dtype', scalar_spec['dtype'])
+        value = scalar_spec['value']
+        return np.array([value], dtype=dtype.numpy)[0]
+
 @register("dtype")
 class dtype_encoding:
     @staticmethod
     def encode(encoding, dtype):
-        dtype = dtype.internal
+        dtype = DataType(dtype)
+        if dtype.is_list:
+            return {'type': 'list', 'value_type': encoding.encode('dtype', dtype.value_type)}
+        dtype = DataType(dtype)
         return str(dtype)
 
     @staticmethod
     def decode(encoding, type_spec):
+        if isinstance(type_spec, dict):
+            if type_spec['type'] == 'list':
+                sub = encoding.decode('dtype', type_spec['value_type']).arrow
+                return DataType(pa.list_(sub))
+            else:
+                raise ValueError(f'Do not understand type {type_spec}')
         if type_spec == 'string':
             return DataType(pa.string())
         if type_spec == 'large_string':
@@ -169,59 +250,152 @@ class dtype_encoding:
             return DataType(np.dtype(type_spec))
 
 
-@register("binner")
-class binner_encoding:
+@register("dataframe-state")
+class dataframe_state_encoding:
     @staticmethod
-    def encode(encoding, binner):
-        name = type(binner).__name__
-        if name.startswith('BinnerOrdinal_'):
-            datatype = name[len('BinnerOrdinal_'):]
-            if datatype.endswith("_non_native"):
-                datatype = datatype[:-len('64_non_native')]
-                datatype = encoding.encode('dtype', DataType(np.dtype(datatype).newbyteorder()))
-            return {'type': 'ordinal', 'expression': binner.expression, 'datatype': datatype, 'count': binner.ordinal_count, 'minimum': binner.min_value}
-        elif name.startswith('BinnerScalar_'):
-            datatype = name[len('BinnerScalar_'):]
-            if datatype.endswith("_non_native"):
-                datatype = datatype[:-len('64_non_native')]
-                datatype = encoding.encode('dtype', DataType(np.dtype(datatype).newbyteorder()))
-            return {'type': 'scalar', 'expression': binner.expression, 'datatype': datatype, 'count': binner.bins, 'minimum': binner.vmin, 'maximum': binner.vmax}
+    def encode(encoding, state):
+        return state
+
+    @staticmethod
+    def decode(encoding, state_spec):
+        return state_spec
+
+
+@register("selection")
+class selection_encoding:
+    @staticmethod
+    def encode(encoding, selection):
+        return selection.to_dict() if selection is not None else None
+
+    @staticmethod
+    def decode(encoding, selection_spec):
+        if selection_spec is None:
+            return None
+        selection = vaex.selections.selection_from_dict(selection_spec)
+        return selection
+
+
+@register("function")
+class function_encoding:
+    @staticmethod
+    def encode(encoding, function):
+        return vaex.serialize.to_dict(function.f)
+
+    @staticmethod
+    def decode(encoding, function_spec, trusted=False):
+        if function_spec is None:
+            return None
+        function = vaex.serialize.from_dict(function_spec, trusted=trusted)
+        return function
+
+
+
+@register("variable")
+class selection_encoding:
+    @staticmethod
+    def encode(encoding, obj):
+        if isinstance(obj, np.ndarray):
+            return {'type': 'ndarray', 'data': encoding.encode('ndarray', obj)}
+        elif isinstance(obj, vaex.array_types.supported_arrow_array_types):
+            return {'type': 'arrow-array', 'data': encoding.encode('arrow-array', obj)}
+        elif isinstance(obj, vaex.hash.ordered_set):
+            return {'type': 'ordered-set', 'data': encoding.encode('ordered-set', obj)}
+        elif isinstance(obj, np.generic):
+            return {'type': 'numpy-scalar', 'data': encoding.encode('numpy-scalar', obj)}
+        elif isinstance(obj, np.integer):
+            return obj.item()
+        elif isinstance(obj, np.floating):
+            return obj.item()
+        elif isinstance(obj, np.ndarray):
+            return obj.tolist()
+        elif isinstance(obj, np.bytes_):
+            return obj.decode('UTF-8')
+        elif isinstance(obj, bytes):
+            return str(obj, encoding='utf-8');
         else:
-            raise ValueError('Cannot serialize: %r' % binner)
+            return obj
 
     @staticmethod
-    def decode(encoding, binner_spec):
-        type = binner_spec['type']
-        dtype = encoding.decode('dtype', binner_spec['datatype'])
-        if type == 'ordinal':
-            cls = vaex.utils.find_type_from_dtype(vaex.superagg, "BinnerOrdinal_", dtype)
-            return cls(binner_spec['expression'], binner_spec['count'], binner_spec['minimum'])
-        elif type == 'scalar':
-            cls = vaex.utils.find_type_from_dtype(vaex.superagg, "BinnerScalar_", dtype)
-            return cls(binner_spec['expression'], binner_spec['minimum'], binner_spec['maximum'], binner_spec['count'])
+    def decode(encoding, obj_spec):
+        if isinstance(obj_spec, dict):
+            return encoding.decode(obj_spec['type'], obj_spec['data'])
         else:
-            raise ValueError('Cannot deserialize: %r' % binner_spec)
+            return obj_spec
 
 
-@register("grid")
-class grid_encoding:
+@register("ordered-set")
+class ordered_set_encoding:
     @staticmethod
-    def encode(encoding, grid):
-        return encoding.encode_list('binner', grid.binners)
+    def encode(encoding, obj):
+        keys = obj.key_array()
+        if isinstance(keys, (vaex.strings.StringList32, vaex.strings.StringList64)):
+            keys = vaex.strings.to_arrow(keys)
+        keys = encoding.encode('array', keys)
+        clsname = obj.__class__.__name__
+        return {
+            'class': clsname,
+            'data': {
+                'keys': keys,
+                'null_value': obj.null_value,
+                'nan_count': obj.nan_count,
+                'missing_count': obj.null_count,
+                'fingerprint': obj.fingerprint,
+            }
+        }
+
 
     @staticmethod
-    def decode(encoding, grid_spec):
-        return vaex.superagg.Grid(encoding.decode_list('binner', grid_spec))
+    def decode(encoding, obj_spec):
+        clsname = obj_spec['class']
+        cls = getattr(vaex.hash, clsname)
+        keys = encoding.decode('array', obj_spec['data']['keys'])
+        dtype = vaex.dtype_of(keys)
+        if dtype.is_string:
+            keys = vaex.strings.to_string_sequence(keys)
+        value = cls(keys, obj_spec['data']['null_value'], obj_spec['data']['nan_count'], obj_spec['data']['missing_count'], obj_spec['data']['fingerprint'])
+        return value
+
 
 
 class Encoding:
     def __init__(self, next=None):
         self.registry = {**registry}
         self.blobs = {}
+        # for sharing objects
+        self._object_specs = {}
+        self._objects = {}
+
+    def set_object(self, id, obj):
+        assert id not in self._objects
+        self._objects[id] = obj
+
+    def get_object(self, id):
+        return self._objects[id]
+
+    def has_object(self, id):
+        return id in self._objects
+
+    def set_object_spec(self, id, obj):
+        assert id not in self._object_specs, f"Overwriting id {id}"
+        self._object_specs[id] = obj
+
+    def get_object_spec(self, id):
+        return self._object_specs[id]
+
+    def has_object_spec(self, id):
+        return id in self._object_specs
 
     def encode(self, typename, value):
         encoded = self.registry[typename].encode(self, value)
         return encoded
+
+    def encode_collection(self, typename, values):
+        if isinstance(values, (list, tuple)):
+            return self.encode_list(typename, values)
+        elif isinstance(values, dict):
+            return self.encode_dict(typename, values)
+        else:
+            return self.encode(typename, values)
 
     def encode_list(self, typename, values):
         encoded = [self.registry[typename].encode(self, k) for k in values]
@@ -239,6 +413,14 @@ class Encoding:
         decoded = self.registry[typename].decode(self, value, **kwargs)
         return decoded
 
+    def decode_collection(self, typename, values, **kwargs):
+        if isinstance(values, (list, tuple)):
+            return self.decode_list(typename, values, **kwargs)
+        elif isinstance(values, dict):
+            return self.decode_dict(typename, values, **kwargs)
+        else:
+            return self.decode(typename, values)
+
     def decode_list(self, typename, values, **kwargs):
         decoded = [self.registry[typename].decode(self, k, **kwargs) for k in values]
         return decoded
@@ -252,8 +434,10 @@ class Encoding:
         return decoded
 
     def add_blob(self, buffer):
-        blob_id = str(uuid.uuid4())
-        self.blobs[blob_id] = memoryview(buffer).tobytes()
+        bytes = memoryview(buffer).tobytes()
+        blake = blake3.blake3(bytes, multithreading=True)
+        blob_id = blake.hexdigest()
+        self.blobs[blob_id] = bytes
         return f'blob:{blob_id}'
 
     def get_blob(self, blob_ref):
@@ -308,7 +492,7 @@ class binary:
     def serialize(data, encoding):
         blob_refs = list(encoding.blobs.keys())
         blobs = [encoding.blobs[k] for k in blob_refs]
-        json_blob = json.dumps({'data': data, 'blob_refs': blob_refs})
+        json_blob = json.dumps({'data': data, 'blob_refs': blob_refs, 'objects': encoding._object_specs})
         return _pack_blobs(json_blob.encode('utf8'), *blobs)
 
     @staticmethod
@@ -318,8 +502,17 @@ class binary:
         json_data = json.loads(json_data)
         data = json_data['data']
         encoding.blobs = {key: blob for key, blob in zip(json_data['blob_refs'], blobs)}
+        if 'objects' in json_data:  # for backwards compatibility, otherwise we might not be able to parse old msg'es
+            encoding._object_specs = json_data['objects']
         return data
 
+
+def fingerprint(typename, object):
+    '''Use the encoding framework to calculate a fingerprint'''
+    encoding = vaex.encoding.Encoding()
+    jsonable = encoding.encode(typename, object)
+    blob_keys = list(encoding.blobs)  # blob keys are hashes, so they are unique and enough for a fingerprint
+    return vaex.cache.fingerprint(jsonable, blob_keys)
 
 serialize = binary.serialize
 deserialize = binary.deserialize

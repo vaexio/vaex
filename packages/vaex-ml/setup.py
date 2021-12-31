@@ -12,7 +12,7 @@ author_email= 'jovan.veljanoski@gmail.com'
 license     = 'MIT'
 version     = version.__version__
 url         = 'https://www.github.com/vaexio/vaex'
-install_requires_ml = ['vaex-core>=4.0.0,<5', 'numba', 'traitlets', 'jinja2']
+install_requires_ml = ['vaex-core>=4.7.0,<5', 'numba', 'traitlets', 'jinja2']
 
 setup(name=name + '-ml',
       version=version,
@@ -21,9 +21,12 @@ setup(name=name + '-ml',
       author=author,
       author_email=author_email,
       install_requires=install_requires_ml,
+      extras_require={'all': ['tensorflow>=2.1.0', 'tensorflow-io>=0.12.0']},
       license=license,
-      packages=['vaex.ml', 'vaex.ml.incubator', 'vaex.ml.datasets'],
+      packages=['vaex.ml', 'vaex.ml.incubator'],
       include_package_data=True,
       zip_safe=False,
-      entry_points={'vaex.dataframe.accessor': ['ml = vaex.ml:DataFrameAccessorML']}
+      entry_points={'vaex.dataframe.accessor': ['ml = vaex.ml:DataFrameAccessorML',
+                                                'ml.tensorflow = vaex.ml.tensorflow:DataFrameAccessorTensorflow',
+                                                'ml.metrics = vaex.ml.metrics:DataFrameAccessorMetrics']}
 )

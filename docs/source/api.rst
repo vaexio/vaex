@@ -11,13 +11,20 @@ Opening/reading in your data.
 
     vaex.open
     vaex.concat
-    vaex.from_arrow_table
-    vaex.from_arrays
     vaex.from_dict
-    vaex.from_csv
-    vaex.from_ascii
+    vaex.from_items
+    vaex.from_arrays
+    vaex.from_arrow_table
+    vaex.from_arrow_dataset
+    vaex.from_dataset
     vaex.from_pandas
+    vaex.from_ascii
+    vaex.from_json
+    vaex.from_records
+    vaex.from_csv
     vaex.from_astropy_table
+    vaex.vrange
+    vaex.vconstant
 
 Visualization.
 ~~~~~~~~~~~~~~
@@ -58,7 +65,7 @@ vaex-core
 ---------
 
 .. automodule:: vaex
-    :members: open, concat, from_arrays, from_dict, from_items, from_arrow_table, from_csv, from_ascii, from_pandas, from_astropy_table, from_samp, open_many, register_function, server, example, app, delayed
+    :members: open, concat, from_dict, from_items, from_arrays, from_arrow_table, from_arrow_dataset, from_dataset, from_pandas, from_ascii, from_json, from_records, from_csv, from_astropy_table, open_many, register_function, server, example, app, delayed, vrange, vconstant
     :undoc-members:
     :show-inheritance:
 
@@ -99,6 +106,14 @@ Aggregation and statistics
 .. .. autoclass:: vaex.stat.Statistic
 ..     :members:
 
+Caching
+~~~~~~~
+
+.. automodule:: vaex.cache
+    :members: is_on, off, get, set, memory, memory_infinite, disk, disk_infinite, redis
+    :undoc-members:
+    :show-inheritance:
+
 
 Extensions
 ----------
@@ -128,6 +143,13 @@ Timedelta operations
 ~~~~~~~~~~~~~~~~~~~~
 
 .. autoclass:: vaex.expression.TimeDelta
+     :members:
+     :special-members:
+
+Struct (arrow) operations
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. autoclass:: vaex.expression.StructOperations
      :members:
      :special-members:
 
@@ -321,31 +343,7 @@ Machine learning with vaex.ml
 See the `ML tutorial <tutorial_ml.ipynb>`_ an introduction, and the `ML examples <examples.rst>`_ for more advanced usage.
 
 
-Scikit-learn
-~~~~~~~~~~~~
-
-.. autosummary::
-
-    vaex.ml.sklearn.IncrementalPredictor
-    vaex.ml.sklearn.Predictor
-
-.. automodule:: vaex.ml.sklearn
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
-
-Clustering
-~~~~~~~~~~
-
-.. autosummary::
-
-    vaex.ml.cluster.KMeans
-
-.. autoclass:: vaex.ml.cluster.KMeans
-     :members:
-
-Transformers/encoders
+Transformers & Encoders
 ~~~~~~~~~~~~~~~~~~~~~
 
 .. autosummary::
@@ -355,6 +353,7 @@ Transformers/encoders
     vaex.ml.transformations.MaxAbsScaler
     vaex.ml.transformations.MinMaxScaler
     vaex.ml.transformations.OneHotEncoder
+    vaex.ml.transformations.MultiHotEncoder
     vaex.ml.transformations.PCA
     vaex.ml.transformations.RobustScaler
     vaex.ml.transformations.StandardScaler
@@ -378,6 +377,9 @@ Transformers/encoders
      :members:
 
 .. autoclass:: vaex.ml.transformations.OneHotEncoder
+     :members:
+
+.. autoclass:: vaex.ml.transformations.MultiHotEncoder
      :members:
 
 .. autoclass:: vaex.ml.transformations.PCA
@@ -405,6 +407,39 @@ Transformers/encoders
      :members:
 
 
+Clustering
+~~~~~~~~~~
+
+.. autosummary::
+
+    vaex.ml.cluster.KMeans
+
+.. autoclass:: vaex.ml.cluster.KMeans
+     :members:
+
+
+Metrics
+~~~~~~~
+
+
+.. autoclass:: vaex.ml.metrics.DataFrameAccessorMetrics
+     :members:
+
+
+Scikit-learn
+~~~~~~~~~~~~
+
+.. autosummary::
+
+    vaex.ml.sklearn.IncrementalPredictor
+    vaex.ml.sklearn.Predictor
+
+.. automodule:: vaex.ml.sklearn
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+
 Boosted trees
 ~~~~~~~~~~~~~
 
@@ -424,6 +459,20 @@ Boosted trees
 .. autoclass:: vaex.ml.catboost.CatBoostModel
      :members:
 
+Tensorflow
+~~~~~~~~~~
+
+.. autosummary::
+
+     vaex.ml.tensorflow.KerasModel
+
+.. autoclass:: vaex.ml.tensorflow.KerasModel
+     :members:
+
+.. autoclass:: vaex.ml.tensorflow.DataFrameAccessorTensorflow
+     :members:
+
+
 Incubator/experimental
 ~~~~~~~~~~~~~~~~~~~~~~
 
@@ -433,4 +482,7 @@ These models are in the incubator phase and may disappear in the future
 ..      :members:
 
 .. autoclass:: vaex.ml.incubator.annoy.ANNOYModel
+     :members:
+
+.. autoclass:: vaex.ml.incubator.river.RiverModel
      :members:

@@ -17,47 +17,55 @@ max_int32 = 2**31-1
 
 
 class Writer:
-    def __init__(self, path, byteorder="="):
+    def __init__(self, path, group="/table", mode="w", byteorder="="):
         self.path = path
         self.byteorder = byteorder
-        self.h5 = h5py.File(path, "w")
+        self.h5 = h5py.File(path, mode)
         self.fs_options = {}
-        self.table = self.h5.require_group("/table")
+        self.table = self.h5.require_group(group)
         self.table.attrs["type"] = "table"
-        self.columns = self.h5.require_group("/table/columns")
+        self.columns = self.h5.require_group(f"{group}/columns")
         self.mmap = None
+        self._layout_called = False
 
     def close(self):
-        self.h5.close()
         if self.mmap is not None:
             self.mmap.close()
             self.file.close()
-
+        self.h5.close()
+        
     def __enter__(self):
         return self
 
     def __exit__(self, *args):
         self.close()
-    
-    def write(self, df, chunk_size=int(1e5), parallel=True, progress=None, column_count=1, export_threads=0):
+
+    def layout(self, df, progress=None):
+        assert not self._layout_called, "Layout called twice"
         N = len(df)
         if N == 0:
-            raise ValueError("Cannot export empty table")
+            raise ValueError("Cannot layout empty table")
         column_names = df.get_column_names()
 
-        logger.debug("exporting columns(hdf5): %r" % column_names)
+        logger.debug("layout columns(hdf5): %r" % column_names)
+        progressbar = vaex.utils.progressbars(progress, title="layout(hdf5)")
+        progressbar_strings = progressbar.add("variable-length storage requirements")
+        progressbar_count = progressbar.add("count missing values")
+        progressbar_reserve = progressbar.add("reserve disk space to be mmapped")
 
         self.column_writers = {}
         dtypes = df.schema()
-        str_byte_length = {name:df[name].str.byte_length().sum(delay=True) for name, dtype in dtypes.items() if dtype.is_string}
-        str_count = {name:df.count(df[name], delay=True) for name, dtype in dtypes.items() if dtype.is_string}
+        str_byte_length = {name:df[name].str.byte_length().sum(delay=True, progress=progressbar_strings) for name, dtype in dtypes.items() if dtype.is_string}
+        str_count = {name:df.count(df[name], delay=True, progress=progressbar_count) for name, dtype in dtypes.items() if dtype.is_string}
         df.execute()
+        progressbar_count(1)
+        progressbar_strings(1)
 
         str_byte_length = {k: v.get() for k, v in str_byte_length.items()}
         has_null_str = {k: N != v.get() for k, v in str_count.items()}
         has_null = {name:df.is_masked(name) for name, dtype in dtypes.items() if not dtype.is_string}
 
-        for name in list(column_names):
+        for i, name in enumerate(list(column_names)):
             dtype = dtypes[name]
 
             shape = (N, ) + df._shape_of(name)[1:]
@@ -70,10 +78,20 @@ class Writer:
                 logger.exception("error creating dataset for %r, with type %r " % (name, dtype))
                 del self.columns[name]
                 column_names.remove(name)
+            progressbar_reserve((i+1)/len(column_names))
         self.columns.attrs["column_order"] = ",".join(column_names)
 
         # flush out the content
         self.h5.flush()
+        self._layout_called = True
+
+    def write(self, df, chunk_size=int(1e5), parallel=True, progress=None, column_count=1, export_threads=0):
+        assert self._layout_called, "call .layout() first"
+        N = len(df)
+        if N == 0:
+            raise ValueError("Cannot export empty table")
+
+        column_names = list(self.column_writers)
         # now that the file has the final size, we can mmap it
         self.file = open(self.path, "rb+")
         self.fileno = self.file.fileno()
@@ -88,9 +106,11 @@ class Writer:
         for name in list(column_names):
             self.column_writers[name].mmap(self.mmap, self.file)
 
+        logger.debug("writing columns(hdf5): %r" % column_names)
         # actual writing part
-        progressbar = vaex.utils.progressbars(progress)
+        progressbar = vaex.utils.progressbars(progress, title="exporting")
         progressbar(0)
+        progressbar_columns = {k: progressbar.add(f"write: {k}") for k in column_names}
         total = N * len(column_names)
         written = 0
         if export_threads:
@@ -100,6 +120,7 @@ class Writer:
                 def write(arg):
                     i, name = arg
                     self.column_writers[name].write(values[i])
+                    progressbar_columns[name](self.column_writers[name].progress)
                 # for i, name in enumerate(column_names_subgroup):
                 if export_threads:
                     list(pool.map(write, enumerate(column_names_subgroup)))
@@ -119,27 +140,31 @@ class ColumnWriterPrimitive:
         self.dtype = dtype
         self.to_offset = 0
         self.to_array = None
-        
+
         self.h5group = h5parent.require_group(name)
         if dtype.kind in 'mM':
-            self.array = self.h5group.require_dataset('data', shape=shape, dtype=np.int64)
+            self.array = self.h5group.require_dataset('data', shape=shape, dtype=np.int64, track_times=False)
             self.array.attrs["dtype"] = dtype.name
         elif dtype.kind == 'U':
             # numpy uses utf32 for unicode
             char_length = dtype.itemsize // 4
             shape = (N, char_length)
-            self.array = self.h5group.require_dataset('data', shape=shape, dtype=np.uint8)
+            self.array = self.h5group.require_dataset('data', shape=shape, dtype=np.uint8, track_times=False)
             self.array.attrs["dtype"] = 'utf32'
             self.array.attrs["dlength"] = char_length
         else:
-            self.array = self.h5group.require_dataset('data', shape=shape, dtype=dtype.numpy.newbyteorder(byteorder))
+            self.array = self.h5group.require_dataset('data', shape=shape, dtype=dtype.numpy.newbyteorder(byteorder), track_times=False)
         self.array[0] = self.array[0]  # make sure the array really exists
 
         if has_null:
-            self.mask = self.h5group.require_dataset('mask', shape=shape, dtype=np.bool)
+            self.mask = self.h5group.require_dataset('mask', shape=shape, dtype=np.bool, track_times=False)
             self.mask[0] = self.mask[0]  # make sure the array really exists
         else:
             self.mask = None
+
+    @property
+    def progress(self):
+        return self.to_offset/self.count
 
     def mmap(self, mmap, file):
         self.to_array = h5mmap(mmap if USE_MMAP else None, file, self.array, self.mask)
@@ -187,21 +212,25 @@ class ColumnWriterString:
         data_shape = (byte_length, )
         indices_shape = (self.count+1, )
 
-        self.array = self.h5group.require_dataset('data', shape=data_shape, dtype='S1')
+        self.array = self.h5group.require_dataset('data', shape=data_shape, dtype='S1', track_times=False)
         self.array.attrs["dtype"] = 'str'
         if byte_length > 0:
             self.array[0] = self.array[0]  # make sure the array really exists
 
-        self.index_array = self.h5group.require_dataset('indices', shape=indices_shape, dtype=dtype_indices)
+        self.index_array = self.h5group.require_dataset('indices', shape=indices_shape, dtype=dtype_indices, track_times=False)
         self.index_array[0] = self.index_array[0]  # make sure the array really exists
 
         if self.has_null > 0:
             null_shape = ((self.count + 7) // 8, )  # TODO: arrow requires padding right?
-            self.null_bitmap_array = self.h5group.require_dataset('null_bitmap', shape=null_shape, dtype='u1')
+            self.null_bitmap_array = self.h5group.require_dataset('null_bitmap', shape=null_shape, dtype='u1', track_times=False)
             self.null_bitmap_array[0] = self.null_bitmap_array[0]  # make sure the array really exists
         else:
             self.null_bitmap_array = None
         # TODO: masked support ala arrow?
+
+    @property
+    def progress(self):
+        return self.to_offset/self.count
 
 
     def mmap(self, mmap, file):

@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 from __future__ import absolute_import
+import ast
 import collections
 import concurrent.futures
 import contextlib
@@ -10,15 +11,18 @@ import os
 import platform
 import re
 import sys
+import threading
 import time
+from typing import MutableMapping
 import warnings
 import numbers
 import keyword
+from filelock import FileLock
+import pkg_resources
 
+import dask.utils
 import numpy as np
 import pyarrow as pa
-import progressbar
-import psutil
 import six
 import yaml
 
@@ -35,6 +39,9 @@ osname = dict(darwin="osx", linux="linux", windows="windows")[platform.system().
 devmode = os.environ.get('VAEX_DEV', '0') == '1'
 
 
+# so that vaex can be imported without compiling the extenstions (like in readthedocs)
+has_c_extension = os.environ.get('VAEX_NO_C_EXTENSIONS', None) != "1"
+
 class AttrDict(dict):
     def __init__(self, *args, **kwargs):
         dict.__init__(self, *args, **kwargs)
@@ -44,6 +51,40 @@ class AttrDict(dict):
 
     def __setattr__(self, key, value):
         self[key] = value
+
+
+class RegistryCallable(MutableMapping):
+    '''lazily load entries from entry_points'''
+    def __init__(self, entry_points : str, typename : str):
+        self.entry_points = entry_points
+        self.typename = typename
+        self.registry = {}
+        self.lock = threading.Lock()
+
+    def __getitem__(self, name):
+        if name in self.registry:
+            return self.registry[name]
+        with self.lock:
+            if name in self.registry:
+                return self.registry[name]
+            for entry in pkg_resources.iter_entry_points(group=self.entry_points):
+                self.registry[entry.name] = entry.load()
+
+        if name not in self.registry:
+            raise NameError(f'No {self.typename} registered with name {name!r} under entry_point {self.entry_points!r}')
+        return self.registry[name]
+
+    def __delitem__(self, name):
+        del self.registry[name]
+
+    def __iter__(self):
+        return self.registry.__iter__()
+
+    def __len__(self):
+        return self.registry.__len__()
+
+    def __setitem__(self, name, value):
+        self.registry.__setitem__(name, value)
 
 
 def deprecated(reason):
@@ -82,6 +123,8 @@ def subdivide_mask(mask, parts=None, max_length=None, logical_length=None):
     """
     if logical_length is None:
         logical_length = np.asarray(mask).sum()
+    if logical_length == 0:
+        return
     raw_length = len(np.asarray(mask))
     if max_length is None:
         max_length = (logical_length + parts - 1) / parts
@@ -200,11 +243,26 @@ class Timer(object):
         return False
 
 
+def get_vaex_home():
+    '''Get vaex home directory, defaults to $HOME/.vaex.
+
+    The $VAEX_PATH_HOME environment variable can be set to override this default.
+
+    If both $VAEX_PATH_HOME and $HOME are not define, the current working directory is used.
+    '''
+    if 'VAEX_PATH_HOME' in os.environ:
+        return os.environ['VAEX_PATH_HOME']
+    elif 'HOME' in os.environ:
+        return os.path.join(os.environ['HOME'], ".vaex")
+    else:
+        return os.getcwd()
+
+
 def get_private_dir(subdir=None, *extra):
-    path = os.path.expanduser('~/.vaex')
+    path = get_vaex_home()
     if subdir:
         path = os.path.join(path, subdir, *extra)
-    os.makedirs(path,exist_ok=True)
+    os.makedirs(path, exist_ok=True)
     return path
 
 
@@ -213,191 +271,6 @@ def make_list(sequence):
         return sequence.tolist()
     else:
         return list(sequence)
-
-
-# from progressbar import AnimatedMarker, Bar, BouncingBar, Counter, ETA, \
-# FileTransferSpeed, FormatLabel, Percentage, \
-# ProgressBar, ReverseBar, RotatingMarker, \
-# SimpleProgress, Timer, AdaptiveETA, AbsoluteETA, AdaptiveTransferSpeed
-# from progressbar.widgets import TimeSensitiveWidgetBase, FormatWidgetMixin
-
-
-class CpuUsage(progressbar.widgets.FormatWidgetMixin, progressbar.widgets.TimeSensitiveWidgetBase):
-    def __init__(self, format='CPU Usage: %(cpu_usage)s%%', usage_format="% 5d"):
-        super(CpuUsage, self).__init__(format=format)
-        self.usage_format = usage_format
-        self.utime_0 = None
-        self.stime_0 = None
-        self.walltime_0 = None
-
-    def __call__(self, progress, data):
-        utime, stime, child_utime, child_stime, walltime = os.times()
-        if self.utime_0 is None:
-            self.utime_0 = utime
-        if self.stime_0 is None:
-            self.stime_0 = stime
-        if self.walltime_0 is None:
-            self.walltime_0 = walltime
-        data["utime_0"] = self.utime_0
-        data["stime_0"] = self.stime_0
-        data["walltime_0"] = self.walltime_0
-
-        delta_time = utime - self.utime_0 + stime - self.stime_0
-        delta_walltime = walltime - self.walltime_0
-        # print delta_time, delta_walltime, utime, self.utime_0, stime, self.stime_0
-        if delta_walltime == 0:
-            data["cpu_usage"] = "---"
-        else:
-            cpu_usage = delta_time / (delta_walltime * 1.) * 100
-            data["cpu_usage"] = self.usage_format % cpu_usage
-        # utime0, stime0, child_utime0, child_stime0, walltime0 = os.times()
-        return progressbar_mod.widgets.FormatWidgetMixin.__call__(self, progress, data)
-
-
-progressbar_mod = progressbar
-
-
-def _progressbar_progressbar2(type=None, name="processing", max_value=1):
-    widgets = [
-        name,
-        ': ', progressbar_mod.widgets.Percentage(),
-        ' ', progressbar_mod.widgets.Bar(),
-        ' ', progressbar_mod.widgets.ETA(),
-        # ' ', progressbar_mod.widgets.AdaptiveETA(),
-        ' ', CpuUsage()
-    ]
-    bar = progressbar_mod.ProgressBar(widgets=widgets, max_value=max_value)
-    bar.start()
-    return bar
-    # FormatLabel('Processed: %(value)d lines (in: %(elapsed)s)')
-
-
-def _progressbar_vaex(type=None, name="processing", max_value=1):
-    import vaex.misc.progressbar as pb
-    return pb.ProgressBar(0, 1)
-
-def _progressbar_widget(type=None, name="processing", max_value=1):
-    import vaex.misc.progressbar as pb
-    return pb.ProgressBarWidget(0, 1, name=name)
-
-
-_progressbar_typemap = {}
-_progressbar_typemap['progressbar2'] = _progressbar_progressbar2
-_progressbar_typemap['vaex'] = _progressbar_vaex
-_progressbar_typemap['widget'] = _progressbar_widget
-
-
-def progressbar(type_name=None, title="processing", max_value=1):
-    type_name = type_name or 'vaex'
-    return _progressbar_typemap[type_name](name=title)
-
-
-def progressbar_widget():
-    pass
-
-
-class _progressbar(object):
-    pass
-
-
-class _progressbar_wrapper(_progressbar):
-    def __init__(self, bar):
-        self.bar = bar
-
-    def __call__(self, fraction):
-        self.bar.update(fraction)
-        if fraction == 1:
-            self.bar.finish()
-        return True
-
-    def status(self, name):
-        self.bar.bla = name
-
-
-class _progressbar_wrapper_sum(_progressbar):
-    def __init__(self, children=None, next=None, bar=None, parent=None, name=None):
-        self.next = next
-        self.children = children or list()
-        self.finished = False
-        self.last_fraction = None
-        self.fraction = 0
-        self.bar = bar
-        self.parent = parent
-        self.name = name
-        self.cancelled = False
-        self.oncancel = lambda: None
-
-    def cancel(self):
-        self.cancelled = True
-
-    def __repr__(self):
-        name = self.__class__.__module__ + "." + self.__class__.__name__
-        return "<%s(name=%r)> instance at 0x%x" % (name, self.name, id(self))
-
-    def add(self, name=None):
-        pb = _progressbar_wrapper_sum(parent=self, name=name)
-        self.children.append(pb)
-        return pb
-
-    def add_task(self, task, name=None):
-        pb = self.add(name)
-        pb.oncancel = task.cancel
-        task.signal_progress.connect(pb)
-        if self.bar and hasattr(self.bar, 'add_child'):
-            self.bar.add_child(pb, task, name)
-
-    def __call__(self, fraction):
-        if self.cancelled:
-            return False
-        # ignore fraction
-        result = True
-        if len(self.children) == 0:
-            self.fraction = fraction
-        else:
-            self.fraction = sum([c.fraction for c in self.children]) / len(self.children)
-        fraction = self.fraction
-        if fraction != self.last_fraction:  # avoid too many calls
-            if fraction == 1 and not self.finished:  # make sure we call finish only once
-                self.finished = True
-                if self.bar:
-                    self.bar.finish()
-            elif fraction != 1:
-                if self.bar:
-                    self.bar.update(fraction)
-            if self.next:
-                result = self.next(fraction)
-        if self.parent:
-            assert self in self.parent.children
-            result = self.parent(None) in [None, True] and result  # fraction is not used anyway..
-            if result is False:
-                self.oncancel()
-        self.last_fraction = fraction
-        return result
-
-    def status(self, name):
-        pass
-
-
-def progressbars(f=True, next=None, name=None):
-    if isinstance(f, _progressbar_wrapper_sum):
-        return f
-    if callable(f):
-        next = f
-        f = False
-    if f in [None, False]:
-        return _progressbar_wrapper_sum(next=next, name=name)
-    else:
-        if f is True:
-            return _progressbar_wrapper_sum(bar=progressbar(), next=next, name=name)
-        elif isinstance(f, six.string_types):
-            return _progressbar_wrapper_sum(bar=progressbar(f), next=next, name=name)
-        else:
-            return _progressbar_wrapper_sum(next=next, name=name)
-
-
-def progressbar_callable(title="processing", max_value=1):
-    bar = progressbar(title=title, max_value=max_value)
-    return _progressbar_wrapper(bar)
 
 
 def confirm_on_console(topic, msg):
@@ -412,14 +285,14 @@ def confirm_on_console(topic, msg):
 
 
 def yaml_dump(f, data):
-    yaml.safe_dump(data, f, default_flow_style=False, encoding='utf-8', allow_unicode=True)
+    yaml.safe_dump(data, f, default_flow_style=False, encoding='utf-8', allow_unicode=True, sort_keys=False)
 
 
 def yaml_load(f):
     return yaml.safe_load(f)
 
 
-def write_json_or_yaml(file, data, fs_options={}, fs=None):
+def write_json_or_yaml(file, data, fs_options={}, fs=None, old_style=True):
     file, path = vaex.file.file_and_path(file, mode='w', fs_options=fs_options, fs=fs)
     try:
         if path:
@@ -427,7 +300,7 @@ def write_json_or_yaml(file, data, fs_options={}, fs=None):
         else:
             ext = '.json'  # default
         if ext == ".json":
-            json.dump(data, file, indent=2, cls=VaexJsonEncoder)
+            json.dump(data, file, indent=2, cls=VaexJsonEncoder if old_style else None)
         elif ext == ".yaml":
             yaml_dump(file, data)
         else:
@@ -436,7 +309,7 @@ def write_json_or_yaml(file, data, fs_options={}, fs=None):
         file.close()
 
 
-def read_json_or_yaml(file, fs_options={}, fs=None):
+def read_json_or_yaml(file, fs_options={}, fs=None, old_style=True):
     file, path = vaex.file.file_and_path(file, fs_options=fs_options, fs=fs)
     try:
         if path:
@@ -444,7 +317,7 @@ def read_json_or_yaml(file, fs_options={}, fs=None):
         else:
             ext = '.json'  # default
         if ext == ".json":
-            return json.load(file, cls=VaexJsonDecoder) or {}
+            return json.load(file, cls=VaexJsonDecoder if old_style else None) or {}
         elif ext == ".yaml":
             return yaml_load(file) or {}
         else:
@@ -453,24 +326,8 @@ def read_json_or_yaml(file, fs_options={}, fs=None):
         file.close()
 
 
-# from http://stackoverflow.com/questions/5121931/in-python-how-can-you-load-yaml-mappings-as-ordereddicts
-
-_mapping_tag = yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG
-
-
-def dict_representer(dumper, data):
-    return dumper.represent_dict(data.iteritems() if hasattr(data, "iteritems") else data.items())
-
-
-def dict_constructor(loader, node):
-    return collections.OrderedDict(loader.construct_pairs(node))
-
-
-yaml.add_representer(collections.OrderedDict, dict_representer, yaml.SafeDumper)
-yaml.add_constructor(_mapping_tag, dict_constructor, yaml.SafeLoader)
-
-
 def check_memory_usage(bytes_needed, confirm):
+    psutil = optional_import('psutil')
     if bytes_needed > psutil.virtual_memory().available:
         if bytes_needed < (psutil.virtual_memory().available + psutil.swap_memory().free):
             text = "Action requires %s, you have enough swap memory available but it will make your computer slower, do you want to continue?" % (
@@ -557,10 +414,11 @@ def valid_identifier(name):
     return name.isidentifier() and not keyword.iskeyword(name)
 
 
-def find_valid_name(name, used=[]):
+def find_valid_name(name, used=None):
+    if used is None:
+        used = []
     if isinstance(name, int):
         name = str(name)
-    first, rest = name[0], name[1:]
     if name in used:
         nr = 1
         while name + ("_%d" % nr) in used:
@@ -569,15 +427,17 @@ def find_valid_name(name, used=[]):
     return name
 
 
-def _python_save_name(name, used=[]):
-	first, rest = name[0], name[1:]
-	name = re.sub("[^a-zA-Z_]", "_", first) +  re.sub("[^a-zA-Z_0-9]", "_", rest)
-	if name in used:
-		nr = 1
-		while name + ("_%d" % nr) in used:
-			nr += 1
-		name = name + ("_%d" % nr)
-	return name
+def _python_save_name(name, used=None):
+    if used is None:
+        used = []
+    first, rest = name[0], name[1:]
+    name = re.sub("[^a-zA-Z_]", "_", first) + re.sub("[^a-zA-Z_0-9]", "_", rest)
+    if name in used:
+        nr = 1
+        while name + ("_%d" % nr) in used:
+            nr += 1
+        name = name + ("_%d" % nr)
+    return name
 
 
 @contextlib.contextmanager
@@ -669,6 +529,13 @@ def _normalize_selection_name(name):
         return None
     else:
         return name
+
+
+def _normalize_selection(selection):
+    if isinstance(selection, (list, tuple)):
+        return type(selection)([_normalize_selection_name(k) for k in selection])
+    else:
+        return _normalize_selection_name(selection)
 
 
 def _parse_n(n):
@@ -826,15 +693,15 @@ def as_contiguous(ar):
 
 
 def _split_and_combine_mask(arrays):
-	'''Combines all masks from a list of arrays, and logically ors them into a single mask'''
-	masks = [np.ma.getmaskarray(block) for block in arrays if np.ma.isMaskedArray(block)]
-	arrays = [block.data if np.ma.isMaskedArray(block) else block for block in arrays]
-	mask = None
-	if masks:
-		mask = masks[0].copy()
-		for other in masks[1:]:
-			mask |= other
-	return arrays, mask
+    '''Combines all masks from a list of arrays, and logically ors them into a single mask'''
+    masks = [np.ma.getmaskarray(block) for block in arrays if np.ma.isMaskedArray(block)]
+    arrays = [block.data if np.ma.isMaskedArray(block) else block for block in arrays]
+    mask = None
+    if masks:
+        mask = masks[0].copy()
+        for other in masks[1:]:
+            mask |= other
+    return arrays, mask
 
 def gen_to_list(fn=None, wrapper=list):
     '''A decorator which wraps a function's return value in ``list(...)``.
@@ -886,7 +753,7 @@ def find_type_from_dtype(namespace, prefix, dtype, transient=True, support_non_n
         if postfix == '>f8':
             postfix = 'float64'
         if dtype.kind == "M":
-            postfix = "uint64"
+            postfix = "int64"
         if dtype.kind == "m":
             postfix = "int64"
         # for object there is no non-native version
@@ -948,7 +815,7 @@ def required_dtype_for_max(N, signed=True):
         dtypes = [np.uint8, np.uint16, np.uint32, np.uint64]
     for dtype in dtypes:
         if N <= np.iinfo(dtype).max:
-            return dtype
+            return np.dtype(dtype)
     else:
         raise ValueError(f'Cannot store a max value on {N} inside an uint64/int64')
 
@@ -1025,6 +892,20 @@ def div_ceil(n, d):
     return (n + d - 1) // d
 
 
+def get_env_memory(key, default=None):
+    value = os.environ.get(key, default)
+    if value is not None:
+        try:
+            value = ast.literal_eval(value)
+        except:
+            pass
+        if isinstance(value, str):
+            value = dask.utils.parse_bytes(value)
+        if not isinstance(value, int):
+            raise TypeError(f"Expected env var {key} to be of integer type")
+    return value
+
+
 def get_env_type(type, key, default=None):
     '''Get an env var named key, and cast to type
 
@@ -1049,5 +930,32 @@ def get_env_type(type, key, default=None):
         # support empty strings
         value = default
     if value is not None:
-        import ast
-        return type(ast.literal_eval(str(value)))
+        return type(ast.literal_eval(repr(value)))
+
+
+def dropnan(sequence, expect=None):
+    original_type = type(sequence)
+    sequence = list(sequence)
+    non_nan = [k for k in sequence if k == k]
+    if expect is not None:
+        assert len(sequence) - len(non_nan) == 1, "expected 1 nan value"
+    return original_type(non_nan)
+
+
+# backwards compatibility
+def progressbars(*args, **kwargs):
+    from .progress import tree
+    return tree(*args, **kwargs)
+
+
+import contextlib
+@contextlib.contextmanager
+def file_lock(name):
+    '''Context manager for creating a file lock in the file lock directory.
+
+    :param name: A unique name for the context (e.g. a fingerprint) on which the filename is based.
+    '''
+    path = os.path.join(vaex.settings.main.path_lock, name)
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with FileLock(path):
+        yield

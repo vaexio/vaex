@@ -46,7 +46,7 @@ def test_to_arrow_table(df_local):
 
 def test_to_pandas_df(df_local):
     df = df_local
-    pdf = df.to_pandas_df(['x', 'y'], index_name='x')
+    pdf = df.to_pandas_df(['x', 'y'], index_name='x', array_type='numpy')
     assert pdf.index.name == 'x'
     assert pdf.columns == ['y']
     assert pdf.index.values.tolist() == df.x.tolist()
@@ -54,7 +54,7 @@ def test_to_pandas_df(df_local):
     x = df.x.values
     y = df.y.values
 
-    for i1, i2, pdf in df.to_pandas_df(['y'], index_name='x', chunk_size=3):
+    for i1, i2, pdf in df.to_pandas_df(['y'], index_name='x', chunk_size=3, array_type='numpy'):
         assert pdf.index.name == 'x'
         assert pdf.columns == ['y']
         assert pdf.index.values.tolist() == x[i1:i2].tolist()

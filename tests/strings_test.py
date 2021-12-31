@@ -300,6 +300,17 @@ def test_string_replace_regex_unicode(dfs, pattern, replacement, flags):
            dfs.s.str_pandas.replace(pattern, replacement, flags=flags, regex=True).tolist()
 
 
+def test_string_extract_regex():
+    ds = vaex.from_arrays(email=["foo@bar.org", "bar@foo.org", "open@source.org", "invalid@address.com"])
+    pattern = "(?P<name>.*)@(?P<address>.*)\.org"
+
+    expr = ds.email.str.extract_regex(pattern=pattern)
+    assert expr.tolist() == [{"name": "foo", "address": "bar"},
+                             {"name": "bar", "address": "foo"},
+                             {"name": "open", "address": "source"},
+                             None]
+
+
 @pytest.mark.parametrize("sub", ["v", unicode_compat("æ")])
 @pytest.mark.parametrize("start", [0, 3, 5])
 @pytest.mark.parametrize("end", [-1, 3, 5, 10])
@@ -438,6 +449,14 @@ def test_strings_operator_equals(dfs, match):
 
 
 @pytest.mark.skipif(sys.version_info[0] == 2, reason="no support for python2")
+@pytest.mark.parametrize("match", ["vaex", "VæX! "])
+def test_strings_operator_notequals(dfs, match):
+    assert (dfs.s != match).tolist() == [k != match for k in string_list]
+    assert (match != dfs.s).tolist() == [k != match for k in string_list]
+    assert (dfs.s != dfs.s).tolist() == [k != k for k in string_list]
+
+
+@pytest.mark.skipif(sys.version_info[0] == 2, reason="no support for python2")
 @pytest.mark.parametrize("extra", ["vaex", "VæX! "])
 def test_strings_operator_plus(dfs, extra):
     assert (dfs.s + extra).tolist() == [k + extra for k in string_list]
@@ -475,6 +494,12 @@ def test_string_split():
     df = vaex.from_arrays(s=["aap noot  mies", None, "kees", ""])
     assert df.s.str.split().tolist() == [["aap", "noot", "mies"], None, ["kees"], [""]]
     assert df.s.str.split(max_splits=1).tolist() == [["aap", "noot  mies"], None, ["kees"], [""]]
+
+
+def test_string_rsplit():
+    df = vaex.from_arrays(s=["aap noot  mies", None, "kees", ""])
+    assert df.s.str.rsplit(pattern='noot').tolist() == [['aap ', '  mies'], None, ['kees'], ['']]
+    assert df.s.str.rsplit(pattern='noot', max_splits=1).tolist() == [['aap ', '  mies'], None, ['kees'], ['']]
 
 
 def test_string_split_upper():

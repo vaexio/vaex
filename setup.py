@@ -6,6 +6,7 @@ import os
 import sys
 import contextlib
 
+
 @contextlib.contextmanager
 def cwd(path):
     curdir = os.getcwd()
@@ -17,8 +18,8 @@ def cwd(path):
 
 # inspired by https://blog.shazam.com/python-microlibs-5be9461ad979
 
-packages = ['vaex-core', 'vaex-viz', 'vaex-hdf5', 'vaex-server', 'vaex-astro', 'vaex-ui', 'vaex-jupyter', 'vaex-ml', 'vaex-meta', 'vaex-graphql']
-import os
+
+packages = ['vaex-core', 'vaex-viz', 'vaex-hdf5', 'vaex-server', 'vaex-astro', 'vaex-jupyter', 'vaex-ml', 'vaex-meta', 'vaex-graphql', 'vaex-contrib']
 on_rtd = os.environ.get('READTHEDOCS', None) == 'True'
 
 
@@ -34,7 +35,7 @@ class DevelopCmd(develop):
             # otherwise development install do not work
             if package not in ['vaex-core']:
                 name = package.split('-')[1]
-                relative = os.path.abspath(os.path.join('packages', 'vaex-core', 'vaex'))
+
                 source = os.path.abspath(os.path.join('packages', package, 'vaex', name))
                 rel_source = os.path.relpath(source, relative)
                 with cwd(relative):
@@ -42,11 +43,11 @@ class DevelopCmd(develop):
                     if os.path.exists(name) and os.readlink(name) == rel_source:
                         print('symlink ok')
                     else:
-                        # if os.path.exists(name):
                         if os.path.exists(name):
                             print('old symlink',  os.readlink(name))
                             os.remove(name)
                         os.symlink(rel_source, name)
+
 
 class InstallCmd(install):
     """ Add custom steps for the install command """
@@ -58,6 +59,7 @@ class InstallCmd(install):
             with cwd(os.path.join('packages', package)):
                 os.system('python -m pip install --upgrade .')
 
+
 setup(
     name='vaex-meta',
     version="0.1.0",
@@ -68,6 +70,22 @@ setup(
     install_requires=[
         'pip',
     ],
+    extras_require={
+        'dev': [
+            'pytest',
+            'gcsfs',
+            's3fs',
+            'graphviz',
+            'myst_parser',
+            'rich',
+            # For generating the documentation
+            'sphinx',
+            'nbsphinx',
+            'sphinx_gallery',
+            'sphinx_sitemap',
+            'sphinx_book_theme',
+        ]
+    },
     cmdclass={
         'install': InstallCmd,
         'develop': DevelopCmd,

@@ -1,10 +1,15 @@
 #!/bin/bash
 set -e
-conda config --set always_yes yes --set changeps1 no
-source activate vaex-dev
+
+if [ -f ${HOME}/.bashrc ]; then
+    source ${HOME}/.bashrc
+else
+    source ${HOME}/.bash_profile
+fi
+
 if [[ "$OSTYPE" == "linux-gnu"* ]]; then
     export CFLAGS='-Wl,-strip-all'
     export CXXFLAGS='-Wl,-strip-all'
 fi
-pip install blake3
-pip install -e .
+pip install myst_parser
+pip install -e . -v

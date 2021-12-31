@@ -2,11 +2,13 @@ import pytest
 import numpy as np
 import vaex
 import vaex.ml
-import vaex.ml.datasets
 pytest.importorskip("sklearn")
 from sklearn.decomposition import PCA, IncrementalPCA
 from sklearn.random_projection import GaussianRandomProjection, SparseRandomProjection
 from sklearn.preprocessing import StandardScaler, MinMaxScaler, MaxAbsScaler, RobustScaler
+
+
+np_version = tuple(map(int, np.__version__.split('.')))
 
 
 def data_maker(n_rows, n_cols):
@@ -337,7 +339,7 @@ def test_maxabs_scaler(df_factory):
     w = np.zeros_like(x)
 
     ds = df_factory(x=x, y=y, z=z, w=w)
-    df = ds.to_pandas_df()
+    df = ds.to_pandas_df(array_type='numpy')
 
     features = ['x', 'y', 'w']
 
@@ -356,7 +358,7 @@ import sys
 import platform
 version = tuple(map(int, numpy.__version__.split('.')))
 
-@pytest.mark.skipif(platform.system().lower() != 'darwin', reason="strange ref count issue with numpy")
+@pytest.mark.skipif((np_version[0] == 1) & (np_version[1] < 21), reason="strange ref count issue with numpy")
 def test_robust_scaler(df_factory):
     x = np.array([-2.65395789, -7.97116295, -4.76729177, -0.76885033, -6.45609635])
     y = np.array([-8.9480332, -4.81582449, -3.73537263, -3.46051912,  1.35137275])
@@ -364,7 +366,7 @@ def test_robust_scaler(df_factory):
     w = np.zeros_like(x)
 
     ds = df_factory(x=x, y=y, z=z, w=w)
-    df = ds.to_pandas_df()
+    df = ds.to_pandas_df(array_type='numpy')
 
     features = ['x', 'y']
 
@@ -429,9 +431,11 @@ def test_weight_of_evidence_encoder(tmpdir, as_bool, df_factory):
 
     trans = vaex.ml.WeightOfEvidenceEncoder(target='y', features=['x'])
     df_train = trans.fit_transform(df_train)
+    np.testing.assert_almost_equal(list(trans.mappings_['x'].values()),
+                               [13.815510557964274, 1.0986122886681098, 0.0],
+                               decimal=10)
     np.testing.assert_array_almost_equal(df_train.woe_encoded_x.values,
                                          [13.815510, 13.815510, 1.098612, 1.098612, 1.098612, 1.098612, 0., 0.])
-    assert trans.mappings_ == {'x': {'a': 13.815510557964274, 'b': 1.0986122886681098, 'c': 0.0}}
 
     state_path = str(tmpdir.join('state.json'))
     df_train.state_write(state_path)
@@ -525,36 +529,117 @@ def test_groupby_transformer_serialization(df_factory):
     assert df_test.x.tolist() == ['dog', 'cat', 'dog', 'mouse']
     assert df_test.y.tolist() == [5, 5, 5, 5]
 
-@pytest.mark.skipif(platform.system().lower() != 'darwin', reason="strange ref count issue with numpy")
-@pytest.mark.parametrize('strategy', ['uniform', 'quantile', 'kmeans'])
-def test_kbinsdiscretizer(tmpdir, strategy):
-    df_train = vaex.from_arrays(x=[0, 2.5, 5, 7.5, 10, 12.5, 15],
-                                y=[0, 0, 5, 5, 5, 9, 9])
-    df_test = vaex.from_arrays(x=[1, 4, 8, 9, 20, -2],
-                               y=[1, 2, 5, 6, 10, 9])
+#
+# @pytest.mark.skipif(platform.system().lower() == 'windows', reason="strange ref count issue with numpy")
+# @pytest.mark.parametrize('strategy', ['uniform', 'quantile', 'kmeans'])
+# def test_kbinsdiscretizer(tmpdir, strategy):
+#     df_train = vaex.from_arrays(x=[0, 2.5, 5, 7.5, 10, 12.5, 15],
+#                                 y=[0, 0, 5, 5, 5, 9, 9])
+#     df_test = vaex.from_arrays(x=[1, 4, 8, 9, 20, -2],
+#                                y=[1, 2, 5, 6, 10, 9])
 
-    trans = vaex.ml.KBinsDiscretizer(features=['x', 'y'], n_bins=3, strategy=strategy)
-    df_train_trans = trans.fit_transform(df_train)
-    df_test_trans = trans.transform(df_test)
+#     trans = vaex.ml.KBinsDiscretizer(features=['x', 'y'], n_bins=3, strategy=strategy)
+#     df_train_trans = trans.fit_transform(df_train)
+#     df_test_trans = trans.transform(df_test)
 
-    if strategy == 'quantile':
-        expected_result_train_x = [0, 0, 1, 1, 1, 2, 2]
-    else:
-        expected_result_train_x = [0, 0, 0, 1, 1, 2, 2]
-    expected_result_train_y = [0, 0, 1, 1, 1, 2, 2]
-    expected_result_test_x = [0, 0, 1, 1, 2, 0]
-    expected_result_test_y = [0, 0, 1, 1, 2, 2]
+#     if strategy == 'quantile':
+#         expected_result_train_x = [0, 0, 1, 1, 1, 2, 2]
+#     else:
+#         expected_result_train_x = [0, 0, 0, 1, 1, 2, 2]
+#     expected_result_train_y = [0, 0, 1, 1, 1, 2, 2]
+#     expected_result_test_x = [0, 0, 1, 1, 2, 0]
+#     expected_result_test_y = [0, 0, 1, 1, 2, 2]
 
-    assert df_train_trans.shape == (7, 4)
-    assert df_test_trans.shape == (6, 4)
-    assert df_train_trans.binned_x.tolist() == expected_result_train_x
-    assert df_train_trans.binned_y.tolist() == expected_result_train_y
-    assert df_test_trans.binned_x.tolist() == expected_result_test_x
-    assert df_test_trans.binned_y.tolist() == expected_result_test_y
+#     assert df_train_trans.shape == (7, 4)
+#     assert df_test_trans.shape == (6, 4)
+#     assert df_train_trans.binned_x.tolist() == expected_result_train_x
+#     assert df_train_trans.binned_y.tolist() == expected_result_train_y
+#     assert df_test_trans.binned_x.tolist() == expected_result_test_x
+#     assert df_test_trans.binned_y.tolist() == expected_result_test_y
 
-    # Test serialization
-    df_train_trans.state_write(str(tmpdir.join('test.json')))
+#     # Test serialization
+#     df_train_trans.state_write(str(tmpdir.join('test.json')))
+#     df_test.state_load(str(tmpdir.join('test.json')))
+#     assert df_test.shape == (6, 4)
+#     assert df_test.binned_x.tolist() == expected_result_test_x
+#     assert df_test.binned_y.tolist() == expected_result_test_y
+
+
+def test_multihot_encoder(tmpdir, df_factory):
+    a = ['cat', 'dog', 'mouse']
+    b = ['red', 'blue', 'green', 'yellow', 'purple', 'orange', 'violet', 'magenta', 'lime', 'grey', 'white', 'black']
+
+    np.random.seed(42)
+    x_train = np.random.choice(a, size=100, replace=True)
+    y_train = np.random.choice(b, size=100, replace=True)
+
+    x_test = np.random.choice(a, size=100, replace=True)
+    y_test = np.random.choice(b, size=100, replace=True)
+
+    df_train = df_factory(animals=x_train, colors=y_train)
+    df_test = df_factory(animals=x_test, colors=y_test)
+
+    encoder = vaex.ml.MultiHotEncoder(features=['animals', 'colors'])
+    encoder.fit(df_train)
+    df_train = encoder.transform(df_train)
+
+    df_train.state_write(str(tmpdir.join('test.json')))
     df_test.state_load(str(tmpdir.join('test.json')))
-    assert df_test.shape == (6, 4)
-    assert df_test.binned_x.tolist() == expected_result_test_x
-    assert df_test.binned_y.tolist() == expected_result_test_y
+
+    # Verify dogs
+    # 'dog' binary code is '010'
+    dogs = df_train[df_train.animals == 'dog'][df_train.get_column_names(regex='^animals_')]
+    assert dogs.animals_0.unique() == [0]
+    assert dogs.animals_1.unique() == [1]
+    assert dogs.animals_2.unique() == [0]
+    dogs = df_test[df_test.animals == 'dog'][df_test.get_column_names(regex='^animals_')]
+    assert dogs.animals_0.unique() == [0]
+    assert dogs.animals_1.unique() == [1]
+    assert dogs.animals_2.unique() == [0]
+
+    # Verify cats
+    # 'cat' binary code is '001'
+    cats = df_train[df_train.animals == 'cat'][df_train.get_column_names(regex='^animals_')]
+    assert cats.animals_0.unique() == [0]
+    assert cats.animals_1.unique() == [0]
+    assert cats.animals_2.unique() == [1]
+    cats = df_test[df_test.animals == 'cat'][df_test.get_column_names(regex='^animals_')]
+    assert cats.animals_0.unique() == [0]
+    assert cats.animals_1.unique() == [0]
+    assert cats.animals_2.unique() == [1]
+
+    # Verify mice
+    # mouse binary code is '011'
+    mice = df_train[df_train.animals == 'mouse'][df_train.get_column_names(regex='^animals_')]
+    assert mice.animals_0.unique() == [0]
+    assert mice.animals_1.unique() == [1]
+    assert mice.animals_2.unique() == [1]
+    mice = df_test[df_test.animals == 'mouse'][df_test.get_column_names(regex='^animals_')]
+    assert mice.animals_0.unique() == [0]
+    assert mice.animals_1.unique() == [1]
+    assert mice.animals_2.unique() == [1]
+
+
+    # Verify Red
+    # 'red' binary code is '1001'
+    clr = df_test[df_test.colors == 'red'][df_test.get_column_names(regex='^colors_')]
+    assert clr.colors_0.unique() == [1]
+    assert clr.colors_1.unique() == [0]
+    assert clr.colors_2.unique() == [0]
+    assert clr.colors_3.unique() == [1]
+
+    # Verity white
+    # 'white' binary code is '1011'
+    clr = df_test[df_test.colors == 'white'][df_test.get_column_names(regex='^colors_')]
+    assert clr.colors_0.unique() == [1]
+    assert clr.colors_1.unique() == [0]
+    assert clr.colors_2.unique() == [1]
+    assert clr.colors_3.unique() == [1]
+
+    # Verify blue
+    # 'blue' binary code is '0010'
+    clr = df_test[df_test.colors == 'blue'][df_test.get_column_names(regex='^colors_')]
+    assert clr.colors_0.unique() == [0]
+    assert clr.colors_1.unique() == [0]
+    assert clr.colors_2.unique() == [1]
+    assert clr.colors_3.unique() == [0]
