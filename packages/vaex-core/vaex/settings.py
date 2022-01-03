@@ -102,7 +102,7 @@ class AsyncEnum(str, Enum):
 try:
     import vaex.server
     has_server = True
-except ImportError:
+except (AttributeError, ImportError):
     has_server = False
 
 if has_server:
