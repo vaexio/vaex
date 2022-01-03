@@ -42,8 +42,8 @@ class HistogramInput(BaseModel):
     dataset_id: str
     expression: str
     shape: int = 128
-    min: Optional[Union[float, str]] = None
-    max: Optional[Union[float, str]] = None
+    min: Optional[Union[float, int, str]] = None
+    max: Optional[Union[float, int, str]] = None
     filter: str = None
     virtual_columns: Dict[str, str] = None
 

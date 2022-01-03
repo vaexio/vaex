@@ -49,7 +49,12 @@ class WebSocketHandler(tornado.websocket.WebSocketHandler):
         # Tornado does not receive messages before the current is finished, this
         # avoids this limitation of tornado, so we can send progress/cancel information
         logger.debug("get msg: %r", websocket_msg)
-        asyncio.create_task(self._on_message(websocket_msg))
+        try:
+            # see https://docs.python.org/3/library/asyncio-task.html#asyncio.create_task
+            # TODO: replace after we drop 36 support asyncio.create_task(handler.handle_message(data['bytes']))
+            asyncio.ensure_future(self._on_message(websocket_msg))
+        except:
+            logger.exception("creating task")
 
     async def _on_message(self, websocket_msg):
         logger.debug("handle msg: %r", websocket_msg)
