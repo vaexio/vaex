@@ -115,6 +115,13 @@ Caching
     :show-inheritance:
 
 
+Logging
+~~~~~~~
+
+.. automodule:: vaex.logging
+    :members:
+
+
 Extensions
 ----------
 
