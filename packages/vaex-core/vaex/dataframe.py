@@ -4145,7 +4145,7 @@ class DataFrame(object):
         :param alias: Return the alias (True) or internal name (False).
         :rtype: list of str
         """
-        if not isinstance(dtype, (list, tuple)):
+        if dtype and not isinstance(dtype, (list, tuple)):
             dtype = [dtype]
 
         def column_filter(name):
