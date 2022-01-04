@@ -42,8 +42,8 @@ class HistogramInput(BaseModel):
     dataset_id: str
     expression: str
     shape: int = 128
-    min: Optional[Union[float, str]] = None
-    max: Optional[Union[float, str]] = None
+    min: Optional[Union[float, int, str]] = None
+    max: Optional[Union[float, int, str]] = None
     filter: str = None
     virtual_columns: Dict[str, str] = None
 
@@ -128,19 +128,19 @@ async def dataset():
 
 @router.get("/dataset/{dataset_id}", summary="Meta information about a dataset (schema etc)")
 async def dataset(dataset_id: str = path_dataset):
-    async with get_df(dataset_id) as df:
+    with get_df(dataset_id) as df:
         schema = {k: str(v) for k, v in df.schema().items()}
         return {"id": dataset_id, "row_count": len(df), "schema": schema}
 
-@contextlib.asynccontextmanager
-async def get_df(name):
+@contextlib.contextmanager
+def get_df(name):
     if name not in datasets:
         raise HTTPException(status_code=404, detail=f"dataset {name!r} not found")
     yield vaex.from_dataset(datasets[name])
 
 
 async def _compute_histogram(input: HistogramInput) -> HistogramOutput:
-    async with get_df(input.dataset_id) as df:
+    with get_df(input.dataset_id) as df:
         limits = [input.min, input.max]
         limits = df.limits(input.expression, limits, delay=True)
         await df.execute_async()
@@ -184,7 +184,7 @@ async def histogram_plot(input: HistogramInput = Depends(HistogramInput)) -> His
 
 
 async def _compute_heatmap(input: HeatmapInput) -> HeatmapOutput:
-    async with get_df(input.dataset_id) as df:
+    with get_df(input.dataset_id) as df:
         limits_x = [input.min_x, input.max_x]
         limits_y = [input.min_y, input.max_y]
         limits_x = df.limits(input.expression_x, limits_x, delay=True)
@@ -253,7 +253,9 @@ async def websocket_endpoint(websocket: WebSocket):
         data = await websocket.receive()
         if data['type'] == 'websocket.disconnect':
             return
-        asyncio.create_task(handler.handle_message(data['bytes']))
+        # see https://docs.python.org/3/library/asyncio-task.html#asyncio.create_task
+        # TODO: replace after we drop 36 support asyncio.create_task(handler.handle_message(data['bytes']))
+        asyncio.ensure_future(handler.handle_message(data['bytes']))
 
 
 app = FastAPI(
@@ -344,6 +346,11 @@ class Server(threading.Thread):
 
         from uvicorn.config import Config
         from uvicorn.server import Server
+        if sys.version_info[:2] < (3, 7):
+            # make python 3.6 work
+            import asyncio
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
 
         # uvloop will trigger a: RuntimeError: There is no current event loop in thread 'fastapi-thread'
         config = Config(app, host=self.host, port=self.port, **self.kwargs, loop='asyncio')

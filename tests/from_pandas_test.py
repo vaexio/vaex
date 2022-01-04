@@ -1,9 +1,14 @@
+import datetime
+import sys
+
 import pandas as pd
 import numpy as np
+import pytest
+
 import vaex
-import datetime
 
 
+@pytest.mark.skipif(sys.version_info[:2] < (3, 7), reason="Python 36+Pandas has no Float64Dtype")
 def test_from_pandas():
     dd_dict = {
         'boolean': [True, True, False, None, True],

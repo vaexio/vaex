@@ -1,15 +1,18 @@
 import asyncio
+import contextlib
 from unittest.mock import MagicMock
 from concurrent.futures import ThreadPoolExecutor
 import concurrent.futures
 import platform
 import threading
+import sys
 
 import pytest
 import numpy as np
 
 from common import small_buffer
 import vaex
+import vaex.execution
 
 
 def test_evaluate_expression_once():
@@ -209,6 +212,8 @@ def test_reentrant_catch(df_local):
         assert 'nested' in str(exc.value)
 
 
+
+@pytest.mark.skipif(sys.version_info[:2] < (3, 7), reason="Python 36 has no contextvars module")
 @pytest.mark.asyncio
 async def test_async_safe(df_local):
     df = df_local
@@ -327,6 +332,7 @@ def test_continue_next_task_after_cancel():
     assert result.isFulfilled
 
 
+@pytest.mark.skipif(not hasattr(contextlib, 'asynccontextmanager'), reason="Python 36 has no asynccontextmanager")
 @pytest.mark.asyncio
 async def test_auto_execute():
     df = vaex.from_arrays(x=[2, 4])
