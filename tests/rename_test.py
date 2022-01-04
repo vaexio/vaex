@@ -3,7 +3,7 @@ from common import *
 
 def test_renames(df_local):
     ds = df_local
-    new_columns = ds.renames({'x': 'x1', 'y': 'y1'})
+    new_columns = ds.rename({'x': 'x1', 'y': 'y1'})
     assert new_columns == ['x1', 'y1']
     current_columns = ds.get_column_names()
     for column in new_columns:

@@ -3664,7 +3664,7 @@ class DataFrame(object):
         self._save_assign_expression(valid_name)
         self.signal_column_changed.emit(self, valid_name, "add")
 
-    def renames(self, names, unique=False):
+    def _renames(self, names, unique=False):
         """Renames a column or variable, and rewrite expressions such that they refer to the new name"""
         columns = self.get_column_names()
         ret = []
@@ -3678,8 +3678,10 @@ class DataFrame(object):
             ret.append(new_name)
         return ret
 
-    def rename(self, name, new_name, unique=False):
+    def rename(self, name, new_name=None, unique=False):
         """Renames a column or variable, and rewrite expressions such that they refer to the new name"""
+        if isinstance(name, dict):
+            return self._renames(name, unique=unique)
         if name == new_name:
             return
         new_name = vaex.utils.find_valid_name(new_name, used=None if not unique else self.get_column_names(hidden=True))
