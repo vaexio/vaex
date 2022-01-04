@@ -179,7 +179,7 @@ template<class T=PyObject*>
 class ordered_set : public hash_base<ordered_set<T>, T, T> {
 public:
     using typename hash_base<ordered_set<T>, T, T>::value_type;
-    ordered_set(int ignore) {}
+    ordered_set(int ignore, int64_t limit) {}
     using typename hash_base<ordered_set<T>,T, T>::storage_type;
     py::array_t<bool> isin(py::buffer object_array) {
         py::buffer_info info = object_array.request();
@@ -334,7 +334,7 @@ void init_hash_object(py::module &m) {
         std::string ordered_setname = "ordered_set_object";
         typedef ordered_set<> Type;
         py::class_<Type>(m, ordered_setname.c_str())
-            .def(py::init<int>())
+            .def(py::init<int, int64_t>(), py::arg("nmaps"), py::arg("limit") = -1)
             .def("isin", &Type::isin)
             .def("update", &Type::update, "add values", py::arg("values"), py::arg("start_index") = 0, py::arg("chunk_size") = 1024 * 128, py::arg("bucket_size") = 1024 * 128,
                  py::arg("return_values") = false)

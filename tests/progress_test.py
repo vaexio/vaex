@@ -43,10 +43,10 @@ def test_progress_error():
     df = vaex.from_arrays(x=vaex.vrange(0, 10000))
     with vaex.progress.tree('rich') as progressbar:
         try:
-            df._set('x', progress=progressbar, unique_limit=1)
+            df._set('x', progress=progressbar, limit=1)
         except vaex.RowLimitException:
             pass
-        assert progressbar.children[0].bar.status.startswith('Resulting set would')
+        assert progressbar.children[0].bar.status.startswith('Resulting hash_map_unique would')
         assert progressbar.children[0].finished
         assert progressbar.finished
         # assert progressbar.children[0].bar.status == 'from cache'

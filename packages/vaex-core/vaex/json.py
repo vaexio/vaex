@@ -5,6 +5,7 @@ import numpy as np
 import pyarrow as pa
 
 import vaex
+from vaex.encoding import Encoding
 
 
 serializers = []
@@ -148,6 +149,36 @@ class OrdererSetSerializer:
             keys = vaex.strings.to_string_sequence(keys)
         value = cls(keys, data['data']['null_value'], data['data']['nan_count'], data['data']['missing_count'], data['data']['fingerprint'])
         return value
+
+
+
+
+@register
+class HashMapUniqueSerializer:
+    @staticmethod
+    def can_encode(obj):
+        import vaex.hash
+        return isinstance(obj, vaex.hash.HashMapUnique)
+
+    @staticmethod
+    def encode(obj):
+        encoding = vaex.encoding.Encoding()
+        data = encoding.encode('hash-map-unique', obj)
+        wiredata = vaex.encoding.inline.serialize(data, encoding)
+        return {'type': 'hash-map-unique', 'data': wiredata}
+
+    @staticmethod
+    def can_decode(data):
+        return data.get('type', '') == 'hash-map-unique'
+
+    @staticmethod
+    def decode(data):
+        wiredata = data['data']
+        encoding = vaex.encoding.Encoding()
+        data = vaex.encoding.inline.deserialize(wiredata, encoding)
+        obj = encoding.decode('hash-map-unique', data)
+        return obj
+
 
 
 def encode(obj):

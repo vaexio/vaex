@@ -39,7 +39,7 @@ void init_hash_(M m, std::string name, std::string suffix) {
         std::string ordered_setname = "ordered_set_" + name + suffix;
         typedef ordered_set<T, Hashmap> Type;
         auto cls = py::class_<Type>(m, ordered_setname.c_str())
-                       .def(py::init<int>())
+                       .def(py::init<int, int64_t>(), py::arg("nmaps"), py::arg("limit") = -1)
                        .def(py::init(&Type::create))
                        .def("isin", &Type::isin)
                        .def("flatten_values", &Type::flatten_values)

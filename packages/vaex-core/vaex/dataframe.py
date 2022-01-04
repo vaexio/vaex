@@ -488,15 +488,18 @@ class DataFrame(object):
             pass
         return self.map_reduce(map, reduce, expressions, delay=delay, progress=progress, name='nop', to_numpy=False)
 
-    def _set(self, expression, progress=False, selection=None, flatten=True, delay=False, unique_limit=None, return_inverse=False):
+    def _hash_map_unique(self, expression, progress=False, selection=None, flatten=True, delay=False, limit=None, limit_raise=True, return_inverse=False):
         if selection is not None:
             selection = str(selection)
         expression = _ensure_string_from_expression(expression)
-        task = vaex.tasks.TaskSetCreate(self, expression, flatten, unique_limit=unique_limit, selection=selection, return_inverse=return_inverse)
+        task = vaex.tasks.TaskHashmapUniqueCreate(self, expression, flatten, limit=limit, selection=selection, return_inverse=return_inverse, limit_raise=limit_raise)
         task = self.executor.schedule(task)
         progressbar = vaex.utils.progressbars(progress)
         progressbar.add_task(task, f"set for {str(expression)}")
         return self._delay(delay, task)
+
+    # kept for compatibility
+    _set = _hash_map_unique
 
     def _index(self, expression, progress=False, delay=False, prime_growth=False, cardinality=None):
         column = _ensure_string_from_expression(expression)
@@ -559,13 +562,15 @@ class DataFrame(object):
         return index0
 
     @docsubst
-    def unique(self, expression, return_inverse=False, dropna=False, dropnan=False, dropmissing=False, progress=False, selection=None, axis=None, delay=False, array_type='python'):
+    def unique(self, expression, return_inverse=False, dropna=False, dropnan=False, dropmissing=False, progress=False, selection=None, axis=None, delay=False, limit=None, limit_raise=True, array_type='python'):
         """Returns all unique values.
 
         :param dropmissing: do not count missing values
         :param dropnan: do not count nan values
         :param dropna: short for any of the above, (see :func:`Expression.isna`)
         :param int axis: Axis over which to determine the unique elements (None will flatten arrays or lists)
+        :param int limit: {limit}
+        :param bool limit_raise: {limit_raise}
         :param progress: {progress}
         :param str array_type: {array_type}
         """
@@ -581,7 +586,7 @@ class DataFrame(object):
             return self._delay(delay, vaex.promise.Promise.fulfilled(keys))
         else:
             @delayed
-            def process(ordered_set):
+            def process(hash_map_unique):
                 transient = True
                 data_type_item = self.data_type(expression, axis=-1)
                 if return_inverse:
@@ -597,22 +602,22 @@ class DataFrame(object):
                             if not transient:
                                 assert ar is previous_ar.string_sequence
                         # TODO: what about masked values?
-                        inverse[i1:i2] = ordered_set.map_ordinal(ar)
+                        inverse[i1:i2] = hash_map_unique.map(ar)
                     def reduce(a, b):
                         pass
                     self.map_reduce(map, reduce, [expression], delay=delay, name='unique_return_inverse', progress=progress_inverse, info=True, to_numpy=False, selection=selection)
                 # ordered_set.seal()
                 # if array_type == 'python':
                 if data_type_item.is_object:
-                    key_values = ordered_set.extract()
+                    key_values = hash_map_unique._internal.extract()
                     keys = list(key_values.keys())
                     counts = list(key_values.values())
-                    if ordered_set.has_nan and not dropnan:
+                    if hash_map_unique.has_nan and not dropnan:
                         keys = [np.nan] + keys
-                        counts = [ordered_set.nan_count] + counts
-                    if ordered_set.has_null and not dropmissing:
+                        counts = [hash_map_unique.nan_count] + counts
+                    if hash_map_unique.has_null and not dropmissing:
                         keys = [None] + keys
-                        counts = [ordered_set.null_count] + counts
+                        counts = [hash_map_unique.null_count] + counts
                     if dropmissing and None in keys:
                         # we still can have a None in the values
                         index = keys.index(None)
@@ -621,23 +626,22 @@ class DataFrame(object):
                     counts = np.array(counts)
                     keys = np.array(keys)
                 else:
-                    keys = ordered_set.key_array()
-                    if data_type_item.is_datetime or data_type_item.is_timedelta:
-                        keys = keys.view(data_type_item.numpy)
+                    keys = hash_map_unique.keys()
+                    # TODO: we might want to put the dropmissing in .keys(..)
                     deletes = []
-                    if dropmissing and ordered_set.has_null:
-                        deletes.append(ordered_set.null_value)
-                    if dropnan and ordered_set.has_nan:
-                        deletes.append(ordered_set.nan_value)
+                    if dropmissing and hash_map_unique.has_null:
+                        deletes.append(hash_map_unique.null_value)
+                    if dropnan and hash_map_unique.has_nan:
+                        deletes.append(hash_map_unique.nan_value)
                     if isinstance(keys, (vaex.strings.StringList32, vaex.strings.StringList64)):
                         keys = vaex.strings.to_arrow(keys)
                         indices = np.delete(np.arange(len(keys)), deletes)
                         keys = keys.take(indices)
                     else:
                         keys = np.delete(keys, deletes)
-                        if not dropmissing and ordered_set.has_null:
+                        if not dropmissing and hash_map_unique.has_null:
                             mask = np.zeros(len(keys), dtype=np.uint8)
-                            mask[ordered_set.null_value] = 1
+                            mask[hash_map_unique.null_value] = 1
                             keys = np.ma.array(keys, mask=mask)
                 keys = vaex.array_types.convert(keys, array_type)
                 if return_inverse:
@@ -645,10 +649,10 @@ class DataFrame(object):
                 else:
                     return keys
             progressbar = vaex.utils.progressbars(progress, title="unique")
-            set_result = self._set(expression, progress=progressbar, selection=selection, flatten=axis is None, delay=True)
+            hash_map_result = self._hash_map_unique(expression, progress=progressbar, selection=selection, flatten=axis is None, delay=True, limit=limit, limit_raise=limit_raise)
             if return_inverse:
                 progress_inverse = progressbar.add("find inverse")
-            return self._delay(delay, progressbar.exit_on(process(set_result)))
+            return self._delay(delay, progressbar.exit_on(process(hash_map_result)))
 
 
     @docsubst

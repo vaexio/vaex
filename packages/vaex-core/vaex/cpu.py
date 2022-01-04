@@ -52,6 +52,7 @@ class binner_encoding:
             raise ValueError('Cannot deserialize: %r' % binner_spec)
 
 class TaskPart:
+    stopped = False
     def __init__(self, df, expressions, name, pre_filter):
         self.df = df
         self.expressions = expressions
@@ -125,10 +126,10 @@ class TaskPartFilterFill(TaskPart):
 
 
 @register
-class TaskPartSetCreate(TaskPart):
-    snake_name = "set_create"
+class TaskPartHashmapUniqueCreate(TaskPart):
+    snake_name = "hash_map_unique_create"
 
-    def __init__(self, df, expression, dtype, dtype_item, flatten, unique_limit, selection, nthreads, return_inverse):
+    def __init__(self, df, expression, dtype, dtype_item, flatten, limit, limit_raise, selection, nthreads, return_inverse):
         expression = str(expression)
         self.nthreads = nthreads
         self.df = df
@@ -138,7 +139,8 @@ class TaskPartSetCreate(TaskPart):
         self.dtype_item = dtype_item
         self.flatten = flatten
         self.expression = expression
-        self.unique_limit = unique_limit
+        self.limit = limit
+        self.limit_raise = limit_raise
         self.selection = selection
         self.return_inverse = return_inverse
         self.chunks = []
@@ -154,12 +156,11 @@ class TaskPartSetCreate(TaskPart):
         #         transient = True
         # self.dtype = self.df.data_type(str(expression))
         # self.dtype_item = self.data_type(expression, axis=-1 if flatten else 0)
-        self.ordered_set_type = vaex.hash.ordered_set_type_from_dtype(dtype_item, transient)
         # *7 is arbitrary, but we can have more maps than threads to avoid locks
-        self.set = self.ordered_set_type(self.nthreads*7)
+        self.hash_map_unique = vaex.hash.HashMapUnique(self.dtype_item, self.nthreads*7, limit=self.limit)
 
     def get_bin_count(self):
-        return len(self.set)
+        return len(self.hash_map_unique)
 
     @property
     def expressions(self):
@@ -167,14 +168,15 @@ class TaskPartSetCreate(TaskPart):
 
     def get_result(self):
         if self.return_inverse:
-            return self.set, self.values
+            return self.hash_map_unique, self.values
         else:
-            return self.set
+            return self.hash_map_unique
 
     def process(self, thread_index, i1, i2, filter_mask, selection_masks, blocks):
         ar = blocks[0]
-        from vaex.column import _to_string_sequence
         self._check_row_limit()
+        if self.stopped:
+            return
         if self.selection:
             selection_mask = selection_masks[0]
             ar = filter(ar, selection_mask)
@@ -182,36 +184,23 @@ class TaskPartSetCreate(TaskPart):
             return
         if self.dtype.is_list and self.flatten:
             ar = ar.values
-        if self.dtype_item.is_string:
-            ar = _to_string_sequence(ar)
-        else:
-            ar = vaex.array_types.to_numpy(ar)
-            if ar.strides != (ar.itemsize,):
-                ar = ar.copy()
-        chunk_size = 1024*1024
-
+        result = self.hash_map_unique.add(ar, return_inverse=self.return_inverse)
+        if self.return_inverse:
+            values, map_index = result
+            self.chunks.append((i1, i2, values, map_index))
         self._check_row_limit()
-        if np.ma.isMaskedArray(ar):
-            mask = np.ma.getmaskarray(ar)
-            if self.return_inverse:
-                values, map_index = self.set.update(ar, mask, -1, chunk_size=chunk_size, bucket_size=chunk_size*4, return_values=self.return_inverse)
-                self.chunks.append((i1, i2, values, map_index))
-            else:
-                self.set.update(ar, mask,  -1, chunk_size=chunk_size, bucket_size=chunk_size*4)
-        else:
-            if self.return_inverse:
-                values, map_index = self.set.update(ar, -1, chunk_size=chunk_size, bucket_size=chunk_size*4, return_values=self.return_inverse)
-                self.chunks.append((i1, i2, values, map_index))
-            else:
-                self.set.update(ar, -1, chunk_size=chunk_size, bucket_size=chunk_size*4)
         if logger.level >= logging.DEBUG:
-            logger.debug(f"set uses {sys.getsizeof(self.set):,} bytes (offset {i1:,}, length {i2-i1:,})")
+            logger.debug(f"set uses {sys.getsizeof(self.hash_map_unique):,} bytes (offset {i1:,}, length {i2-i1:,})")
         self._check_row_limit()
 
     def _check_row_limit(self):
-        if self.unique_limit is not None:
-            if len(self.set) > self.unique_limit:
-                raise vaex.RowLimitException(f'Resulting set would have >= {self.unique_limit} unique combinations')
+        if self.limit is not None:
+            # we only raise when we EXCEED the limit
+            if self.limit_raise and len(self.hash_map_unique) > self.limit:
+                raise vaex.RowLimitException(f'Resulting hash_map_unique would have >= {self.limit} unique combinations')
+            # but we can stop when we are AT the limit
+            if not self.limit_raise and len(self.hash_map_unique) >= self.limit:
+                self.stopped = True
 
     def ideal_splits(self, nthreads):
         # TODO, we want to configure this
@@ -219,12 +208,12 @@ class TaskPartSetCreate(TaskPart):
 
     def reduce(self, others):
         all = [self] + others
-        all = [k.set for k in all if k.set is not None]
-        set_merged, *others = all
+        all = [k.hash_map_unique for k in all if k.hash_map_unique is not None]
+        hash_map_unique_merged, *others = all
         import time
         t0 = time.time()
-        set_merged.merge(others)
-        logger.info(f'merge took {time.time()-t0} seconds, size {len(set_merged):,}, byte_size {sys.getsizeof(set_merged):,}')
+        hash_map_unique_merged.merge(others)
+        logger.info(f'merge took {time.time()-t0} seconds, size {len(hash_map_unique_merged):,}, byte_size {sys.getsizeof(hash_map_unique_merged):,}')
 
         if self.return_inverse:
             # sort by row index
@@ -235,22 +224,25 @@ class TaskPartSetCreate(TaskPart):
             self.values = np.empty(length, vaex.dtype_of(self.chunks[0][2]).numpy)
             # TODO: we could do this parallel, but overhead is small
             for i1, i2, values, map_index in self.chunks:
-                set_merged.flatten_values(values, map_index, self.values[i1:i2])
+                hash_map_unique_merged.flatten_values(values, map_index, self.values[i1:i2])
 
-        if self.unique_limit is not None:
-            count = len(set_merged)
-            if count > self.unique_limit:
-                raise vaex.RowLimitException(f'Resulting set has {count:,} unique combinations, which is larger than the allowed value of {self.unique_limit:,}')
-        self.set = set_merged
-        self.set.fingerprint = f'set-{self.fingerprint}'
+        if self.limit is not None:
+            count = len(hash_map_unique_merged)
+            if count > self.limit:
+                if self.limit_raise:
+                    raise vaex.RowLimitException(f'Resulting set has {count:,} unique combinations, which is larger than the allowed value of {self.limit:,}')
+                else:
+                    hash_map_unique_merged = hash_map_unique_merged.limit(self.limit)
+        self.hash_map_unique = hash_map_unique_merged
+        self.hash_map_unique._internal.fingerprint = f'hash-map-unique-{self.fingerprint}'
 
     @classmethod
     def decode(cls, encoding, spec, df, nthreads):
         return cls(df, spec['expression'], encoding.decode('dtype', spec['dtype']), encoding.decode('dtype', spec['dtype_item']),
-                   flatten=spec['flatten'], unique_limit=spec['unique_limit'], selection=spec['selection'], return_inverse=spec['return_inverse'], nthreads=nthreads)
+                   flatten=spec['flatten'], limit=spec['limit'], limit_raise=spec['limit_raise'], selection=spec['selection'], return_inverse=spec['return_inverse'], nthreads=nthreads)
 
     def memory_usage(self):
-        return sys.getsizeof(self.set)
+        return sys.getsizeof(self.hash_map_unique._internal)
 
 
 @register
