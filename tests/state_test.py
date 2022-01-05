@@ -174,15 +174,15 @@ def test_state_drop():
     assert 'x' not in dfc.dataset
 
 
-def test_state_drop_dependency():
-    df_train = vaex.from_dict({'a': [1,2,3]})
-    df_train['a_temp'] = df_train['a']
-    df_train['b'] = df_train['a_temp'] * 2
-    df_train = df_train.drop(["a_temp"])
+def test_state_virtual_column_order():
+    # renaming a column should not change the internal order, otherwise virtual
+    # columns do not resolve (it will reference an unknown column)
+    df = vaex.from_scalars(x=1)
+    df['y'] = df.x + 1
+    df['z'] = df.y + 2
+    df.rename('y', 'yy')
+    state = df.state_get()
 
-    df_test = vaex.from_dict({'a': [5, 6]})
-    state = df_train.state_get()
-    df_test.state_set(state)
-
-    assert 'a_temp' not in df_test
-    assert df_test.b.tolist() == [10, 12]
+    df2 = vaex.from_scalars(x=10)
+    df2.state_set(state)
+    assert df2.z.tolist() == [13]

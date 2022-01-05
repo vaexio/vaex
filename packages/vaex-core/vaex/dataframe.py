@@ -3684,8 +3684,10 @@ class DataFrame(object):
             self.variables[new] = self.variables.pop(old)
             is_variable = True
         elif old in self.virtual_columns:
-            self.virtual_columns[new] = self.virtual_columns.pop(old)
-            self._virtual_expressions[new] = self._virtual_expressions.pop(old)
+            # renaming a column should not change the internal order, otherwise virtual
+            # columns do not resolve (it will reference an unknown column)
+            self.virtual_columns = vaex.utils.dict_replace_key(self.virtual_columns, old, new)
+            self._virtual_expressions = vaex.utils.dict_replace_key(self._virtual_expressions, old, new)
         elif self.is_local() and old in self.columns:
             # we only have to do this locally
             # if we don't do this locally, we still store this info

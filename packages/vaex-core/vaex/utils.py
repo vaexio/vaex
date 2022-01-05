@@ -941,6 +941,15 @@ def dropnan(sequence, expect=None):
     return original_type(non_nan)
 
 
+def dict_replace_key(d, key_old, key_new):
+    '''Replace a key, without changing order'''
+    d_new = {}
+    for key, value in d.items():
+        if key == key_old:
+            key = key_new
+        d_new[key] = value
+    return d_new
+
 # backwards compatibility
 def progressbars(*args, **kwargs):
     from .progress import tree
