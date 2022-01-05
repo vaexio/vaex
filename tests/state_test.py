@@ -172,3 +172,17 @@ def test_state_drop():
     dfc.state_set(df.state_get())
     assert 'x' not in dfc
     assert 'x' not in dfc.dataset
+
+
+def test_state_virtual_column_order():
+    # renaming a column should not change the internal order, otherwise virtual
+    # columns do not resolve (it will reference an unknown column)
+    df = vaex.from_scalars(x=1)
+    df['y'] = df.x + 1
+    df['z'] = df.y + 2
+    df.rename('y', 'yy')
+    state = df.state_get()
+
+    df2 = vaex.from_scalars(x=10)
+    df2.state_set(state)
+    assert df2.z.tolist() == [13]
