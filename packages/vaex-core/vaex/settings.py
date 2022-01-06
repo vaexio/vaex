@@ -132,10 +132,10 @@ See the [API docs](api.html#module-vaex.logging) for more details.
 Note that settings `vaex.settings.main.logging.info` etc at runtime, has no direct effect, since logging is already configured. When needed, call `vaex.logging.reset()` and `vaex.logging.setup()` to reconfigure logging.
     """
     setup : bool = Field(True, title='Setup logging for Vaex at import time.')
-    rich : bool = Field(False, title='Use rich logger (colored fancy output).')
+    rich : bool = Field(True, title='Use rich logger (colored fancy output).')
     debug : str = Field('', title="Comma seperated list of loggers to set to the debug level (e.g. 'vaex.settings,vaex.cache'), or a '1' to set the root logger ('vaex')")
     info : str = Field('', title="Comma seperated list of loggers to set to the info level (e.g. 'vaex.settings,vaex.cache'), or a '1' to set the root logger ('vaex')")
-    warning : str = Field('', title="Comma seperated list of loggers to set to the warning level (e.g. 'vaex.settings,vaex.cache'), or a '1' to set the root logger ('vaex')")
+    warning : str = Field('vaex', title="Comma seperated list of loggers to set to the warning level (e.g. 'vaex.settings,vaex.cache'), or a '1' to set the root logger ('vaex')")
     error : str = Field('', title="Comma seperated list of loggers to set to the error level (e.g. 'vaex.settings,vaex.cache'), or a '1' to set the root logger ('vaex')")
     class Config(ConfigDefault):
         env_prefix = 'vaex_logging_'

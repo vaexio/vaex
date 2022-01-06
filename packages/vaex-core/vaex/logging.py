@@ -83,6 +83,7 @@ def setup():
         # add console handler to logger
         logger.addHandler(log_handler)
 
+    logging.getLogger("vaex").setLevel(logging.ERROR)  # default to higest level
     _set_log_level(vaex.settings.main.logging.error, logging.ERROR)
     _set_log_level(vaex.settings.main.logging.warning, logging.WARNING)
     _set_log_level(vaex.settings.main.logging.info, logging.INFO)
