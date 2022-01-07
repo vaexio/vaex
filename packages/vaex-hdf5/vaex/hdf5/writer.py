@@ -4,6 +4,7 @@ import concurrent.futures
 
 import h5py
 import numpy as np
+from pyarrow.types import is_temporal
 
 import vaex
 import vaex.utils
@@ -67,17 +68,16 @@ class Writer:
 
         for i, name in enumerate(list(column_names)):
             dtype = dtypes[name]
-
             shape = (N, ) + df._shape_of(name)[1:]
-            try:
-                if dtype.is_string:
-                    self.column_writers[name] = ColumnWriterString(self.columns, name, dtypes[name], shape, str_byte_length[name], has_null_str[name])
-                else:
-                    self.column_writers[name] = ColumnWriterPrimitive(self.columns, name, dtypes[name], shape, has_null[name], self.byteorder)
-            except:
-                logger.exception("error creating dataset for %r, with type %r " % (name, dtype))
-                del self.columns[name]
-                column_names.remove(name)
+            if dtype.is_string:
+                self.column_writers[name] = ColumnWriterString(self.columns, name, dtypes[name], shape, str_byte_length[name], has_null_str[name])
+            elif dtype.is_primitive or dtype.is_temporal:
+                self.column_writers[name] = ColumnWriterPrimitive(self.columns, name, dtypes[name], shape, has_null[name], self.byteorder)
+            elif dtype.is_encoded:
+                labels = df.category_labels(name)
+                self.column_writers[name] = ColumnWriterDictionaryEncoded(self.columns, name, dtypes[name], labels, shape, has_null[name], self.byteorder, df)
+            else:
+                raise TypeError(f"Cannot export column of type: {dtype}")
             progressbar_reserve((i+1)/len(column_names))
         self.columns.attrs["column_order"] = ",".join(column_names)
 
@@ -105,30 +105,77 @@ class Writer:
         # and have all writers mmap the arrays
         for name in list(column_names):
             self.column_writers[name].mmap(self.mmap, self.file)
+            self.column_writers[name].write_extra()
 
         logger.debug("writing columns(hdf5): %r" % column_names)
         # actual writing part
         progressbar = vaex.utils.progressbars(progress, title="exporting")
-        progressbar(0)
-        progressbar_columns = {k: progressbar.add(f"write: {k}") for k in column_names}
-        total = N * len(column_names)
-        written = 0
-        if export_threads:
-            pool = concurrent.futures.ThreadPoolExecutor(export_threads)
-        for column_names_subgroup in vaex.itertools.chunked(column_names, column_count):
-            for i1, i2, values in df.evaluate(column_names_subgroup, chunk_size=chunk_size, filtered=True, parallel=parallel, array_type='numpy-arrow'):
-                def write(arg):
-                    i, name = arg
-                    self.column_writers[name].write(values[i])
-                    progressbar_columns[name](self.column_writers[name].progress)
-                # for i, name in enumerate(column_names_subgroup):
-                if export_threads:
-                    list(pool.map(write, enumerate(column_names_subgroup)))
-                else:
-                    list(map(write, enumerate(column_names_subgroup)))
-                written += (i2 - i1) * len(column_names_subgroup)
-                progressbar(written/total)
-        progressbar(1.0)
+        with progressbar:
+            progressbar_columns = {k: progressbar.add(f"write: {k}") for k in column_names}
+            total = N * len(column_names)
+            written = 0
+            if export_threads:
+                pool = concurrent.futures.ThreadPoolExecutor(export_threads)
+            for column_names_subgroup in vaex.itertools.chunked(column_names, column_count):
+                expressions = [self.column_writers[name].expression for name in column_names_subgroup]
+                for i1, i2, values in df.evaluate(expressions, chunk_size=chunk_size, filtered=True, parallel=parallel, array_type="numpy-arrow", progress=progressbar):
+
+                    def write(arg):
+                        i, name = arg
+                        self.column_writers[name].write(values[i])
+                        progressbar_columns[name](self.column_writers[name].progress)
+                    # for i, name in enumerate(column_names_subgroup):
+                    if export_threads:
+                        list(pool.map(write, enumerate(column_names_subgroup)))
+                    else:
+                        list(map(write, enumerate(column_names_subgroup)))
+                    written += (i2 - i1) * len(column_names_subgroup)
+                    progressbar(written/total)
+
+
+class ColumnWriterDictionaryEncoded:
+    def __init__(self, h5parent, name, dtype, values, shape, has_null, byteorder="=", df=None):
+        if has_null:
+            raise ValueError('Encoded index got null values, this is not supported, only support null values in the values')
+        self.dtype = dtype
+        # make sure it's arrow
+        values = self.dtype.value_type.create_array(values)
+        # makes dealing with buffers easier
+        self.values = vaex.arrow.convert.trim_buffers(values)
+        self.byteorder = byteorder
+        self.expression = df[name].index_values()
+        self.h5group = h5parent.require_group(name)
+        self.h5group.attrs["type"] = "dictionary_encoded"
+        self.index_writer = ColumnWriterPrimitive(self.h5group, name="indices", dtype=self.dtype.index_type, shape=shape, has_null=has_null, byteorder=byteorder)
+        self._prepare_values()
+
+    def _prepare_values(self):
+        dtype_values = self.dtype.value_type
+        name = "dictionary"
+        shape = (len(self.values),)
+        has_null = self.values.null_count > 0
+        if dtype_values.is_string:
+            str_byte_length = self.values.buffers()[2].size
+            self.values_writer = ColumnWriterString(self.h5group, name, dtype_values, shape, str_byte_length, has_null)
+        elif dtype_values.is_primitive or dtype_values.is_temporal:
+            has_null = False
+            self.values_writer = ColumnWriterPrimitive(self.h5group, name, dtype_values, shape, has_null, self.byteorder)
+        else:
+            raise TypeError(f"Cannot export column of type: {dtype_values}")
+
+    @property
+    def progress(self):
+        return self.index_writer.progress
+
+    def mmap(self, mmap, file):
+        self.index_writer.mmap(mmap, file)
+        self.values_writer.mmap(mmap, file)
+
+    def write(self, values):
+        self.index_writer.write(values)
+
+    def write_extra(self):
+        self.values_writer.write(self.values)
 
 
 class ColumnWriterPrimitive:
@@ -140,6 +187,7 @@ class ColumnWriterPrimitive:
         self.dtype = dtype
         self.to_offset = 0
         self.to_array = None
+        self.expression = name
 
         self.h5group = h5parent.require_group(name)
         if dtype.kind in 'mM':
@@ -186,6 +234,9 @@ class ColumnWriterPrimitive:
             self.to_offset += no_values
             assert self.to_offset <= self.count
 
+    def write_extra(self):
+        pass
+
 
 class ColumnWriterString:
     def __init__(self, h5parent, name, dtype, shape, byte_length, has_null):
@@ -198,6 +249,7 @@ class ColumnWriterString:
         self.has_null = has_null
         self.to_offset = 0
         self.string_byte_offset = 0
+        self.expression = name
         # TODO: if no selection or filter, we could do this
         # if isinstance(column, ColumnStringArrow):
         #     data_shape = column.bytes.shape
@@ -261,3 +313,6 @@ class ColumnWriterString:
         if self.to_offset == self.count:
             # last offset
             self.to_array.indices[self.count] = self.string_byte_offset
+
+    def write_extra(self):
+        pass
