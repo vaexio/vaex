@@ -27,6 +27,7 @@ from vaex.utils import Timer
 import vaex.events
 # import vaex.ui.undo
 import vaex.grids
+import vaex.hash
 import vaex.multithreading
 import vaex.promise
 import vaex.execution
@@ -643,6 +644,9 @@ class DataFrame(object):
                             mask = np.zeros(len(keys), dtype=np.uint8)
                             mask[hash_map_unique.null_value] = 1
                             keys = np.ma.array(keys, mask=mask)
+                        if data_type_item == str and isinstance(keys, np.ndarray):
+                            # the np.delete will cast to dtype object
+                            keys = pa.array(keys)
                 keys = vaex.array_types.convert(keys, array_type)
                 if return_inverse:
                     return keys, inverse
@@ -5712,11 +5716,13 @@ class DataFrameLocal(DataFrame):
         df._categories[column] = dict(labels=labels, N=len(labels), min_value=min_value)
         return df
 
-    def ordinal_encode(self, column, values=None, inplace=False):
+    def ordinal_encode(self, column, values=None, inplace=False, lazy=False):
         """Encode column as ordinal values and mark it as categorical.
 
         The existing column is renamed to a hidden column and replaced by a numerical columns
         with values between [0, len(values)-1].
+
+        :param lazy: When False, it will materialize the ordinal codes.
         """
         column = _ensure_string_from_expression(column)
         df = self if inplace else self.copy()
@@ -5727,6 +5733,29 @@ class DataFrameLocal(DataFrame):
         df_unfiltered.select_nothing(name=FILTER_SELECTION_NAME)
         df_unfiltered._length_unfiltered = df._length_original
         df_unfiltered.set_active_range(0, df._length_original)
+        expression = df_unfiltered[column]
+        if lazy:
+            if values is None:
+                found_values = df_unfiltered.unique(column, array_type='numpy-arrow')
+                minimal_type = vaex.utils.required_dtype_for_max(len(found_values), signed=True)
+                dtype = vaex.dtype_of(found_values)
+                if dtype == int:
+                    min_value = found_values.min()
+                    max_value = found_values.max()
+                    if (max_value - min_value +1) == len(found_values):
+                        warnings.warn(f'It seems your column {column} is already ordinal encoded (values between {min_value} and {max_value}), automatically switching to use df.categorize')
+                        return df.categorize(column, min_value=min_value, max_value=max_value, inplace=inplace)
+                values = found_values
+            else:
+                values = expression.dtype.create_array(values)
+            fp = f'hash-map-unique-{expression.fingerprint()}'
+            hash_map_unique_name = fp.replace('-', '_')
+            hash_map_unique = vaex.hash.HashMapUnique.from_keys(values, fingerprint=fp)
+            df.add_variable(hash_map_unique_name, hash_map_unique)
+            expr = df._expr('hashmap_apply({}, {}, check_missing=True)'.format(column, hash_map_unique_name))
+            df[column] = expr
+            df._categories[column] = dict(labels=values, N=len(values), min_value=0)
+            return df  # no else but return to avoid large diff
         # codes point to the index of found_values
         # meaning: found_values[codes[0]] == ds[column].values[0]
         found_values, codes = df_unfiltered.unique(column, return_inverse=True, array_type='numpy-arrow')

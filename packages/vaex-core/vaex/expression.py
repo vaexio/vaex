@@ -1411,15 +1411,9 @@ def f({0}):
         # and later on in _choose, we map values not even seen in the dataframe
         # to the default_value
         dtype_item = self.data_type(self.expression, axis=-1)
-        null_count = mapper_keys.count(None)
-        if null_count:
-            null_value = mapper_keys.index(None)
-        else:
-            null_value = 0x7fffffff
-
         mapper_keys = dtype_item.create_array(mapper_keys)
         fingerprint = key_set.fingerprint + "-mapper"
-        hash_map_unique = vaex.hash.HashMapUnique.from_keys(mapper_keys, null_value=null_value, null_count=null_count, fingerprint=fingerprint, dtype=dtype_item)
+        hash_map_unique = vaex.hash.HashMapUnique.from_keys(mapper_keys, fingerprint=fingerprint, dtype=dtype_item)
         indices = hash_map_unique.map(mapper_keys)
         mapper_values = [mapper_values[i] for i in indices]
 

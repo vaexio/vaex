@@ -335,7 +335,7 @@ def from_items(*items):
     return from_dict(dict(items))
 
 
-def from_arrays(**arrays):
+def from_arrays(**arrays) -> vaex.dataframe.DataFrameLocal:
     """Create an in memory DataFrame from numpy arrays.
 
     Example
@@ -833,7 +833,7 @@ def dtype(type):
     '''Creates a Vaex DataType based on a NumPy or Arrow type'''
     return vaex.datatype.DataType(type)
 
-def dtype_of(ar):
+def dtype_of(ar) -> vaex.datatype.DataType:
     '''Creates a Vaex DataType from a NumPy or Arrow array'''
     if vaex.array_types.is_arrow_array(ar):
         return dtype(ar.type)
