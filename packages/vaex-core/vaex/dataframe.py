@@ -2121,10 +2121,13 @@ class DataFrame(object):
         # if check_alias:
             # if str(expression) in self._column_aliases:
             #     expression = self._column_aliases[str(expression)]  # translate the alias name into the real name
-        sample = self.evaluate(expression, 0, 1, filtered=False, array_type="numpy", parallel=False)
-        sample = vaex.array_types.to_numpy(sample, strict=True)
+        sample = self.evaluate(expression, 0, 1, filtered=False, array_type="numpy-arrow", parallel=False)
+        dtype = vaex.dtype_of(sample)
         rows = len(self) if filtered else self.length_unfiltered()
-        return (rows,) + sample.shape[1:]
+        if dtype.is_arrow:  # for arrow, we don't have nd arrays yet
+            return (rows,)
+        else:
+            return (rows,) + sample.shape[1:]
 
     # TODO: remove array_type and internal arguments?
     def data_type(self, expression, array_type=None, internal=False, axis=0):
@@ -3902,7 +3905,7 @@ class DataFrame(object):
                 self.execute()
                 count_na = count_na.get()
                 columns[feature] = ((data_type, N-count_na, count_na, '--', '--', '--', '--'))
-            elif data_type.is_primitive or data_type.is_datetime or data_type.is_timedelta:
+            elif data_type.is_primitive or data_type.is_temporal:
                 mean = self.mean(feature, selection=selection, delay=True)
                 std = self.std(feature, selection=selection, delay=True)
                 minmax = self.minmax(feature, selection=selection, delay=True)

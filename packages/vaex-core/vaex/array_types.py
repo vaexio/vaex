@@ -131,7 +131,8 @@ def to_numpy(x, strict=False):
     elif isinstance(x, np.ndarray):
         return x
     elif isinstance(x, supported_arrow_array_types):
-        if not strict and is_string(x):
+        dtype = vaex.dtype_of(x)
+        if not strict and not (dtype.is_primitive or dtype.is_temporal):
             return x
         x = vaex.arrow.convert.column_from_arrow_array(x)
         return to_numpy(x, strict=strict)
