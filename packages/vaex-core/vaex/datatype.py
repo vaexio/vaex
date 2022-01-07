@@ -245,9 +245,15 @@ class DataType:
         >>> date_type.is_timedelta
         False
         '''
-        if self.is_string:
+        if self.is_arrow:
             return False
-        return vaex.array_types.to_numpy_type(self.internal).kind in 'm'
+        else:
+            return self.kind in 'm'
+
+    @property
+    def is_temporal(self):
+        '''Alias of (is_datetime or is_timedelta)'''
+        return self.is_datetime or self.is_timedelta
 
     @property
     def is_float(self):
