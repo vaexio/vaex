@@ -1,22 +1,21 @@
 __author__ = 'maartenbreddels'
 import os
 import logging
+import pyarrow as pa
+import re
+
 import numpy as np
 import numpy.ma
+
 import vaex
 from vaex.utils import ensure_string
-import re
-import six
 import vaex.dataset
 import vaex.file
-from vaex.expression import Expression
 from vaex.dataset_mmap import DatasetMemoryMapped
-from vaex.file import gcs, s3
+import vaex.column
 from vaex.column import ColumnNumpyLike, ColumnStringArrow
-from vaex.file.column import ColumnFile
 import vaex.arrow.convert
-
-from .utils import h5mmap
+import vaex.array_types
 
 astropy = vaex.utils.optional_import("astropy.units")
 
@@ -47,7 +46,7 @@ def _try_unit(unit):
         unit = astropy.units.Unit(unit_mangle)
     except:
         pass  # logger.exception("could not parse unit: %r", unit)
-    if isinstance(unit, six.string_types):
+    if isinstance(unit, str):
         return None
     elif isinstance(unit, astropy.units.UnrecognizedUnit):
         return None
@@ -61,7 +60,7 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
 
     def __init__(self, path, write=False, fs_options={}, fs=None, nommap=None, group=None, _fingerprint=None):
         if nommap is None:
-            nommap = not vaex.file.memory_mappable(path)
+            nommap = (not vaex.file.memory_mappable(path)) or fs is not None
         super(Hdf5MemoryMapped, self).__init__(vaex.file.stringyfy(path), write=write, nommap=nommap, fs_options=fs_options, fs=fs)
         self._cached_fingerprint = _fingerprint  # used during test, where we don't want to trigger an s3 call
         self._all_mmapped = True
@@ -244,12 +243,13 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
             self.variables[key] = value
 
 
-    def _map_hdf5_array(self, data, mask=None):
+    def _map_hdf5_array(self, data, mask=None, as_arrow=False):
         offset = data.id.get_offset()
         if len(data) == 0 and offset is None:
             offset = 0 # we don't care about the offset for empty arrays
         if offset is None:  # non contiguous array, chunked arrays etc
             # we don't support masked in this case
+            assert as_arrow is False
             column = ColumnNumpyLike(data)
             self._all_mmapped = False
             return column
@@ -264,7 +264,14 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
                         dtype = np.dtype('U' + str(data.attrs['dlength']))
             #self.addColumn(column_name, offset, len(data), dtype=dtype)
             array = self._map_array(offset, dtype=dtype, shape=shape)
+            if as_arrow:
+                if isinstance(array, np.ndarray):
+                    array = vaex.array_types.to_arrow(array)
+                else:
+                    array = vaex.column.ColumnArrowLazyCast(array, vaex.dtype_of(array).arrow)
             if mask is not None:
+                if as_arrow:
+                    raise TypeError('Arrow does not support byte masks')
                 mask_array = self._map_hdf5_array(mask)
                 if isinstance(array, np.ndarray):
                     ar = np.ma.array(array, mask=mask_array, shrink=False)
@@ -297,7 +304,8 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
             logger.debug('loading column: %s', group_name)
             group = h5columns[group_name]
             if 'type' in group.attrs:
-                if group.attrs['type'] in ['csr_matrix']:
+                type = group.attrs['type']
+                if type in ['csr_matrix']:
                     from scipy.sparse import csc_matrix, csr_matrix
                     class csr_matrix_nocheck(csr_matrix):
                         def check_format(self, *args, **kwargs):
@@ -316,6 +324,18 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
                     # assert matrix.indptr is indptr
                     assert matrix.indices is indices
                     self.add_columns(column_names, matrix)
+                if type == 'dictionary_encoded':
+                    index = self._map_column(group['indices'], as_arrow=True)
+                    values = self._map_column(group['dictionary'], as_arrow=True)
+                    if 'null_bitmap' in group['indices'] or 'mask' in group['indices']:
+                        raise ValueError(f'Did not expect null data in encoded column {group_name}')
+                    if isinstance(values, vaex.column.Column):
+                        encoded = vaex.column.ColumnArrowDictionaryEncoded(index, values)
+                    else:
+                        encoded = pa.DictionaryArray.from_arrays(index, values)
+                    self.add_column(group_name, encoded)
+                else:
+                    raise TypeError(f'Unexpected type {type!r} in {group_name}')
             else:
                 column_name = group_name
                 column = h5columns[column_name]
@@ -348,35 +368,17 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
                         self.units[column_name] = astropy.units.Unit("m/s")
                     if unitname == "system.get('S.I.').base('mass')":
                         self.units[column_name] = astropy.units.Unit("kg")
-                data = column if self._version == 1 else column['data']
-                if hasattr(data, "dtype"):
-                    if "dtype" in data.attrs and data.attrs["dtype"] == "str":
-                        indices = self._map_hdf5_array(column['indices'])
-                        bytes = self._map_hdf5_array(data)
-                        if "null_bitmap" in column:
-                            null_bitmap = self._map_hdf5_array(column['null_bitmap'])
-                        else:
-                            null_bitmap = None
-                        if isinstance(indices, np.ndarray):  # this is a real mmappable file
-                            self.add_column(column_name, vaex.arrow.convert.arrow_string_array_from_buffers(bytes, indices, null_bitmap))
-                        else:
-                            # if not a reall mmappable array, we fall back to this, maybe we can generalize this
-                            self.add_column(column_name, ColumnStringArrow(indices, bytes, null_bitmap=null_bitmap))
-                    else:
-                        shape = data.shape
-                        if True:  # len(shape) == 1:
-                            dtype = data.dtype
-                            if "dtype" in data.attrs:
-                                dtype = data.attrs["dtype"]
-                            logger.debug("adding column %r with dtype %r", column_name, dtype)
-                            # self.addColumn(column_name, offset, len(data), dtype=dtype)
-                            if self._version > 1 and 'mask' in column:
-                                self.add_column(column_name, self._map_hdf5_array(data, column['mask']))
-                            else:
-                                self.add_column(column_name, self._map_hdf5_array(data))
-                        else:
-                            transposed = shape[1] < shape[0]
-                            self.addRank1(column_name, offset, shape[1], length1=shape[0], dtype=data.dtype, stride=1, stride1=1, transposed=transposed)
+                if self._version == 1:
+                    column = self._map_hdf5_array(column)
+                    self.add_column(column_name, column)
+                elif hasattr(column["data"], "dtype"):
+                    column = self._map_column(column)
+                    self.add_column(column_name, column)
+                    dtype = vaex.dtype_of(column)
+                    logger.debug("adding column %r with dtype %r", column_name, dtype)
+                else:
+                    raise TypeError(f'{group_name} is missing dtype')
+
         all_columns = dict(**self._columns)
         # in case the column_order refers to non-existing columns
         column_order = [k for k in column_order if k in all_columns]
@@ -388,6 +390,27 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
         for name, col in all_columns.items():
             self._columns[name] = col
             # self.column_names.append(name)
+
+    def _map_column(self, column : h5py.Group, as_arrow=False):
+        data = column["data"]
+        if "dtype" in data.attrs and data.attrs["dtype"] == "str":
+            indices = self._map_hdf5_array(column['indices'])
+            bytes = self._map_hdf5_array(data)
+            if "null_bitmap" in column:
+                null_bitmap = self._map_hdf5_array(column['null_bitmap'])
+            else:
+                null_bitmap = None
+            if isinstance(indices, np.ndarray):  # this is a real mmappable file
+                return vaex.arrow.convert.arrow_string_array_from_buffers(bytes, indices, null_bitmap)
+            else:
+                # if not a reall mmappable array, we fall back to this, maybe we can generalize this
+                return ColumnStringArrow(indices, bytes, null_bitmap=null_bitmap)
+        else:
+            if self._version > 1 and 'mask' in column:
+                return self._map_hdf5_array(data, column['mask'], as_arrow=as_arrow)
+            else:
+                return self._map_hdf5_array(data, as_arrow=as_arrow)
+
 
     def close(self):
         super().close()

@@ -233,6 +233,53 @@ class ColumnArrowLazyCast(Column):
         return pa.array(self.ar[slice], type=self.type.arrow)
 
 
+@register
+class ColumnArrowDictionaryEncoded(Column):
+    snake_name = "dictionary_encoded"
+    """Wraps an array like object and cast it lazily to arrow dict encoded"""
+    def __init__(self, indices, dictionary):
+        self.indices = indices  # should be column like
+        self.dictionary = vaex.array_types.to_arrow(dictionary)  # lets do this once for performance
+
+    def encode(self, encoding):
+        return {
+            'indices': encoding.encode('array', self.indices),
+            'dictionary': encoding.encode('array', self.dictionary),
+        }
+
+    @classmethod
+    def decode(cls, encoding, spec):
+        return cls(encoding.decode('array', spec['indices']),
+                   encoding.decode('array', spec['dictionary']))
+
+    def __arrow_array__(self, type=None):
+        return self[:]
+
+    def _fingerprint(self):
+        hash1 = vaex.dataset.hash_array_data(self.indices)
+        hash2 = vaex.dataset.hash_array_data(self.dictionary)
+        fp = vaex.cache.fingerprint(hash1, hash2)
+        return f'column-arrow-{self.snake_name}-{fp}'
+
+    @property
+    def nbytes(self):
+        # consistent with arrow
+        return self.indices.nbytes
+
+    @property
+    def dtype(self):
+        return self[0:0].type
+
+    def __len__(self):
+        return len(self.indices)
+
+    def trim(self, i1, i2):
+        return type(self)(self.indices[i1:i2], self.dictionary)
+
+    def __getitem__(self, slice):
+        return pa.DictionaryArray.from_arrays(self.indices[slice], self.dictionary)
+
+
 class ColumnIndexed(Column):
     def __init__(self, column, indices, masked=False):
         self.column = column

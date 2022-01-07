@@ -28,6 +28,17 @@ scheme = 'ws'
 HERE = Path(__file__).parent
 
 
+def encoding_roundtrip(name, obj):
+    # encoding and decode
+    encoding = vaex.encoding.Encoding()
+    data = encoding.encode(name, obj)
+    blob = vaex.encoding.serialize(data, encoding)
+
+    encoding = vaex.encoding.Encoding()
+    data = vaex.encoding.deserialize(blob, encoding)
+    return encoding.decode(name, data)
+
+
 class CallbackCounter(object):
     def __init__(self, return_value=None):
         self.counter = 0
