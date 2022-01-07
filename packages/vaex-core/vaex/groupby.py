@@ -318,7 +318,7 @@ class GrouperCategory(BinnerBase):
                 # we will map from int to int
                 sort_indices = vaex.array_types.to_numpy(sort_indices)
                 fingerprint = self.expression.fingerprint() + "-grouper-sort-mapper"
-                self.hash_map_unique = vaex.hash.HashMapUnique.from_keys(sort_indices + self.min_value, null_value=-1, null_count=0, fingerprint=fingerprint)
+                self.hash_map_unique = vaex.hash.HashMapUnique.from_keys(sort_indices + self.min_value, fingerprint=fingerprint)
                 self.min_value = 0
                 self.sort_indices = None
                 self.basename = "hash_map_unique_%s" % vaex.utils._python_save_name(str(self.expression) + "_" + self.hash_map_unique.fingerprint)
@@ -379,19 +379,9 @@ class GrouperLimited(BinnerBase):
             self.bin_values = pa.array(vaex.array_types.tolist(values))
             self.values = self.bin_values
         self.N = len(self.bin_values)
-        dtype = vaex.dtype_of(self.values)
-        set_type = vaex.hash.ordered_set_type_from_dtype(dtype)
-        values_list = self.values.tolist()
-        try:
-            null_value = values_list.index(None)
-            null_count = 1
-        except ValueError:
-            null_value = -1
-            null_count = 0
-
         fp = vaex.cache.fingerprint(values)
         fingerprint = f"set-grouper-fixed-{fp}"
-        self.hash_map_unique = vaex.hash.HashMapUnique.from_keys(self.values, null_value=null_value, null_count=null_count, fingerprint=fingerprint)
+        self.hash_map_unique = vaex.hash.HashMapUnique.from_keys(self.values, fingerprint=fingerprint)
 
         self.basename = "hash_map_unique_%s" % vaex.utils._python_save_name(str(self.expression) + "_" + self.hash_map_unique.fingerprint)
         self.binby_expression = expression

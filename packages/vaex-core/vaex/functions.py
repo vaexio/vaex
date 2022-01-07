@@ -2445,9 +2445,9 @@ def _ordinal_values(x, hashmap_unique):
 
 
 @register_function()
-def hashmap_apply(x, hashmap):
-    '''Apply values to hashmap'''
-    indices = hashmap.map(x)
+def hashmap_apply(x, hashmap, check_missing=False):
+    '''Apply values to hashmap, if check_missing is True, missing values in the hashmap will translated to null/missing values'''
+    indices = hashmap.map(x, check_missing=check_missing)
     return indices
 
 

@@ -104,16 +104,37 @@ class HashMapUnique:
         return vaex.hash.HashMapUnique(dtype, _internal=_hash_map_internal)
 
     @classmethod
-    def from_keys(cls, keys, null_value, null_count, dtype=None, fingerprint=''):
+    def from_keys(cls, keys, dtype=None, fingerprint=''):
+        keys = vaex.array_types.convert(keys, 'numpy-arrow')
         dtype = vaex.dtype_of(keys) if dtype is None else dtype
         if dtype == float:
             nancount = np.isnan(keys).sum()
         else:
             nancount = 0
+        null_count = 0
+        null_value = -1
+        if np.ma.isMaskedArray(keys):
+            null_count = keys.mask.sum()
+            if null_count == 0:
+                keys = keys.data
+            elif null_count == 1:
+                null_value = np.where(keys.mask == 1)[0]
+                keys = keys.data
+            else:
+                raise ValueError('key arrays contained more than 1 null value')
         set_type = vaex.hash.ordered_set_type_from_dtype(dtype)
         if dtype.is_string:
             values = vaex.column.ColumnStringArrow.from_arrow(keys)
             string_sequence = values.string_sequence
+            mask = string_sequence.mask()
+            if mask is not None:
+                null_count = mask.sum()
+                if null_count == 0:
+                    pass  # fine
+                elif null_count == 1:
+                    null_value = np.where(mask == 1)[0]
+                else:
+                    raise ValueError('key arrays contained more than 1 null value')
             hash_map_unique_internal = set_type(string_sequence, null_value, nancount, null_count, fingerprint)
         else:
             hash_map_unique_internal = set_type(keys, null_value, nancount, null_count, fingerprint)
@@ -161,7 +182,7 @@ class HashMapUnique:
             ar = np.ma.array(ar, mask=mask)
         return ar
 
-    def map(self, keys):
+    def map(self, keys, check_missing=False):
         '''Map key values to unique integers'''
         from vaex.column import _to_string_sequence
 
@@ -173,6 +194,8 @@ class HashMapUnique:
         indices = self._internal.map_ordinal(keys)
         if np.ma.isMaskedArray(keys):
             indices[keys.mask] = self.null_value
+        if check_missing:
+            indices = np.ma.array(indices, mask=indices==-1)
         return indices
 
     def isin(self, values):
