@@ -32,12 +32,16 @@ A few strong features of vaex are:
 Follow the tutorial at https://docs.vaex.io/en/latest/tutorial.html to learn how to use vaex.
 
 """  # -*- coding: utf-8 -*-
-from __future__ import print_function
-import glob
-import re
+import logging as root_logging
+import os
+import pkg_resources
 from typing import Dict, List
-from numpy.lib.function_base import copy
-import six
+from urllib.parse import urlparse, parse_qs
+
+# first configure logging, which also imports vaex.settings
+import vaex.logging
+# import this to be explicit
+import vaex.settings
 
 import vaex.dataframe
 import vaex.dataset
@@ -51,16 +55,11 @@ from .delayed import delayed
 from .groupby import *
 from . import agg
 import vaex.datasets
-# import vaex.plot
-# from vaex.dataframe import DataFrame
-# del ServerRest, DataFrame
 
-import vaex.settings
+
+
+
 import vaex.progress
-import logging
-import pkg_resources
-import os
-from functools import reduce
 
 try:
     from . import version
@@ -71,6 +70,8 @@ except:
 
 vaex = vaex.utils.optional_import("vaex", modules=["vaex.ml"])
 
+logger = root_logging.getLogger('vaex')
+DEBUG_MODE = os.environ.get('VAEX_DEBUG', '')
 __version__ = version.get_versions()
 
 
@@ -257,7 +258,7 @@ def open(path, convert=False, progress=None, shuffle=False, fs_options={}, fs=No
             raise IOError('Unknown error opening: {}'.format(path))
         return df
     except:
-        logging.getLogger("vaex").exception("error opening %r" % path)
+        logger.exception("error opening %r" % path)
         raise
 
 
@@ -596,12 +597,6 @@ def read_csv(filepath_or_buffer, **kwargs):
 
 aliases = vaex.settings.aliases
 
-# py2/p3 compatibility
-try:
-    from urllib.parse import urlparse, parse_qs
-except ImportError:
-    from urlparse import urlparse, parse_qs
-
 
 def connect(url, **kwargs):
     """Connect to hostname supporting the vaex web api.
@@ -624,60 +619,35 @@ def example():
     '''
     return vaex.datasets.helmi_simulation_data()
 
-# create named logger, for all loglevels
-logger = logging.getLogger('vaex')
-logger.setLevel(logging.DEBUG)
 
-# create console handler and accept all loglevels
-ch = logging.StreamHandler()
-ch.setLevel(logging.DEBUG)
 
-# create formatter
-formatter = logging.Formatter('%(levelname)s:%(threadName)s:%(name)s:%(message)s')
-
-# add formatter to console handler
-ch.setFormatter(formatter)
-
-# add console handler to logger
-logger.addHandler(ch)
-
+# there are kept for backwards compatibility
+# TODO: remove in vaex v5?
 
 def set_log_level_debug(loggers=["vaex"]):
     """set log level to debug"""
-    for logger in loggers:
-        logging.getLogger(logger).setLevel(logging.DEBUG)
+    vaex.logging.set_log_level_debug(loggers)
 
 
-def set_log_level_info():
+def set_log_level_info(loggers=["vaex"]):
     """set log level to info"""
-    logging.getLogger("vaex").setLevel(logging.INFO)
+    vaex.logging.set_log_level_info(loggers)
 
 
-def set_log_level_warning():
+def set_log_level_warning(loggers=["vaex"]):
     """set log level to warning"""
-    logging.getLogger("vaex").setLevel(logging.WARNING)
+    vaex.logging.set_log_level_warning(loggers)
 
 
-def set_log_level_exception():
-    """set log level to exception"""
-    logging.getLogger("vaex").setLevel(logging.ERROR)
+def set_log_level_exception(loggers=["vaex"]):
+    """set log level to exception/error"""
+    vaex.logging.set_log_level_error(loggers)
 
 
 def set_log_level_off():
     """Disabled logging"""
-    logging.getLogger('vaex').removeHandler(ch)
-    logging.getLogger('vaex').addHandler(logging.NullHandler())
+    vaex.logging.set_log_level_off()
 
-
-DEBUG_MODE = os.environ.get('VAEX_DEBUG', '')
-if DEBUG_MODE:
-    set_log_level_warning()
-    if DEBUG_MODE.startswith('vaex'):
-        set_log_level_debug(DEBUG_MODE.split(","))
-    else:
-        set_log_level_debug()
-else:
-    set_log_level_warning()
 
 import_script = os.path.expanduser("~/.vaex/vaex_import.py")
 if os.path.exists(import_script):

@@ -124,6 +124,23 @@ class Data(BaseSettings):
         env_prefix = 'vaex_data_'
 
 
+class Logging(BaseSettings):
+    """Configure logging for Vaex. By default Vaex sets up logging, which is useful when running a script. When Vaex is used in applications or services that already configure logging, set the environomental variables VAEX_LOGGING_SETUP to false.
+
+See the [API docs](api.html#module-vaex.logging) for more details.
+
+Note that settings `vaex.settings.main.logging.info` etc at runtime, has no direct effect, since logging is already configured. When needed, call `vaex.logging.reset()` and `vaex.logging.setup()` to reconfigure logging.
+    """
+    setup : bool = Field(True, title='Setup logging for Vaex at import time.')
+    rich : bool = Field(True, title='Use rich logger (colored fancy output).')
+    debug : str = Field('', title="Comma seperated list of loggers to set to the debug level (e.g. 'vaex.settings,vaex.cache'), or a '1' to set the root logger ('vaex')")
+    info : str = Field('', title="Comma seperated list of loggers to set to the info level (e.g. 'vaex.settings,vaex.cache'), or a '1' to set the root logger ('vaex')")
+    warning : str = Field('vaex', title="Comma seperated list of loggers to set to the warning level (e.g. 'vaex.settings,vaex.cache'), or a '1' to set the root logger ('vaex')")
+    error : str = Field('', title="Comma seperated list of loggers to set to the error level (e.g. 'vaex.settings,vaex.cache'), or a '1' to set the root logger ('vaex')")
+    class Config(ConfigDefault):
+        env_prefix = 'vaex_logging_'
+
+
 class Settings(BaseSettings):
     """General settings for vaex"""
     aliases: Optional[dict] = Field(title='Aliases to be used for vaex.open', default_factory=dict)
@@ -146,6 +163,7 @@ class Settings(BaseSettings):
     fs: FileSystem = Field(FileSystem(), env='_VAEX_FS')
     memory_tracker = Field(MemoryTracker(), env='_VAEX_MEMORY_TRACKER')
     task_tracker = Field(TaskTracker(), env='_VAEX_TASK_TRACKER')
+    logging = Field(Logging(), env="_VAEX_LOGGING")
 
     if has_server:
         server: vaex.server.settings.Settings = vaex.server.settings.Settings()
@@ -256,6 +274,7 @@ def _to_md(cls, f=sys.stdout):
             Cache: 'cache',
             FileSystem: 'fs',
             Data: 'data',
+            Logging: 'main.logging',
         }[cls]
         pyvar = f'vaex.setting.{flat}.{pyname}'
         printf(f'Python setting `{pyvar}`')
