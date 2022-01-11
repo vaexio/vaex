@@ -67,6 +67,7 @@ dist
 python/.idea
 test/.idea
 venv
+.venv
 tmp
 python/vaex/version.py # gets generated
 **/*.egg-info/
