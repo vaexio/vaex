@@ -11,15 +11,18 @@ import os
 import platform
 import re
 import sys
+import threading
 import time
+from typing import MutableMapping
 import warnings
 import numbers
 import keyword
+from filelock import FileLock
+import pkg_resources
 
 import dask.utils
 import numpy as np
 import pyarrow as pa
-import progressbar
 import six
 import yaml
 
@@ -48,6 +51,40 @@ class AttrDict(dict):
 
     def __setattr__(self, key, value):
         self[key] = value
+
+
+class RegistryCallable(MutableMapping):
+    '''lazily load entries from entry_points'''
+    def __init__(self, entry_points : str, typename : str):
+        self.entry_points = entry_points
+        self.typename = typename
+        self.registry = {}
+        self.lock = threading.Lock()
+
+    def __getitem__(self, name):
+        if name in self.registry:
+            return self.registry[name]
+        with self.lock:
+            if name in self.registry:
+                return self.registry[name]
+            for entry in pkg_resources.iter_entry_points(group=self.entry_points):
+                self.registry[entry.name] = entry.load()
+
+        if name not in self.registry:
+            raise NameError(f'No {self.typename} registered with name {name!r} under entry_point {self.entry_points!r}')
+        return self.registry[name]
+
+    def __delitem__(self, name):
+        del self.registry[name]
+
+    def __iter__(self):
+        return self.registry.__iter__()
+
+    def __len__(self):
+        return self.registry.__len__()
+
+    def __setitem__(self, name, value):
+        self.registry.__setitem__(name, value)
 
 
 def deprecated(reason):
@@ -86,6 +123,8 @@ def subdivide_mask(mask, parts=None, max_length=None, logical_length=None):
     """
     if logical_length is None:
         logical_length = np.asarray(mask).sum()
+    if logical_length == 0:
+        return
     raw_length = len(np.asarray(mask))
     if max_length is None:
         max_length = (logical_length + parts - 1) / parts
@@ -204,11 +243,26 @@ class Timer(object):
         return False
 
 
+def get_vaex_home():
+    '''Get vaex home directory, defaults to $HOME/.vaex.
+
+    The $VAEX_PATH_HOME environment variable can be set to override this default.
+
+    If both $VAEX_PATH_HOME and $HOME are not define, the current working directory is used.
+    '''
+    if 'VAEX_PATH_HOME' in os.environ:
+        return os.environ['VAEX_PATH_HOME']
+    elif 'HOME' in os.environ:
+        return os.path.join(os.environ['HOME'], ".vaex")
+    else:
+        return os.getcwd()
+
+
 def get_private_dir(subdir=None, *extra):
-    path = os.path.expanduser('~/.vaex')
+    path = get_vaex_home()
     if subdir:
         path = os.path.join(path, subdir, *extra)
-    os.makedirs(path,exist_ok=True)
+    os.makedirs(path, exist_ok=True)
     return path
 
 
@@ -217,206 +271,6 @@ def make_list(sequence):
         return sequence.tolist()
     else:
         return list(sequence)
-
-
-# from progressbar import AnimatedMarker, Bar, BouncingBar, Counter, ETA, \
-# FileTransferSpeed, FormatLabel, Percentage, \
-# ProgressBar, ReverseBar, RotatingMarker, \
-# SimpleProgress, Timer, AdaptiveETA, AbsoluteETA, AdaptiveTransferSpeed
-# from progressbar.widgets import TimeSensitiveWidgetBase, FormatWidgetMixin
-
-
-class CpuUsage(progressbar.widgets.FormatWidgetMixin, progressbar.widgets.TimeSensitiveWidgetBase):
-    def __init__(self, format='CPU Usage: %(cpu_usage)s%%', usage_format="% 5d"):
-        super(CpuUsage, self).__init__(format=format)
-        self.usage_format = usage_format
-        self.utime_0 = None
-        self.stime_0 = None
-        self.walltime_0 = None
-
-    def __call__(self, progress, data):
-        utime, stime, child_utime, child_stime, walltime = os.times()
-        if self.utime_0 is None:
-            self.utime_0 = utime
-        if self.stime_0 is None:
-            self.stime_0 = stime
-        if self.walltime_0 is None:
-            self.walltime_0 = walltime
-        data["utime_0"] = self.utime_0
-        data["stime_0"] = self.stime_0
-        data["walltime_0"] = self.walltime_0
-
-        delta_time = utime - self.utime_0 + stime - self.stime_0
-        delta_walltime = walltime - self.walltime_0
-        # print delta_time, delta_walltime, utime, self.utime_0, stime, self.stime_0
-        if delta_walltime == 0:
-            data["cpu_usage"] = "---"
-        else:
-            cpu_usage = delta_time / (delta_walltime * 1.) * 100
-            data["cpu_usage"] = self.usage_format % cpu_usage
-        # utime0, stime0, child_utime0, child_stime0, walltime0 = os.times()
-        return progressbar_mod.widgets.FormatWidgetMixin.__call__(self, progress, data)
-
-
-progressbar_mod = progressbar
-
-
-def _progressbar_progressbar2(type=None, name="processing", max_value=1):
-    widgets = [
-        name,
-        ': ', progressbar_mod.widgets.Percentage(),
-        ' ', progressbar_mod.widgets.Bar(),
-        ' ', progressbar_mod.widgets.ETA(),
-        # ' ', progressbar_mod.widgets.AdaptiveETA(),
-        ' ', CpuUsage()
-    ]
-    bar = progressbar_mod.ProgressBar(widgets=widgets, max_value=max_value)
-    bar.start()
-    return bar
-    # FormatLabel('Processed: %(value)d lines (in: %(elapsed)s)')
-
-
-def _progressbar_vaex(type=None, title="processing", max_value=1):
-    import vaex.misc.progressbar as pb
-    return pb.ProgressBar(0, 1, title=title)
-
-def _progressbar_widget(type=None, title="processing", max_value=1):
-    import vaex.misc.progressbar as pb
-    return pb.ProgressBarWidget(0, 1, title=title)
-
-def _progressbar_rich(type=None, title="processing", max_value=1):
-    import vaex.misc.progressbar as pb
-    return pb.ProgressBarRich(0, 1, title=title)
-
-
-_progressbar_typemap = {}
-_progressbar_typemap['progressbar2'] = _progressbar_progressbar2
-_progressbar_typemap['vaex'] = _progressbar_vaex
-_progressbar_typemap['widget'] = _progressbar_widget
-_progressbar_typemap['rich'] = _progressbar_rich
-
-
-def progressbar(type_name=None, title="processing", max_value=1):
-    type_name = type_name or _progressbar_type_default
-    return _progressbar_typemap[type_name](title=title)
-
-
-def progressbar_widget():
-    pass
-
-
-class _progressbar(object):
-    pass
-
-
-class _progressbar_wrapper(_progressbar):
-    def __init__(self, bar):
-        self.bar = bar
-
-    def __call__(self, fraction):
-        self.bar.update(fraction)
-        if fraction == 1:
-            self.bar.finish()
-        return True
-
-    def status(self, name):
-        self.bar.bla = name
-
-
-class _progressbar_wrapper_sum(_progressbar):
-    def __init__(self, children=None, next=None, bar=None, parent=None, name=None):
-        self.next = next
-        self.children = children or list()
-        self.finished = False
-        self.last_fraction = None
-        self.fraction = 0
-        self.bar = bar
-        self.parent = parent
-        self.name = name
-        self.cancelled = False
-        self.oncancel = lambda: None
-
-    def cancel(self):
-        self.cancelled = True
-
-    def __repr__(self):
-        name = self.__class__.__module__ + "." + self.__class__.__name__
-        return "<%s(name=%r)> instance at 0x%x" % (name, self.name, id(self))
-
-    def add(self, name=None):
-        pb = _progressbar_wrapper_sum(parent=self, name=name)
-        if self.bar and hasattr(self.bar, 'add_child'):
-            pb.bar = self.bar.add_child(pb, None, name)
-        self.children.append(pb)
-        self.finished = False
-        self.fraction = sum([c.fraction for c in self.children]) / len(self.children)
-        self(self.fraction)
-        return pb
-
-    def add_task(self, task, name=None):
-        pb = self.add(name)
-        pb.oncancel = task.cancel
-        task.signal_progress.connect(pb)
-
-    def __call__(self, fraction):
-        if self.cancelled:
-            return False
-        # ignore fraction
-        result = True
-        if len(self.children) == 0:
-            self.fraction = fraction
-        else:
-            self.fraction = sum([c.fraction for c in self.children]) / len(self.children)
-        fraction = self.fraction
-        if fraction != self.last_fraction:  # avoid too many calls
-            if fraction == 1 and not self.finished:  # make sure we call finish only once
-                self.finished = True
-                if self.bar:
-                    self.bar.finish()
-            elif fraction != 1:
-                if self.bar:
-                    self.bar.update(fraction)
-        if self.next:
-            result = self.next(fraction)
-        if self.parent:
-            assert self in self.parent.children
-            result = self.parent(None) in [None, True] and result  # fraction is not used anyway..
-            if result is False:
-                self.oncancel()
-        self.last_fraction = fraction
-        return result
-
-    def status(self, name):
-        pass
-
-
-def progressbars(f=True, next=None, name=None, title=None):
-    if name is None:
-        name = title
-    if title is None:
-        name = title
-    if isinstance(f, _progressbar_wrapper_sum):
-        if title is None:
-            return f
-        else:
-            return f.add(title)
-    if callable(f):
-        next = f
-        f = False
-    if f in [None, False]:
-        return _progressbar_wrapper_sum(next=next, name=name)
-    else:
-        if f is True:
-            return _progressbar_wrapper_sum(bar=progressbar(title=title), next=next, name=name)
-        elif isinstance(f, six.string_types):
-            return _progressbar_wrapper_sum(bar=progressbar(f, title=title), next=next, name=name)
-        else:
-            return _progressbar_wrapper_sum(next=next, name=name)
-
-
-def progressbar_callable(title="processing", max_value=1):
-    bar = progressbar(title=title, max_value=max_value)
-    return _progressbar_wrapper(bar)
 
 
 def confirm_on_console(topic, msg):
@@ -1087,4 +941,30 @@ def dropnan(sequence, expect=None):
         assert len(sequence) - len(non_nan) == 1, "expected 1 nan value"
     return original_type(non_nan)
 
-_progressbar_type_default = get_env_type(str, 'VAEX_PROGRESS_TYPE', 'vaex')
+
+def dict_replace_key(d, key_old, key_new):
+    '''Replace a key, without changing order'''
+    d_new = {}
+    for key, value in d.items():
+        if key == key_old:
+            key = key_new
+        d_new[key] = value
+    return d_new
+
+# backwards compatibility
+def progressbars(*args, **kwargs):
+    from .progress import tree
+    return tree(*args, **kwargs)
+
+
+import contextlib
+@contextlib.contextmanager
+def file_lock(name):
+    '''Context manager for creating a file lock in the file lock directory.
+
+    :param name: A unique name for the context (e.g. a fingerprint) on which the filename is based.
+    '''
+    path = os.path.join(vaex.settings.main.path_lock, name)
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with FileLock(path):
+        yield

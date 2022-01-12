@@ -2,9 +2,6 @@ import warnings
 import json
 import os
 
-import vaex
-from . import datasets
-from .pipeline import Pipeline
 from vaex.utils import _ensure_strings_from_expressions
 
 
@@ -99,3 +96,4 @@ from .transformations import CycleTransformer
 from .transformations import BayesianTargetEncoder
 from .transformations import WeightOfEvidenceEncoder
 from .transformations import GroupByTransformer, KBinsDiscretizer
+from .pipeline import Pipeline

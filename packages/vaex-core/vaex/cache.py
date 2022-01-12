@@ -34,6 +34,8 @@ A good library to use for in-memory caching is cachetools (https://pypi.org/proj
 Configure using environment variables
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+See `Configuration <conf.html>`_ for more configuration options.
+
 Especially when using the `vaex server <server.html>`_ it can be useful to turn on caching externally using enviroment variables.
 
     $ VAEX_CACHE=disk VAEX_CACHE_DISK_SIZE_LIMIT="10GB" python -m vaex.server
@@ -52,24 +54,23 @@ from typing import ChainMap, MutableMapping
 import logging
 import shutil
 import uuid
+import os
 import pickle
 import threading
 
 
 import dask.base
 import pyarrow as pa
-from filelock import FileLock
 from vaex.promise import Promise
 
 import vaex.utils
+import vaex.settings
+
 diskcache = vaex.utils.optional_import('diskcache')
 _redis = vaex.utils.optional_import('redis')
 cachetools = vaex.utils.optional_import('cachetools')
 
 log = logging.getLogger('vaex.cache')
-_cache_tasks_type = vaex.utils.get_env_type(str, 'VAEX_CACHE', None)  # disk/redis/memory_infinite
-disk_size_limit = vaex.utils.get_env_type(str, 'VAEX_CACHE_DISK_SIZE_LIMIT', '1GB')
-memory_size_limit = vaex.utils.get_env_type(str, 'VAEX_CACHE_MEMORY_SIZE_LIMIT', '1GB')
 
 cache = None
 # used for testing
@@ -169,7 +170,7 @@ def memory_infinite(clear=False):
 
 
 @_with_cleanup
-def memory(maxsize=memory_size_limit, classname="LRUCache", clear=False):
+def memory(maxsize=vaex.settings.cache.memory_size_limit, classname="LRUCache", clear=False):
     """Sets a memory cache using cachetools (https://cachetools.readthedocs.io/).
 
     Calling multiple times with clear=False will keep the current cache (useful in notebook usage).
@@ -196,10 +197,10 @@ def memory(maxsize=memory_size_limit, classname="LRUCache", clear=False):
 
 
 @_with_cleanup
-def disk(clear=False, size_limit=disk_size_limit, eviction_policy="least-recently-stored"):
+def disk(clear=False, size_limit=vaex.settings.cache.disk_size_limit, eviction_policy="least-recently-stored"):
     """Stored cached values using the diskcache library.
 
-    The path to store the cache is: ~/.vaex/cache/diskcache
+    See configuration details at `configuration of cache <conf.html#disk-size-limit>`_. and `configuration of paths <conf.html#cache-compute>`_
 
     :param int or str size_limit: Max size of cache in bytes (or use a string like '128MB')
         See http://www.grantjenks.com/docs/diskcache/tutorial.html?highlight=eviction#tutorial-settings for more details.
@@ -211,7 +212,7 @@ def disk(clear=False, size_limit=disk_size_limit, eviction_policy="least-recentl
     size_limit = parse_bytes(size_limit)
     global cache
     old_cache = cache
-    path = vaex.utils.get_private_dir('cache/diskcache')
+    path = vaex.settings.cache.path
     if clear:
         try:
             log.debug(f"Clearing disk cache: {path}")
@@ -414,33 +415,35 @@ def output_file(callable=None, path_input=None, fs_options_input={}, fs_input=No
                         f.write(f"# this file exists so that we know when not to do the\n# {path_input} → {path_output} conversion\n")
                         vaex.utils.yaml_dump(f, {'fingerprint': fp})
 
-                with FileLock(f"vaex-convert-{fp}.lock"):
+                lockname = os.path.join('convert', f"{fp}.lock")
+                with vaex.utils.file_lock(lockname):
                     if not vaex.file.exists(path_output, fs_options=fs_options_output_, fs=fs_output):
                         log.info('file %s does not exist yet, running conversion %s → %s', path_output_meta, path_input, path_output)
                         value = callable(*args, **kwargs)
                         write_fingerprint()
                         return value
 
-                if not vaex.file.exists(path_output_meta, fs_options=fs_options_output_, fs=fs_output):
-                    log.info('file including fingerprint not found (%) or does not exist yet, running conversion %s → %s', path_output_meta, path_input, path_output)
-                    value = callable(*args, **kwargs)
-                    write_fingerprint()
-                    return value
 
-                # load fingerprint
-                with vaex.file.open(path_output_meta, fs_options=fs_options_output_, fs=fs_output) as f:
-                    output_meta = vaex.utils.yaml_load(f)
+                    if not vaex.file.exists(path_output_meta, fs_options=fs_options_output_, fs=fs_output):
+                        log.info('file including fingerprint not found (%) or does not exist yet, running conversion %s → %s', path_output_meta, path_input, path_output)
+                        value = callable(*args, **kwargs)
+                        write_fingerprint()
+                        return value
 
-                if output_meta is None or output_meta['fingerprint'] != fp:
-                    if output_meta is None:
-                        log.error('fingerprint for %s (%s) was empty', path_input, path_output_meta)
+                    # load fingerprint
+                    with vaex.file.open(path_output_meta, fs_options=fs_options_output_, fs=fs_output) as f:
+                        output_meta = vaex.utils.yaml_load(f)
+
+                    if output_meta is None or output_meta['fingerprint'] != fp:
+                        if output_meta is None:
+                            log.error('fingerprint for %s (%s) was empty', path_input, path_output_meta)
+                        else:
+                            log.info('fingerprint for %s is out of date, rerunning conversion to %s', path_input, path_output)
+                        value = callable(*args, **kwargs)
+                        write_fingerprint()
+                        return value
                     else:
-                        log.info('fingerprint for %s is out of date, rerunning conversion to %s', path_input, path_output)
-                    value = callable(*args, **kwargs)
-                    write_fingerprint()
-                    return value
-                else:
-                    log.info('fingerprint for %s did not change, reusing converted file %s', path_input, path_output)
+                        log.info('fingerprint for %s did not change, reusing converted file %s', path_input, path_output)
             return call
         return wrapper2
     return wrapper1()
@@ -489,5 +492,5 @@ def _memoize(f=None, key_function=None, type='computed', delay=False):
         return wrapper_top()
 
 
-if _cache_tasks_type:
-    on(_cache_tasks_type)
+if vaex.settings.cache.type:
+    on(vaex.settings.cache.type)

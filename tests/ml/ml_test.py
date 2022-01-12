@@ -2,7 +2,6 @@ import pytest
 import numpy as np
 import vaex
 import vaex.ml
-import vaex.ml.datasets
 pytest.importorskip("sklearn")
 from sklearn.decomposition import PCA, IncrementalPCA
 from sklearn.random_projection import GaussianRandomProjection, SparseRandomProjection

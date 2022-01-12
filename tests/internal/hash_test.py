@@ -433,7 +433,7 @@ def test_set_max_unique(buffer_size):
     df = vaex.from_arrays(x=np.arange(1000))
     with buffer_size(df):
         with pytest.raises(vaex.RowLimitException, match='.* >= 2 .*'):
-            df._set('x', unique_limit=2)
+            df._set('x', limit=2)
         # TODO: this does not happen any more if we have a single set/hashmap
         # with pytest.raises(vaex.RowLimitException, match='.*larger than.*'):
         #     df._set('x', unique_limit=len(df)-1)

@@ -1,14 +1,17 @@
 from functools import reduce
 import logging
 import operator
-import numpy as np
-import vaex
 import collections
 import six
 
+import numpy as np
 import pyarrow as pa
+
 from vaex.delayed import delayed_args, delayed_dict, delayed_list
 from vaex.utils import _ensure_list, _ensure_string_from_expression
+import vaex
+import vaex.hash
+
 
 try:
     collections_abc = collections.abc
@@ -175,7 +178,7 @@ class Grouper(BinnerBase):
         self.progressbar = vaex.utils.progressbars(progress, title=f"grouper: {repr(self.label)}" )
         dtype = self.expression.dtype
         if materialize_experimental:
-            set, values = df_original._set(self.expression, unique_limit=row_limit, return_inverse=True)
+            set, values = df_original._set(self.expression, limit=row_limit, return_inverse=True)
             # TODO: add column should have a unique argument
             self.df.add_column(f'__materialized_{self.label}', values)
 
@@ -189,63 +192,44 @@ class Grouper(BinnerBase):
             self.sort_indices = None
         else:
             @vaex.delayed
-            def process(set):
-                self.bin_values = set.key_array()
+            def process(hashmap_unique):
+                self.bin_values = hashmap_unique.keys()
 
-                if isinstance(self.bin_values, vaex.superstrings.StringList64):
-                    # TODO: find out why this more efficient path does not work
-                    # col = vaex.column.ColumnStringArrow.from_string_sequence(self.bin_values)
-                    # self.bin_values = pa.array(col)
-                    self.bin_values = pa.array(self.bin_values.to_numpy())
                 if vaex.dtype_of(self.bin_values) == int:
                     max_value = self.bin_values.max()
                     self.bin_values = self.bin_values.astype(vaex.utils.required_dtype_for_max(max_value))
                 logger.debug('Constructed grouper for expression %s with %i values', str(expression), len(self.bin_values))
 
-                if set.has_null and (dtype.is_primitive or dtype.is_datetime):
-                    mask = np.zeros(shape=self.bin_values.shape, dtype="?")
-                    mask[set.null_value] = 1
-                    self.bin_values = np.ma.array(self.bin_values, mask=mask)
                 if self.sort:
-                    self.bin_values = vaex.array_types.to_arrow(self.bin_values)
-                    indices = pa.compute.sort_indices(self.bin_values)#[offset:])
                     if pre_sort:
-                        self.bin_values = pa.compute.take(self.bin_values, indices)
-                        # arrow sorts with null last
-                        null_value = -1 if not set.has_null else len(self.bin_values)-1
-                        fingerprint = set.fingerprint + "-sorted"
-                        if dtype.is_string:
-                            bin_values = vaex.column.ColumnStringArrow.from_arrow(self.bin_values)
-                            string_sequence = bin_values.string_sequence
-                            set = type(set)(string_sequence, null_value, set.nan_count, set.null_count, fingerprint)
-                        else:
-                            set = type(set)(self.bin_values, null_value, set.nan_count, set.null_count, fingerprint)
+                        hashmap_unique, self.bin_values = hashmap_unique.sorted(keys=self.bin_values, return_keys=True)
                         self.sort_indices = None
                     else:
+                        indices = pa.compute.sort_indices(self.bin_values)
                         self.sort_indices = vaex.array_types.to_numpy(indices)
                         # the bin_values will still be pre sorted, maybe that is confusing (implementation detail)
                         self.bin_values = pa.compute.take(self.bin_values, self.sort_indices)
                 else:
                     self.sort_indices = None
-                self.set = set
+                self.hashmap_unique = hashmap_unique
 
-                self.basename = 'set_%s' % vaex.utils._python_save_name(str(self.expression) + "_" + set.fingerprint)
+                self.basename = 'hashmap_unique_%s' % vaex.utils._python_save_name(str(self.expression) + "_" + hashmap_unique.fingerprint)
 
                 self.N = len(self.bin_values)
                 # for datetimes, we converted to int
                 if dtype.is_datetime:
                     self.bin_values = dtype.create_array(self.bin_values)
-            self._promise = process(df_original._set(self.expression, unique_limit=row_limit, delay=True, progress=self.progressbar))
+            self._promise = process(df_original._hash_map_unique(self.expression, limit=row_limit, delay=True, progress=self.progressbar))
 
     def _create_binner(self, df):
         # TODO: we modify the dataframe in place, this is not nice
         assert df.dataset == self.df.dataset, "you passed a dataframe with a different dataset to the grouper/binned"
         self.df = df
         if self.basename not in self.df.variables:
-            self.setname = df.add_variable(self.basename, self.set, unique=True)
+            self.hash_map_unique_name = df.add_variable(self.basename, self.hashmap_unique, unique=True)
         else:
-            self.setname = self.basename
-        self.binby_expression = '_ordinal_values(%s, %s)' % (self.expression, self.setname)
+            self.hash_map_unique_name = self.basename
+        self.binby_expression = '_ordinal_values(%s, %s)' % (self.expression, self.hash_map_unique_name)
         self.binner = self.df._binner_ordinal(self.binby_expression, self.N)
 
 class GrouperCombined(Grouper):
@@ -325,22 +309,19 @@ class GrouperCategory(BinnerBase):
         self.min_value = self.df.category_offset(self.expression_original)
         self.bin_values = self.df.category_labels(self.expression_original, aslist=False)
         self.N = self.df.category_count(self.expression_original)
-        dtype = self.expression.dtype
+        dtype = self.expression.dtype  # should be the dtype of the 'codes'
         if self.sort:
             # not pre-sorting is faster
             sort_indices = pa.compute.sort_indices(self.bin_values)
             self.bin_values = pa.compute.take(self.bin_values, sort_indices)
             if self.pre_sort:
+                # we will map from int to int
                 sort_indices = vaex.array_types.to_numpy(sort_indices)
-                # TODO: this is kind of like expression.map
-                from .hash import ordered_set_type_from_dtype
-
-                ordered_set_type = ordered_set_type_from_dtype(dtype)
                 fingerprint = self.expression.fingerprint() + "-grouper-sort-mapper"
-                self.set = ordered_set_type(sort_indices + self.min_value, -1, 0, 0, fingerprint)
+                self.hash_map_unique = vaex.hash.HashMapUnique.from_keys(sort_indices + self.min_value, fingerprint=fingerprint)
                 self.min_value = 0
                 self.sort_indices = None
-                self.basename = "set_%s" % vaex.utils._python_save_name(str(self.expression) + "_" + self.set.fingerprint)
+                self.basename = "hash_map_unique_%s" % vaex.utils._python_save_name(str(self.expression) + "_" + self.hash_map_unique.fingerprint)
             else:
                 self.sort_indices = sort_indices
         else:
@@ -362,10 +343,10 @@ class GrouperCategory(BinnerBase):
         self.df = df
         if self.sort and self.pre_sort:
             if self.basename not in self.df.variables:
-                self.setname = df.add_variable(self.basename, self.set, unique=True)
+                self.var_name = df.add_variable(self.basename, self.hash_map_unique, unique=True)
             else:
-                self.setname = self.basename
-            self.binby_expression = "_ordinal_values(%s, %s)" % (self.expression, self.setname)
+                self.var_name = self.basename
+            self.binby_expression = "_ordinal_values(%s, %s)" % (self.expression, self.var_name)
             self.binner = self.df._binner_ordinal(self.binby_expression, self.N, 0)
         else:
             self.binby_expression = str(self.expression)
@@ -398,30 +379,11 @@ class GrouperLimited(BinnerBase):
             self.bin_values = pa.array(vaex.array_types.tolist(values))
             self.values = self.bin_values
         self.N = len(self.bin_values)
-        dtype = vaex.dtype_of(self.values)
-        set_type = vaex.hash.ordered_set_type_from_dtype(dtype)
-        values_list = self.values.tolist()
-        try:
-            null_value = values_list.index(None)
-            null_count = 1
-        except ValueError:
-            null_value = -1
-            null_count = 0
-        if vaex.dtype_of(self.values) == float:
-            nancount = np.isnan(self.values).sum()
-        else:
-            nancount = 0
-
         fp = vaex.cache.fingerprint(values)
         fingerprint = f"set-grouper-fixed-{fp}"
-        if dtype.is_string:
-            values = vaex.column.ColumnStringArrow.from_arrow(self.values)
-            string_sequence = values.string_sequence
-            self.set = set_type(string_sequence, null_value, nancount, null_count, fingerprint)
-        else:
-            self.set = set_type(self.values, null_value, nancount, null_count, fingerprint)
+        self.hash_map_unique = vaex.hash.HashMapUnique.from_keys(self.values, fingerprint=fingerprint)
 
-        self.basename = "set_%s" % vaex.utils._python_save_name(str(self.expression) + "_" + self.set.fingerprint)
+        self.basename = "hash_map_unique_%s" % vaex.utils._python_save_name(str(self.expression) + "_" + self.hash_map_unique.fingerprint)
         self.binby_expression = expression
         self.sort_indices = None
         self._promise = vaex.promise.Promise.fulfilled(None)
@@ -430,11 +392,11 @@ class GrouperLimited(BinnerBase):
         assert df.dataset == self.df.dataset, "you passed a dataframe with a different dataset to the grouper/binned"
         self.df = df
         if self.basename not in self.df.variables:
-            self.setname = df.add_variable(self.basename, self.set, unique=True)
+            self.var_name = df.add_variable(self.basename, self.hash_map_unique, unique=True)
         else:
-            self.setname = self.basename
+            self.var_name = self.basename
         # modulo N will map -1 (value not found) to N-1
-        self.binby_expression = "_ordinal_values(%s, %s) %% %s" % (self.expression, self.setname, self.N)
+        self.binby_expression = "_ordinal_values(%s, %s) %% %s" % (self.expression, self.var_name, self.N)
         self.binner = self.df._binner_ordinal(self.binby_expression, self.N)
 
 def _combine(df, groupers, sort, row_limit=None, progress=None):
@@ -500,9 +462,8 @@ class GroupByBase(object):
         self.df = df
         self.sort = sort
         self.expand = expand  # keep as pyarrow struct?
-        self.progressbar = vaex.utils.progressbars(progress, title="groupby/binby")
+        self.progressbar = vaex.utils.progressbars(progress)
         self.progressbar_groupers = self.progressbar.add("groupers")
-        self.progressbar_agg = self.progressbar.add("aggregation")
 
         if not isinstance(by, collections_abc.Iterable)\
             or isinstance(by, six.string_types):
@@ -558,18 +519,16 @@ class GroupByBase(object):
                 self.binners = tuple(by.binner for by in self.by)
                 self.shape = [by.N for by in self.by]
                 self.dims = self.groupby_expression[:]
+                self.progressbar_groupers(1)
             return process(promise)
 
-        self._promise_by = possible_combine(*[by._promise for by in self.by])
+        self._promise_by = self.progressbar_groupers.exit_on(possible_combine(*[by._promise for by in self.by]))
 
     @property
     def _coords1d(self):
         return [k.bin_values for k in self.by]
 
-    def _agg(self, actions):
-        return self._promise_by.then(lambda x: self._agg_impl(actions))
-
-    def _agg_impl(self, actions):
+    def _agg(self, actions, progressbar_agg):
         df = self.df
         if isinstance(actions, collections_abc.Mapping):
             actions = list(actions.items())
@@ -585,7 +544,7 @@ class GroupByBase(object):
             if column_name is None or override_name is not None:
                 column_name = aggregate.pretty_name(override_name, df)
             aggregate.edges = True  # is this ok to override?
-            values = df._agg(aggregate, self.binners, delay=_USE_DELAY, progress=self.progressbar_agg)
+            values = df._agg(aggregate, self.binners, delay=_USE_DELAY, progress=progressbar_agg)
             grids[column_name] = values
             if isinstance(aggregate, vaex.agg.AggregatorDescriptorBasic)\
                 and aggregate.name == 'AggCount'\
@@ -639,8 +598,8 @@ class GroupByBase(object):
         Example:
 
         >>> import vaex
-        >>> import vaex.ml
-        >>> df = vaex.ml.datasets.load_titanic()
+        >>> import vaex.datasets
+        >>> df = vaex.datasets.titanic()
         >>> g1 = df.groupby(by='pclass')
         >>> df_group1 = g1.get_group(1)
         >>> df_group1.head(3)
@@ -650,7 +609,7 @@ class GroupByBase(object):
           2  Allison, Miss. Helen Loraine           1  female   2       151.55
 
 
-        >>> df = vaex.ml.datasets.load_titanic()
+        >>> df = vaex.datasets.titanic()
         >>> g2 = df.groupby(by=['pclass', 'sex'])
         >>> df_group2 = g2.get_group([1, 'female'])
         >>> df_group2.head(3)
@@ -701,15 +660,12 @@ class GroupByBase(object):
 
 class BinBy(GroupByBase):
     """Implementation of the binning and aggregation of data, see :method:`binby`."""
-    def __init__(self, df, by, sort=False):
-        super(BinBy, self).__init__(df, by, sort=sort)
+    def __init__(self, df, by, sort=False, progress=None, copy=True):
+        super(BinBy, self).__init__(df, by, sort=sort, progress=progress, copy=copy)
 
-    def agg(self, actions, merge=False, delay=False):
+    def agg(self, actions, merge=False, delay=False, progress=None):
+        progressbar_agg = vaex.progress.tree(progress)
         import xarray as xr
-        @vaex.delayed
-        def aggregate(promise_by):
-            arrays = super(BinBy, self)._agg(actions)
-            return delayed_dict(arrays)
 
         @vaex.delayed
         def process(arrays):
@@ -735,7 +691,8 @@ class BinBy(GroupByBase):
                 dims = ['statistic'] + self.dims
                 return xr.DataArray(final_array, coords=coords, dims=dims)
 
-        result = process(aggregate(self._promise_by))
+        result = process(self._agg(actions, progressbar_agg))
+        progressbar_agg.exit_on(result)
         if delay:
             return result
         else:
@@ -747,12 +704,13 @@ class GroupBy(GroupByBase):
     def __init__(self, df, by, sort=False, combine=False, expand=True, row_limit=None, copy=True, progress=None):
         super(GroupBy, self).__init__(df, by, sort=sort, combine=combine, expand=expand, row_limit=row_limit, copy=copy, progress=progress)
 
-    def agg(self, actions, delay=False):
+    def agg(self, actions, delay=False, progress=None):
+        progressbar = vaex.progress.tree(progress, title="aggregators")
         # TODO: this basically forms a cartesian product, we can do better, use a
         # 'multistage' hashmap
         @vaex.delayed
         def aggregate(promise_by):
-            arrays = super(GroupBy, self)._agg(actions)
+            arrays = super(GroupBy, self)._agg(actions, progressbar)
             # we don't want non-existing pairs (e.g. Amsterdam in France does not exist)
             # but also, e.g. GrouperInteger will always expect missing values
             # but they may not aways exist
@@ -761,7 +719,7 @@ class GroupBy(GroupByBase):
             if counts is None:
                 # TODO: it seems this path is never tested
                 count_agg = vaex.agg.count(edges=True)
-                counts = self.df._agg(count_agg, self.binners, delay=_USE_DELAY, progress=self.progressbar_agg)
+                counts = self.df._agg(count_agg, self.binners, delay=_USE_DELAY, progress=progressbar)
             arrays = delayed_dict(arrays)
             return counts, arrays
 
@@ -814,6 +772,7 @@ class GroupBy(GroupByBase):
             df_grouped = vaex.from_dataset(dataset)
             return df_grouped
         result = process(delayed_list(aggregate(self._promise_by)))
+        progressbar.exit_on(result)
         if delay:
             return result
         else:

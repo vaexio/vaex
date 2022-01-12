@@ -9,7 +9,6 @@ import mmap
 
 import numpy as np
 from pyarrow.fs import FileSystemHandler
-from filelock import FileLock
 
 
 import vaex.utils
@@ -113,12 +112,11 @@ class MMappedFile:
     def __init__(self, path, length, dtype=np.uint8):
         self.path = path
         self.length = length
-        with FileLock(f'{path}.lock'):
-            if not os.path.exists(path):
-                with open(self.path, 'wb') as fp:
-                    fp.seek(self.length-1)
-                    fp.write(b'\00')
-                    fp.flush()
+        if not os.path.exists(path):
+            with open(self.path, 'wb') as fp:
+                fp.seek(self.length-1)
+                fp.write(b'\00')
+                fp.flush()
 
         self.fp = open(self.path, 'rb+')
         kwargs = {}
@@ -150,12 +148,14 @@ class CachedFile:
     def __init__(self, file, path=None, cache_dir=None, block_size=DEFAULT_BLOCK_SIZE, data_file=None, mask_file=None, read_as_buffer=True):
         """Decorator that wraps a file object (typically a s3) by caching the content locally on disk.
 
-        The standard location for the cache is: ~/.vaex/file-cache/<protocol (e.g. s3)>/path/to/file.ext
+        The standard location for the cache is: `${VAEX_FS_PATH}/<protocol (e.g. s3)>/path/to/file.ext`
+
+        See `Configuration of paths<conf.html#cache-fs>`_ how to change this.
 
         Arguments:
         :file file or callable: if callable, invoking it should give a file like object
         :path str: path of file, defaults of file.name
-        :cache_dir str: path of cache dir, defaults to ~/.vaex/file-cache
+        :cache_dir str: path of cache dir, defaults to `${VAEX_FS_PATH}`
         """
         self.name = path
         self.path = path
@@ -171,12 +171,11 @@ class CachedFile:
         if data_file is None or mask_file is None:
             o = urlparse(path)
             if cache_dir is None:
-                self.cache_dir_path = vaex.utils.get_private_dir('file-cache', o.scheme, o.netloc, o.path[1:])
-            else:
-                # this path is used for testing
-                self.cache_dir_path = os.path.join(cache_dir, 'file-cache', o.scheme, o.netloc, o.path[1:])
-                if not os.path.exists(self.cache_dir_path):
-                    os.makedirs(self.cache_dir_path)
+                cache_dir = vaex.settings.fs.path
+            self.cache_dir_path = os.path.join(cache_dir, o.scheme, o.netloc, o.path[1:])
+            self.cache_dir_path = os.path.join(cache_dir, o.scheme, o.netloc, o.path[1:])
+            lockname = os.path.join('file-cache', o.scheme, o.netloc, o.path[1:], 'create.lock')
+            os.makedirs(self.cache_dir_path, exist_ok=True)
             self.data_path = os.path.join(self.cache_dir_path, 'data')
             self.mask_path = os.path.join(self.cache_dir_path, 'mask')
             # if possible, we avoid using the file
@@ -191,8 +190,9 @@ class CachedFile:
             self.mask_length = _to_block_ceil(self.length, self.block_size)
 
             logging.debug('cache path: %s', self.cache_dir_path)
-            self.data_file = MMappedFile(self.data_path, self.length)
-            self.mask_file = MMappedFile(self.mask_path, self.mask_length)
+            with vaex.utils.file_lock(lockname):
+                self.data_file = MMappedFile(self.data_path, self.length)
+                self.mask_file = MMappedFile(self.mask_path, self.mask_length)
         else:
             self.data_file = data_file
             self.mask_file = mask_file

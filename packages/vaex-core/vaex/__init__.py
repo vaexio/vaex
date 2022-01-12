@@ -32,11 +32,16 @@ A few strong features of vaex are:
 Follow the tutorial at https://docs.vaex.io/en/latest/tutorial.html to learn how to use vaex.
 
 """  # -*- coding: utf-8 -*-
-from __future__ import print_function
-import glob
-import re
-from numpy.lib.function_base import copy
-import six
+import logging as root_logging
+import os
+import pkg_resources
+from typing import Dict, List
+from urllib.parse import urlparse, parse_qs
+
+# first configure logging, which also imports vaex.settings
+import vaex.logging
+# import this to be explicit
+import vaex.settings
 
 import vaex.dataframe
 import vaex.dataset
@@ -50,15 +55,11 @@ from .delayed import delayed
 from .groupby import *
 from . import agg
 import vaex.datasets
-# import vaex.plot
-# from vaex.dataframe import DataFrame
-# del ServerRest, DataFrame
 
-import vaex.settings
-import logging
-import pkg_resources
-import os
-from functools import reduce
+
+
+
+import vaex.progress
 
 try:
     from . import version
@@ -67,6 +68,10 @@ except:
     print("version file not found, please run git/hooks/post-commit or git/hooks/post-checkout and/or install them as hooks (see git/README)", file=sys.stderr)
     raise
 
+vaex = vaex.utils.optional_import("vaex", modules=["vaex.ml"])
+
+logger = root_logging.getLogger('vaex')
+DEBUG_MODE = os.environ.get('VAEX_DEBUG', '')
 __version__ = version.get_versions()
 
 
@@ -253,7 +258,7 @@ def open(path, convert=False, progress=None, shuffle=False, fs_options={}, fs=No
             raise IOError('Unknown error opening: {}'.format(path))
         return df
     except:
-        logging.getLogger("vaex").exception("error opening %r" % path)
+        logger.exception("error opening %r" % path)
         raise
 
 
@@ -331,7 +336,7 @@ def from_items(*items):
     return from_dict(dict(items))
 
 
-def from_arrays(**arrays):
+def from_arrays(**arrays) -> vaex.dataframe.DataFrameLocal:
     """Create an in memory DataFrame from numpy arrays.
 
     Example
@@ -504,6 +509,30 @@ def from_json(path_or_buffer, orient=None, precise_float=False, lines=False, cop
 
 
 @docsubst
+def from_records(records : List[Dict], array_type="arrow", defaults={}) -> vaex.dataframe.DataFrame:
+    '''Create a dataframe from a list of dict.
+
+    .. warning:: This is for convenience only, for performance pass arrays to :func:`from_arrays` for instance.
+
+    :param str array_type: {array_type}
+    :param dict defaults: default values if a record has a missing entry
+    '''
+    arrays = dict()
+    for i, record in enumerate(records):
+        for name, value in record.items():
+            if name not in arrays:
+                # prepend None's
+                arrays[name] = [defaults.get(name)] * i
+            arrays[name].append(value)
+        for name in arrays:
+            if name not in record:
+                # missing values get replaced
+                arrays[name].append(defaults.get(name))
+    arrays = {k: vaex.array_types.convert(v, array_type) for k, v in arrays.items()}
+    return vaex.from_dict(arrays)
+
+
+@docsubst
 def from_csv(filename_or_buffer, copy_index=False, chunk_size=None, convert=False, fs_options={}, fs=None, progress=None, **kwargs):
     """
     Read a CSV file as a DataFrame, and optionally convert to an hdf5 file.
@@ -568,12 +597,6 @@ def read_csv(filepath_or_buffer, **kwargs):
 
 aliases = vaex.settings.aliases
 
-# py2/p3 compatibility
-try:
-    from urllib.parse import urlparse, parse_qs
-except ImportError:
-    from urlparse import urlparse, parse_qs
-
 
 def connect(url, **kwargs):
     """Connect to hostname supporting the vaex web api.
@@ -585,76 +608,46 @@ def connect(url, **kwargs):
     from vaex.server import connect
     return connect(url, **kwargs)
 
-
 def example():
-    """Returns an example DataFrame which comes with vaex for testing/learning purposes.
+    '''Result of an N-body simulation of the accretion of 33 satellite galaxies into a Milky Way dark matter halo.
+
+    Data was greated by Helmi & de Zeeuw 2000.
+    The data contains the position (x, y, z), velocitie (vx, vy, vz), the energy (E),
+    the angular momentum (L, Lz) and iron content (FeH) of the particles.
 
     :rtype: DataFrame
-    """
-    return vaex.datasets.helmi_de_zeeuw_10percent.fetch()
+    '''
+    return vaex.datasets.helmi_simulation_data()
 
 
-def zeldovich(dim=2, N=256, n=-2.5, t=None, scale=1, seed=None):
-    """Creates a zeldovich DataFrame.
-    """
-    import vaex.file
-    return vaex.file.other.Zeldovich(dim=dim, N=N, n=n, t=t, scale=scale)
 
-
-# create named logger, for all loglevels
-logger = logging.getLogger('vaex')
-logger.setLevel(logging.DEBUG)
-
-# create console handler and accept all loglevels
-ch = logging.StreamHandler()
-ch.setLevel(logging.DEBUG)
-
-# create formatter
-formatter = logging.Formatter('%(levelname)s:%(threadName)s:%(name)s:%(message)s')
-
-# add formatter to console handler
-ch.setFormatter(formatter)
-
-# add console handler to logger
-logger.addHandler(ch)
-
+# there are kept for backwards compatibility
+# TODO: remove in vaex v5?
 
 def set_log_level_debug(loggers=["vaex"]):
     """set log level to debug"""
-    for logger in loggers:
-        logging.getLogger(logger).setLevel(logging.DEBUG)
+    vaex.logging.set_log_level_debug(loggers)
 
 
-def set_log_level_info():
+def set_log_level_info(loggers=["vaex"]):
     """set log level to info"""
-    logging.getLogger("vaex").setLevel(logging.INFO)
+    vaex.logging.set_log_level_info(loggers)
 
 
-def set_log_level_warning():
+def set_log_level_warning(loggers=["vaex"]):
     """set log level to warning"""
-    logging.getLogger("vaex").setLevel(logging.WARNING)
+    vaex.logging.set_log_level_warning(loggers)
 
 
-def set_log_level_exception():
-    """set log level to exception"""
-    logging.getLogger("vaex").setLevel(logging.ERROR)
+def set_log_level_exception(loggers=["vaex"]):
+    """set log level to exception/error"""
+    vaex.logging.set_log_level_error(loggers)
 
 
 def set_log_level_off():
     """Disabled logging"""
-    logging.getLogger('vaex').removeHandler(ch)
-    logging.getLogger('vaex').addHandler(logging.NullHandler())
+    vaex.logging.set_log_level_off()
 
-
-DEBUG_MODE = os.environ.get('VAEX_DEBUG', '')
-if DEBUG_MODE:
-    set_log_level_warning()
-    if DEBUG_MODE.startswith('vaex'):
-        set_log_level_debug(DEBUG_MODE.split(","))
-    else:
-        set_log_level_debug()
-else:
-    set_log_level_warning()
 
 import_script = os.path.expanduser("~/.vaex/vaex_import.py")
 if os.path.exists(import_script):
@@ -810,7 +803,7 @@ def dtype(type):
     '''Creates a Vaex DataType based on a NumPy or Arrow type'''
     return vaex.datatype.DataType(type)
 
-def dtype_of(ar):
+def dtype_of(ar) -> vaex.datatype.DataType:
     '''Creates a Vaex DataType from a NumPy or Arrow array'''
     if isinstance(ar, vaex.dataset.Column):
         return dtype(ar.dtype)

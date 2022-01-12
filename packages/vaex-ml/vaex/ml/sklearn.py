@@ -33,7 +33,7 @@ class Predictor(state.HasState):
     >>> import vaex.ml
     >>> from vaex.ml.sklearn import Predictor
     >>> from sklearn.linear_model import LinearRegression
-    >>> df = vaex.ml.datasets.load_iris()
+    >>> df = vaex.datasets.iris()
     >>> features = ['sepal_width', 'petal_length', 'sepal_length']
     >>> df_train, df_test = df.ml.train_test_split()
     >>> model = Predictor(model=LinearRegression(), features=features, target='petal_width', prediction_name='pred')

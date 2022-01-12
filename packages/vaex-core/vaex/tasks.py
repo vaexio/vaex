@@ -9,6 +9,7 @@ import pkg_resources
 import numpy as np
 
 import vaex.promise
+import vaex.settings
 import vaex.encoding
 from .utils import _expand_shape
 from .datatype import DataType
@@ -19,7 +20,6 @@ register = vaex.encoding.make_class_registery('task')
 
 _lock = threading.Lock()
 _task_checker_types = {}
-task_checkers_type = os.environ.get("VAEX_TASK_CHECKER", "")
 
 
 class Checker:
@@ -39,6 +39,7 @@ def create_checkers():
                 for entry in pkg_resources.iter_entry_points(group="vaex.task.checker"):
                     _task_checker_types[entry.name] = entry.load()
     names = list(_task_checker_types.keys())
+    task_checkers_type = vaex.settings.main.task_tracker.type
     types = [k for k in task_checkers_type.split(",") if k]
     checkers = []
     for type in types:
@@ -75,10 +76,12 @@ class Task(vaex.promise.Promise):
         self.df = df
         self.expressions = expressions
         self.expressions_all = list(expressions)
+        self.signal_start = vaex.events.Signal("start of task")
         self.signal_progress = vaex.events.Signal("progress (float)")
         self.progress_fraction = 0
         self.signal_progress.connect(self._set_progress)
         self.cancelled = False
+        self.stopped = False  # a task can stop early, but without error
         self.name = name
         self.pre_filter = pre_filter
         self.result = None
@@ -170,16 +173,17 @@ class TaskFilterFill(Task):
         return cls(df)
 
 @register
-class TaskSetCreate(Task):
+class TaskHashmapUniqueCreate(Task):
     see_all = True
     requires_fingerprint = True
-    snake_name = "set_create"
-    def __init__(self, df, expression, flatten, unique_limit=None, selection=None, return_inverse=False):
+    snake_name = "hash_map_unique_create"
+    def __init__(self, df, expression, flatten, limit=None, limit_raise=True, selection=None, return_inverse=False):
         super().__init__(df=df, expressions=[expression], pre_filter=df.filtered, name=self.snake_name)
         self.flatten = flatten
         self.dtype = self.df.data_type(expression)
         self.dtype_item = self.df.data_type(expression, axis=-1 if flatten else 0)
-        self.unique_limit = unique_limit
+        self.limit = limit
+        self.limit_raise = limit_raise
         self.selection = selection
         self.selections = [self.selection]
         self.return_inverse = return_inverse
@@ -192,7 +196,8 @@ class TaskSetCreate(Task):
 
     def encode(self, encoding):
         return {'expression': self.expressions[0], 'dtype': encoding.encode('dtype', self.dtype),
-                'dtype_item': encoding.encode('dtype', self.dtype_item), 'flatten': self.flatten, 'unique_limit': self.unique_limit,
+                'dtype_item': encoding.encode('dtype', self.dtype_item), 'flatten': self.flatten,
+                'limit': self.limit, 'limit_raise': self.limit_raise,
                 'selection': self.selection, 'return_inverse': self.return_inverse}
 
     @classmethod

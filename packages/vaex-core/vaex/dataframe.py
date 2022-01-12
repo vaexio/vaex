@@ -27,6 +27,7 @@ from vaex.utils import Timer
 import vaex.events
 # import vaex.ui.undo
 import vaex.grids
+import vaex.hash
 import vaex.multithreading
 import vaex.promise
 import vaex.execution
@@ -486,15 +487,18 @@ class DataFrame(object):
             pass
         return self.map_reduce(map, reduce, expressions, delay=delay, progress=progress, name='nop', to_numpy=False)
 
-    def _set(self, expression, progress=False, selection=None, flatten=True, delay=False, unique_limit=None, return_inverse=False):
+    def _hash_map_unique(self, expression, progress=False, selection=None, flatten=True, delay=False, limit=None, limit_raise=True, return_inverse=False):
         if selection is not None:
             selection = str(selection)
         expression = _ensure_string_from_expression(expression)
-        task = vaex.tasks.TaskSetCreate(self, expression, flatten, unique_limit=unique_limit, selection=selection, return_inverse=return_inverse)
+        task = vaex.tasks.TaskHashmapUniqueCreate(self, expression, flatten, limit=limit, selection=selection, return_inverse=return_inverse, limit_raise=limit_raise)
         task = self.executor.schedule(task)
         progressbar = vaex.utils.progressbars(progress)
         progressbar.add_task(task, f"set for {str(expression)}")
         return self._delay(delay, task)
+
+    # kept for compatibility
+    _set = _hash_map_unique
 
     def _index(self, expression, progress=False, delay=False, prime_growth=False, cardinality=None):
         column = _ensure_string_from_expression(expression)
@@ -557,13 +561,15 @@ class DataFrame(object):
         return index0
 
     @docsubst
-    def unique(self, expression, return_inverse=False, dropna=False, dropnan=False, dropmissing=False, progress=False, selection=None, axis=None, delay=False, array_type='python'):
+    def unique(self, expression, return_inverse=False, dropna=False, dropnan=False, dropmissing=False, progress=False, selection=None, axis=None, delay=False, limit=None, limit_raise=True, array_type='python'):
         """Returns all unique values.
 
         :param dropmissing: do not count missing values
         :param dropnan: do not count nan values
         :param dropna: short for any of the above, (see :func:`Expression.isna`)
         :param int axis: Axis over which to determine the unique elements (None will flatten arrays or lists)
+        :param int limit: {limit}
+        :param bool limit_raise: {limit_raise}
         :param progress: {progress}
         :param str array_type: {array_type}
         """
@@ -588,7 +594,7 @@ class DataFrame(object):
                 return self._delay(delay, vaex.promise.Promise.fulfilled(keys))
         else:
             @delayed
-            def process(ordered_set):
+            def process(hash_map_unique):
                 transient = True
                 data_type_item = self.data_type(expression, axis=-1)
                 if return_inverse:
@@ -604,22 +610,22 @@ class DataFrame(object):
                             if not transient:
                                 assert ar is previous_ar.string_sequence
                         # TODO: what about masked values?
-                        inverse[i1:i2] = ordered_set.map_ordinal(ar)
+                        inverse[i1:i2] = hash_map_unique.map(ar)
                     def reduce(a, b):
                         pass
                     self.map_reduce(map, reduce, [expression], delay=delay, name='unique_return_inverse', progress=progress_inverse, info=True, to_numpy=False, selection=selection)
                 # ordered_set.seal()
                 # if array_type == 'python':
                 if data_type_item.is_object:
-                    key_values = ordered_set.extract()
+                    key_values = hash_map_unique._internal.extract()
                     keys = list(key_values.keys())
                     counts = list(key_values.values())
-                    if ordered_set.has_nan and not dropnan:
+                    if hash_map_unique.has_nan and not dropnan:
                         keys = [np.nan] + keys
-                        counts = [ordered_set.nan_count] + counts
-                    if ordered_set.has_null and not dropmissing:
+                        counts = [hash_map_unique.nan_count] + counts
+                    if hash_map_unique.has_null and not dropmissing:
                         keys = [None] + keys
-                        counts = [ordered_set.null_count] + counts
+                        counts = [hash_map_unique.null_count] + counts
                     if dropmissing and None in keys:
                         # we still can have a None in the values
                         index = keys.index(None)
@@ -628,32 +634,36 @@ class DataFrame(object):
                     counts = np.array(counts)
                     keys = np.array(keys)
                 else:
-                    keys = ordered_set.key_array()
+                    keys = hash_map_unique.keys()
+                    # TODO: we might want to put the dropmissing in .keys(..)
                     deletes = []
-                    if dropmissing and ordered_set.has_null:
-                        deletes.append(ordered_set.null_value)
-                    if dropnan and ordered_set.has_nan:
-                        deletes.append(ordered_set.nan_value)
+                    if dropmissing and hash_map_unique.has_null:
+                        deletes.append(hash_map_unique.null_value)
+                    if dropnan and hash_map_unique.has_nan:
+                        deletes.append(hash_map_unique.nan_value)
                     if isinstance(keys, (vaex.strings.StringList32, vaex.strings.StringList64)):
                         keys = vaex.strings.to_arrow(keys)
                         indices = np.delete(np.arange(len(keys)), deletes)
                         keys = keys.take(indices)
                     else:
                         keys = np.delete(keys, deletes)
-                        if not dropmissing and ordered_set.has_null:
+                        if not dropmissing and hash_map_unique.has_null:
                             mask = np.zeros(len(keys), dtype=np.uint8)
-                            mask[ordered_set.null_value] = 1
+                            mask[hash_map_unique.null_value] = 1
                             keys = np.ma.array(keys, mask=mask)
+                        if data_type_item == str and isinstance(keys, np.ndarray):
+                            # the np.delete will cast to dtype object
+                            keys = pa.array(keys)
                 keys = vaex.array_types.convert(keys, array_type)
                 if return_inverse:
                     return keys, inverse
                 else:
                     return keys
             progressbar = vaex.utils.progressbars(progress, title="unique")
-            set_result = self._set(expression, progress=progressbar, selection=selection, flatten=axis is None, delay=True)
+            hash_map_result = self._hash_map_unique(expression, progress=progressbar, selection=selection, flatten=axis is None, delay=True, limit=limit, limit_raise=limit_raise)
             if return_inverse:
                 progress_inverse = progressbar.add("find inverse")
-            return self._delay(delay, process(set_result))
+            return self._delay(delay, progressbar.exit_on(process(hash_map_result)))
 
 
     @docsubst
@@ -904,7 +914,7 @@ class DataFrame(object):
                 raise RuntimeError(f'Unknown array_type {format}')
         stats = [compute(expression, binners, selection=selection, edges=edges) for expression in expressions]
         var = finish(binners, *stats)
-        return self._delay(delay, var)
+        return self._delay(delay, progressbar.exit_on(var))
 
     @docsubst
     def count(self, expression=None, binby=[], limits=None, shape=default_shape, selection=False, delay=False, edges=False, progress=None, array_type=None):
@@ -1723,7 +1733,7 @@ class DataFrame(object):
             limits_minmax = self.minmax(expr, selection=selection, delay=delay)
             limits1 = compute(limits_minmax=limits_minmax)
             limits.append(limits1)
-        return self._delay(delay, delayed(vaex.utils.unlistify)(waslist, limits))
+        return self._delay(delay, progressbar.exit_on(delayed(vaex.utils.unlistify)(waslist, limits)))
 
     @docsubst
     def limits(self, expression, value=None, square=False, selection=None, delay=False, progress=None, shape=None):
@@ -1824,7 +1834,7 @@ class DataFrame(object):
                             elif type in ["ss", "sigmasquare"]:
                                 limits = self.limits_sigma(number, square=True)
                             elif type in ["%", "percent"]:
-                                limits = self.limits_percentage(expression, number, selection=selection, delay=True)
+                                limits = self.limits_percentage(expression, number, selection=selection, delay=True, progress=progressbar)
                             elif type in ["%s", "%square", "percentsquare"]:
                                 limits = self.limits_percentage(expression, number, selection=selection, square=True, delay=True)
                 elif value is None:
@@ -1885,7 +1895,7 @@ class DataFrame(object):
                 return vaex.utils.unlistify(waslist, limits_outer), vaex.utils.unlistify(waslist, shapes_list)
             else:
                 return vaex.utils.unlistify(waslist, limits_outer)
-        return self._delay(delay, finish(limits_list))
+        return self._delay(delay, progressbar.exit_on(finish(limits_list)))
 
     def mode(self, expression, binby=[], limits=None, shape=256, mode_shape=64, mode_limits=None, progressbar=False, selection=None):
         """Calculate/estimate the mode."""
@@ -2122,10 +2132,13 @@ class DataFrame(object):
         # if check_alias:
             # if str(expression) in self._column_aliases:
             #     expression = self._column_aliases[str(expression)]  # translate the alias name into the real name
-        sample = self.evaluate(expression, 0, 1, filtered=False, array_type="numpy", parallel=False)
-        sample = vaex.array_types.to_numpy(sample, strict=True)
+        sample = self.evaluate(expression, 0, 1, filtered=False, array_type="numpy-arrow", parallel=False)
+        dtype = vaex.dtype_of(sample)
         rows = len(self) if filtered else self.length_unfiltered()
-        return (rows,) + sample.shape[1:]
+        if dtype.is_arrow:  # for arrow, we don't have nd arrays yet
+            return (rows,)
+        else:
+            return (rows,) + sample.shape[1:]
 
     # TODO: remove array_type and internal arguments?
     def data_type(self, expression, array_type=None, internal=False, axis=0):
@@ -2210,6 +2223,18 @@ class DataFrame(object):
     def schema(self):
         '''Similar to df.dtypes, but returns a dict'''
         return {column_name:self.data_type(column_name) for column_name in self.get_column_names()}
+
+    @docsubst
+    def schema_arrow(self, reduce_large=False):
+        '''Similar to :method:`schema`, but returns an arrow schema
+
+        :param bool reduce_large: change large_string to normal string
+        '''
+        def reduce(type):
+            if reduce_large and type == pa.large_string():
+                type = pa.string()
+            return type
+        return pa.schema({name: reduce(dtype.arrow) for name, dtype in self.schema().items()})
 
     def is_masked(self, column):
         '''Return if a column is a masked (numpy.ma) column.'''
@@ -3007,7 +3032,11 @@ class DataFrame(object):
                 iter = self._unfiltered_chunk_slices(chunk_size)
                 def f(i1, i2):
                     return self._evaluate_implementation(expression, i1=i1, i2=i2, out=out, selection=selection, filtered=filtered, array_type=array_type, parallel=parallel, raw=True)
-                previous_l1, previous_l2, previous_i1, previous_i2 = next(iter)
+                try:
+                    previous_l1, previous_l2, previous_i1, previous_i2 = next(iter)
+                except StopIteration:
+                    # empty dataframe/filter
+                    return
                 # we submit the 1st job
                 previous = executor.submit(f, previous_i1, previous_i2)
                 for l1, l2, i1, i2 in iter:
@@ -3685,8 +3714,10 @@ class DataFrame(object):
             self.variables[new] = self.variables.pop(old)
             is_variable = True
         elif old in self.virtual_columns:
-            self.virtual_columns[new] = self.virtual_columns.pop(old)
-            self._virtual_expressions[new] = self._virtual_expressions.pop(old)
+            # renaming a column should not change the internal order, otherwise virtual
+            # columns do not resolve (it will reference an unknown column)
+            self.virtual_columns = vaex.utils.dict_replace_key(self.virtual_columns, old, new)
+            self._virtual_expressions = vaex.utils.dict_replace_key(self._virtual_expressions, old, new)
         elif self.is_local() and old in self.columns:
             # we only have to do this locally
             # if we don't do this locally, we still store this info
@@ -3887,7 +3918,7 @@ class DataFrame(object):
                 self.execute()
                 count_na = count_na.get()
                 columns[feature] = ((data_type, N-count_na, count_na, '--', '--', '--', '--'))
-            elif data_type.is_primitive or data_type.is_datetime or data_type.is_timedelta:
+            elif data_type.is_primitive or data_type.is_temporal:
                 mean = self.mean(feature, selection=selection, delay=True)
                 std = self.std(feature, selection=selection, delay=True)
                 minmax = self.minmax(feature, selection=selection, delay=True)
@@ -5694,11 +5725,13 @@ class DataFrameLocal(DataFrame):
         df._categories[column] = dict(labels=labels, N=len(labels), min_value=min_value)
         return df
 
-    def ordinal_encode(self, column, values=None, inplace=False):
+    def ordinal_encode(self, column, values=None, inplace=False, lazy=False):
         """Encode column as ordinal values and mark it as categorical.
 
         The existing column is renamed to a hidden column and replaced by a numerical columns
         with values between [0, len(values)-1].
+
+        :param lazy: When False, it will materialize the ordinal codes.
         """
         column = _ensure_string_from_expression(column)
         df = self if inplace else self.copy()
@@ -5709,6 +5742,29 @@ class DataFrameLocal(DataFrame):
         df_unfiltered.select_nothing(name=FILTER_SELECTION_NAME)
         df_unfiltered._length_unfiltered = df._length_original
         df_unfiltered.set_active_range(0, df._length_original)
+        expression = df_unfiltered[column]
+        if lazy:
+            if values is None:
+                found_values = df_unfiltered.unique(column, array_type='numpy-arrow')
+                minimal_type = vaex.utils.required_dtype_for_max(len(found_values), signed=True)
+                dtype = vaex.dtype_of(found_values)
+                if dtype == int:
+                    min_value = found_values.min()
+                    max_value = found_values.max()
+                    if (max_value - min_value +1) == len(found_values):
+                        warnings.warn(f'It seems your column {column} is already ordinal encoded (values between {min_value} and {max_value}), automatically switching to use df.categorize')
+                        return df.categorize(column, min_value=min_value, max_value=max_value, inplace=inplace)
+                values = found_values
+            else:
+                values = expression.dtype.create_array(values)
+            fp = f'hash-map-unique-{expression.fingerprint()}'
+            hash_map_unique_name = fp.replace('-', '_')
+            hash_map_unique = vaex.hash.HashMapUnique.from_keys(values, fingerprint=fp)
+            df.add_variable(hash_map_unique_name, hash_map_unique)
+            expr = df._expr('hashmap_apply({}, {}, check_missing=True)'.format(column, hash_map_unique_name))
+            df[column] = expr
+            df._categories[column] = dict(labels=values, N=len(values), min_value=0)
+            return df  # no else but return to avoid large diff
         # codes point to the index of found_values
         # meaning: found_values[codes[0]] == ds[column].values[0]
         found_values, codes = df_unfiltered.unique(column, return_inverse=True, array_type='numpy-arrow')
@@ -6306,7 +6362,14 @@ class DataFrameLocal(DataFrame):
             return result
         else:
             assert df is self
+            if i1 == i2:  # empty arrays
+                values = [array_types.convert(self.data_type(e).create_array([]), array_type) for e in expressions]
+                if not was_list:
+                    return values[0]
+                return values
             if not raw and self.filtered and filtered:
+
+
                 self._fill_filter_mask()  # fill caches and masks
                 mask = self._selection_masks[FILTER_SELECTION_NAME]
                 # if _DEBUG:
@@ -6543,21 +6606,20 @@ class DataFrameLocal(DataFrame):
         :param dict fs_options: {fs_options}
         :return:
         """
-        progressbar = vaex.utils.progressbars(progress, title="export(arrow)")
         def write(writer):
-            progressbar(0)
             N = len(self)
             if chunk_size:
-                for i1, i2, table in self.to_arrow_table(chunk_size=chunk_size, parallel=parallel, reduce_large=reduce_large):
-                    writer.write_table(table)
-                    progressbar(i2/N)
-                progressbar(1.)
+                with vaex.progress.tree(progress, title="export(arrow)") as progressbar:
+                    for i1, i2, table in self.to_arrow_table(chunk_size=chunk_size, parallel=parallel, reduce_large=reduce_large):
+                        writer.write_table(table)
+                        progressbar(i2/N)
+                    progressbar(1.)
             else:
                 table = self.to_arrow_table(chunk_size=chunk_size, parallel=parallel, reduce_large=reduce_large)
                 writer.write_table(table)
 
-        if vaex.file.is_path_like(to):
-            schema = self[0:1].to_arrow_table(parallel=False, reduce_large=reduce_large).schema
+        if vaex.file.is_path_like(to) or vaex.file.is_file_object(to):
+            schema = self.schema_arrow()
             with vaex.file.open(path=to, mode='wb', fs_options=fs_options, fs=fs) as sink:
                 if as_stream:
                     with pa.RecordBatchStreamWriter(sink, schema) as writer:
@@ -6606,7 +6668,7 @@ class DataFrameLocal(DataFrame):
         :return:
         """
         import pyarrow.parquet as pq
-        schema = self[0:1].to_arrow_table(parallel=False, reduce_large=True).schema
+        schema = self.schema_arrow(reduce_large=True)
         with vaex.file.open(path=path, mode='wb', fs_options=fs_options, fs=fs) as sink:
             with pq.ParquetWriter(sink, schema, **kwargs) as writer:
                 self.export_arrow(writer, progress=progress, chunk_size=chunk_size, parallel=parallel, reduce_large=True)
@@ -6729,18 +6791,18 @@ class DataFrameLocal(DataFrame):
         :return:
         """
         from vaex.hdf5.writer import Writer
-        progressbar = vaex.utils.progressbars(progress, title="export(hdf5)")
-        progressbar_layout = progressbar.add("layout file structure")
-        progressbar_write = progressbar.add("write data")
-        with Writer(path=path, group=group, mode=mode, byteorder=byteorder) as writer:
-            writer.layout(self, progress=progressbar_layout)
-            writer.write(
-                self,
-                chunk_size=chunk_size,
-                progress=progressbar_write,
-                column_count=column_count,
-                parallel=parallel,
-                export_threads=writer_threads)
+        with vaex.utils.progressbars(progress, title="export(hdf5)") as progressbar:
+            progressbar_layout = progressbar.add("layout file structure")
+            progressbar_write = progressbar.add("write data")
+            with Writer(path=path, group=group, mode=mode, byteorder=byteorder) as writer:
+                writer.layout(self, progress=progressbar_layout)
+                writer.write(
+                    self,
+                    chunk_size=chunk_size,
+                    progress=progressbar_write,
+                    column_count=column_count,
+                    parallel=parallel,
+                    export_threads=writer_threads)
 
     @docsubst
     def export_fits(self, path, progress=None):
@@ -6870,20 +6932,24 @@ class DataFrameLocal(DataFrame):
             Throws a :py:`vaex.RowLimitException` when the condition is not met.
         :param bool copy: Copy the dataframe (shallow, does not cost memory) so that the fingerprint of the original dataframe is not modified.
         :param bool delay: {delay}
+        :param progress: {progress}
         :return: :class:`DataFrame` or :class:`GroupBy` object.
         """
         from .groupby import GroupBy
-        groupby = GroupBy(self, by=by, sort=sort, combine=assume_sparse, row_limit=row_limit, copy=copy, progress=progress)
+        progressbar = vaex.utils.progressbars(progress, title="groupby")
+        groupby = GroupBy(self, by=by, sort=sort, combine=assume_sparse, row_limit=row_limit, copy=copy, progress=progressbar)
+        if agg:
+            progressbar_agg = progressbar.add('aggregators')
         @vaex.delayed
         def next(_ignore):
             if agg is None:
                 return groupby
             else:
-                return groupby.agg(agg, delay=delay)
-        return self._delay(delay, next(groupby._promise_by))
+                return groupby.agg(agg, delay=delay, progress=progressbar_agg)
+        return self._delay(delay, progressbar.exit_on(next(groupby._promise_by)))
 
     @docsubst
-    def binby(self, by=None, agg=None, sort=False, delay=False):
+    def binby(self, by=None, agg=None, sort=False, copy=True, delay=False, progress=None):
         """Return a :class:`BinBy` or :class:`DataArray` object when agg is not None
 
         The binby operation does not return a 'flat' DataFrame, instead it returns an N-d grid
@@ -6893,18 +6959,23 @@ class DataFrameLocal(DataFrame):
         :param dict, list or agg agg: Aggregate operation in the form of a string, vaex.agg object, a dictionary
             where the keys indicate the target column names, and the values the operations, or the a list of aggregates.
             When not given, it will return the binby object.
+        :param bool copy: Copy the dataframe (shallow, does not cost memory) so that the fingerprint of the original dataframe is not modified.
         :param bool delay: {delay}
+        :param progress: {progress}
         :return: :class:`DataArray` or :class:`BinBy` object.
         """
         from .groupby import BinBy
-        binby = BinBy(self, by=by, sort=sort)
+        progressbar = vaex.utils.progressbars(progress, title="binby")
+        binby = BinBy(self, by=by, sort=sort, progress=progressbar, copy=copy)
+        if agg:
+            progressbar_agg = progressbar.add('aggregators')
         @vaex.delayed
         def next(_ignore):
             if agg is None:
                 return binby
             else:
-                return binby.agg(agg, delay=delay)
-        return self._delay(delay, next(binby._promise_by))
+                return binby.agg(agg, delay=delay, progress=progressbar_agg)
+        return self._delay(delay, progressbar.exit_on(next(binby._promise_by)))
 
     def _selection(self, create_selection, name, executor=None, execute_fully=False):
         def create_wrapper(current):

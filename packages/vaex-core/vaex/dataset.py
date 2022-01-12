@@ -15,6 +15,7 @@ import pyarrow as pa
 
 import vaex
 import vaex.execution
+import vaex.settings
 import vaex.utils
 from vaex.array_types import data_type
 from .column import Column, ColumnIndexed, supported_column_types
@@ -29,7 +30,7 @@ logger = logging.getLogger('vaex.dataset')
 opener_classes = []
 HASH_VERSION = "1"
 HASH_VERSION_KEY = "version"
-chunk_size_default = vaex.execution.chunk_size_default or 1024**2
+chunk_size_default = vaex.settings.main.chunk.size or 1024**2
 
 _dataset_types = {}
 lock = threading.Lock()
@@ -592,6 +593,8 @@ class ColumnProxy(vaex.column.Column):
                     array_chunks.append(ar)
             if len(array_chunks) == 1:
                 return array_chunks[0]
+            if len(array_chunks) == 0:
+                return vaex.dtype(self.dtype).create_array([])
             return vaex.array_types.concat(array_chunks)
         else:
             raise NotImplementedError

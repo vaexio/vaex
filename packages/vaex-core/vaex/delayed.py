@@ -35,8 +35,7 @@ def _log_error(name):
             print(f"*** DEBUG: Error from {name}", exc)
         # import vaex
         # vaex.utils.print_stack_trace()
-        # raise exc
-        return aplus.Promise.rejected(exc)
+        raise exc
     return _wrapped
 
 

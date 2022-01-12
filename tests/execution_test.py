@@ -1,14 +1,18 @@
+import asyncio
+import contextlib
 from unittest.mock import MagicMock
 from concurrent.futures import ThreadPoolExecutor
 import concurrent.futures
 import platform
 import threading
+import sys
 
 import pytest
 import numpy as np
 
-from common import small_buffer
+from common import CallbackCounter, small_buffer
 import vaex
+import vaex.execution
 
 
 def test_evaluate_expression_once():
@@ -171,6 +175,32 @@ def test_merge_same_aggregation_tasks():
     assert np.all(result1.get() == result2.get())
 
 
+def test_stop_early():
+    df = vaex.from_arrays(x=np.arange(100))
+    counter = CallbackCounter(True)
+    # with limit_raise=False, we can stop early
+    df._hash_map_unique('x', delay=True, limit=1, limit_raise=False, progress=counter)
+    assert len(df.executor.tasks) == 1
+    task = df.executor.tasks[0]
+    with small_buffer(df, 3):
+        df.execute()
+    assert task.stopped is True
+    # thus progress should not be == 1 at the last call
+    assert counter.last_args[0] < 1
+
+    # if another task is added, we should continue
+    df._hash_map_unique('x', delay=True, limit=1, limit_raise=False, progress=counter)
+    task = df.executor.tasks[0]
+    df.count('x', delay=True)
+    assert len(df.executor.tasks) == 2
+    with small_buffer(df, 3):
+        df.execute()
+    assert task.stopped is True
+    # thus progress should be == 1 at the last call
+    assert counter.last_args[0] == 1
+
+
+
 def test_signals(df):
     x = np.arange(10)
     y = x**2
@@ -206,6 +236,31 @@ def test_reentrant_catch(df_local):
         with pytest.raises(RuntimeError) as exc:
             df.count(df.x, progress=progress)
         assert 'nested' in str(exc.value)
+
+
+
+@pytest.mark.skipif(sys.version_info[:2] < (3, 7), reason="Python 36 has no contextvars module")
+@pytest.mark.asyncio
+async def test_async_safe(df_local):
+    df = df_local
+    with vaex.cache.off():
+        async def do():
+            promise = df.x.count(delay=True)
+            import random
+            r = random.random() * 0.01
+            await asyncio.sleep(r)
+            await df.execute_async()
+            return await promise
+        awaitables = []
+        passes = df.executor.passes = 0
+        N = 1000
+        with small_buffer(df):
+            for i in range(N):
+                awaitables.append(do())
+        import asyncio
+        values = await asyncio.gather(*awaitables)
+        assert df.executor.passes < N
+
 
 
 @pytest.mark.skipif(platform.system().lower() == 'windows', reason="hangs appveyor very often, bug?")
@@ -279,7 +334,7 @@ def test_executor_from_other_thread():
 
 def test_cancel_single_job():
     df = vaex.from_arrays(x=[1, 2, 3])
-    res1 = df._set(df.x, unique_limit=1, delay=True)
+    res1 = df._set(df.x, limit=1, delay=True)
     res2 = df._set(df.x, delay=True)
     df.execute()
     assert res1.isRejected
@@ -289,7 +344,33 @@ def test_cancel_single_job():
 def test_exception():
     df = vaex.from_arrays(x=[1, 2, 3])
     with pytest.raises(vaex.RowLimitException, match='.* >= 1 .*'):
-        df._set(df.x, unique_limit=1)
+        df._set(df.x, limit=1)
+
+
+def test_continue_next_task_after_cancel():
+    df = vaex.from_arrays(x=[1, 2, 3])
+    res1 = df._set(df.x, limit=1, delay=True)
+    def on_error(exception):
+        return df._set(df.x, delay=True)
+    result = res1.then(None, on_error)
+    df.execute()
+    assert res1.isRejected
+    assert result.isFulfilled
+
+
+@pytest.mark.skipif(not hasattr(contextlib, 'asynccontextmanager'), reason="Python 36 has no asynccontextmanager")
+@pytest.mark.asyncio
+async def test_auto_execute():
+    df = vaex.from_arrays(x=[2, 4])
+    async def means():
+        count, sum = await asyncio.gather(df.x.count(delay=True), df.x.sum(delay=True))
+        mean = await df.x.mean(delay=True)
+        return sum / count, mean
+    async with df.executor.auto_execute():
+        mean1, mean2 = await means()
+        assert mean1 == 3
+        assert mean2 == 3
+
 
 
 # def test_add_and_cancel_tasks(df_executor):

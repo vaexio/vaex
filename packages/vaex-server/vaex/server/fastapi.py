@@ -28,11 +28,10 @@ import vaex.server
 import vaex.settings
 import vaex.server.websocket
 
-global_lock = asyncio.Lock()
 logger = logging.getLogger("vaex.server")
 VAEX_FAVICON = 'https://vaex.io/img/logos/vaex_alt.png'
 HERE = pathlib.Path(__file__).parent
-use_graphql = vaex.utils.get_env_type(bool, 'VAEX_SERVER_GRAPHQL', False)
+
 
 
 class ImageResponse(Response):
@@ -43,8 +42,8 @@ class HistogramInput(BaseModel):
     dataset_id: str
     expression: str
     shape: int = 128
-    min: Optional[Union[float, str]] = None
-    max: Optional[Union[float, str]] = None
+    min: Optional[Union[float, int, str]] = None
+    max: Optional[Union[float, int, str]] = None
     filter: str = None
     virtual_columns: Dict[str, str] = None
 
@@ -118,7 +117,7 @@ async def root():
             'column': list(ds),
             'schema': [{'name': k, 'type': str(vaex.dtype(v))} for k, v in ds.schema().items()]
         })
-    content = content.replace('// DATA', 'app.$data.datasets = %s\n app.$data.graphql = %s' % (json.dumps(data), json.dumps(use_graphql)))
+    content = content.replace('// DATA', 'app.$data.datasets = %s\n app.$data.graphql = %s' % (json.dumps(data), json.dumps(vaex.settings.server.graphql)))
     return content
 
 
@@ -129,21 +128,19 @@ async def dataset():
 
 @router.get("/dataset/{dataset_id}", summary="Meta information about a dataset (schema etc)")
 async def dataset(dataset_id: str = path_dataset):
-    async with get_df(dataset_id) as df:
+    with get_df(dataset_id) as df:
         schema = {k: str(v) for k, v in df.schema().items()}
         return {"id": dataset_id, "row_count": len(df), "schema": schema}
 
-@contextlib.asynccontextmanager
-async def get_df(name):
+@contextlib.contextmanager
+def get_df(name):
     if name not in datasets:
         raise HTTPException(status_code=404, detail=f"dataset {name!r} not found")
-    # for now we only allow 1 request to execute at a time
-    async with global_lock:
-        yield vaex.from_dataset(datasets[name])
+    yield vaex.from_dataset(datasets[name])
 
 
 async def _compute_histogram(input: HistogramInput) -> HistogramOutput:
-    async with get_df(input.dataset_id) as df:
+    with get_df(input.dataset_id) as df:
         limits = [input.min, input.max]
         limits = df.limits(input.expression, limits, delay=True)
         await df.execute_async()
@@ -187,7 +184,7 @@ async def histogram_plot(input: HistogramInput = Depends(HistogramInput)) -> His
 
 
 async def _compute_heatmap(input: HeatmapInput) -> HeatmapOutput:
-    async with get_df(input.dataset_id) as df:
+    with get_df(input.dataset_id) as df:
         limits_x = [input.min_x, input.max_x]
         limits_y = [input.min_y, input.max_y]
         limits_x = df.limits(input.expression_x, limits_x, delay=True)
@@ -256,7 +253,9 @@ async def websocket_endpoint(websocket: WebSocket):
         data = await websocket.receive()
         if data['type'] == 'websocket.disconnect':
             return
-        asyncio.create_task(handler.handle_message(data['bytes']))
+        # see https://docs.python.org/3/library/asyncio-task.html#asyncio.create_task
+        # TODO: replace after we drop 36 support asyncio.create_task(handler.handle_message(data['bytes']))
+        asyncio.ensure_future(handler.handle_message(data['bytes']))
 
 
 app = FastAPI(
@@ -299,16 +298,6 @@ async def add_process_time_header(request: Request, call_next):
     response.headers["X-Process-Time"] = str(process_time)
     response.headers["X-Data-Passes"] = str(executor.passes - start_passes)
     return response
-
-
-
-class Settings(BaseSettings):
-    vaex_config_file: str = "vaex-server.json"
-    vaex_add_example: bool = True
-    vaex_config: dict = None
-    class Config:
-        env_file = '.env'
-        env_file_encoding = 'utf-8'
 
 
 
@@ -357,6 +346,11 @@ class Server(threading.Thread):
 
         from uvicorn.config import Config
         from uvicorn.server import Server
+        if sys.version_info[:2] < (3, 7):
+            # make python 3.6 work
+            import asyncio
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
 
         # uvloop will trigger a: RuntimeError: There is no current event loop in thread 'fastapi-thread'
         config = Config(app, host=self.host, port=self.port, **self.kwargs, loop='asyncio')
@@ -377,7 +371,7 @@ class Server(threading.Thread):
         logger.debug("stopped server")
 
 
-for name, path in vaex.settings.webserver.get("datasets", {}).items():
+for name, path in vaex.settings.server.files.items():
     datasets[name] = vaex.open(path).dataset
 
 
@@ -411,7 +405,6 @@ def update_service(dfs=None):
 
 
 def main(argv=sys.argv):
-    global use_graphql
     import uvicorn
     import argparse
     parser = argparse.ArgumentParser(argv[0])
@@ -422,7 +415,7 @@ def main(argv=sys.argv):
     parser.add_argument("--port", help="port to listen on (default: %(default)s)", type=int, default=8081)
     parser.add_argument('--verbose', '-v', action='count', help='show more info', default=2)
     parser.add_argument('--quiet', '-q', action='count', help="less info", default=0)
-    parser.add_argument('--graphql', default=use_graphql, action='store_true', help="Add graphql endpoint")
+    parser.add_argument('--graphql', default=vaex.settings.server.graphql, action='store_true', help="Add graphql endpoint")
     config = parser.parse_args(argv[1:])
 
     verbosity = ["ERROR", "WARNING", "INFO", "DEBUG"]
@@ -465,5 +458,5 @@ if __name__ == "__main__":
     main()
 else:
     update_service()
-    if use_graphql:
+    if vaex.settings.server.graphql:
         add_graphql()

@@ -42,3 +42,5 @@ _doc_snippets['fs_options'] = 'see :func:`vaex.open` e.g. for S3 {"profile": "my
 _doc_snippets['fs'] = 'Pass a file system object directly, see :func:`vaex.open`'
 _doc_snippets['random_state'] = 'Sets a seed or `RandomState` for reproducability. When `None`, a random seed it chosen.'
 _doc_snippets['trim'] = 'Trim off begin or end of dataframe to avoid missing values'
+_doc_snippets['limit'] = 'Limit the amount of results'
+_doc_snippets['limit_raise'] = 'Raise :exception:`vaex.RowLimitException` when limit is exceeded, or return at maximum \'limit\' amount of results.'

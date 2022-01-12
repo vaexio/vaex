@@ -1,12 +1,12 @@
 import vaex
 import vaex.ml
-import vaex.ml.datasets
+import vaex.datasets
 import vaex.ml.ui
 
 
 def test_widgetize():
     # Load datasets
-    ds = vaex.ml.datasets.load_iris()
+    ds = vaex.datasets.iris()
     # define the list of transformers
     transformer_list = [vaex.ml.StandardScaler(),
                         vaex.ml.MinMaxScaler(),

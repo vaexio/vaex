@@ -24,10 +24,10 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
-      max-parallel: 10
+      max-parallel: 12
       matrix:
         os: [ubuntu-latest, windows-latest, macOS-latest]
-        python-version: [3.7, 3.8, 3.9]
+        python-version: [3.6, 3.7, 3.8, 3.9]
 
     steps:
     - name: disk space
@@ -133,6 +133,11 @@ jobs:
     #     # flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
     #     # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
     #     # flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+    - name: Install fixes for Python 3.6
+      if: matrix.python-version == '3.6'
+      run: |
+        # by default on 3.6 we get an old version, so manually upgrade
+        pip install gcsfs==0.8.0
     - name: Test with pytest
       run: |
         ./ci/04-run-test-suite.sh
@@ -198,6 +203,7 @@ jobs:
         extra-specs: |
             python=${{ matrix.python-version }}
             pcre
+            rich
     # it shouldn't be needed to use pcre, maybe we should make the wheels similar to how we make distributions
     - name: Cache pip
       uses: actions/cache@v2
@@ -223,6 +229,8 @@ jobs:
         vaex convert ~/.vaex/data/helmi-dezeeuw-2000-FeH-v2-10percent.hdf5 test.parquet
         pip install rich
         VAEX_PROGRESS_TYPE=rich vaex convert ~/.vaex/data/helmi-dezeeuw-2000-FeH-v2-10percent.hdf5 test.parquet
+        vaex settings yaml
+        vaex settings md
 
     - name: Test server
       run: |

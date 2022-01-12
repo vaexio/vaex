@@ -283,7 +283,7 @@ def scalar_timedelta(amount, unit):
 def _pandas_dt_fix(x):
     # see https://github.com/pandas-dev/pandas/issues/23276
     # not sure which version this is fixed in
-    if isinstance(x, pa.lib.TimestampArray):
+    if vaex.array_types.is_arrow_array(x) and isinstance(x.type, pa.lib.TimestampType):
         return x.to_pandas()
     if not x.flags['WRITEABLE']:
         x = x.copy()
@@ -2438,19 +2438,18 @@ for name in dir(scopes['str']):
 
 # expression_namespace['str_strip'] = str_strip
 
+# kept for backwards compatibility
 @register_function()
-def _ordinal_values(x, ordered_set):
-    from vaex.column import _to_string_sequence
+def _ordinal_values(x, hashmap_unique):
+    return hashmap_apply(x, hashmap_unique)
 
-    if not isinstance(x, vaex.array_types.supported_array_types) or isinstance(ordered_set, vaex.superutils.ordered_set_string):
-        # sometimes the dtype can be object, but seen as an string array
-        x = _to_string_sequence(x)
-    else:
-        x = vaex.array_types.to_numpy(x)
-    indices = ordered_set.map_ordinal(x)
-    if np.ma.isMaskedArray(x):
-        indices[x.mask] = ordered_set.null_value
+
+@register_function()
+def hashmap_apply(x, hashmap, check_missing=False):
+    '''Apply values to hashmap, if check_missing is True, missing values in the hashmap will translated to null/missing values'''
+    indices = hashmap.map(x, check_missing=check_missing)
     return indices
+
 
 @register_function()
 def _choose(ar, choices, default=None):
@@ -2480,14 +2479,8 @@ def _map(ar, value_to_index, choices, default_value=None, use_missing=False, axi
         import vaex.arrow.utils
         ar, wrapper = vaex.arrow.utils.list_unwrap(ar)
 
-    if not isinstance(ar, vaex.array_types.supported_array_types) or isinstance(value_to_index, vaex.superutils.ordered_set_string):
-        # sometimes the dtype can be object, but seen as an string array
-        ar = _to_string_sequence(ar)
-        # -1 points to missing
-        indices = value_to_index.map_ordinal(ar) + 1
-    else:
-        ar = vaex.array_types.to_numpy(ar)
-        indices = value_to_index.map_ordinal(ar) + 1
+    ar = vaex.array_types.to_numpy(ar)
+    indices = value_to_index.map(ar) + 1
     values = choices.take(indices)
     if np.ma.isMaskedArray(ar):
         mask = np.ma.getmaskarray(ar).copy()
@@ -2567,19 +2560,8 @@ def _isin(x, values):
 
 
 @register_function(name='isin_set', on_expression=False)
-def _isin_set(x, set):
-    if vaex.column._is_stringy(x) or isinstance(set, vaex.superutils.ordered_set_string):
-        x = vaex.column._to_string_column(x)
-        x = _to_string_sequence(x)
-        # return x.string_sequence.isin(values)
-        return set.isin(x)
-    else:
-        if np.ma.isMaskedArray(x):
-            isin = set.isin(x.data)
-            isin[x.mask] = False
-            return isin
-        else:
-            return set.isin(x)
+def _isin_set(x, hashmap_unique):
+    return hashmap_unique.isin(x)
 
 
 @register_function()

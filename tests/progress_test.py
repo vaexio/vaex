@@ -26,6 +26,32 @@ def test_progress(progress):
     df.sum('x', progress=progress)
 
 
+def test_progress_cache():
+    df = vaex.from_arrays(x=vaex.vrange(0, 10000))
+    with vaex.cache.on():
+        with vaex.progress.tree('vaex') as progressbar:
+            df._set('x', progress=progressbar)
+            assert progressbar.finished
+
+        with vaex.progress.tree('rich') as progressbar:
+            df._set('x', progress=progressbar)
+            assert progressbar.children[0].finished
+            assert progressbar.children[0].bar.status == 'from cache'
+
+
+def test_progress_error():
+    df = vaex.from_arrays(x=vaex.vrange(0, 10000))
+    with vaex.progress.tree('rich') as progressbar:
+        try:
+            df._set('x', progress=progressbar, limit=1)
+        except vaex.RowLimitException:
+            pass
+        assert progressbar.children[0].bar.status.startswith('Resulting hash_map_unique would')
+        assert progressbar.children[0].finished
+        assert progressbar.finished
+        # assert progressbar.children[0].bar.status == 'from cache'
+
+
 # progress only supported for local df's
 def test_progress_calls(df, event_loop):
     with vaex.cache.off():
@@ -51,7 +77,7 @@ async def test_progress_calls_async(df):
         assert x == x2
         assert y == y2
         assert counter.counter > 0
-        assert counter.last_args[0], 1.0
+        assert counter.last_args[0] == 1.0
 
 
 def test_cancel(df):

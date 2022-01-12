@@ -1,3 +1,4 @@
+from typing import Sequence
 import dask.base
 import numpy as np
 import pyarrow as pa
@@ -221,6 +222,9 @@ class DataType:
         datetime64[ns]
         >>> date_type == 'datetime'
         True
+        >>> date_type = DataType(pa.large_string())
+        >>> date_type.is_datetime
+        False
         """
         if self.is_arrow:
             return pa.types.is_timestamp(self.internal)
@@ -238,8 +242,19 @@ class DataType:
         True
         >>> dtype.is_timedelta
         True
+        >>> date_type = DataType(pa.large_string())
+        >>> date_type.is_timedelta
+        False
         '''
-        return vaex.array_types.to_numpy_type(self.internal).kind in 'm'
+        if self.is_arrow:
+            return False
+        else:
+            return self.kind in 'm'
+
+    @property
+    def is_temporal(self):
+        '''Alias of (is_datetime or is_timedelta)'''
+        return self.is_datetime or self.is_timedelta
 
     @property
     def is_float(self):
@@ -423,13 +438,38 @@ class DataType:
     def byteorder(self):
         return self.numpy.byteorder
 
-    def create_array(self, values):
+    def create_array(self, values : Sequence):
+        '''Create an array from a sequence with the same dtype
+
+        If values is a list containing None, it will map to a masked array (numpy) or null values (arrow)
+
+        >>> DataType(np.dtype('float32')).create_array([1., 2.5, None, np.nan])
+        masked_array(data=[1.0, 2.5, --, nan],
+                     mask=[False, False,  True, False],
+               fill_value=1e+20)
+        >>> DataType(pa.float32()).create_array([1., 2.5, None, np.nan])  # doctest:+ELLIPSIS
+        <pyarrow.lib.FloatArray object at ...>
+        [
+          1,
+          2.5,
+          null,
+          nan
+        ]
+        '''
         if self.is_arrow:
             if vaex.array_types.is_arrow_array(values):
                 return values
             else:
                 return pa.array(values, type=self.arrow)
         else:
+            if isinstance(values, np.ndarray):
+                return values.astype(self.internal, copy=False)
+            mask = [k is None for k in values]
+            if any(mask):
+                values = [values[0] if k is None else k for k in values]
+                return np.ma.array(values, mask=mask)
+            else:
+                return np.array(values)
             return np.asarray(values, dtype=self.numpy)
 
 @dask.base.normalize_token.register(DataType)

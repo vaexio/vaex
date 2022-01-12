@@ -131,7 +131,8 @@ def to_numpy(x, strict=False):
     elif isinstance(x, np.ndarray):
         return x
     elif isinstance(x, supported_arrow_array_types):
-        if not strict and is_string(x):
+        dtype = vaex.dtype_of(x)
+        if not strict and not (dtype.is_primitive or dtype.is_temporal):
             return x
         x = vaex.arrow.convert.column_from_arrow_array(x)
         return to_numpy(x, strict=strict)
@@ -156,7 +157,7 @@ def to_xarray(x):
 def convert(x, type, default_type="numpy"):
     import vaex.column
     if type == "numpy":
-        if isinstance(x, (list, tuple)):
+        if isinstance(x, (list, tuple)) and len(x) > 0 and is_array(x[0]):
             return concat([convert(k, type) for k in x])
         else:
             return to_numpy(x, strict=True)
@@ -166,7 +167,7 @@ def convert(x, type, default_type="numpy"):
         else:
             return to_numpy(x, strict=False)
     elif type == "arrow":
-        if isinstance(x, (list, tuple)):
+        if isinstance(x, (list, tuple)) and len(x) > 0 and is_array(x[0]):
             chunks = [convert(k, type) for k in x]
             return concat(chunks)
         else:

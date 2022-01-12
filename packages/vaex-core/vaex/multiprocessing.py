@@ -5,16 +5,13 @@ import vaex.multithreading
 import vaex.utils
 
 
-process_count_default = vaex.utils.get_env_type(int, 'VAEX_NUM_PROCESSES', vaex.multithreading.thread_count_default)
-
-
 _pool = None
 def _get_pool():
     global _pool
     global _mempool
     if _pool is None:
         from multiprocessing import Pool
-        _pool = Pool(process_count_default)
+        _pool = Pool(vaex.settings.main.process_count)
     return _pool
 
 

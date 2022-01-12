@@ -7,6 +7,16 @@ import aplus
 from aplus import listPromise
 
 
+try:
+    # support py 36 for the moment
+    import contextvars
+    has_contextvars = True
+    auto_await_executor = contextvars.ContextVar('auto await executor', default=None)
+except ImportError:
+    has_contextvars = False
+
+
+
 def check_unhandled():
     if Promise.unhandled_exceptions:
         print("Unhandled exceptions in Promises:")
@@ -138,11 +148,17 @@ class Promise(aplus.Promise):
 
 
     def __await__(self):
-        return self._run().__await__()
+        return self._create_awaitable().__await__()
 
-    async def _run(self):
+    async def _create_awaitable(self):
         future = asyncio.Future()
         self.then(future.set_result, future.set_exception)
+        if has_contextvars:
+            executor = auto_await_executor.get()
+            if executor:
+                result = await asyncio.gather(executor.execute_async(), future)
+                return result[-1]
         return await future
+
 
 aplus.Promise = Promise

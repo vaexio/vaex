@@ -1,9 +1,13 @@
 from pathlib import Path
+import io
+import threading
 import pytest
 import fsspec.implementations.memory
 
 import vaex.file
+import vaex.file.asyncio
 import pyarrow as pa
+import time
 
 
 def test_parse():
@@ -109,3 +113,74 @@ def test_fsspec(df_trimmed):
     df = vaex.open('test.arrow', fs=fs)
     df.state_load('test.json', fs=fs)
     assert df.test.tolist() == df_trimmed.test.tolist()
+
+
+def test_stream_sync():
+    f = vaex.file.asyncio.WriteStream()
+    def writer():
+        with f:
+            for i in range(10):
+                f.write(chr(ord('a') + i).encode('ascii'))
+    threading.Thread(target=writer, daemon=True).start()
+    chunks = b''.join(list(f))
+    assert chunks == b'abcdefghij'
+
+    # with error
+    f = vaex.file.asyncio.WriteStream()
+    def writer():
+        with f:
+            for i in range(10):
+                f.write(chr(ord('a') + i).encode('ascii'))
+                if i == 4:
+                    raise ValueError('test')
+                # time.sleep()
+    threading.Thread(target=writer, daemon=True).start()
+    with pytest.raises(ValueError, match='test'):
+        list(f)
+
+
+@pytest.mark.asyncio
+async def test_stream_async():
+    f = vaex.file.asyncio.WriteStream()
+    def writer():
+        with f:
+            for i in range(10):
+                f.write(chr(ord('a') + i).encode('ascii'))
+    threading.Thread(target=writer, daemon=True).start()
+    chunks = b''.join(list([k async for k in f]))
+    assert chunks == b'abcdefghij'
+
+    # with error
+    f = vaex.file.asyncio.WriteStream()
+    def writer():
+        with f:
+            for i in range(10):
+                f.write(chr(ord('a') + i).encode('ascii'))
+                if i == 4:
+                    raise ValueError('test')
+    threading.Thread(target=writer, daemon=True).start()
+    with pytest.raises(ValueError, match='test'):
+        list(f)
+
+
+def test_write_arrow_in_stream(tmpdir):
+    df = vaex.from_arrays(x=[1,2])
+    f = vaex.file.asyncio.WriteStream()
+    def writer():
+        with f:
+            df.export_arrow(f)
+    threading.Thread(target=writer, daemon=True).start()
+    path = tmpdir / '1.arrow'
+    with open(path, 'wb') as fdisk:
+        for chunk in f:
+            fdisk.write(chunk)
+    df_disk = vaex.open(path)
+    assert df_disk.x.tolist() == [1, 2]
+
+
+def test_not_close_open_file():
+    df = vaex.from_arrays(x=[1,2])
+    with io.BytesIO() as f:
+        df.export_arrow(f)
+        assert not f.closed
+    assert f.closed

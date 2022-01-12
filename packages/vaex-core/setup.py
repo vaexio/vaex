@@ -24,7 +24,7 @@ install_requires_core = ["numpy>=1.16", "aplus", "tabulate>=0.8.3",
                          "future>=0.15.2", "pyyaml", "progressbar2",
                          "requests", "six", "cloudpickle", "pandas", "dask",
                          "nest-asyncio>=1.3.3", "pyarrow>=3.0", "frozendict",
-                         "blake3", "filelock",
+                         "blake3", "filelock", "pydantic>=1.8.0", "rich",
                         ]
 if sys.version_info[0] == 2:
     install_requires_core.append("futures>=2.2.0")
@@ -165,7 +165,8 @@ setup(name=name + '-core',
       install_requires=install_requires_core,
       license=license,
       package_data={'vaex': dll_files + ['test/files/*.fits', 'test/files/*.vot', 'test/files/*.hdf5']},
-      packages=['vaex', 'vaex.arrow', 'vaex.core', 'vaex.file', 'vaex.test', 'vaex.ext', 'vaex.misc'],
+      packages=['vaex', 'vaex.arrow', 'vaex.core', 'vaex.file', 'vaex.test', 'vaex.ext', 'vaex.misc', 'vaex.datasets'],
+      include_package_data=True,
       ext_modules=[extension_vaexfast] if on_rtd else [extension_vaexfast, extension_strings, extension_superutils, extension_superagg],
       zip_safe=False,
       extras_require={
@@ -182,6 +183,12 @@ setup(name=name + '-core',
           ],
           'vaex.memory.tracker': [
               'default = vaex.memory:MemoryTracker'
+          ],
+          'vaex.progressbar': [
+              'vaex = vaex.progress:simple',
+              'simple = vaex.progress:simple',
+              'widget = vaex.progress:widget',
+              'rich = vaex.progress:rich',
           ],
           'vaex.file.scheme': [
               's3 = vaex.file.s3',

@@ -15,13 +15,14 @@ import numpy as np
 import pandas as pd
 import tabulate
 import pyarrow as pa
-from vaex.datatype import DataType
-from vaex.docstrings import docsubst
 
+import vaex.hash
+import vaex.serialize
 from vaex.utils import _ensure_strings_from_expressions, _ensure_string_from_expression
 from vaex.column import ColumnString, _to_string_sequence
 from .hash import counter_type_from_dtype
-import vaex.serialize
+from vaex.datatype import DataType
+from vaex.docstrings import docsubst
 from . import expresso
 
 
@@ -367,7 +368,8 @@ class StructOperations(collections.abc.Mapping):
 class Expression(with_metaclass(Meta)):
     """Expression class"""
     def __init__(self, ds, expression, ast=None, _selection=False):
-        self.ds = ds
+        import vaex.dataframe
+        self.ds : vaex.dataframe.DataFrame = ds
         assert not isinstance(ds, Expression)
         if isinstance(expression, Expression):
             expression = expression.expression
@@ -1072,32 +1074,37 @@ class Expression(with_metaclass(Meta)):
         return Series(counts, index=keys)
 
     @docsubst
-    def unique(self, dropna=False, dropnan=False, dropmissing=False, selection=None, axis=None, array_type='list', progress=None, delay=False):
+    def unique(self, dropna=False, dropnan=False, dropmissing=False, selection=None, axis=None, limit=None, limit_raise=True, array_type='list', progress=None, delay=False):
         """Returns all unique values.
 
         :param dropmissing: do not count missing values
         :param dropnan: do not count nan values
         :param dropna: short for any of the above, (see :func:`Expression.isna`)
         :param bool axis: Axis over which to determine the unique elements (None will flatten arrays or lists)
+        :param int limit: {limit}
+        :param bool limit_raise: {limit_raise}
         :param progress: {progress}
         :param bool array_type: {array_type}
         """
-        return self.ds.unique(self, dropna=dropna, dropnan=dropnan, dropmissing=dropmissing, selection=selection, array_type=array_type, axis=axis, progress=progress, delay=delay)
+        return self.ds.unique(self, dropna=dropna, dropnan=dropnan, dropmissing=dropmissing, selection=selection, array_type=array_type, axis=axis, limit=limit, limit_raise=limit_raise, progress=progress, delay=delay)
 
-    def nunique(self, dropna=False, dropnan=False, dropmissing=False, selection=None, axis=None, progress=None, delay=False):
+    @docsubst
+    def nunique(self, dropna=False, dropnan=False, dropmissing=False, selection=None, axis=None, limit=None, limit_raise=True, progress=None, delay=False):
         """Counts number of unique values, i.e. `len(df.x.unique()) == df.x.nunique()`.
 
         :param dropmissing: do not count missing values
         :param dropnan: do not count nan values
         :param dropna: short for any of the above, (see :func:`Expression.isna`)
+        :param int limit: {limit}
+        :param bool limit_raise: {limit_raise}
         :param bool axis: Axis over which to determine the unique elements (None will flatten arrays or lists)
         """
         def key_function():
-            fp = vaex.cache.fingerprint(self.fingerprint(), dropna, dropnan, dropmissing, selection, axis)
+            fp = vaex.cache.fingerprint(self.fingerprint(), dropna, dropnan, dropmissing, selection, axis, limit)
             return f'nunique-{fp}'
         @vaex.cache._memoize(key_function=key_function, delay=delay)
         def f():
-            value = self.unique(dropna=dropna, dropnan=dropnan, dropmissing=dropmissing, selection=selection, axis=axis, array_type=None, progress=progress, delay=delay)
+            value = self.unique(dropna=dropna, dropnan=dropnan, dropmissing=dropmissing, selection=selection, axis=axis, limit=limit, limit_raise=limit_raise, array_type=None, progress=progress, delay=delay)
             if delay:
                 return value.then(len)
             else:
@@ -1384,7 +1391,7 @@ def f({0}):
             raise ValueError('only axis=None is supported')
         # we map the keys to a ordinal values [0, N-1] using the set
         key_set = df._set(self.expression, flatten=axis is None)
-        found_keys = key_set.keys()
+        found_keys = vaex.array_types.tolist(key_set.keys())
 
         # we want all possible values to be converted
         # so mapper's key should be a superset of the keys found
@@ -1413,33 +1420,21 @@ def f({0}):
         # and later on in _choose, we map values not even seen in the dataframe
         # to the default_value
         dtype_item = self.data_type(self.expression, axis=-1)
-        null_count = mapper_keys.count(None)
-        nan_count = len([k for k in mapper_keys if k != k])
-        if null_count:
-            null_value = mapper_keys.index(None)
-        else:
-            null_value = 0x7fffffff
-
         mapper_keys = dtype_item.create_array(mapper_keys)
-        if vaex.array_types.is_string_type(dtype_item):
-            mapper_keys = _to_string_sequence(mapper_keys)
-
-        from .hash import ordered_set_type_from_dtype
-        ordered_set_type = ordered_set_type_from_dtype(dtype_item)
         fingerprint = key_set.fingerprint + "-mapper"
-        ordered_set = ordered_set_type(mapper_keys, null_value, nan_count, null_count, fingerprint)
-        indices = ordered_set.map_ordinal(mapper_keys)
+        hash_map_unique = vaex.hash.HashMapUnique.from_keys(mapper_keys, fingerprint=fingerprint, dtype=dtype_item)
+        indices = hash_map_unique.map(mapper_keys)
         mapper_values = [mapper_values[i] for i in indices]
 
         choices = [default_value] + [mapper_values[index] for index in indices]
         choices = pa.array(choices)
 
-        key_set_name = df.add_variable('map_key_set', ordered_set, unique=True)
+        key_hash_map_unique_name = df.add_variable('map_key_hash_map_unique', hash_map_unique, unique=True)
         choices_name = df.add_variable('map_choices', choices, unique=True)
         if allow_missing:
-            expr = '_map({}, {}, {}, use_missing={!r}, axis={!r})'.format(self, key_set_name, choices_name, use_masked_array, axis)
+            expr = '_map({}, {}, {}, use_missing={!r}, axis={!r})'.format(self, key_hash_map_unique_name, choices_name, use_masked_array, axis)
         else:
-            expr = '_map({}, {}, {}, axis={!r})'.format(self, key_set_name, choices_name, axis)
+            expr = '_map({}, {}, {}, axis={!r})'.format(self, key_hash_map_unique_name, choices_name, axis)
         return Expression(df, expr)
 
     @property

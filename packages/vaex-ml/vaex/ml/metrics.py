@@ -276,7 +276,7 @@ class DataFrameAccessorMetrics():
 
         >>> import vaex
         >>> import vaex.ml.metrics
-        >>> df = vaex.ml.datasets.load_iris()
+        >>> df = vaex.datasets.iris()
         >>> df.ml.metrics.mean_absolute_error(df.sepal_length, df.petal_length)
           2.0846666666666667
         '''
@@ -295,7 +295,7 @@ class DataFrameAccessorMetrics():
 
         >>> import vaex
         >>> import vaex.ml.metrics
-        >>> df = vaex.ml.datasets.load_iris()
+        >>> df = vaex.datasets.iris()
         >>> df.ml.metrics.mean_squared_error(df.sepal_length, df.petal_length)
           5.589000000000001
         '''
@@ -314,7 +314,7 @@ class DataFrameAccessorMetrics():
 
         >>> import vaex
         >>> import vaex.ml.metrics
-        >>> df = vaex.ml.datasets.load_iris()
+        >>> df = vaex.datasets.iris()
         >>> df.ml.metrics.r2_score(df.sepal_length, df.petal_length)
           -7.205575765485069
         '''

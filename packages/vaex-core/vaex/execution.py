@@ -2,6 +2,7 @@ from __future__ import division, print_function
 import ast
 import asyncio
 from collections import defaultdict
+import contextlib
 import os
 import time
 import threading
@@ -9,6 +10,7 @@ import math
 import multiprocessing
 import logging
 import queue
+from typing import List
 
 import dask.utils
 import numpy as np
@@ -20,17 +22,17 @@ import vaex.memory
 import vaex.multithreading
 import vaex.vaexfast
 import vaex.events
+import vaex.settings
 
+try:
+    # support py 36 for the moment
+    import contextvars
+    has_contextvars = True
+except ModuleNotFoundError:
+    has_contextvars = False
 
-async_default = str(os.environ.get('VAEX_ASYNC', 'nest'))
-chunk_size_min_default = int(os.environ.get('VAEX_CHUNK_SIZE_MIN', 1024))
-chunk_size_max_default = int(os.environ.get('VAEX_CHUNK_SIZE_MAX', 1024*1024))
-chunk_size_default = ast.literal_eval(os.environ.get('VAEX_CHUNK_SIZE', 'None'))
-if chunk_size_default is not None:
-    chunk_size_default = int(chunk_size_default)  # make sure it's an int
 
 logger = logging.getLogger("vaex.execution")
-thread_count_default = multiprocessing.cpu_count()
 
 
 class UserAbort(Exception):
@@ -162,33 +164,52 @@ def _merge_tasks_for_df(tasks, df):
                 subtask.fulfill(value[i])
             assign(task_merged)
             task_merged.done(None, subtask.reject)
+            task_merged.signal_start.connect(subtask.signal_start.emit)
         tasks_merged.append(task_merged)
     return tasks_non_mergable + tasks_merged
 
 
 class Executor:
     """An executor is responsible to executing tasks, they are not reentrant, but thread safe"""
-    def __init__(self, async_method=async_default):
-        self.tasks = []
+    def __init__(self, async_method=None):
+        self.tasks : List[Task] = []
         self.async_method = async_method
         self.signal_begin = vaex.events.Signal("begin")
         self.signal_progress = vaex.events.Signal("progress")
         self.signal_end = vaex.events.Signal("end")
         self.signal_cancel = vaex.events.Signal("cancel")
         self.local = threading.local()  # to make it non-reentrant
+        if has_contextvars:
+            # used for calling execute_async from different async callstacks
+            self.isnested = contextvars.ContextVar('executor', default=False)
         self.lock = threading.Lock()
         self.event_loop = asyncio.new_event_loop()
 
+    if hasattr(contextlib, 'asynccontextmanager'):
+        @contextlib.asynccontextmanager
+        async def auto_execute(self):
+            '''This async executor will start executing tasks automatically when a task is awaited for.'''
+            vaex.promise.auto_await_executor.set(self)
+            try:
+                yield
+                await self.execute_async()
+            finally:
+                vaex.promise.auto_await_executor.set(None)
+    else:
+        async def auto_execute(self):
+            raise NotImplemented('Only on Python >3.7')
+
     async def execute_async(self):
-        pass
+        raise NotImplementedError
 
     def execute(self):
-        return self.run(self.execute_async())
+        raise NotImplementedError
 
     def run(self, coro):
-        if self.async_method == "nest":
+        async_method = self.async_method or vaex.settings.main.async_
+        if async_method == "nest":
             return vaex.asyncio.just_run(coro)
-        elif self.async_method == "awaitio":
+        elif async_method == "awaitio":
             with vaex.asyncio.with_event_loop(self.event_loop):
                 return self.event_loop.run_until_complete(coro)
         else:
@@ -242,12 +263,12 @@ class Executor:
 
 
 class ExecutorLocal(Executor):
-    def __init__(self, thread_pool=None, chunk_size=chunk_size_default, chunk_size_min=chunk_size_min_default, chunk_size_max=chunk_size_max_default, thread_mover=None, zigzag=True):
+    def __init__(self, thread_pool=None, chunk_size=None, chunk_size_min=None, chunk_size_max=None, thread_mover=None, zigzag=True):
         super().__init__()
         self.thread_pool = thread_pool or vaex.multithreading.ThreadPoolIndex()
         self.chunk_size = chunk_size
-        self.chunk_size_min = chunk_size_min_default
-        self.chunk_size_max = chunk_size_max_default
+        self.chunk_size_min = chunk_size_min
+        self.chunk_size_max = chunk_size_max
         self.thread = None
         self.passes = 0  # how many times we passed over the data
         self.zig = True  # zig or zag
@@ -260,15 +281,34 @@ class ExecutorLocal(Executor):
         run.cancelled = True
 
     def chunk_size_for(self, row_count):
-        chunk_size = self.chunk_size
+        chunk_size = self.chunk_size or vaex.settings.main.chunk.size
+        chunk_size_min = self.chunk_size or vaex.settings.main.chunk.size_min
+        chunk_size_max = self.chunk_size or vaex.settings.main.chunk.size_max
         if chunk_size is None:
             # we determine it automatically by defaulting to having each thread do 1 chunk
             chunk_size_1_pass = vaex.utils.div_ceil(row_count, self.thread_pool.nthreads)
             # brackated by a min and max chunk_size
-            chunk_size = min(self.chunk_size_max, max(self.chunk_size_min, chunk_size_1_pass))
+            chunk_size = min(chunk_size_max, max(chunk_size_min, chunk_size_1_pass))
         return chunk_size
 
     async def execute_async(self):
+        # consume awaitables from the generator, and await them here at the top
+        # level, such that we don't need await in the downstream code
+        # so we can reuse the same code in a sync way
+        gen = self.execute_generator(use_async=True)
+        value = None
+        while True:
+            try:
+                value = gen.send(value)
+                value = await value
+            except StopIteration:
+                break
+
+    def execute(self):
+        for _ in self.execute_generator():
+            pass  # just eat all elements
+
+    def execute_generator(self, use_async=False):
         logger.debug("starting with execute")
 
         with self.lock:  # setup thread local initial values
@@ -279,11 +319,10 @@ class ExecutorLocal(Executor):
             t0 = time.time()
             self.local.cancelled = False
             self.signal_begin.emit()
-            cancelled = False
             # keep getting a list of tasks
             # we currently process tasks (grouped) per df
             # but also, tasks can add new tasks
-            while not cancelled:
+            while True:
                 tasks = self.local.tasks = self._pop_tasks()
 
                 # wo don't allow any thread from our thread pool to enter (a computation should never produce a new task)
@@ -291,13 +330,15 @@ class ExecutorLocal(Executor):
                 chunk_executor_thread = threading.current_thread() in self.thread_pool._threads
                 import traceback
                 trace = ''.join(traceback.format_stack())
-                if chunk_executor_thread or self.local.executing:
+                if chunk_executor_thread or self.local.executing and (has_contextvars is False or self.isnested.get() is True):
                     logger.error("nested execute call")
                     raise RuntimeError("nested execute call: %r %r\nlast trace:\n%s\ncurrent trace:\n%s" % (chunk_executor_thread, self.local.executing, self.local.last_trace, trace))
                 else:
                     self.local.last_trace = trace
 
                 self.local.executing = True
+                if has_contextvars:
+                    self.isnested.set(True)
 
                 if not tasks:
                     break
@@ -320,6 +361,9 @@ class ExecutorLocal(Executor):
                         except Exception as e:
                             task.reject(e)
                             raise
+
+                for task in run.tasks:
+                    task.signal_start.emit(self)
 
                 for task in run.tasks:
                     task._results = []
@@ -375,15 +419,25 @@ class ExecutorLocal(Executor):
                 #     self.zig = not self.zig
                 def progress(p):
                     # no global cancel and at least 1 tasks wants to continue, then we continue
-                    return all(self.signal_progress.emit(p)) and any([task.progress(p) for task in tasks])
-                async for _element in self.thread_pool.map_async(self.process_part, dataset.chunk_iterator(run.dataset_deps, chunk_size),
+                    ok_tasks = any([task.progress(p) for task in tasks])
+                    all_stopped = all([task.stopped for task in tasks])
+                    ok_executor = all(self.signal_progress.emit(p))
+                    if all_stopped:
+                        logger.debug("Pass cancelled because all tasks are stopped: %r", tasks)
+                    if not ok_tasks:
+                        logger.debug("Pass cancelled because all tasks cancelled: %r", tasks)
+                    if not ok_executor:
+                        logger.debug("Pass cancelled because of the global progress event: %r", self.signal_progress.callbacks)
+                    return ok_tasks and ok_executor and not all_stopped
+                yield from self.thread_pool.map(self.process_part, dataset.chunk_iterator(run.dataset_deps, chunk_size),
                                                     dataset.row_count,
                                                     progress=progress,
-                                                    cancel=lambda: self._cancel(run), unpack=True, run=run):
-                    pass  # just eat all element
+                                                    cancel=lambda: self._cancel(run), unpack=True, run=run, use_async=use_async)
                 duration_wallclock = time.time() - t0
                 logger.debug("executing took %r seconds", duration_wallclock)
                 self.local.executing = False
+                if has_contextvars:
+                    self.isnested.set(False)
                 if True:  # kept to keep the diff small
                     for task in tasks:
                         if not task.cancelled:
@@ -427,7 +481,6 @@ class ExecutorLocal(Executor):
                             else:
                                 task.reject(UserAbort("Task was cancelled"))
                             # remove references
-                            cancelled = True
                         task._result = None
                         task._results = None
                     self.signal_end.emit()
@@ -436,6 +489,8 @@ class ExecutorLocal(Executor):
             raise
         finally:
             self.local.executing = False
+            if has_contextvars:
+                self.isnested.set(False)
 
     def process_part(self, thread_index, i1, i2, chunks, run):
         if not run.cancelled:
@@ -483,6 +538,8 @@ class ExecutorLocal(Executor):
             memory_tracker = vaex.memory.create_tracker()
             task_checkers = vaex.tasks.create_checkers()
             for task in tasks:
+                if task.stopped:
+                    continue
                 assert df is task.df
                 blocks = [block_dict[expression] for expression in task.expressions_all]
                 def fix(ar):
@@ -499,19 +556,30 @@ class ExecutorLocal(Executor):
                             task_parts = [task._parts[thread_index]]
                         else:
                             task_parts = [task._parts.get()]
+                    some_parts_stopped = False
                     for task_index, task_part in enumerate(task_parts):
-                        try:
-                            if task.see_all:
-                                task_part.process(task_index, i1, i2, filter_mask, selections, blocks)
-                            else:
-                                task_part.process(thread_index, i1, i2, filter_mask, selections, blocks)
-                        except Exception as e:
-                            # we cannot call .reject, since then we'll handle fallbacks in this thread
-                            task._toreject = e
-                            task.cancelled = True
-                        finally:
-                            if not isinstance(task._parts, list):
-                                task._parts.put(task_part)
+                        if not task_part.stopped:
+                            try:
+                                if task.see_all:
+                                    task_part.process(task_index, i1, i2, filter_mask, selections, blocks)
+                                else:
+                                    task_part.process(thread_index, i1, i2, filter_mask, selections, blocks)
+                            except Exception as e:
+                                # we cannot call .reject, since then we'll handle fallbacks in this thread
+                                task._toreject = e
+                                task.cancelled = True
+                            finally:
+                                if not isinstance(task._parts, list):
+                                    task._parts.put(task_part)
+                            # we could be done after processing
+                            if task_part.stopped:
+                                some_parts_stopped = True
+                        else:
+                            some_parts_stopped = True
+                        if some_parts_stopped:
+                            break
+                    if some_parts_stopped:  # if 1 is done, the whole task is done
+                        task.stopped = True
                 if memory_tracker.track_live:
                     for part in task_parts:
                         memory_tracker.using(part.memory_usage())

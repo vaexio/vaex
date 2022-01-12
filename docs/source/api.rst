@@ -11,12 +11,17 @@ Opening/reading in your data.
 
     vaex.open
     vaex.concat
-    vaex.from_arrow_table
-    vaex.from_arrays
     vaex.from_dict
-    vaex.from_csv
-    vaex.from_ascii
+    vaex.from_items
+    vaex.from_arrays
+    vaex.from_arrow_table
+    vaex.from_arrow_dataset
+    vaex.from_dataset
     vaex.from_pandas
+    vaex.from_ascii
+    vaex.from_json
+    vaex.from_records
+    vaex.from_csv
     vaex.from_astropy_table
     vaex.vrange
     vaex.vconstant
@@ -60,7 +65,7 @@ vaex-core
 ---------
 
 .. automodule:: vaex
-    :members: open, concat, from_arrays, from_dict, from_items, from_arrow_table, from_csv, from_ascii, from_pandas, from_astropy_table, from_samp, open_many, register_function, server, example, app, delayed, vrange, vconstant
+    :members: open, concat, from_dict, from_items, from_arrays, from_arrow_table, from_arrow_dataset, from_dataset, from_pandas, from_ascii, from_json, from_records, from_csv, from_astropy_table, open_many, register_function, server, example, app, delayed, vrange, vconstant
     :undoc-members:
     :show-inheritance:
 
@@ -105,9 +110,16 @@ Caching
 ~~~~~~~
 
 .. automodule:: vaex.cache
-    :members: is_on, off, get, set, memory_infinite, disk_infinite, redis
+    :members: is_on, off, get, set, memory, memory_infinite, disk, disk_infinite, redis
     :undoc-members:
     :show-inheritance:
+
+
+Logging
+~~~~~~~
+
+.. automodule:: vaex.logging
+    :members:
 
 
 Extensions

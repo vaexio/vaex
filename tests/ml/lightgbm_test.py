@@ -5,7 +5,6 @@ pytest.importorskip("lightgbm")
 import numpy as np
 import lightgbm as lgb
 import vaex.ml.lightgbm
-import vaex.ml.datasets
 from vaex.utils import _ensure_strings_from_expressions
 
 

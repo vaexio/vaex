@@ -1,3 +1,42 @@
+# vaex 4.7.0
+## vaex-core 4.7.0
+   * Features
+      * Allow casting integers to timedelta64 type [#1741](https://github.com/vaexio/vaex/pull/1741)
+      * When a single task can fail, other can continue [#1762](https://github.com/vaexio/vaex/pull/1762)
+      * Improved rich progress bar support [#1771](https://github.com/vaexio/vaex/pull/1771)
+      * vaex.from_records to build a dataframe from a list of dicts [#1767](https://github.com/vaexio/vaex/pull/1767)
+      * Settings in Vaex can be configured in a uniform way [#1743](https://github.com/vaexio/vaex/pull/1743)
+      * Unique for datetime64 and timedelta64 expressions [#1016](https://github.com/vaexio/vaex/pull/1016)
+      * Copy argument for binby, similar to groupby [4e7fd8e](https://github.com/vaexio/vaex/commit/4e7fd8e154c151323410cc1bedec96dd8a9667cb)
+   * Performance
+      * Improve performance for filtered dataframes [1685](https://github.com/vaexio/vaex/pull/1685)
+   * Fixes
+      * S3: endpoint override combined with globbing [#1739](https://github.com/vaexio/vaex/pull/1739)
+      * Support having filtered and unfiltered tasks in 1 pass over the data [#1761](https://github.com/vaexio/vaex/pull/1761)
+      * Continue next tasks even when old ones are cancelled [#1769](https://github.com/vaexio/vaex/pull/1769)
+      * Handle empty arrow files [#1773](https://github.com/vaexio/vaex/pull/1773)
+      * Evaluate and evaluate_iterator did not work for empty filtered dataframes [#1775](https://github.com/vaexio/vaex/pull/1775)
+
+## vaex-hdf5 0.11.1
+   * Features
+      * do not track times to have determinstic output (useful for lineage/hash output) [#1772](https://github.com/vaexio/vaex/pull/1772)
+
+## vaex-ml 0.16
+Requires vaex-core 4.7 for uniform settings
+
+## vaex-server 0.8
+Requires vaex-core 4.7 for uniform settings
+
+## vaex-jupyter 0.7
+Requires vaex-core 4.7 for uniform settings
+   * Features
+      * Editor widget for settings [#1743](https://github.com/vaexio/vaex/pull/1743)
+
+## vaex-viz 0.5.1
+  * Fixes
+   * Histogram method on expression to propagate kwargs [#1757](https://github.com/vaexio/vaex/pull/1757)
+
+
 # vaex 4.6.0
 ## vaex-core 4.6.0
    * Features

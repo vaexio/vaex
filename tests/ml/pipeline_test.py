@@ -1,7 +1,7 @@
 import vaex
 import vaex.ml
 import tempfile
-import vaex.ml.datasets
+
 features = ['petal_length', 'petal_width', 'sepal_length', 'sepal_width']
 
 

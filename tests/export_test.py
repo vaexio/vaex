@@ -4,6 +4,7 @@ from pathlib import Path
 import tempfile
 import pandas as pd
 import platform
+import hashlib
 
 
 DATA_PATH = Path(__file__).parent
@@ -205,3 +206,37 @@ def test_export_csv(df_local, tmpdir):
     df.export_csv(path, index=False)
 
     assert '123456' in vaex.open(path)
+
+
+@pytest.mark.parametrize("dtypes", [{}, {'name': np.object, 'age': 'Int64', 'weight': np.float}])
+def test_export_generates_same_hdf5_shasum(tmpdir, dtypes):
+    current_dir = os.path.dirname(__file__)
+
+    path1 = '/data/sample_1.csv'
+
+    pdf1 = pd.read_csv(current_dir + path1, dtype=dtypes)
+    vdf1 = vaex.from_pandas(pdf1)
+    output_path1 = str(tmpdir.join('sample_1.hdf5'))
+    vdf1.export_hdf5(output_path1)
+
+    shasum1 = hashlib.sha1()
+    with open(output_path1, 'rb') as f:
+        while True:
+            data = f.read(65536)
+            if not data:
+                break
+            shasum1.update(data)
+
+    vdf2 = vaex.from_pandas(pdf1)
+    output_path2 = str(tmpdir.join('sample_2.hdf5'))
+    vdf2.export_hdf5(output_path2)
+
+    shasum2 = hashlib.sha1()
+    with open(output_path2, 'rb') as f:
+        while True:
+            data = f.read(65536)
+            if not data:
+                break
+            shasum2.update(data)
+
+    assert shasum1.hexdigest() == shasum2.hexdigest()

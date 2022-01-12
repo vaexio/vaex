@@ -1,3 +1,5 @@
+import datetime
+
 from common import small_buffer
 
 import pytest
@@ -113,3 +115,51 @@ def test_unique_categorical(df_factory, future):
         assert df.x.dtype == int
         assert set(df.x.unique()) == {1, 2}
         assert df.x.nunique() == 2
+
+
+def test_unique_datetime_timedelta():
+    x = [1, 2, 3, 1, 1]
+    date = [np.datetime64('2020-01-01'),
+            np.datetime64('2020-01-02'),
+            np.datetime64('2020-01-03'),
+            np.datetime64('2020-01-01'),
+            np.datetime64('2020-01-01')]
+
+    df = vaex.from_arrays(x=x, date=date)
+    df['delta'] = df.date - np.datetime64('2020-01-01')  # for creating a timedelta column
+
+    unique_date = df.unique(expression='date')
+    assert set(unique_date) == {datetime.date(2020, 1, 1),
+                                datetime.date(2020, 1, 2),
+                                datetime.date(2020, 1, 3)}
+
+    unique_delta = df.unique(expression='delta')
+    assert set(unique_delta) == {datetime.timedelta(0),
+                                 datetime.timedelta(days=1),
+                                 datetime.timedelta(days=2)}
+
+
+def test_unique_limit_primitive():
+    x = np.arange(100)
+    df = vaex.from_arrays(x=x)
+    with pytest.raises(vaex.RowLimitException, match='.*Resulting hash_map_unique.*'):
+        values = df.x.unique(limit=11)
+    values = df.x.unique(limit=11, limit_raise=False)
+    assert len(values) == 11
+    with pytest.raises(vaex.RowLimitException, match='.*Resulting hash_map_unique.*'):
+        df.x.nunique(limit=11)
+    assert df.x.nunique(limit=11, limit_raise=False) == 11
+    df.x.nunique(limit=100)
+
+
+def test_unique_limit_string():
+    x = np.arange(100)
+    df = vaex.from_arrays(x=[str(k) for k in x])
+    with pytest.raises(vaex.RowLimitException, match='.*Resulting hash_map_unique.*'):
+        values = df.x.unique(limit=11)
+    values = df.x.unique(limit=11, limit_raise=False)
+    assert len(values) == 11
+    with pytest.raises(vaex.RowLimitException, match='.*Resulting hash_map_unique.*'):
+        df.x.nunique(limit=11)
+    assert df.x.nunique(limit=11, limit_raise=False) == 11
+    df.x.nunique(limit=100)
