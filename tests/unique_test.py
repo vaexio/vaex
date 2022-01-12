@@ -105,6 +105,17 @@ def test_unique_categorical(df_factory, future):
         assert set(df.x.unique()) == {0, 1, 2}
         assert df.x.nunique() == 3
 
+    if future:
+        df = df[df.x.isin(['b', 'c'])]
+        assert df.x.dtype == str
+        assert set(df.x.unique()) == {'b', 'c'}
+        assert df.x.nunique() == 2
+    else:
+        df = df[df.x.isin([1, 2])]
+        assert df.x.dtype == int
+        assert set(df.x.unique()) == {1, 2}
+        assert df.x.nunique() == 2
+
 
 def test_unique_datetime_timedelta():
     x = [1, 2, 3, 1, 1]

@@ -1225,6 +1225,15 @@ def f({0}):
         :param use_hashmap: use a hashmap or not (especially faster when values contains many elements)
         :return: :class:`Expression` with the lazy expression.
         """
+        if self.df.is_category(self) and self.df._future_behaviour:
+            labels = self.df.category_labels(self.expression)
+            indices = []
+            for value in values:
+                if value not in labels:
+                    raise ValueError(f'Value {value} not present in {labels}')
+                indices.append(labels.index(value))
+            return self.index_values().isin(indices, use_hashmap=use_hashmap)
+
         if use_hashmap:
             # easiest way to create a set is using the vaex dataframe
             values = np.array(values, dtype=self.dtype.numpy)  # ensure that values are the same dtype as the expression (otherwise the set downcasts at the C++ level during execution)
