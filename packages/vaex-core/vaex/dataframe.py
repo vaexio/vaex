@@ -6883,9 +6883,9 @@ class DataFrameLocal(DataFrame):
                     if not first:
                         f.write(b", ")
                     first = False
-                    f_temp = io.BytesIO()
+                    f_temp = io.StringIO()
                     df.to_json(f_temp, orient='records')
-                    f.write(f_temp.getvalue()[1:-1])
+                    f.write(f_temp.getvalue()[1:-1].encode('utf8'))
             else:
                 for _i1, _i2, records in self.to_records(chunk_size=chunk_size, parallel=parallel):
                     if not first:
