@@ -1,10 +1,14 @@
-from __future__ import absolute_import
-__author__ = 'breddels'
-import numpy as np
+import os
 import logging
-from vaex.dataframe import DataFrame
-import vaex
+
 from frozendict import frozendict
+import numpy as np
+
+from vaex.dataframe import DataFrame, DataFrameLocal
+import vaex
+import vaex.server.executor
+from . import download
+import vaex.settings
 
 
 logger = logging.getLogger("vaex.server.dataframe")
@@ -24,6 +28,7 @@ def _rmi(f=None):
         return decorator
     else:
         return decorator(f)
+
 
 class ColumnProxyRemote(vaex.column.Column):
     '''To give the Dataset._columns object useful containers for debugging'''
@@ -109,7 +114,7 @@ class DatasetRemote(vaex.dataset.Dataset):
 
 # TODO: we should not inherit from local
 class DataFrameRemote(DataFrame):
-    def __init__(self, name, column_names, dtypes, length_original):
+    def __init__(self, name, column_names, dtypes, length_original, executor):
         super(DataFrameRemote, self).__init__(name)
         self.dataset = DatasetRemote(name, column_names, dtypes, length_original)
         self.column_names = column_names
@@ -121,6 +126,7 @@ class DataFrameRemote(DataFrame):
         self._index_end = length_original
         self._dtype_cache = {}
         self.fraction = 1
+        self.executor: vaex.server.executor.Executor = executor
 
     def hashed(self, inplace=False) -> DataFrame:
         # we're always hashed
@@ -153,8 +159,7 @@ class DataFrameRemote(DataFrame):
 
     def copy(self, column_names=None, virtual=True):
         dtypes = {name: self.data_type(name) for name in self.get_column_names(strings=True, virtual=False)}
-        df = DataFrameRemote(self.name, self.column_names, dtypes=dtypes, length_original=self._length_original)
-        df.executor = self.executor
+        df = DataFrameRemote(self.name, self.column_names, dtypes=dtypes, length_original=self._length_original, executor=self.executor)
         state = self.state_get()
         if not virtual:
             state['virtual_columns'] = {}
@@ -193,6 +198,36 @@ class DataFrameRemote(DataFrame):
                 self._dtype_cache[str(expression)] = super().data_type(expression, array_type=array_type, axis=axis)
             # TODO: invalidate cache
             return self._dtype_cache[str(expression)]
+
+    def download(self, f=None, verbose=True, format="parquet", check=True, client=None) -> DataFrameLocal:
+        """Download remote dataframe locally.
+
+        If no filename or file object is given, the file will be stored at `${VAEX_DATA_PATH}/remote/ (see the `configuration <conf.html#data-path>`_ how to configure this).
+        Subsequent attempts to download the same dataframe will either resume downloading because the default filename will be deterministic and the server supports resuming downloads.
+
+        The dataframe will be opened afterwards.
+
+        >>> import vaex
+        >>> df = vaex.open('vaex+wss://dataframe-dev.vaex.io/example')
+        ...
+        >>> dff = df[df.x > 0]
+        >>> df_local_small = dff.download(verbose=False)
+        >>> len(df_local_small)
+        163721
+
+        :param f: A path or file like object, or None to download to the default location described above.
+        :param check: Check the sha hash to validate the file downloaded correctly.
+        :param verbose: Give more information what is happening.
+        """
+        vaex_client = self.executor.client
+        protocol = "https" if vaex_client.secure else "http"
+        url = "%s://%s:%d%sdownload/%s" % (protocol, vaex_client.hostname, vaex_client.port, vaex_client.base_path, self.name)
+        state = self.state_get()
+        directory = os.path.join(vaex.settings.data.path, "remote")
+        os.makedirs(directory, exist_ok=True)
+        path = download.download(url, state=state, verbose=verbose, format=format, f=f, client=client, directory=directory)
+        if path:
+            return vaex.open(path)
 
     # TODO: would be nice to get some info on the remote dataframe
     # def __repr__(self):

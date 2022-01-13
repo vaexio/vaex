@@ -5,7 +5,8 @@ import vaex.execution
 class Executor(vaex.execution.Executor):
     def __init__(self, client):
         super().__init__()
-        self.client = client
+        import vaex.server.client
+        self.client : vaex.server.client.Client = client
         self.remote_calls = 0  # how many times did we call the server
 
     def _rmi(self, df, methodname, args, kwargs):

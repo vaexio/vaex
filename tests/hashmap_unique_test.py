@@ -1,5 +1,6 @@
 import numpy as np
 
+
 def test_hashmap_unique_basics(df_local):
     df = df_local
     xmap = df._hash_map_unique('x')

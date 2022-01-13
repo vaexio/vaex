@@ -9,6 +9,7 @@ class Settings(BaseSettings):
     add_example: bool = Field(True, title="Add example dataset")
     # vaex_config: dict = None
     graphql: bool = Field(False, title="Add graphql endpoint")
+    sql: bool = Field(False, title="Add SQL endpoint")
     files: Dict[str, str] = Field(default_factory=list, title="Mapping of name to path")
     class Config(vaex.config.ConfigDefault):
         env_file = '.env'
