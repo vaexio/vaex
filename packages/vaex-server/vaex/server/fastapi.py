@@ -455,7 +455,20 @@ def ensure_example():
     if 'example' not in datasets:
         datasets['example'] = vaex.example().dataset
 
-ensure_example()
+def ensure_examples():
+    import vaex.datasets
+    ensure_example()
+    if 'iris' not in datasets:
+        datasets['iris'] = vaex.datasets.iris().dataset
+    if 'taxi' not in datasets:
+        datasets['taxi'] = vaex.datasets.taxi().dataset
+    if 'titanic' not in datasets:
+        datasets['titanic'] = vaex.datasets.titanic().dataset
+
+if vaex.settings.server.add_example:
+    ensure_example()
+if vaex.settings.server.add_examples:
+    ensure_examples()
 
 
 def update_service(dfs=None):
@@ -476,6 +489,7 @@ def main(argv=sys.argv):
     parser = argparse.ArgumentParser(argv[0])
     parser.add_argument("filename", help="filename for dataset", nargs='*')
     parser.add_argument('--add-example', default=False, action='store_true', help="add the example dataset")
+    parser.add_argument('--add-examples', default=False, action='store_true', help="add the example dataset")
     parser.add_argument("--host", help="address to bind the server to (default: %(default)s)", default="0.0.0.0")
     parser.add_argument("--base-url", help="External base url (default is <host>:port)", default=None)
     parser.add_argument("--port", help="port to listen on (default: %(default)s)", type=int, default=8081)
@@ -502,6 +516,9 @@ def main(argv=sys.argv):
         datasets['example'] = vaex.example().dataset
     if config.add_example:
         ensure_example()
+    if config.add_examples:
+        ensure_examples()
+
     use_graphql = config.graphql
     if use_graphql:
         add_graphql()
