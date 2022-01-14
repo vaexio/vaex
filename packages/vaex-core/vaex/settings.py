@@ -123,6 +123,14 @@ class Data(BaseSettings):
     class Config(ConfigDefault):
         env_prefix = 'vaex_data_'
 
+class Progress(BaseSettings):
+    """Data configuration"""
+    type: str = Field('simple', title="Default progressbar to show: 'simple', 'rich' or 'widget'")
+    force: str = Field(None, title="Force showing a progress bar of this type, even when no progress bar was requested from user code", env="VAEX_PROGRESS")
+
+    class Config(ConfigDefault):
+        env_prefix = 'vaex_progress_'
+
 
 class Logging(BaseSettings):
     """Configure logging for Vaex. By default Vaex sets up logging, which is useful when running a script. When Vaex is used in applications or services that already configure logging, set the environomental variables VAEX_LOGGING_SETUP to false.
@@ -164,6 +172,7 @@ class Settings(BaseSettings):
     memory_tracker = Field(MemoryTracker(), env='_VAEX_MEMORY_TRACKER')
     task_tracker = Field(TaskTracker(), env='_VAEX_TASK_TRACKER')
     logging = Field(Logging(), env="_VAEX_LOGGING")
+    progress = Field(Progress(), env="_VAEX_PROGRESS")
 
     if has_server:
         server: vaex.server.settings.Settings = vaex.server.settings.Settings()
@@ -275,6 +284,7 @@ def _to_md(cls, f=sys.stdout):
             FileSystem: 'fs',
             Data: 'data',
             Logging: 'main.logging',
+            Progress: 'main.progress',
         }[cls]
         pyvar = f'vaex.setting.{flat}.{pyname}'
         printf(f'Python setting `{pyvar}`')

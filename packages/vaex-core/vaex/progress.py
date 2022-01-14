@@ -3,14 +3,9 @@ import warnings
 
 from .utils import get_env_type, RegistryCallable
 import vaex
+import vaex.settings
 
 _progressbar_registry = RegistryCallable("vaex.progressbar", "progressbar")
-
-# the default when progress=True
-_progressbar_type_default = get_env_type(str, 'VAEX_PROGRESS_TYPE', 'vaex')
-
-# the default when progress=None or False (e.g. when no progress bar was requested)
-_progressbar_default = get_env_type(str, 'VAEX_PROGRESS', None)
 
 
 # these are registered in the entry_points
@@ -173,15 +168,18 @@ class ProgressTree:
 
 
 def bar(type_name=None, title="processing", max_value=1):
-    type_name = type_name or _progressbar_type_default
+    if type_name is None:
+        type_name = vaex.settings.main.progress.force
+        if type_name is None:
+            type_name = vaex.settings.main.progress.type
     return _progressbar_registry[type_name](title=title)
 
 
 def tree(f=None, next=None, name=None, title=None):
     if f in [False, None] and _progress_tree_stack:
         f = _progress_tree_stack[-1]
-    if f in [False, None] and _progressbar_default:
-        f = _progressbar_default
+    if f in [False, None] and vaex.settings.main.progress.force:
+        f = vaex.settings.main.progress.force
     if name is None:
         name = title
     if title is None:
