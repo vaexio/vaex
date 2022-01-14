@@ -1,10 +1,11 @@
-import re
 import logging
 import os
+import sys
 
 import vaex
-import vaex.file
 import vaex.cache
+import vaex.file
+import vaex.progress
 
 log = logging.getLogger('vaex.cache')
 
@@ -110,6 +111,10 @@ def main(argv):
     parser.add_argument('--sort', dest="sort", default=None)
     parser.add_argument('--fraction', "-f", dest="fraction", type=float, default=1.0, help="fraction of input dataset to export")
     parser.add_argument('--filter', dest="filter", default=None, help="filter to apply before exporting")
+    parser.add_argument('--optimize', help="run df.optimize.categorize, downcast and cast float64 to float32 before exporting (default: %(default)s)", default=False, action='store_true')
+    parser.add_argument('--categorize', help="run df.optimize.categorize before exporting (default: %(default)s)", default=False, action='store_true')
+    parser.add_argument('--downcast', help="run df.optimize.downcast before exporting (default: %(default)s)", default=False, action='store_true')
+    parser.add_argument('--downcast-float', help="Downcast float64 to float32 (default: %(default)s)", default=False, action='store_true')
     parser.add_argument("input", help="input source or file, when prefixed with @ it is assumed to be a text file with a file list (one file per line)")
     parser.add_argument("output", help="output file (ends in .hdf5)")
     parser.add_argument("columns", help="list of columns to export (or all when empty)", nargs="*")
@@ -145,12 +150,17 @@ def main(argv):
             print("exporting %d rows and %d columns" % (len(df), len(columns)))
             print("columns: " + " ".join(columns))
 
-        if args.filter:
-            df = df.filter(args.filter)
-        if args.sort:
-            df = df.sort(args.sort)
-        if args.shuffle:
-            df = df.shuffle()
+        with vaex.progress.tree(title="export preprocess"):
+            if args.filter:
+                df = df.filter(args.filter)
+            if args.sort:
+                df = df.sort(args.sort)
+            if args.shuffle:
+                df = df.shuffle()
+            if args.optimize or args.categorize:
+                df = df.optimize.categorize()
+            if args.optimize or args.downcast:
+                df = df.optimize.downcast(float64=args.optimize or args.downcast_float)
         try:
             df.export(args.output, progress=args.progress)
             if not args.quiet:
@@ -167,3 +177,6 @@ def main(argv):
 
 
     return 0
+
+if __name__ == "__main__":
+    main(sys.argv)
