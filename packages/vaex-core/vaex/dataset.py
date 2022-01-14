@@ -23,8 +23,6 @@ from . import array_types
 from vaex import encoding
 
 
-blake3 = vaex.utils.optional_import('blake3')
-
 logger = logging.getLogger('vaex.dataset')
 
 opener_classes = []
@@ -96,17 +94,17 @@ def _to_bytes(ar):
         return ar.copy().view(np.uint8)
 
 def hash_combine(*hashes):
-    blake = blake3.blake3(multithreading=False)
+    hasher = vaex.utils.create_hasher(large_data=False)
     for hash in hashes:
-        blake.update(hash.encode())
-    return blake.hexdigest()
+        hasher.update(hash.encode())
+    return hasher.hexdigest()
 
 
 def hash_slice(hash, start, end):
-    blake = blake3.blake3(hash.encode(), multithreading=False)
+    hasher = vaex.utils.create_hasher(hash.encode(), large_data=False)
     slice = np.array([start, end], dtype=np.int64)
-    blake.update(_to_bytes(slice))
-    return blake.hexdigest()
+    hasher.update(_to_bytes(slice))
+    return hasher.hexdigest()
 
 
 def hash_array_data(ar):
@@ -118,22 +116,22 @@ def hash_array_data(ar):
             return {"type": "numpy", "data": str(uuid.uuid4()), "mask": None}
         if np.ma.isMaskedArray(ar):
             data_byte_ar = _to_bytes(ar.data)
-            blake = blake3.blake3(data_byte_ar, multithreading=True)
-            hash_data = {"type": "numpy", "data": blake.hexdigest(), "mask": None}
+            hasher = vaex.utils.create_hasher(data_byte_ar, large_data=True)
+            hash_data = {"type": "numpy", "data": hasher.hexdigest(), "mask": None}
             if ar.mask is not True and ar.mask is not False and ar.mask is not np.True_ and ar.mask is not np.False_:
                 mask_byte_ar = _to_bytes(ar.mask)
-                blake = blake3.blake3(mask_byte_ar, multithreading=True)
-                hash_data["mask"] = blake.hexdigest()
+                hasher = vaex.utils.create_hasher(mask_byte_ar, large_data=True)
+                hash_data["mask"] = hasher.hexdigest()
             return hash_data
         else:
             try:
                 byte_ar = _to_bytes(ar)
             except ValueError:
                 byte_ar = ar.copy().view(np.uint8)
-            blake = blake3.blake3(byte_ar, multithreading=True)
-            hash_data = {"type": "numpy", "data": blake.hexdigest(), "mask": None}
+            hasher = vaex.utils.create_hasher(byte_ar, large_data=True)
+            hash_data = {"type": "numpy", "data": hasher.hexdigest(), "mask": None}
     elif isinstance(ar, (pa.Array, pa.ChunkedArray)):
-        blake = blake3.blake3(multithreading=True)
+        hasher = vaex.utils.create_hasher(large_data=True)
         buffer_hashes = []
         hash_data = {"type": "arrow", "buffers": buffer_hashes}
         if isinstance(ar, pa.ChunkedArray):
@@ -143,12 +141,8 @@ def hash_array_data(ar):
         for chunk in chunks:
             for buffer in chunk.buffers():
                 if buffer is not None:
-                    # TODO: we need to make a copy here, a memoryview would be better
-                    # or possible patch the blake module to accept a memoryview https://github.com/oconnor663/blake3-py/issues/9
-                    # or feed in the buffer in batches
-                    # blake.update(buffer)
-                    blake.update(memoryview(buffer))
-                    buffer_hashes.append(blake.hexdigest())
+                    hasher.update(memoryview(buffer))
+                    buffer_hashes.append(hasher.hexdigest())
                 else:
                     buffer_hashes.append(None)
     elif isinstance(ar, vaex.column.Column):
@@ -187,10 +181,10 @@ def hash_array(ar, hash_info=None, return_info=False):
             hash_info = hash_array_data(ar)
         keys = [HASH_VERSION]
         keys.append(hash_info['fingerprint'])
-    blake = blake3.blake3(multithreading=False)  # small amounts of data
+    hasher = vaex.utils.create_hasher(large_data=False)  # small amounts of data
     for key in keys:
-        blake.update(key.encode('ascii'))
-    hash = blake.hexdigest()
+        hasher.update(key.encode('ascii'))
+    hash = hasher.hexdigest()
     if return_info:
         hash_info['hash'] = hash
         hash_info[HASH_VERSION_KEY] = HASH_VERSION
