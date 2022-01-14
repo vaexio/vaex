@@ -20,6 +20,7 @@ import keyword
 from filelock import FileLock
 import pkg_resources
 
+import blake3
 import dask.utils
 import numpy as np
 import pyarrow as pa
@@ -968,3 +969,12 @@ def file_lock(name):
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with FileLock(path):
         yield
+
+
+def create_hasher(initial_data=None, large_data=True):
+    """Creates a blake3 hasher"""
+    version = tuple(map(int, blake3.__version__.split(".")[:2]))
+    if version < (0, 3):
+        return blake3.blake3(initial_data, multithreading=large_data)
+    else:
+        return blake3.blake3(initial_data, max_threads=blake3.blake3.AUTO if large_data else 1)
