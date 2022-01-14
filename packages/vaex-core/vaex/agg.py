@@ -439,6 +439,13 @@ def max(expression, selection=None, edges=False):
 @register
 def first(expression, order_expression, selection=None, edges=False):
     '''Creates a first aggregation'''
+    if expression.dtype != order_expression.dtype:
+        if np.can_cast(order_expression.dtype, expression.dtype):
+            order_expression = order_expression.astype(expression.dtype)
+        elif np.can_cast(expression.dtype, order_expression.dtype):
+            expression = expression.astype(order_expression.dtype)
+        else:
+            raise TypeError("`expression` and `order_expression` parameters are not of same dtype.")
     return AggregatorDescriptorBasic('AggFirst', [expression, order_expression], 'first', multi_args=True, selection=selection, edges=edges)
 
 @register
