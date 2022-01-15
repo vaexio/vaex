@@ -570,3 +570,19 @@ def test_all():
 
     assert df.groupby('g', agg={'all': vaex.agg.all(selection=df.b1)})['all'].tolist() == [False, False]
     assert df.groupby('g', agg={'all': vaex.agg.all(selection=df.b2)})['all'].tolist() == [False, True]
+
+
+def test_first():
+    # x       = [7, 8, 9, 10, 11]
+    # y       = [1, 1, 2,  2,  3]
+    # row_idx = [0, 1, 2,  3,  4]
+    x = np.arange(7,12)
+    y = [1, 1, 2, 2, 3]
+    row_idx = np.arange(5)
+    df = vaex.from_arrays(x=x, y=y, row_idx=row_idx)
+#    assert df.groupby('y', agg={'x_first': vaex.agg.first('x', 'row_idx')})['x_first'].tolist() == [7, 9, 11]
+    x = np.array([7.1, 8.1, 9.1, 10.1, 11.1])
+    df = vaex.from_arrays(x=x, y=y, row_idx=row_idx)
+    assert df.groupby('y', agg={'x_first': vaex.agg.first('x', 'row_idx')})['row_idx'].data_type() == 'float64'
+
+

@@ -258,6 +258,20 @@ class AggregatorDescriptorBasic(AggregatorDescriptor):
                 self.dtype_out = DataType(np.dtype('int64'))
             if self.short_name in ['sum', 'summoment']:
                 self.dtype_out = self.dtype_in.upcast()
+            if self.short_name == "first":
+                oe_dtype = df[str(self.expressions[1])].data_type().index_type
+                if self.dtype_in != oe_dtype:
+                    print(f'dtype_in: {self.dtype_in}')
+                    print(type(self.dtype_in))
+                    print(f'oe_dtype: {oe_dtype}')
+                    print(type(oe_dtype))
+                    if np.can_cast(oe_dtype, self.dtype_in):
+                        df[str(self.expressions[1])] = df[str(self.expressions[1])].astype(self.dtype_in)
+                    elif np.can_cast(self.dtype_in, oe_dtype):
+                        df[str(self.expressions[0])] = df[str(self.expressions[0])].astype(oe_dtype)
+                        self.dtype_in = df[str(self.expressions[0])].data_type().index_type
+                    else:
+                        raise TypeError("`expression` and `order_expression` parameters are not of same dtype.")
 
     def add_tasks(self, df, binners, progress):
         progressbar = vaex.utils.progressbars(progress)
@@ -439,13 +453,6 @@ def max(expression, selection=None, edges=False):
 @register
 def first(expression, order_expression, selection=None, edges=False):
     '''Creates a first aggregation'''
-    if expression.dtype != order_expression.dtype:
-        if np.can_cast(order_expression.dtype, expression.dtype):
-            order_expression = order_expression.astype(expression.dtype)
-        elif np.can_cast(expression.dtype, order_expression.dtype):
-            expression = expression.astype(order_expression.dtype)
-        else:
-            raise TypeError("`expression` and `order_expression` parameters are not of same dtype.")
     return AggregatorDescriptorBasic('AggFirst', [expression, order_expression], 'first', multi_args=True, selection=selection, edges=edges)
 
 @register
