@@ -583,6 +583,6 @@ def test_first():
 #    assert df.groupby('y', agg={'x_first': vaex.agg.first('x', 'row_idx')})['x_first'].tolist() == [7, 9, 11]
     x = np.array([7.1, 8.1, 9.1, 10.1, 11.1])
     df = vaex.from_arrays(x=x, y=y, row_idx=row_idx)
-    assert df.groupby('y', agg={'x_first': vaex.agg.first('x', 'row_idx')})['row_idx'].data_type() == 'float64'
+    assert df.groupby('y', agg={'x_first': vaex.agg.first('x', 'row_idx')})['x_first'].tolist() == [7.1, 9.1, 11.1]
 
 

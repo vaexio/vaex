@@ -259,15 +259,12 @@ class AggregatorDescriptorBasic(AggregatorDescriptor):
             if self.short_name in ['sum', 'summoment']:
                 self.dtype_out = self.dtype_in.upcast()
             if self.short_name == "first":
-                oe_dtype = df[str(self.expressions[1])].data_type().index_type
-                if self.dtype_in != oe_dtype:
-                    print(f'dtype_in: {self.dtype_in}')
-                    print(type(self.dtype_in))
-                    print(f'oe_dtype: {oe_dtype}')
-                    print(type(oe_dtype))
-                    if np.can_cast(oe_dtype, self.dtype_in):
-                        df[str(self.expressions[1])] = df[str(self.expressions[1])].astype(self.dtype_in)
-                    elif np.can_cast(self.dtype_in, oe_dtype):
+                oe_dtype = str(df[str(self.expressions[1])].data_type().index_type)
+                e_dtype = str(self.dtype_in)
+                if e_dtype != oe_dtype:
+                    if np.can_cast(oe_dtype, e_dtype):
+                        df[str(self.expressions[1])] = df[str(self.expressions[1])].astype(e_dtype)
+                    elif np.can_cast(e_dtype, oe_dtype):
                         df[str(self.expressions[0])] = df[str(self.expressions[0])].astype(oe_dtype)
                         self.dtype_in = df[str(self.expressions[0])].data_type().index_type
                     else:
