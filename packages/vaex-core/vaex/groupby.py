@@ -541,7 +541,7 @@ class GroupByBase(object):
                 self.groupby_expression = [str(by.expression) for by in self.by]
                 self.binners = tuple(by.binner for by in self.by)
                 self.shape = [by.N for by in self.by]
-                self.dims = self.groupby_expression[:]
+                self.dims = [by.label for by in self.by]
                 self.progressbar_groupers(1)
             return process(promise)
 
