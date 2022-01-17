@@ -565,6 +565,7 @@ def test_groupby_transformer_serialization(df_factory):
 #     assert df_test.binned_y.tolist() == expected_result_test_y
 
 
+@pytest.mark.flaky(reruns=5)
 def test_multihot_encoder(tmpdir, df_factory):
     a = ['cat', 'dog', 'mouse']
     b = ['red', 'blue', 'green', 'yellow', 'purple', 'orange', 'violet', 'magenta', 'lime', 'grey', 'white', 'black']
