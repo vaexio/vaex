@@ -50,9 +50,9 @@ class Writer:
 
         logger.debug("layout columns(hdf5): %r" % column_names)
         progressbar = vaex.utils.progressbars(progress, title="layout(hdf5)")
-        progressbar_strings = progressbar.add("variable-length storage requirements")
+        progressbar_strings = progressbar.add("storage requirements")
         progressbar_count = progressbar.add("count missing values")
-        progressbar_reserve = progressbar.add("reserve disk space to be mmapped")
+        progressbar_reserve = progressbar.add("reserve disk space")
 
         self.column_writers = {}
         dtypes = df.schema()
@@ -109,28 +109,23 @@ class Writer:
 
         logger.debug("writing columns(hdf5): %r" % column_names)
         # actual writing part
-        progressbar = vaex.utils.progressbars(progress, title="exporting")
+        progressbar = vaex.utils.progressbars(progress, title="write data")
         with progressbar:
             progressbar_columns = {k: progressbar.add(f"write: {k}") for k in column_names}
-            total = N * len(column_names)
-            written = 0
             if export_threads:
                 pool = concurrent.futures.ThreadPoolExecutor(export_threads)
             for column_names_subgroup in vaex.itertools.chunked(column_names, column_count):
                 expressions = [self.column_writers[name].expression for name in column_names_subgroup]
-                for i1, i2, values in df.evaluate(expressions, chunk_size=chunk_size, filtered=True, parallel=parallel, array_type="numpy-arrow", progress=progressbar):
-
+                for _i1, _i2, values in df.evaluate(expressions, chunk_size=chunk_size, filtered=True, parallel=parallel, array_type="numpy-arrow", progress=progressbar.hidden()):
+                    pass
                     def write(arg):
                         i, name = arg
                         self.column_writers[name].write(values[i])
                         progressbar_columns[name](self.column_writers[name].progress)
-                    # for i, name in enumerate(column_names_subgroup):
                     if export_threads:
                         list(pool.map(write, enumerate(column_names_subgroup)))
                     else:
                         list(map(write, enumerate(column_names_subgroup)))
-                    written += (i2 - i1) * len(column_names_subgroup)
-                    progressbar(written/total)
 
 
 class ColumnWriterDictionaryEncoded:

@@ -27,7 +27,7 @@ _last_traceback = None
 _progress_tree_stack = []
 
 class ProgressTree:
-    def __init__(self, children=None, next=None, bar=None, parent=None, name=None):
+    def __init__(self, children=None, next=None, bar=None, parent=None, name=None, hide=False):
         global _last_progress_tree, _last_traceback
         self.next = next
         self.children : List[ProgressTree] = children or list()
@@ -39,11 +39,12 @@ class ProgressTree:
         self.bar = bar
         self.parent = parent
         self.name = name
+        self.hide = hide
         self.cancelled = False
         self.oncancel = lambda: None
         if self.bar:
             self.bar.start()
-        if parent is None:
+        if parent is None and not hide:
             if _last_progress_tree is None:
                 _last_progress_tree = self
                 import traceback
@@ -92,9 +93,14 @@ class ProgressTree:
         # return promise
 
 
+    def hidden(self):
+        '''Will add a child node that is hidden and not participate in progress calculations'''
+        pb = ProgressTree(hide=True)
+        return pb
+
     def add(self, name=None):
         pb = ProgressTree(parent=self, name=name)
-        if self.bar and hasattr(self.bar, 'add_child'):
+        if self.bar and hasattr(self.bar, 'add_child') and not self.hide:
             pb.bar = self.bar.add_child(pb, None, name)
         self.children.append(pb)
         self.finished = False
