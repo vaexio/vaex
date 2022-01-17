@@ -414,6 +414,11 @@ def array_factory_arrow_normal():
 
 
 @pytest.fixture(scope='session')
+def array_factory_arrow_dict_encoded():
+    return lambda x: pa.array(x).dictionary_encode(null_encoding="encode")
+
+
+@pytest.fixture(scope="session")
 def array_factory_arrow_chunked():
     def create(x):
         x = pa.array(x)
@@ -424,10 +429,10 @@ def array_factory_arrow_chunked():
     return create
 
 
-@pytest.fixture(scope='session', params=['array_factory_numpy', 'array_factory_arrow_normal', 'array_factory_arrow_chunked'])
-def array_factory(request, array_factory_numpy, array_factory_arrow_normal, array_factory_arrow_chunked):
-    named = dict(array_factory_numpy=array_factory_numpy, array_factory_arrow_normal=array_factory_arrow_normal, array_factory_arrow_chunked=array_factory_arrow_chunked)
-    return named[request.param]
+@pytest.fixture(scope="session", params=["array_factory_numpy", "array_factory_arrow_normal", "array_factory_arrow_chunked", "array_factory_arrow_dict_encoded"])
+def array_factory(request, array_factory_numpy, array_factory_arrow_normal, array_factory_arrow_chunked, array_factory_arrow_dict_encoded):
+    return locals()[request.param]
+
 
 @pytest.fixture(scope='session', params=['array_factory_arrow_normal', 'array_factory_arrow_chunked'])
 def array_factory_arrow(request, array_factory_arrow_normal, array_factory_arrow_chunked):
@@ -437,10 +442,10 @@ def array_factory_arrow(request, array_factory_arrow_normal, array_factory_arrow
 array_factory1 = array_factory
 array_factory2 = array_factory
 
-@pytest.fixture(params=['df_factory_numpy', 'df_factory_arrow', 'df_factory_arrow_chunked'], scope='session')#, 'df_factory_parquet'])
-def df_factory(request, df_factory_numpy, df_factory_arrow, df_factory_arrow_chunked):#, df_factory_parquet):
-    named = dict(df_factory_numpy=df_factory_numpy, df_factory_arrow=df_factory_arrow, df_factory_arrow_chunked=df_factory_arrow_chunked)#, df_factory_parquet=df_factory_parquet)
-    return named[request.param]
+
+@pytest.fixture(params=["df_factory_numpy", "df_factory_arrow", "df_factory_arrow_chunked", "df_factory_arrow_dict_encoded"], scope="session")  # , 'df_factory_parquet'])
+def df_factory(request, df_factory_numpy, df_factory_arrow, df_factory_arrow_chunked, df_factory_arrow_dict_encoded):  # , df_factory_parquet):
+    return locals()[request.param]
 
 
 @pytest.fixture(scope='session')
@@ -462,6 +467,21 @@ def df_factory_arrow():
                 return ar
         return vaex.from_dict({k: try_convert(v) for k, v in arrays.items()})
     return create
+
+
+def df_factory_arrow_dict_encoded_implementation(**arrays):
+    def try_convert(ar):
+        try:
+            return pa.array(ar).dictionary_encode(null_encoding="encode")
+        except:
+            return ar
+
+    return vaex.from_dict({k: try_convert(v) for k, v in arrays.items()})
+
+
+@pytest.fixture(scope="session")
+def df_factory_arrow_dict_encoded():
+    return df_factory_arrow_dict_encoded_implementation
 
 
 @pytest.fixture(scope='session')

@@ -90,6 +90,7 @@ for name, numpy_name in numpy_function_mapping:
         def f(function=function):
             def wrapper(*args, **kwargs):
                 # convert to numpy
+                args = [vaex.array_types.dictionary_decode(k) for k in args]
                 args = [vaex.arrow.numpy_dispatch.wrap(k) for k in args]
                 numpy_data = [k.numpy_array if isinstance(k, vaex.arrow.numpy_dispatch.NumpyDispatch) else k for k in args]
                 result = function(*numpy_data, **kwargs)
@@ -200,7 +201,7 @@ def fillna(ar, value):
         ar[mask] = value
     return ar
 
-@register_function()
+@register_function(on_expression=False)
 def ismissing(x):
     """Returns True where there are missing values (masked arrays), missing strings or None"""
     if np.ma.isMaskedArray(x):
@@ -231,7 +232,7 @@ def notmissing(x):
     return ~ismissing(x)
 
 
-@register_function()
+@register_function(on_expression=False)
 def isnan(x):
     """Returns an array where there are NaN values"""
     if isinstance(x, vaex.array_types.supported_arrow_array_types):
@@ -253,9 +254,10 @@ def notnan(x):
     return ~isnan(x)
 
 
-@register_function()
+@register_function(on_expression=False)
 def isna(x):
     """Returns a boolean expression indicating if the values are Not Availiable (missing or NaN)."""
+    # TODO: we can deprecate this maybe, because we can solve this on the Expression class level
     return isnan(x) | ismissing(x)
 
 
@@ -2498,6 +2500,8 @@ def _astype(x, dtype):
     if isinstance(x, vaex.column.ColumnString):
         x = x.to_arrow()
     if isinstance(x, vaex.array_types.supported_arrow_array_types):
+        if dtype == 'int':
+            dtype = 'int64'
         if pa.types.is_timestamp(x.type):
             # arrow does not support timestamp to int/float, so we use numpy
             y = x.to_numpy().astype(dtype)
@@ -2723,6 +2727,15 @@ def index_values(ar):
         return pa.chunked_array([k.indices for k in ar.chunks], type=ar.type.index_type)
     else:
         return ar.indices
+
+
+@register_function()
+def dictionary_decode(ar):
+    """Inverse of a dictionary encoding, to get a plain array with values"""
+    dtype = vaex.dtype_of(ar)
+    if not dtype.is_encoded:
+        raise TypeError(f"Can only dict decode from a (dictionary) encoded array, not for {ar}")
+    return vaex.array_types.dictionary_decode(ar)
 
 
 @register_function(on_expression=False)

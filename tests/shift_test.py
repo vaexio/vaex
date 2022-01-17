@@ -1,6 +1,8 @@
 import collections
 import pytest
 
+import common
+
 import numpy as np
 import pyarrow as pa
 import vaex.shift
@@ -144,9 +146,14 @@ def test_shift_basics(df_factory, virtual, rebuild_dataset):
     y = [0, 1, None, 9, 16]
     df = df_factory(x=x, y=y)
     if virtual:
-        df['x'] = df.x + 0
-    dfp1 = df.shift(1, ['x'])
-    dfn1 = df.shift(-1, ['x'])
+        df["x"] = df.x + 0
+    dfp1 = df.shift(1, ["x"])
+    dfp1 = df.shift(1, ["x"])
+    dfn1 = df.shift(-1, ["x"])
+    if df_factory == common.df_factory_arrow_dict_encoded_implementation:
+        with pytest.raises(TypeError):
+            dfp1.x.tolist()
+        return
     assert dfp1.x.tolist() == [None, 0, 1, 2, None]
     assert dfp1.y.tolist() == [0, 1, None, 9, 16]
     assert dfn1.x.tolist() == [1, 2, None, 4, None]
@@ -183,6 +190,10 @@ def test_shift_slice(df_factory, i1, length):
     dfp1 = df.shift(1, ['x'])
     dfn1 = df.shift(-1, ['x'])
     i2 = i1 + length + 1
+    if df_factory == common.df_factory_arrow_dict_encoded_implementation:
+        with pytest.raises(TypeError):
+            dfp1[i1:i2].x.tolist()
+        return
     assert dfp1[i1:i2].x.tolist() == [None, 0, 1, 2, None][i1:i2]
     assert dfp1[i1:i2].y.tolist() == [0, 1, None, 9, 16][i1:i2]
     assert dfn1[i1:i2].x.tolist() == [1, 2, None, 4, None][i1:i2]
@@ -193,6 +204,10 @@ def test_shift_basics_trim(df_factory):
     df = df_factory(x=x, y=y)
     dfp1 = df.shift(1, ['x'], trim=True)
     dfn1 = df.shift(-1, ['x'], trim=True)
+    if df_factory == common.df_factory_arrow_dict_encoded_implementation:
+        with pytest.raises(TypeError):
+            dfp1.x.tolist()
+        return
     assert dfp1.x.tolist() == [0, 1, 2, None]
     assert dfp1.y.tolist() == [1, None, 9, 16]
     assert dfn1.x.tolist() == [1, 2, None, 4]
@@ -212,6 +227,10 @@ def test_shift_range(df_factory):
     df.shift(0, ['x1'], inplace=True)
     df.shift(-1, ['x2'], inplace=True)
     assert df.x1.tolist() == x
+    if df_factory == common.df_factory_arrow_dict_encoded_implementation:
+        with pytest.raises(TypeError):
+            df.x2.tolist()
+        return
     assert df.x2.tolist() == xm1
     assert df.func.stack([df.x1, df.x2]).tolist() == [[0, 1], [1, 2], [2, 3], [3, 4], [4, None]]
     df = df_factory(x=x, y=y)
@@ -233,6 +252,10 @@ def test_shift_filtered(df_factory):
     df = df[((df.x != 99) | df.x.ismissing()).fillna(True)]
     dfp1 = df.shift(1, ['x'])
     dfn1 = df.shift(-1, ['x'])
+    if df_factory == common.df_factory_arrow_dict_encoded_implementation:
+        with pytest.raises(TypeError):
+            dfp1.x.tolist()
+        return
     assert dfp1.x.tolist() == [None, 0, 1, 2, None]
     assert dfp1.y.tolist() == [0, 1, None, 9, 16]
     assert dfn1.x.tolist() == [1, 2, None, 4, None]
@@ -276,6 +299,10 @@ def test_shift_virtual(df_factory):
     df['a'] = df.x + 0
     df['b'] = df.a
     dfs = df.shift(1, ['x'])
+    if df_factory == common.df_factory_arrow_dict_encoded_implementation:
+        with pytest.raises(TypeError):
+            dfs.x.tolist()
+        return
     assert dfs.x.tolist() == xsp1
     assert dfs.a.tolist() == x
     assert dfs.y.tolist() == y
@@ -377,6 +404,10 @@ def test_diff(df_factory, periods):
     x = [0, 1, 2, 3, 4.0]
     df = df_factory(x=x)
     dfp = df.to_pandas_df(array_type='numpy')
+    if df_factory == common.df_factory_arrow_dict_encoded_implementation:
+        with pytest.raises(TypeError):
+            df.diff(periods, fill_value=np.nan)
+        return
     df = df.diff(periods, fill_value=np.nan)
     dfp = dfp.diff(periods)
     result = df['x'].to_numpy()

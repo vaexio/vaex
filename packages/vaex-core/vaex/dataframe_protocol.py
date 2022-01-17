@@ -497,6 +497,9 @@ class _VaexColumn:
         """
         Number of null elements. Should always be known.
         """
+        if self._col.dtype.is_encoded:
+            # vaex has weak/no support for missing values in the indices
+            return (self._col.ismissing().fillmissing(True) | self._col.index_values().ismissing()).sum().item()
         return self._col.countmissing()
 
     @property
@@ -629,7 +632,11 @@ class _VaexColumn:
 
         _k = _DtypeKind
         if null == 3 or null == 4:  # arrow
-            mask = self._col.ismissing()
+            if self._col.dtype.is_encoded:
+                # see also null_count
+                mask = (self._col.ismissing().fillmissing(True) | self._col.index_values().ismissing())
+            else:
+                mask = self._col.ismissing()
 
             # if arrow use .tolist and then turn it into np.array
             # if numpy masked turn the mask into numpy

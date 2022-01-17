@@ -1,4 +1,6 @@
+import pytest
 import numpy as np
+import common
 
 def test_hashmap_unique_basics(df_local):
     df = df_local
@@ -53,6 +55,11 @@ def test_hashmap_unique_nan(df_local):
 def test_hashmap_unique_strings(df_factory):
     expected = ['aap', 'noot', 'mies', None, 'kees']
     df = df_factory(s=expected)
+    if df_factory == common.df_factory_arrow_dict_encoded_implementation:
+        with pytest.raises(TypeError):
+            df._hash_map_unique('s')
+        return
+
     mmap = df._hash_map_unique('s')
     result = mmap.keys().tolist()
     assert set(result) == set(expected)    

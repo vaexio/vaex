@@ -58,6 +58,13 @@ def slice(ar, offset, length=None):
             return ar[offset:]
 
 
+def dictionary_decode(x):
+    if is_arrow_array(x) and isinstance(x.type, pa.DictionaryType):
+        x_decoded = x.dictionary.take(x.indices)
+        return x_decoded
+    return x
+
+
 def concat(arrays):
     if len(arrays) == 1:
         return arrays[0]
@@ -136,6 +143,8 @@ def to_numpy(x, strict=False):
         return x
     elif isinstance(x, supported_arrow_array_types):
         dtype = vaex.dtype_of(x)
+        if dtype.is_encoded:
+            return to_numpy(dictionary_decode(x), strict=strict)
         if not strict and not (dtype.is_primitive or dtype.is_temporal):
             return x
         x = vaex.arrow.convert.column_from_arrow_array(x)
@@ -185,10 +194,7 @@ def convert(x, type, default_type="numpy"):
                 result += convert(chunk, type, default_type=default_type)
             return result
         else:
-            try:
-                return pa.array(x).tolist()
-            except:
-                return np.array(x).tolist()
+            return tolist(x)
     elif type is None:
         if isinstance(x, (list, tuple)):
             chunks = [convert(k, type) for k in x]

@@ -7,9 +7,11 @@ def test_countna(df_factory):
     y_data = np.array([np.nan, 2, None, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13])
     y_mask = np.array([0, 1, 0, 1, 1, 0, 0, 1, 0, 0, 0, 0, 1])
     y = np.ma.MaskedArray(data=y_data, mask=y_mask)
-    df = df_factory(x=x, y=y)
+    z = np.arange(len(x))
+    df = df_factory(x=x, y=y, z=z)
     pandas_df = df.to_pandas_df(array_type='numpy')
 
+    assert df.z.countna() == 0
     assert df.x.countna() == pandas_df.x.isna().sum()
     assert df.y.countna() == pandas_df.y.isna().sum()
     assert df.x.countnan() == 2

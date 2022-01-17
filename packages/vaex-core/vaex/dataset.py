@@ -132,25 +132,38 @@ def hash_array_data(ar):
             hash_data = {"type": "numpy", "data": hasher.hexdigest(), "mask": None}
     elif isinstance(ar, (pa.Array, pa.ChunkedArray)):
         hasher = vaex.utils.create_hasher(large_data=True)
-        buffer_hashes = []
+        buffer_hashes = hash_arrow_array(ar)
         hash_data = {"type": "arrow", "buffers": buffer_hashes}
-        if isinstance(ar, pa.ChunkedArray):
-            chunks = ar.chunks
-        else:
-            chunks = [ar]
-        for chunk in chunks:
-            for buffer in chunk.buffers():
-                if buffer is not None:
-                    hasher.update(memoryview(buffer))
-                    buffer_hashes.append(hasher.hexdigest())
-                else:
-                    buffer_hashes.append(None)
+        if vaex.dtype_of(ar).is_encoded:
+            if isinstance(ar, pa.ChunkedArray):
+                dictionary = ar.chunks[0].dictionary
+                for chunk in ar.chunks[1:]:
+                    if chunk.dictionary != dictionary:
+                        raise TypeError(f'Dictionary of chunks is not equal, not supported')
+            else:
+                dictionary = ar.dictionary
+            hash_data["buffers_dictionary"] = hash_arrow_array(dictionary)
     elif isinstance(ar, vaex.column.Column):
         hash_data = {"type": "column", "fingerprint": ar.fingerprint()}
     else:
         raise TypeError
     return hash_data
 
+def hash_arrow_array(ar):
+    hasher = vaex.utils.create_hasher(large_data=True)
+    buffer_hashes = []
+    if isinstance(ar, pa.ChunkedArray):
+        chunks = ar.chunks
+    else:
+        chunks = [ar]
+    for chunk in chunks:
+        for buffer in chunk.buffers():
+            if buffer is not None:
+                hasher.update(memoryview(buffer))
+                buffer_hashes.append(hasher.hexdigest())
+            else:
+                buffer_hashes.append(None)
+    return buffer_hashes
 
 def hash_array(ar, hash_info=None, return_info=False):
     # this function can change over time, as it builds on top of the expensive part
@@ -176,6 +189,8 @@ def hash_array(ar, hash_info=None, return_info=False):
             hash_info = hash_array_data(ar)
         keys = [HASH_VERSION]
         keys.extend(["NO_BUFFER" if not b else b for b in hash_info['buffers']])
+        if 'buffers_dictionary' in hash_info:
+            keys.extend(["NO_DICTIONARY_BUFFER" if not b else b for b in hash_info['buffers_dictionary']])
     elif isinstance(ar, vaex.column.Column):
         if not (hash_info['type'] == 'column'):
             hash_info = hash_array_data(ar)

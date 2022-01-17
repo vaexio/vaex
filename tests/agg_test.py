@@ -191,16 +191,16 @@ def test_mean_basics(df):
     assert y == 5/3
 
 
-def test_minmax_local():
-    x = np.arange(1, 10, 1)
-    df = vaex.from_arrays(x=x)
+def test_minmax_local(df_factory):
+    df = df_factory(x=np.arange(1, 10, 1).tolist())
+    x = df.x.to_numpy()
     assert df.x.min() == 1
     assert df.x.max() == 9
 
     assert df[(df.x > 3) & (df.x < 7)]['x'].min() == (4)
     assert df[(df.x > 3) & (df.x < 7)]['x'].max() == (6)
 
-    df = vaex.from_arrays(x=-x)
+    df = df_factory(x=(-df.x).tolist())
     assert df.x.max() == -1
     assert df.x.min() == -9
 

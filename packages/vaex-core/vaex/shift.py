@@ -309,6 +309,8 @@ class DatasetShifted(vaex.dataset.DatasetDecorator):
         yield from iter
 
     def _filler(self, n, dtype):
+        if vaex.dtype(dtype).is_encoded:
+            raise TypeError(f'Encoded data not yet supported')
         assert n > 0
         if self.fill_value is None:
             type = vaex.array_types.to_arrow_type(dtype)
