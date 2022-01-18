@@ -17,6 +17,11 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 
+#include "superstring.hpp"
+#include <nonstd/string_view.hpp>
+#include <string>
+typedef nonstd::string_view string_view;
+
 namespace vaex {
 
 namespace py = pybind11;
@@ -36,6 +41,18 @@ template <typename T>
 struct hash {
     std::size_t operator()(T const &val) const {
         std::hash<T> h;
+        return h(val);
+    }
+};
+
+template <>
+struct hash<std::string> {
+    std::size_t operator()(std::string const &val) const {
+        std::hash<std::string> h;
+        return h(val);
+    }
+    std::size_t operator()(string_view const &val) const {
+        std::hash<string_view> h;
         return h(val);
     }
 };
@@ -66,6 +83,20 @@ struct hash<uint32_t> {
     }
 };
 
+template <typename T>
+struct equal_to {
+    bool operator()(const T &a, const T &b) const { return a == b; }
+};
+
+template <>
+struct equal_to<std::string> {
+    using is_transparent = void;
+    bool operator()(const std::string &a, const std::string &b) const { return a == b; }
+    bool operator()(const string_view a, const std::string &b) const { return a == b; }
+    bool operator()(const string_view a, const string_view b) const { return a == b; }
+    bool operator()(const std::string &a, const string_view b) const { return a == b; }
+};
+
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wstrict-aliasing"
 template <>
@@ -84,26 +115,26 @@ struct hash<double> {
 #pragma GCC diagnostic pop
 
 #ifdef VAEX_USE_TSL
-template <class Key, class Value, class Hash = vaex::hash<Key>, class Compare = std::equal_to<Key>>
+template <class Key, class Value, class Hash = vaex::hash<Key>, class Compare = equal_to<Key>>
 using hashmap = tsl::hopscotch_map<Key, Value, Hash, Compare>;
-template <class Key, class Value, class Hash = vaex::hash<Key>, class Compare = std::equal_to<Key>>
+template <class Key, class Value, class Hash = vaex::hash<Key>, class Compare = equal_to<Key>>
 using hashmap_pg = tsl::hopscotch_pg_map<Key, Value, Hash, Compare>;
 
-template <class Key, class Value, class Hash = vaex::hash<Key>, class Compare = std::equal_to<Key>>
+template <class Key, class Value, class Hash = vaex::hash<Key>, class Compare = equal_to<Key>>
 using hashmap_store = tsl::hopscotch_map<Key, Value, Hash, Compare, std::allocator<std::pair<Key, Value>>, 30, true>;
-template <class Key, class Value, class Hash = vaex::hash<Key>, class Compare = std::equal_to<Key>>
+template <class Key, class Value, class Hash = vaex::hash<Key>, class Compare = equal_to<Key>>
 using hashmap_pg_store = tsl::hopscotch_pg_map<Key, Value, Hash, Compare, std::allocator<std::pair<Key, Value>>, 30, true>;
 #endif
 
 #ifdef VAEX_USE_ABSL
-template <class Key, class Value, class Hash = vaex::hash<Key>, class Compare = std::equal_to<Key>>
+template <class Key, class Value, class Hash = vaex::hash<Key>, class Compare = equal_to<Key>>
 using hashmap = absl::flat_hash_map<Key, Value, Hash, Compare>;
-template <class Key, class Value, class Hash = vaex::hash<Key>, class Compare = std::equal_to<Key>>
+template <class Key, class Value, class Hash = vaex::hash<Key>, class Compare = equal_to<Key>>
 using hashmap_pg = absl::flat_hash_map<Key, Value, Hash, Compare>;
 
-template <class Key, class Value, class Hash = vaex::hash<Key>, class Compare = std::equal_to<Key>>
+template <class Key, class Value, class Hash = vaex::hash<Key>, class Compare = equal_to<Key>>
 using hashmap_store = absl::flat_hash_map<Key, Value, Hash, Compare>;
-template <class Key, class Value, class Hash = vaex::hash<Key>, class Compare = std::equal_to<Key>>
+template <class Key, class Value, class Hash = vaex::hash<Key>, class Compare = equal_to<Key>>
 using hashmap_pg_store = absl::flat_hash_map<Key, Value, Hash, Compare>;
 #endif
 
@@ -121,11 +152,44 @@ inline void set_second(I &it, V &&value) {
 #endif
 }
 
+template <typename T>
+struct view {
+    typedef T type;
+};
+
+template <>
+struct view<std::string> {
+    typedef string_view type;
+};
+
+template <typename T>
+struct key_container {
+    typedef T *type;
+};
+
+template <>
+struct key_container<std::string> {
+    typedef StringSequence *type;
+};
+template <class KeyType>
+class hash_map {
+  public:
+    using key_type = KeyType;
+    using key_type_view = typename view<KeyType>::type;
+    using key_container = typename key_container<KeyType>::type;
+    virtual int64_t map_key(key_type_view) { return 0; }
+    virtual void map_many(key_container, int64_t offset, int64_t length, int64_t *output) { throw std::runtime_error("not implemented"); };
+    virtual int64_t size() = 0;
+    virtual int64_t nan_index() = 0;
+    virtual int64_t null_index() = 0;
+};
+
 template <class Derived, class KeyType, class Hashmap = hashmap<KeyType, int64_t>>
-class hash_common {
+class hash_common : public hash_map<KeyType> {
   public:
     using value_type = int64_t;
     using key_type = KeyType;
+    using key_type_view = typename view<KeyType>::type;
     using hashmap_type = Hashmap;
     using hasher = typename hashmap_type::hasher;
     using hasher_map = typename hashmap_type::hasher;
@@ -133,13 +197,13 @@ class hash_common {
 
     hash_common(int16_t nmaps, int64_t limit = -1) : maps(nmaps), limit(limit), maplocks(nmaps), nan_count(0), null_count(0), sealed(false) {}
 
-    void update1(key_type &key) {
+    void update1(key_type_view &key) {
         std::size_t hash = hasher_map_choice()(key);
         size_t map_index = (hash % this->maps.size());
         update1(map_index, key);
     }
 
-    void update1(uint16_t map_index, key_type &key, int64_t index = 0) {
+    void update1(uint16_t map_index, key_type_view &key, int64_t index = 0) {
         auto &map = this->maps[map_index];
         auto search = map.find(key);
         auto end = map.end();
@@ -247,6 +311,7 @@ class hash_common {
         // normal count and null and nan
         return count();
     }
+    virtual int64_t size() { return this->length(); }
 
     std::vector<hashmap_type> maps;
     int64_t limit;

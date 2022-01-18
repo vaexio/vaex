@@ -1,7 +1,7 @@
 #include "hash_primitives.cpp"
 
 namespace vaex {
-template<class T, class M>
+template <class T, class M>
 void init_hash_pg(M m, std::string name) {
     init_hash_<T, M, hashmap_primitive_pg>(m, name, "_prime_growth");
 }
@@ -19,5 +19,4 @@ void init_hash_primitives_prime(py::module &m) {
     init_hash_pg<float>(m, "float32");
     init_hash_pg<double>(m, "float64");
 }
-}
-
+} // namespace vaex

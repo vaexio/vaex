@@ -244,12 +244,12 @@ class hash_base : public hash_common<Derived, T, Hashmap<T, int64_t>> {
             //         }
             //     }
             // }
-            if(this->limit >= 0) {
-                if(this->count() >= this->limit) {
+            if (this->limit >= 0) {
+                if (this->count() >= this->limit) {
                     full = true;
                 }
             }
-            if(!full) {
+            if (!full) {
                 for (size_t map_index = 0; map_index < nmaps; map_index++) {
                     if (buckets[map_index].size()) {
                         const std::lock_guard<std::mutex> lock(this->maplocks[map_index]);
@@ -477,20 +477,22 @@ class ordered_set : public hash_base<ordered_set<T2, Hashmap2>, T2, Hashmap2> {
         return bucket->second;
     }
 
-    static ordered_set *create(py::array_t<key_type> keys, int64_t null_value, int64_t nan_count, int64_t null_count, std::string* fingerprint) {
+    static ordered_set *create(py::array_t<key_type> keys, int64_t null_value, int64_t nan_count, int64_t null_count, std::string *fingerprint) {
         ordered_set *set = new ordered_set(1);
-        const key_type *keys_ptr = keys.data(0);
-        size_t size = keys.size();
-        {
-            py::gil_scoped_release gil;
-            for (size_t i = 0; i < size; i++) {
-                key_type key = keys_ptr[i];
-                if (int64_t(i) == null_value) {
-                    set->update1_null();
-                } else if (custom_isnan(key)) {
-                    set->update1_nan();
-                } else {
-                    set->update1(0, key);
+        if (keys.size() > 0) {
+            const key_type *keys_ptr = keys.data(0);
+            size_t size = keys.size();
+            {
+                py::gil_scoped_release gil;
+                for (size_t i = 0; i < size; i++) {
+                    key_type key = keys_ptr[i];
+                    if (int64_t(i) == null_value) {
+                        set->update1_null();
+                    } else if (custom_isnan(key)) {
+                        set->update1_nan();
+                    } else {
+                        set->update1(0, key);
+                    }
                 }
             }
         }
@@ -521,7 +523,7 @@ class ordered_set : public hash_base<ordered_set<T2, Hashmap2>, T2, Hashmap2> {
         set->null_count = null_count;
         set->nan_count = nan_count;
         set->sealed = true;
-        if(fingerprint) {
+        if (fingerprint) {
             set->fingerprint = *fingerprint;
         }
         return set;
@@ -552,6 +554,48 @@ class ordered_set : public hash_base<ordered_set<T2, Hashmap2>, T2, Hashmap2> {
         }
         return result;
     }
+    // this is the c++ interface we use in the binner
+    virtual void map_many(key_type *values, int64_t offset, int64_t length, int64_t *output) override {
+        size_t nmaps = this->maps.size();
+        auto offsets = this->offsets();
+        for (int64_t i = offset; i < offset + length; i++) {
+            const key_type &value = values[i];
+            // the caller is responsible for finding masked values
+            if (custom_isnan(value)) {
+                output[i - offset] = this->nan_value;
+                assert(this->nan_count > 0);
+            } else {
+                std::size_t hash = hasher_map_choice()(value);
+                size_t map_index = (hash % nmaps);
+                auto search = this->maps[map_index].find(value);
+                if (search == this->maps[map_index].end()) {
+                    output[i - offset] = -1;
+                } else {
+                    output[i - offset] = search->second + offsets[map_index];
+                }
+            }
+        }
+    }
+
+    virtual int64_t map_key(key_type value) {
+        // the caller is responsible for finding masked values
+        if (custom_isnan(value)) {
+            return this->nan_value;
+        } else {
+            // TODO: slow
+            auto offsets = this->offsets();
+            size_t nmaps = this->maps.size();
+            std::size_t hash = hasher_map_choice()(value);
+            size_t map_index = (hash % nmaps);
+            auto search = this->maps[map_index].find(value);
+            if (search == this->maps[map_index].end()) {
+                return -1;
+            } else {
+                return search->second + offsets[map_index];
+            }
+        }
+    }
+
     py::object map_ordinal(py::array_t<key_type> &values) {
         size_t size = this->length();
         // TODO: apply this pattern of various return types to the other set types

@@ -68,6 +68,11 @@ void bind_common(Cls &cls) {
 }
 
 void init_hash_string(py::module &m) {
+    // we use a baseclass so we can pass the ordered set around
+    std::string basename = "hash_map_string";
+    typedef hash_map<std::string> BaseType;
+    auto BaseClass = py::class_<BaseType>(m, basename.c_str());
+
     {
         typedef counter<> Type;
         std::string countername = "counter_string";
@@ -77,7 +82,7 @@ void init_hash_string(py::module &m) {
     {
         std::string ordered_setname = "ordered_set_string";
         typedef ordered_set<> Type;
-        auto cls = py::class_<Type>(m, ordered_setname.c_str())
+        auto cls = py::class_<Type>(m, ordered_setname.c_str(), BaseClass)
                        .def(py::init<int, int64_t>(), py::arg("nmaps"), py::arg("limit") = -1)
                        .def(py::init(&Type::create<StringList32>))
                        .def(py::init(&Type::create<StringList64>))

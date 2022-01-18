@@ -48,7 +48,7 @@ class AggStringNUnique : public Aggregator {
             if (masked) {
                 this->counters[indices1d[j]].update1_null();
             } else {
-                string s = this->string_sequence->get(j + offset);
+                string_view s = this->string_sequence->view(j + offset);
                 this->counters[indices1d[j]].update1(s);
             }
         }
