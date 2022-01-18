@@ -3,6 +3,28 @@ import numpy as np
 import sys
 
 
+def test_binner_hash():
+    x = np.array([1, 2, 3, 6], dtype="float64")
+    df = vaex.from_arrays(x=x)
+    hashmap = df._hash_map_unique("x")._internal
+    binner = vaex.superagg.BinnerHash_float64("x", hashmap)
+    # binner.set_data(x)
+
+
+def test_ref_binner_hash():
+    x = np.array([1, 2, 3, 6], dtype="float64")
+    df = vaex.from_arrays(x=x)
+    hashmap = df._hash_map_unique("x")._internal
+    start = sys.getrefcount(hashmap)
+    binner = vaex.superagg.BinnerHash_float64("x", hashmap)
+    start_binner = sys.getrefcount(binner)
+    assert sys.getrefcount(hashmap) == start + 1
+    binner_copy = binner.copy()
+    assert sys.getrefcount(hashmap) == start_binner + 1
+    assert sys.getrefcount(hashmap) == start + 2
+    binner.set_data(x)
+
+
 def test_ref_count():
     x = np.array([-1, -2, 0.5, 1.5, 4.5, 5], dtype='f8')
     bins = 5

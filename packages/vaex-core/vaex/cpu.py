@@ -47,7 +47,17 @@ class binner_encoding:
             return cls(binner_spec['expression'], binner_spec['count'], binner_spec['minimum'])
         elif type == 'scalar':
             cls = vaex.utils.find_type_from_dtype(vaex.superagg, "BinnerScalar_", dtype)
-            return cls(binner_spec['expression'], binner_spec['minimum'], binner_spec['maximum'], binner_spec['count'])
+            return cls(binner_spec["expression"], binner_spec["minimum"], binner_spec["maximum"], binner_spec["count"])
+        elif type == "hash":
+            cls = vaex.utils.find_type_from_dtype(vaex.superagg, "BinnerHash_", dtype)
+            hash_map_unique_id = binner_spec["hash_map_unique"]
+            if encoding.has_object(hash_map_unique_id):
+                hash_map_unique = encoding.get_object(hash_map_unique_id)
+            else:
+                hash_map_unique_spec = encoding.get_object_spec(hash_map_unique_id)
+                hash_map_unique = encoding.decode("hash-map-unique", hash_map_unique_spec)
+                encoding.set_object(hash_map_unique_id, hash_map_unique)
+            return cls(binner_spec["expression"], hash_map_unique._internal)
         else:
             raise ValueError('Cannot deserialize: %r' % binner_spec)
 
@@ -547,7 +557,8 @@ class TaskPartAggregation(TaskPart):
         # we need to make sure we keep some objects alive, since the c++ side does not incref
         # on set_data and set_data_mask
         references = []
-        for binner in grid.binners:
+
+        def init_binner(binner):
             block = block_map[binner.expression]
             dtype = self.dtypes[binner.expression]
             block = check_array(block, dtype)
@@ -560,6 +571,13 @@ class TaskPartAggregation(TaskPart):
                 binner.set_data(block)
                 binner.clear_data_mask()
                 references.extend([block])
+
+        for binner in grid.binners:
+            if hasattr(binner, "binners"):
+                for subbinner in binner.binners:
+                    init_binner(subbinner)
+            else:
+                init_binner(binner)
         all_aggregators = []
 
         selection_index_global = 0

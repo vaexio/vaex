@@ -137,6 +137,9 @@ extension_superutils = Extension("vaex.superutils", [
     )
 
 extension_superagg = Extension("vaex.superagg", [
+        os.path.relpath(os.path.join(dirname, "src/binner_combined.cpp")),
+        os.path.relpath(os.path.join(dirname, "src/binner_ordinal.cpp")),
+        os.path.relpath(os.path.join(dirname, "src/binner_hash.cpp")),
         os.path.relpath(os.path.join(dirname, "src/superagg_binners.cpp")),
         os.path.relpath(os.path.join(dirname, "src/superagg.cpp")),
         os.path.relpath(os.path.join(dirname, "src/agg_hash_string.cpp")),

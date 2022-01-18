@@ -53,7 +53,6 @@ class Mask {
         //     throw std::runtime_error("offset should be smaller than length");
         // }
         int64_t counted = 0;
-        int64_t start = -1, end = -1;
         for (int64_t i = 0; i < length; i++) {
             if (mask_data[i] == 1) {
                 counted++;
@@ -105,7 +104,7 @@ class Mask {
         int64_t found = 0;
         {
             py::gil_scoped_release release;
-            for (size_t i = 0; i < length; i++) {
+            for (int64_t i = 0; i < length; i++) {
                 if (mask_data[i] == 1) {
                     ar_unsafe(found++) = i;
                 }
@@ -193,7 +192,8 @@ PYBIND11_MODULE(superutils, m) {
     m.def("hash", hash_func<uint64_t>);
 
     vaex::init_hash_primitives_power_of_two(m);
-    vaex::init_hash_primitives_prime(m);
+    // TODO: enable again, needs refactor of parent hash_map class
+    // vaex::init_hash_primitives_prime(m);
     vaex::init_hash_string(m);
     vaex::init_hash_object(m);
 }

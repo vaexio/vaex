@@ -25,6 +25,7 @@ class hash_base : public hash_common<Derived, T, hashmap<T, int64_t>> {
     using Base = hash_common<Derived, T, hashmap<T, int64_t>>;
     using hashmap_type = typename Base::hashmap_type;
     using key_type = typename Base::key_type;
+    using key_view_type = V;
     using value_type = typename Base::value_type;
 
     using storage_type = A;
@@ -90,7 +91,7 @@ class hash_base : public hash_common<Derived, T, hashmap<T, int64_t>> {
                 int64_t i = 0;
                 for (offset_type offset : offsets[bucket_index]) {
                     // key_type key = keys[offset];
-                    key_type key = strings->get(offset);
+                    key_type_view key = strings->view(offset);
                     auto search = map.find(key);
                     auto end = map.end();
                     auto key_offset = offsets[bucket_index][i];
@@ -114,14 +115,14 @@ class hash_base : public hash_common<Derived, T, hashmap<T, int64_t>> {
                 int64_t i2 = std::min(size, (chunk + 1) * chunk_size);
 
                 for (int64_t i = i1; i < i2; i++) {
-                    auto value = strings->get(i);
+                    auto value = strings->view(i);
                     hashes[i - i1] = hasher_map_choice()(value);
                 }
                 for (int64_t i = i1; i < i2; i++) {
                     if (strings->is_null(i)) {
                         null_offsets.push_back(i);
                     } else {
-                        // key_type_view value = strings->get(i);
+                        // key_type_view value = strings->view(i);
                         std::size_t hash = hashes[i - i1];
                         // std::size_t hash = hasher_map_choice()(value);
                         size_t map_index = (hash % nmaps);
@@ -129,12 +130,12 @@ class hash_base : public hash_common<Derived, T, hashmap<T, int64_t>> {
                     }
                 }
             }
-            if(this->limit >= 0) {
-                if(this->count() >= this->limit) {
+            if (this->limit >= 0) {
+                if (this->count() >= this->limit) {
                     full = true;
                 }
             }
-            if(!full) {
+            if (!full) {
                 for (size_t map_index = 0; map_index < nmaps; map_index++) {
                     if (offsets[map_index].size()) {
                         const std::lock_guard<std::mutex> lock(this->maplocks[map_index]);
@@ -234,6 +235,7 @@ class counter : public hash_base<counter<T, A>, T, A, V>, public counter_mixin<T
     using Base = hash_base<counter<T, A>, T, A, V>;
     using typename Base::hashmap_type;
     using typename Base::key_type;
+    using typename Base::key_type_view;
     using typename Base::storage_type;
     using typename Base::storage_type_view;
     using typename Base::value_type;
@@ -257,13 +259,13 @@ class counter : public hash_base<counter<T, A>, T, A, V>, public counter_mixin<T
     }
     int64_t value_null() { return this->null_count; }
     int64_t value_nan() { return this->nan_count; }
-    value_type add_new(int16_t map_index, key_type &value, int64_t index) {
+    value_type add_new(int16_t map_index, key_type_view &value, int64_t index) {
         auto &map = this->maps[map_index];
         map.emplace(value, 1);
         return 1;
     }
     template <class Bucket>
-    value_type add_existing(Bucket &bucket, int16_t map_index, key_type &value, int64_t index) {
+    value_type add_existing(Bucket &bucket, int16_t map_index, key_type_view &value, int64_t index) {
         set_second(bucket, bucket->second + 1);
         return bucket->second;
     }
@@ -315,13 +317,14 @@ class counter : public hash_base<counter<T, A>, T, A, V>, public counter_mixin<T
     }
 };
 
-template <class T = string, class V = string>
+template <class T = string, class V = string_view>
 class ordered_set : public hash_base<ordered_set<T>, T, T, V> {
   public:
     using Base = hash_base<ordered_set<T>, T, T, V>;
     using typename Base::hasher_map_choice;
     using typename Base::hashmap_type;
     using typename Base::key_type;
+    using typename Base::key_type_view;
     using typename Base::storage_type;
     using typename Base::storage_type_view;
     using typename Base::value_type;
@@ -361,7 +364,7 @@ class ordered_set : public hash_base<ordered_set<T>, T, T, V> {
     }
 
     template <class SL>
-    static ordered_set *create(SL *keys, int64_t null_value, int64_t nan_count, int64_t null_count, std::string* fingerprint) {
+    static ordered_set *create(SL *keys, int64_t null_value, int64_t nan_count, int64_t null_count, std::string *fingerprint) {
         ordered_set *set = new ordered_set(1);
         {
             size_t size = keys->length;
@@ -370,7 +373,7 @@ class ordered_set : public hash_base<ordered_set<T>, T, T, V> {
                 if (keys->is_null(i)) {
                     set->update1_null();
                 } else {
-                    key_type key = keys->get(i);
+                    key_type_view key = keys->view(i);
                     set->update1(0, key, 0);
                 }
             }
@@ -402,7 +405,7 @@ class ordered_set : public hash_base<ordered_set<T>, T, T, V> {
         set->null_count = null_count;
         set->nan_count = nan_count;
         set->sealed = true;
-        if(fingerprint) {
+        if (fingerprint) {
             set->fingerprint = *fingerprint;
         }
         return set;
@@ -419,7 +422,7 @@ class ordered_set : public hash_base<ordered_set<T>, T, T, V> {
                 if (strings->is_null(i)) {
                     output(i) = this->null_count > 0;
                 } else {
-                    const storage_type_view &value = strings->get(i);
+                    const storage_type_view &value = strings->view(i);
                     std::size_t hash = hasher_map_choice()(value);
                     size_t map_index = (hash % nmaps);
                     auto search = this->maps[map_index].find(value);
@@ -433,7 +436,7 @@ class ordered_set : public hash_base<ordered_set<T>, T, T, V> {
             }
         } else {
             for (int64_t i = 0; i < size; i++) {
-                const storage_type_view &value = strings->get(i);
+                const storage_type_view &value = strings->view(i);
                 std::size_t hash = hasher_map_choice()(value);
                 size_t map_index = (hash % nmaps);
                 auto search = this->maps[map_index].find(value);
@@ -447,6 +450,61 @@ class ordered_set : public hash_base<ordered_set<T>, T, T, V> {
         }
         return result;
     }
+
+    virtual void map_many(StringSequence *strings, int64_t offset, int64_t length, int64_t *output) override {
+        // int64_t size = strings->length;
+        size_t nmaps = this->maps.size();
+        auto offsets = this->offsets();
+
+        // split slow and fast path
+        if (strings->has_null()) {
+            for (int64_t i = offset; i < offset + length; i++) {
+                if (strings->is_null(i)) {
+                    output[i - offset] = this->null_value;
+                    assert(this->null_count > 0);
+                } else {
+                    const key_type_view &key = strings->view(i);
+                    size_t hash = hasher_map_choice()(key);
+                    size_t map_index = (hash % nmaps);
+                    auto search = this->maps[map_index].find(key, hash);
+                    auto end = this->maps[map_index].end();
+                    if (search == end) {
+                        output[i - offset] = -1;
+                    } else {
+                        output[i - offset] = search->second + offsets[map_index];
+                    }
+                }
+            }
+
+        } else {
+            for (int64_t i = offset; i < offset + length; i++) {
+                const key_type_view &key = strings->view(i);
+                std::size_t hash = hasher_map_choice()(key);
+                size_t map_index = (hash % nmaps);
+                auto search = this->maps[map_index].find(key, hash);
+                auto end = this->maps[map_index].end();
+                if (search == end) {
+                    output[i - offset] = -1;
+                } else {
+                    output[i - offset] = search->second + offsets[map_index];
+                }
+            }
+        }
+    };
+    virtual int64_t map_key(string_view key) {
+        size_t nmaps = this->maps.size();
+        auto offsets = this->offsets();
+        size_t hash = hasher_map_choice()(key);
+        size_t map_index = (hash % nmaps);
+        auto search = this->maps[map_index].find(key);
+        auto end = this->maps[map_index].end();
+        if (search == end) {
+            return -1;
+        } else {
+            return search->second + offsets[map_index];
+        }
+    }
+
     py::object map_ordinal(StringSequence *strings) {
         size_t size = this->length();
         if (size < (1u << 7u)) {
@@ -475,7 +533,7 @@ class ordered_set : public hash_base<ordered_set<T>, T, T, V> {
                     output(i) = this->null_value;
                     assert(this->null_count > 0);
                 } else {
-                    const storage_type_view &key = strings->get(i);
+                    const storage_type_view &key = strings->view(i);
                     size_t hash = hasher_map_choice()(key);
                     size_t map_index = (hash % nmaps);
                     auto search = this->maps[map_index].find(key, hash);
@@ -489,7 +547,7 @@ class ordered_set : public hash_base<ordered_set<T>, T, T, V> {
             }
         } else {
             for (int64_t i = 0; i < size; i++) {
-                const storage_type_view &key = strings->get(i);
+                const storage_type_view &key = strings->view(i);
                 std::size_t hash = hasher_map_choice()(key);
                 size_t map_index = (hash % nmaps);
                 auto search = this->maps[map_index].find(key, hash);
@@ -536,7 +594,7 @@ class ordered_set : public hash_base<ordered_set<T>, T, T, V> {
     value_type ordinal_code_offset_null;
 };
 
-template <class T = string, class V = string>
+template <class T = string, class V = string_view>
 class index_hash : public hash_base<index_hash<T>, T, T, V> {
   public:
     using Base = hash_base<index_hash<T>, T, T, V>;
@@ -609,7 +667,7 @@ class index_hash : public hash_base<index_hash<T>, T, T, V> {
                     output(i) = null_value;
                     assert(this->null_count > 0);
                 } else {
-                    const storage_type_view &key = strings->get(i);
+                    const storage_type_view &key = strings->view(i);
                     std::size_t hash = hasher_map_choice()(key);
                     size_t map_index = (hash % nmaps);
                     auto search = this->maps[map_index].find(key);
@@ -624,7 +682,7 @@ class index_hash : public hash_base<index_hash<T>, T, T, V> {
             }
         } else {
             for (int64_t i = 0; i < size; i++) {
-                const storage_type_view &key = strings->get(i);
+                const storage_type_view &key = strings->view(i);
                 std::size_t hash = hasher_map_choice()(key);
                 size_t map_index = (hash % nmaps);
                 auto search = this->maps[map_index].find(key);
@@ -652,7 +710,7 @@ class index_hash : public hash_base<index_hash<T>, T, T, V> {
                 for (size_t i = 0; i < strings->length; i++) {
                     if (strings->is_null(i)) {
                     } else {
-                        const storage_type_view &key = strings->get(i);
+                        const storage_type_view &key = strings->view(i);
                         std::size_t hash = hasher_map_choice()(key);
                         size_t map_index = (hash % nmaps);
                         auto search = this->overflows[map_index].find(key);
@@ -666,7 +724,7 @@ class index_hash : public hash_base<index_hash<T>, T, T, V> {
                 }
             } else {
                 for (size_t i = 0; i < strings->length; i++) {
-                    const storage_type_view &key = strings->get(i);
+                    const storage_type_view &key = strings->view(i);
                     std::size_t hash = hasher_map_choice()(key);
                     size_t map_index = (hash % nmaps);
                     auto search = this->overflows[map_index].find(key);
