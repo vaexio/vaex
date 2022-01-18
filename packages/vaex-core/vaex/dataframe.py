@@ -5453,6 +5453,10 @@ class DataFrame(object):
         dtype = self.data_type(expression)
         return BinnerOrdinal(expression, min_value, ordinal_count, dtype)
 
+    def _binner_hash(self, expression, hash_map_unique):
+        dtype = self.data_type(expression)
+        return BinnerHash(expression, hash_map_unique, dtype)
+
     def _create_binners(self, binby, limits, shape, selection=None, progress=None, delay=False):
         if isinstance(binby, (list, tuple)):
             binbys = binby
@@ -7121,4 +7125,35 @@ class BinnerOrdinal(BinnerBase):
             self.expression == rhs.expression and \
             self.minimum == rhs.minimum and \
             self.count == rhs.count and \
+            self.dtype == rhs.dtype
+
+
+@register_binner
+class BinnerHash(BinnerBase):
+    snake_name = 'hash'
+    def __init__(self, expression, hash_map_unique, dtype):
+        self.expression = str(expression)
+        self.hash_map_unique = hash_map_unique
+        self.dtype = dtype
+
+    def __repr__(self):
+        return f'binner_hash({self.expression}, {self.hash_map_unique})'
+
+    def encode(self, encoding):
+        datatype = encoding.encode('dtype', self.dtype)
+        hash_map_spec = encoding.encode('hash-map-unique', self.hash_map_unique)
+        assert self.hash_map_unique.fingerprint
+        hash_map_id = vaex.cache.fingerprint('binner-hash', self.hash_map_unique.fingerprint)
+        encoding.set_object_spec(hash_map_id, hash_map_spec)
+        return {'expression': self.expression, 'hash_map_unique': hash_map_id, 'dtype': datatype}
+
+    def __hash__(self) -> int:
+        return hash((self.__class__.__name__, self.expression, self.hash_map_unique))
+
+    def __eq__(self, rhs):
+        if not isinstance(rhs, BinnerHash):
+            return False
+        return \
+            self.expression == rhs.expression and \
+            self.hash_map_unique == rhs.hash_map_unique and\
             self.dtype == rhs.dtype

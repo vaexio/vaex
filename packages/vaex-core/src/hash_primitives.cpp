@@ -25,20 +25,25 @@ void bind_common(Cls &cls) {
 namespace vaex {
 template <class T, class M, template <typename, typename> class Hashmap>
 void init_hash_(M m, std::string name, std::string suffix) {
+    // we use a baseclass so we can pass the ordered set around
+    std::string basename = "hash_map_" + name + suffix;
+    typedef hash_map<T> BaseType;
+
+    auto BaseClass = py::class_<BaseType>(m, basename.c_str());
+
     {
         typedef counter<T, Hashmap> Type;
         std::string countername = "counter_" + name + suffix;
         auto cls = py::class_<Type>(m, countername.c_str())
-            .def(py::init<int>())
-            // .def("reserve", &Type::reserve)
-            .def("counts", &Type::counts)
-            ;
+                       .def(py::init<int>())
+                       // .def("reserve", &Type::reserve)
+                       .def("counts", &Type::counts);
         bind_common<Type>(cls);
     }
     {
         std::string ordered_setname = "ordered_set_" + name + suffix;
         typedef ordered_set<T, Hashmap> Type;
-        auto cls = py::class_<Type>(m, ordered_setname.c_str())
+        auto cls = py::class_<Type>(m, ordered_setname.c_str(), BaseClass)
                        .def(py::init<int, int64_t>(), py::arg("nmaps"), py::arg("limit") = -1)
                        .def(py::init(&Type::create))
                        .def("isin", &Type::isin)

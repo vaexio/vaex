@@ -22,6 +22,7 @@ __all__ = ['GroupBy', 'Grouper', 'BinnerTime']
 
 logger = logging.getLogger("vaex.groupby")
 _USE_DELAY = True
+_EXPERIMENTAL_BINNER_HASH = False
 
 
 # pure Python to avoid int overflow
@@ -29,7 +30,13 @@ product = lambda l: reduce(operator.mul, l)
 
 
 class BinnerBase:
-    pass
+    def extract_center(self, dim, ar):
+        # gets rid of the nan and out of bound values
+        slices = [
+            slice(None, None),
+        ] * ar.ndim
+        slices[dim] = slice(2, -1)
+        return ar[tuple(slices)]
 
 class Binner(BinnerBase):
     def __init__(self, expression, vmin, vmax, bins, df=None, label=None):
@@ -229,8 +236,23 @@ class Grouper(BinnerBase):
             self.hash_map_unique_name = df.add_variable(self.basename, self.hashmap_unique, unique=True)
         else:
             self.hash_map_unique_name = self.basename
-        self.binby_expression = '_ordinal_values(%s, %s)' % (self.expression, self.hash_map_unique_name)
-        self.binner = self.df._binner_ordinal(self.binby_expression, self.N)
+        if _EXPERIMENTAL_BINNER_HASH:
+            self.binby_expression = self.expression
+            self.binner = self.df._binner_hash(self.binby_expression, self.hashmap_unique)
+        else:
+            self.binby_expression = "_ordinal_values(%s, %s)" % (self.expression, self.hash_map_unique_name)
+            self.binner = self.df._binner_ordinal(self.binby_expression, self.N)
+
+    def extract_center(self, dim, ar):
+        slices = [
+            slice(None, None),
+        ] * ar.ndim
+        if _EXPERIMENTAL_BINNER_HASH:
+            slices[dim] = slice(1, -1)
+        else:
+            slices[dim] = slice(2, -1)
+        return ar[tuple(slices)]
+
 
 class GrouperCombined(Grouper):
     def __init__(self, expression, df, multipliers, parents, sort, row_limit=None, progress=None):
@@ -399,6 +421,7 @@ class GrouperLimited(BinnerBase):
         self.binby_expression = "_ordinal_values(%s, %s) %% %s" % (self.expression, self.var_name, self.N)
         self.binner = self.df._binner_ordinal(self.binby_expression, self.N)
 
+
 def _combine(df, groupers, sort, row_limit=None, progress=None):
     for grouper in groupers:
         if isinstance(grouper, Binner):
@@ -449,9 +472,9 @@ def _combine(df, groupers, sort, row_limit=None, progress=None):
             grouper._create_binner(df)
             new_grouper = _combine(df, [grouper] + combine_later, sort=sort)
             return new_grouper
+
         return combine(grouper._promise)
     return grouper._promise.then(lambda x: grouper)
-
 
 class GroupByBase(object):
     def __init__(self, df, by, sort=False, combine=False, expand=True, row_limit=None, copy=True, progress=None):
@@ -726,10 +749,14 @@ class GroupBy(GroupByBase):
         @vaex.delayed
         def process(args):
             counts, arrays = args
-            # arrays = {key: value.get() for key, value in arrays.items()}
             # take out the edges
-            arrays = {key: vaex.utils.extract_central_part(value) for key, value in arrays.items()}
-            counts = vaex.utils.extract_central_part(counts)
+            def extract_center(array):
+                for i, by in enumerate(self.by):
+                    array = by.extract_center(i, array)
+                return array
+
+            arrays = {key: extract_center(value) for key, value in arrays.items()}
+            counts = extract_center(counts)
 
             # make sure we respect the sorting
             def sort(ar):
