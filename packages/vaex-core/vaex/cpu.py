@@ -39,15 +39,25 @@ class binner_encoding:
         #     return {'type': 'scalar', 'expression': binner.expression, 'dtype': dtype, 'count': binner.bins, 'minimum': binner.vmin, 'maximum': binner.vmax}
 
     @staticmethod
-    def decode(encoding, binner_spec):
+    def decode(encoding, binner_spec, nthreads):
         type = binner_spec['binner-type']
         dtype = encoding.decode('dtype', binner_spec['dtype'])
         if type == 'ordinal':
             cls = vaex.utils.find_type_from_dtype(vaex.superagg, "BinnerOrdinal_", dtype)
-            return cls(binner_spec['expression'], binner_spec['count'], binner_spec['minimum'])
+            return cls(nthreads, binner_spec['expression'], binner_spec['count'], binner_spec['minimum'])
         elif type == 'scalar':
             cls = vaex.utils.find_type_from_dtype(vaex.superagg, "BinnerScalar_", dtype)
-            return cls(binner_spec['expression'], binner_spec['minimum'], binner_spec['maximum'], binner_spec['count'])
+            return cls(nthreads, binner_spec["expression"], binner_spec["minimum"], binner_spec["maximum"], binner_spec["count"])
+        elif type == "hash":
+            cls = vaex.utils.find_type_from_dtype(vaex.superagg, "BinnerHash_", dtype)
+            hash_map_unique_id = binner_spec["hash_map_unique"]
+            if encoding.has_object(hash_map_unique_id):
+                hash_map_unique = encoding.get_object(hash_map_unique_id)
+            else:
+                hash_map_unique_spec = encoding.get_object_spec(hash_map_unique_id)
+                hash_map_unique = encoding.decode("hash-map-unique", hash_map_unique_spec)
+                encoding.set_object(hash_map_unique_id, hash_map_unique)
+            return cls(binner_spec["expression"], hash_map_unique._internal)
         else:
             raise ValueError('Cannot deserialize: %r' % binner_spec)
 
@@ -470,6 +480,7 @@ class TaskPartAggregation(TaskPart):
         self.has_values = False
         self.dtypes = dtypes
         self.binners = binners
+        self.nthreads = nthreads
         # self.expressions_all = expressions
         self.expressions = [binner.expression for binner in binners]
         # TODO: selection and edges in descriptor?
@@ -483,7 +494,7 @@ class TaskPartAggregation(TaskPart):
         def create_aggregator(aggregator_descriptor, selections, initial_values):
             # for each selection, we have a separate aggregator, sharing the grid and binners
             for i, selection in enumerate(selections):
-                agg = aggregator_descriptor._create_operation(self.grid)
+                agg = aggregator_descriptor._create_operation(self.grid, nthreads)
                 self.nbytes += sys.getsizeof(agg)
                 if initial_values is not None:
                     print(np.asarray(agg))
@@ -507,18 +518,7 @@ class TaskPartAggregation(TaskPart):
         return self.nbytes
 
     def ideal_splits(self, nthreads):
-        # We need to do some proper work on this, but this should already improve performance
-        # Since if we have a lot of data per task, we should split up the work less
-        logger.info(f'A single task part takes {self.nbytes:,} bytes')
-        splits = nthreads
-        if self.nbytes >= 1e5:
-            splits = splits//2
-        if self.nbytes >= 1e6:
-            splits = splits//2
-        if self.nbytes >= 1e7:
-            splits = splits//2
-        logger.info(f'Estimate for ideal number of splits: {splits:,}')
-        return max(min(nthreads, 2), splits)
+        return 1
 
     def process(self, thread_index, i1, i2, filter_mask, selection_masks, blocks):
         # self.check()
@@ -547,19 +547,27 @@ class TaskPartAggregation(TaskPart):
         # we need to make sure we keep some objects alive, since the c++ side does not incref
         # on set_data and set_data_mask
         references = []
-        for binner in grid.binners:
+
+        def init_binner(binner):
             block = block_map[binner.expression]
             dtype = self.dtypes[binner.expression]
             block = check_array(block, dtype)
             if np.ma.isMaskedArray(block):
                 block, mask = block.data, np.ma.getmaskarray(block)
-                binner.set_data(block)
-                binner.set_data_mask(mask)
+                binner.set_data(thread_index, block)
+                binner.set_data_mask(thread_index, mask)
                 references.extend([block, mask])
             else:
-                binner.set_data(block)
-                binner.clear_data_mask()
+                binner.set_data(thread_index, block)
+                binner.clear_data_mask(thread_index, )
                 references.extend([block])
+
+        for binner in grid.binners:
+            if hasattr(binner, "binners"):
+                for subbinner in binner.binners:
+                    init_binner(subbinner)
+            else:
+                init_binner(binner)
         all_aggregators = []
 
         selection_index_global = 0
@@ -577,7 +585,10 @@ class TaskPartAggregation(TaskPart):
                     # some aggregators make a distiction between missing value and no value
                     # like nunique, they need to know if they should take the value into account or not
                     if hasattr(agg, 'set_selection_mask'):
-                        agg.set_selection_mask(selection_mask)
+                        if selection_mask is not None:
+                            agg.set_selection_mask(thread_index, selection_mask)
+                        else:
+                            agg.clear_selection_mask(thread_index)
                 selection_index_global += 1
                 if agg_desc.expressions:
                     assert len(agg_desc.expressions) in [1, 2], "only length 1 or 2 supported for now"
@@ -588,7 +599,7 @@ class TaskPartAggregation(TaskPart):
                         if np.ma.isMaskedArray(block):
                             block, mask = block.data, np.ma.getmaskarray(block)
                             block = check_array(block, dtype)
-                            agg.set_data(block, i)
+                            agg.set_data(thread_index, block, i)
                             references.extend([block])
                             if selection_mask is None:
                                 selection_mask = ~mask
@@ -597,15 +608,15 @@ class TaskPartAggregation(TaskPart):
                             references.append(selection_mask)
                         else:
                             block = check_array(block, dtype)
-                            agg.set_data(block, i)
+                            agg.set_data(thread_index, block, i)
                             references.extend([block])
                 # we only have 1 data mask, since it's locally combined
                 if selection_mask is not None:
-                    agg.set_data_mask(selection_mask)
+                    agg.set_data_mask(thread_index, selection_mask)
                     references.extend([selection_mask])
                 else:
-                    agg.clear_data_mask()
-        grid.bin(all_aggregators, N)
+                    agg.clear_data_mask(thread_index)
+        grid.bin(thread_index, all_aggregators, N)
         self.has_values = True
 
     def reduce(self, others):
@@ -613,7 +624,7 @@ class TaskPartAggregation(TaskPart):
             for selection_index, selection in enumerate(selections):
                 agg0 = aggregation[selection_index]
                 aggs = [other.aggregations[agg_index][2][selection_index] for other in others]
-                agg0.reduce(aggs)
+                agg0.merge(aggs)
 
     def get_result(self):
         results = []
@@ -646,12 +657,12 @@ class TaskPartAggregation(TaskPart):
         # aggs = [vaex.agg._from_spec(agg_spec) for agg_spec in spec['aggregations']]
         aggs = encoding.decode_list('aggregation', spec['aggregations'])
         dtypes = encoding.decode_dict('dtype', spec['dtypes'])
-        grid = encoding.decode_list('binner-cpu', spec['binners'])
+        grid = encoding.decode_list('binner-cpu', spec['binners'], nthreads=nthreads)
         values = encoding.decode_list2('ndarray', spec['values']) if 'values' in spec else None
         # dtypes = {expr: _deserialize_type(type_spec) for expr, type_spec in spec['dtypes'].items()}
         for agg in aggs:
             agg._prepare_types(df)
-        return cls(df, grid, aggs, dtypes, initial_values=values)
+        return cls(df, grid, aggs, dtypes, initial_values=values, nthreads=nthreads)
 
     def encode(self, encoding):
         # TODO: get rid of dtypes

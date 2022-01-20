@@ -561,7 +561,7 @@ class ExecutorLocal(Executor):
                         if not task_part.stopped:
                             try:
                                 if task.see_all:
-                                    task_part.process(task_index, i1, i2, filter_mask, selections, blocks)
+                                    task_part.process(thread_index, i1, i2, filter_mask, selections, blocks)
                                 else:
                                     task_part.process(thread_index, i1, i2, filter_mask, selections, blocks)
                             except Exception as e:

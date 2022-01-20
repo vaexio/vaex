@@ -426,6 +426,7 @@ class TaskStatistic(Task):
 class TaskAggregations(Task):
     """Multiple aggregations on a single grid."""
     snake_name = "aggregations"
+    see_all = True
 
     def __init__(self, df, binners):
         expressions = [binner.expression for binner in binners]

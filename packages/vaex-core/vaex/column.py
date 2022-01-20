@@ -623,7 +623,7 @@ def _to_string_sequence(x, force=True):
                 return vaex.strings.StringList64(bytes, indices, length, 0, null_bitmap, 0)
             else:
                 ValueError('unsupported dtype ' +str(x.dtype))
-    elif isinstance(x, vaex.superstrings.StringList32):
+    elif isinstance(x, (vaex.superstrings.StringList32, vaex.superstrings.StringList64)):
         return x
     elif isinstance(x, (list, type)):
         return _to_string_sequence(np.array(x))
