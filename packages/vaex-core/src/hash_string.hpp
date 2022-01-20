@@ -46,7 +46,54 @@ class hash_base : public hash_common<Derived, T, hashmap<T, int64_t>> {
         return bytes;
     }
 
+
     py::object update(StringSequence *strings, int64_t start_index = 0, int64_t chunk_size = 1024 * 16, int64_t bucket_size = 1024 * 128, bool return_values = false) {
+        if (this->maps.size() == 1) {
+            return this->_update_thread_unsafe(strings, start_index, return_values);
+        } else {
+            return _update_thread_safe(strings, start_index, chunk_size, bucket_size, return_values);
+
+        }
+    }
+
+    py::object _update_thread_unsafe(StringSequence *strings, int64_t start_index = 0, bool return_values = false) {
+        int64_t size = strings->length;
+        if (return_values) {
+            py::array_t<value_type> values_array(return_values ? size : 1);
+            auto values_ptr = values_array.mutable_data(0);
+
+            py::array_t<int16_t> values_map_index_array(return_values ? size : 1);
+            auto values_map_index_ptr = values_map_index_array.mutable_data(0);
+            std::fill(values_map_index_ptr, values_map_index_ptr + size, 0);
+            {
+                py::gil_scoped_release gil;
+                for(int64_t i = 0; i < size; i++) {
+                    if(strings->is_null(i)) {
+                        values_ptr[i] = this->update1_null(start_index + i);
+                    } else {
+                        auto value = strings->get(i);
+                        values_ptr[i] = this->update1(0, value, start_index + i);
+                    }
+                }
+            }
+            return py::make_tuple(values_array, values_map_index_array);
+        } else {
+            {
+                py::gil_scoped_release gil;
+                for(int64_t i = 0; i < size; i++) {
+                    if(strings->is_null(i)) {
+                        this->update1_null(start_index + i);
+                    } else {
+                        auto value = strings->get(i);
+                        this->update1(0, value, start_index + i);
+                    }
+                }
+            }
+            return py::none();
+        }
+    }
+
+    py::object _update_thread_safe(StringSequence *strings, int64_t start_index = 0, int64_t chunk_size = 1024 * 16, int64_t bucket_size = 1024 * 128, bool return_values = false) {
         if (this->sealed) {
             throw std::runtime_error("cannot add to sealed hashmap");
         }
@@ -290,7 +337,7 @@ class counter : public hash_base<counter<T, A>, T, A, V>, public counter_mixin<T
         if (this->null_count) {
             output(this->null_index()) = this->null_count;
         }
-        return output_array;
+        return std::move(output_array);
     }
     void merge(const counter &other) {
         py::gil_scoped_release gil;
@@ -445,7 +492,7 @@ class ordered_set : public hash_base<ordered_set<T>, T, T, V> {
                 }
             }
         }
-        return result;
+        return std::move(result);
     }
     py::object map_ordinal(StringSequence *strings) {
         size_t size = this->length();
