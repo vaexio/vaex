@@ -378,7 +378,7 @@ class ordered_set : public hash_base<ordered_set<T>, T, T, V> {
                 }
             }
         }
-        if (set->count() != keys->length) {
+        if (set->count() != (int64_t)keys->length) {
             throw std::runtime_error(std::string("key array of length ") + std::to_string(keys->length) + " does not match expected length of " + std::to_string(set->count()));
         }
         if (nan_count == 0) {

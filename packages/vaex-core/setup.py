@@ -5,6 +5,12 @@ import imp
 from setuptools import Extension
 import platform
 
+use_skbuild = len(os.environ.get('VAEX_BUILD_SKBUILD', '')) > 0
+
+if use_skbuild:
+    from skbuild import setup
+    import skbuild.command.build_ext
+
 on_rtd = os.environ.get('READTHEDOCS', None) == 'True'
 
 dirname = os.path.dirname(__file__)
@@ -137,14 +143,17 @@ extension_superutils = Extension("vaex.superutils", [
     )
 
 extension_superagg = Extension("vaex.superagg", [
+        os.path.relpath(os.path.join(dirname, "src/agg_nunique_string.cpp")),
+        os.path.relpath(os.path.join(dirname, "src/agg_minmax.cpp")),
+        os.path.relpath(os.path.join(dirname, "src/agg_nunique.cpp")),
+        os.path.relpath(os.path.join(dirname, "src/agg_sum.cpp")),
+        os.path.relpath(os.path.join(dirname, "src/agg_count.cpp")),
+        os.path.relpath(os.path.join(dirname, "src/agg.cpp")),
         os.path.relpath(os.path.join(dirname, "src/binner_combined.cpp")),
         os.path.relpath(os.path.join(dirname, "src/binner_ordinal.cpp")),
         os.path.relpath(os.path.join(dirname, "src/binner_hash.cpp")),
-        os.path.relpath(os.path.join(dirname, "src/superagg_binners.cpp")),
-        os.path.relpath(os.path.join(dirname, "src/superagg.cpp")),
-        os.path.relpath(os.path.join(dirname, "src/agg_hash_string.cpp")),
+        os.path.relpath(os.path.join(dirname, "src/binners.cpp")),
         os.path.relpath(os.path.join(dirname, "src/string_utils.cpp")),
-        os.path.relpath(os.path.join(dirname, "src/agg_hash_primitive.cpp")),
     ],
     include_dirs=[
         get_numpy_include(), get_pybind_include(),
@@ -170,7 +179,7 @@ setup(name=name + '-core',
       package_data={'vaex': dll_files + ['test/files/*.fits', 'test/files/*.vot', 'test/files/*.hdf5']},
       packages=['vaex', 'vaex.arrow', 'vaex.core', 'vaex.file', 'vaex.test', 'vaex.ext', 'vaex.misc', 'vaex.datasets'],
       include_package_data=True,
-      ext_modules=[extension_vaexfast] if on_rtd else [extension_vaexfast, extension_strings, extension_superutils, extension_superagg],
+      ext_modules=([extension_vaexfast] if on_rtd else [extension_vaexfast, extension_strings, extension_superutils, extension_superagg]) if not use_skbuild else [],
       zip_safe=False,
       extras_require={
           'all': ["gcsfs>=0.6.2", "s3fs"]

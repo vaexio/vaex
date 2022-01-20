@@ -6,14 +6,17 @@ template <class T = double, class BinIndexType = default_index_type, bool FlipEn
 class BinnerScalar : public Binner {
   public:
     using index_type = BinIndexType;
-    BinnerScalar(std::string expression, double vmin, double vmax, uint64_t bins) : Binner(expression), vmin(vmin), vmax(vmax), bins(bins), data_mask_ptr(nullptr) {}
+    BinnerScalar(int threads, std::string expression, double vmin, double vmax, uint64_t bins)
+        : Binner(threads, expression), vmin(vmin), vmax(vmax), bins(bins), data_ptr(threads), data_size(threads), data_mask_ptr(threads), data_mask_size(threads) {}
     BinnerScalar *copy() { return new BinnerScalar(*this); }
     virtual ~BinnerScalar() {}
-    virtual void to_bins(uint64_t offset, index_type *output, uint64_t length, uint64_t stride) {
+    virtual void to_bins(int thread, uint64_t offset, index_type *output, uint64_t length, uint64_t stride) {
+        T *data_ptr = this->data_ptr[thread];
+        auto data_mask_ptr = this->data_mask_ptr[thread];
         const double scale_v = 1. / (vmax - vmin);
         if (data_mask_ptr) {
             for (uint64_t i = offset; i < offset + length; i++) {
-                T value = ptr[i];
+                T value = data_ptr[i];
                 if (FlipEndian) {
                     value = _to_native<>(value);
                 }
@@ -33,7 +36,7 @@ class BinnerScalar : public Binner {
             }
         } else {
             for (uint64_t i = offset; i < offset + length; i++) {
-                T value = ptr[i];
+                T value = data_ptr[i];
                 if (FlipEndian) {
                     value = _to_native<>(value);
                 }
@@ -52,9 +55,9 @@ class BinnerScalar : public Binner {
             }
         }
     }
-    virtual uint64_t size() const { return _size; }
+    virtual uint64_t data_length(int thread) const { return data_size[thread]; };
     virtual uint64_t shape() const { return bins + 3; }
-    void set_data(py::buffer ar) {
+    void set_data(int thread, py::buffer ar) {
         py::buffer_info info = ar.request();
         if (info.ndim != 1) {
             throw std::runtime_error("Expected a 1d array");
@@ -62,28 +65,28 @@ class BinnerScalar : public Binner {
         if (info.itemsize != sizeof(T)) {
             throw std::runtime_error("Itemsize of data and binner are not equal");
         }
-        this->ptr = (T *)info.ptr;
-        this->_size = info.shape[0];
+        this->data_ptr[thread] = (T *)info.ptr;
+        this->data_size[thread] = info.shape[0];
     }
-    void clear_data_mask() {
-        this->data_mask_ptr = nullptr;
-        this->data_mask_size = 0;
+    void clear_data_mask(int thread) {
+        this->data_mask_ptr[thread] = nullptr;
+        this->data_mask_size[thread] = 0;
     }
-    void set_data_mask(py::buffer ar) {
+    void set_data_mask(int thread, py::buffer ar) {
         py::buffer_info info = ar.request();
         if (info.ndim != 1) {
             throw std::runtime_error("Expected a 1d array");
         }
-        this->data_mask_ptr = (uint8_t *)info.ptr;
-        this->data_mask_size = info.shape[0];
+        this->data_mask_ptr[thread] = (uint8_t *)info.ptr;
+        this->data_mask_size[thread] = info.shape[0];
     }
     double vmin;
     double vmax;
     uint64_t bins;
-    T *ptr;
-    uint64_t _size;
-    uint8_t *data_mask_ptr;
-    uint64_t data_mask_size;
+    std::vector<T *> data_ptr;
+    std::vector<uint64_t> data_size;
+    std::vector<uint8_t *> data_mask_ptr;
+    std::vector<uint64_t> data_mask_size;
 };
 
 template <class T, class Base, class Module, bool FlipEndian>
@@ -91,7 +94,7 @@ void add_binner_scalar_(Module m, Base &base, std::string postfix) {
     typedef BinnerScalar<T, default_index_type, FlipEndian> Type;
     std::string class_name = "BinnerScalar_" + postfix;
     py::class_<Type>(m, class_name.c_str(), base)
-        .def(py::init<std::string, double, double, uint64_t>())
+        .def(py::init<int, std::string, double, double, uint64_t>())
         .def("set_data", &Type::set_data)
         .def("clear_data_mask", &Type::clear_data_mask)
         .def("set_data_mask", &Type::set_data_mask)
@@ -104,12 +107,12 @@ void add_binner_scalar_(Module m, Base &base, std::string postfix) {
         .def(py::pickle(
             [](const Type &binner) { // __getstate__
                 /* Return a tuple that fully encodes the state of the object */
-                return py::make_tuple(binner.expression, binner.vmin, binner.vmax, binner.bins);
+                return py::make_tuple(binner.threads, binner.expression, binner.vmin, binner.vmax, binner.bins);
             },
             [](py::tuple t) { // __setstate__
-                if (t.size() != 4)
+                if (t.size() != 5)
                     throw std::runtime_error("Invalid state!");
-                Type binner(t[0].cast<std::string>(), t[1].cast<T>(), t[2].cast<T>(), t[3].cast<uint64_t>());
+                Type binner(t[0].cast<int>(), t[1].cast<std::string>(), t[2].cast<T>(), t[3].cast<T>(), t[4].cast<uint64_t>());
                 return binner;
             }));
     ;

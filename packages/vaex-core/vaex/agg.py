@@ -270,20 +270,32 @@ class AggregatorDescriptorBasic(AggregatorDescriptor):
             return self.finish(value)
         return [task], finish(task)
 
-    def _create_operation(self, grid):
+    def _create_operation(self, grid, nthreads):
         agg_op_type = vaex.utils.find_type_from_dtype(vaex.superagg, self.name + "_", self.dtype_in)
         bytes_per_cell = self.dtype_out.numpy.itemsize
         cells = reduce(operator.mul, [len(binner) for binner in grid.binners], 1)
-        predicted_memory_usage = bytes_per_cell * cells
+        grids = nthreads
+        ncells = len(grid)
+        # the more grid cells we have, the less more work have to do to
+        # merge/reduce the grids
+        if ncells >= 1e4:
+            grids = grids//2
+        if ncells >= 1e5:
+            grids = grids//2
+        if ncells >= 1e6:
+            grids = grids//2
+        if grids < 1:
+            grids = 1
+        predicted_memory_usage = bytes_per_cell * cells * grids
         vaex.memory.local.agg.pre_alloc(predicted_memory_usage, f"aggregator data for {agg_op_type}")
-        agg_op = agg_op_type(grid, *self.agg_args)
+        agg_op = agg_op_type(grid, grids, nthreads, *self.agg_args)
         used_memory = sys.getsizeof(agg_op)
         if predicted_memory_usage != used_memory:
             raise RuntimeError(f'Wrong prediction for {agg_op_type}, expected to take {predicted_memory_usage} bytes but actually used {used_memory}')
         return agg_op
 
     def get_result(self, agg_operation):
-        grid = np.asarray(agg_operation)
+        grid = agg_operation.get_result()
         if not self.edges:
             grid = vaex.utils.extract_central_part(grid)
         return grid
@@ -307,12 +319,13 @@ class AggregatorDescriptorNUnique(AggregatorDescriptorBasic):
         super()._prepare_types(df)
         self.dtype_out = DataType(np.dtype('int64'))
 
-    def _create_operation(self, grid):
+    def _create_operation(self, grid, nthreads):
         agg_op_type = vaex.utils.find_type_from_dtype(vaex.superagg, self.name + "_", self.dtype_in)
         cells = reduce(operator.mul, [len(binner) for binner in grid.binners], 1)
         predicted_memory_usage = self.dtype_out.numpy.itemsize * cells
         vaex.memory.local.agg.pre_alloc(predicted_memory_usage, f"aggregator data for {agg_op_type}")
-        agg_op = agg_op_type(grid, self.dropmissing, self.dropnan)
+        grids = 1  # this is using a shared hashmap, which is thread safe
+        agg_op = agg_op_type(grid, grids, nthreads, self.dropmissing, self.dropnan)
         used_memory = sys.getsizeof(agg_op)
         if predicted_memory_usage != used_memory:
             raise RuntimeError(f'Wrong prediction for {agg_op_type}, expected to take {predicted_memory_usage} bytes but actually used {used_memory}')

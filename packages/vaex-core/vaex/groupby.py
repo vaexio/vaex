@@ -237,7 +237,7 @@ class Grouper(BinnerBase):
         else:
             self.hash_map_unique_name = self.basename
         if _EXPERIMENTAL_BINNER_HASH:
-            self.binby_expression = self.expression
+            self.binby_expression = str(self.expression)
             self.binner = self.df._binner_hash(self.binby_expression, self.hashmap_unique)
         else:
             self.binby_expression = "_ordinal_values(%s, %s)" % (self.expression, self.hash_map_unique_name)
