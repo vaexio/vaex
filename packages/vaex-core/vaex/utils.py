@@ -741,25 +741,39 @@ def gen_to_list(fn=None, wrapper=list):
     return listify_return(fn)
 
 
-def find_type_from_dtype(namespace, prefix, dtype, transient=True, support_non_native=True):
+def find_type_from_dtype(namespace, prefix, *dtypes, transient=True, support_non_native=True):
     from .array_types import is_string_type
-    if dtype == 'string':
-        if transient:
-            postfix = 'string'
+    non_native = False
+    postfix = ""
+    for i, dtype in enumerate(dtypes):
+        if i != 0:
+            postfix += "_"
+        if dtype == 'string':
+            if transient:
+                postfix += 'string'
+            else:
+                postfix += 'string' # view not support atm
         else:
-            postfix = 'string' # view not support atm
-    else:
-        dtype = dtype.numpy
-        postfix = str(dtype)
-        if postfix == '>f8':
-            postfix = 'float64'
-        if dtype.kind == "M":
-            postfix = "int64"
-        if dtype.kind == "m":
-            postfix = "int64"
-        # for object there is no non-native version
-        if support_non_native and dtype.kind != 'O' and dtype.byteorder not in ["<", "=", "|"]:
-            postfix += "_non_native"
+            dtype = dtype.numpy
+            type_name = str(dtype)
+            if type_name == '>f8':
+                type_name = 'float64'
+            if dtype.kind == "M":
+                type_name = "int64"
+            if dtype.kind == "m":
+                type_name = "int64"
+            postfix += type_name
+            # for object there is no non-native version
+            if support_non_native and dtype.kind != 'O' and dtype.byteorder not in ["<", "=", "|"]:
+                if i != 0:
+                    if not non_native:
+                        raise TypeError('Mixed endianness')
+                non_native = True
+            else:
+                if non_native:
+                    raise TypeError('Mixed endianness')
+    if non_native:
+        postfix += "_non_native"
     name = prefix + postfix
     if hasattr(namespace, name):
         return getattr(namespace, name)

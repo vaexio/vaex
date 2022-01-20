@@ -889,7 +889,7 @@ class DataFrame(object):
                 tasks, result = agg.add_tasks(self, binners, progress=progressbar)
                 @delayed
                 def finish(counts):
-                    return np.asarray(counts)
+                    return np.asanyarray(counts)
                 return finish(result)
             finally:
                 self.local._aggregator_nest_count -= 1
@@ -908,14 +908,23 @@ class DataFrame(object):
                 coords = [to_coord(binner) for binner in binners]
                 if expression_waslist:
                     coords = [expressions] + coords
-                    counts = np.asarray(counts)
+                    counts = np.asanyarray(counts)
                 else:
                     counts = counts[0]
                 return xarray.DataArray(counts, dims=dims, coords=coords)
             elif array_type == 'list':
                 return vaex.utils.unlistify(expression_waslist, counts).tolist()
             elif array_type in [None, 'numpy']:
-                return np.asarray(vaex.utils.unlistify(expression_waslist, counts))
+                def possibly_masked_array(ar):
+                    if isinstance(ar, (list, tuple)):
+                        has_mask = any(np.ma.isMaskedArray(k) for k in ar)
+                    else:
+                        has_mask = np.ma.isMaskedArray(ar)
+                    if has_mask:
+                        return np.ma.array(ar)
+                    else:
+                        return np.asanyarray(ar)
+                return possibly_masked_array(vaex.utils.unlistify(expression_waslist, counts))
             else:
                 raise RuntimeError(f'Unknown array_type {format}')
         stats = [compute(expression, binners, selection=selection, edges=edges) for expression in expressions]
@@ -964,7 +973,7 @@ class DataFrame(object):
         return finish(task)
 
     @docsubst
-    def first(self, expression, order_expression, binby=[], limits=None, shape=default_shape, selection=False, delay=False, edges=False, progress=None, array_type=None):
+    def first(self, expression, order_expression=None, binby=[], limits=None, shape=default_shape, selection=False, delay=False, edges=False, progress=None, array_type=None):
         """Return the first element of a binned `expression`, where the values each bin are sorted by `order_expression`.
 
         Example:
@@ -977,7 +986,7 @@ class DataFrame(object):
         array([-4.81883764, 11.65378   ,  9.70084476, -7.3025589 ,  4.84954977,
                 8.47446537, -5.73602629, 10.18783   ])
 
-        :param expression: The value to be placed in the bin.
+        :param expression: {expression}
         :param order_expression: Order the values in the bins by this expression.
         :param binby: {binby}
         :param limits: {limits}
@@ -1006,6 +1015,25 @@ class DataFrame(object):
         stats = [self._first_calculation(expression, order_expression, binby=binby, limits=limits, shape=shape, selection=selection, edges=edges, progressbar=progressbar) for expression in expressions]
         var = finish(*stats)
         return self._delay(delay, var)
+
+    @docsubst
+    def last(self, expression, order_expression=None, binby=[], limits=None, shape=default_shape, selection=False, delay=False, edges=False, progress=None, array_type=None):
+        """Return the last element of a binned `expression`, where the values each bin are sorted by `order_expression`.
+
+        :param expression: The value to be placed in the bin.
+        :param order_expression: Order the values in the bins by this expression.
+        :param binby: {binby}
+        :param limits: {limits}
+        :param shape: {shape}
+        :param selection: {selection}
+        :param delay: {delay}
+        :param progress: {progress}
+        :param edges: {edges}
+        :param array_type: {array_type}
+        :return: Ndarray containing the first elements.
+        :rtype: numpy.array
+        """
+        return self._compute_agg('last', expression, binby, limits, shape, selection, delay, edges, progress, extra_expressions=[order_expression], array_type=array_type)
 
     @docsubst
     @stat_1d
