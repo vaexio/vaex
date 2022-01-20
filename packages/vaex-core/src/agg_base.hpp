@@ -35,6 +35,12 @@ class AggregatorBase : public Aggregator {
             }
         }
     }
+    virtual ~AggregatorBase() { delete[] grid_data; }
+
+    virtual size_t count() { return grids * grid->length1d; }
+    virtual size_t bytes_used() { return sizeof(grid_type) * count(); }
+    void fill(grid_type fill_value) { std::fill(grid_data, grid_data + count(), fill_value); }
+
     virtual void aggregate(int thread, default_index_type *indices1d, size_t length, uint64_t offset) {
         int grid = 0;
         if (grids == threads) {
@@ -76,12 +82,6 @@ class AggregatorBase : public Aggregator {
         free_grids.pop_back();
         return result;
     }
-
-    virtual ~AggregatorBase() { delete[] grid_data; }
-
-    virtual size_t count() { return grids * grid->length1d; }
-    virtual size_t bytes_used() { return sizeof(grid_type) * count(); }
-    void fill(grid_type fill_value) { std::fill(grid_data, grid_data + count(), fill_value); }
 
     py::buffer_info buffer_info() {
         std::vector<ssize_t> strides(grid->dimensions + 1);

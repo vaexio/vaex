@@ -40,6 +40,9 @@ void add_agg_max_primitive(py::module &m, const py::class_<Aggregator> &base);
 template <class T, bool FlipEndian>
 void add_agg_nunique_primitive(py::module &m, const py::class_<Aggregator> &base);
 
+template <class T, bool FlipEndian>
+void add_agg_first_primitive(py::module &m, const py::class_<Aggregator> &base);
+
 void add_agg_nunique_string(py::module &m, py::class_<Aggregator> &base);
 // void add_agg_nunique_primitives(py::module &m, py::class_<Aggregator> &base);
 void add_agg_multithreaded(py::module &m, py::class_<Aggregator> &base);

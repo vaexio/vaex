@@ -320,11 +320,13 @@ class AggregatorDescriptorNUnique(AggregatorDescriptorBasic):
         self.dtype_out = DataType(np.dtype('int64'))
 
     def _create_operation(self, grid, nthreads):
+        grids = 1  # this is using a shared hashmap, which is thread safe
         agg_op_type = vaex.utils.find_type_from_dtype(vaex.superagg, self.name + "_", self.dtype_in)
         cells = reduce(operator.mul, [len(binner) for binner in grid.binners], 1)
-        predicted_memory_usage = self.dtype_out.numpy.itemsize * cells
+        grid0 = vaex.superagg.Grid([])
+        agg_op_test = agg_op_type(grid0, grids, nthreads, self.dropmissing, self.dropnan)
+        predicted_memory_usage = sys.getsizeof(agg_op_test) * cells
         vaex.memory.local.agg.pre_alloc(predicted_memory_usage, f"aggregator data for {agg_op_type}")
-        grids = 1  # this is using a shared hashmap, which is thread safe
         agg_op = agg_op_type(grid, grids, nthreads, self.dropmissing, self.dropnan)
         used_memory = sys.getsizeof(agg_op)
         if predicted_memory_usage != used_memory:
