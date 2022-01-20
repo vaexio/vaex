@@ -147,6 +147,7 @@ extension_superagg = Extension("vaex.superagg", [
         os.path.relpath(os.path.join(dirname, "src/agg_minmax.cpp")),
         os.path.relpath(os.path.join(dirname, "src/agg_nunique.cpp")),
         os.path.relpath(os.path.join(dirname, "src/agg_sum.cpp")),
+        os.path.relpath(os.path.join(dirname, "src/agg_first.cpp")),
         os.path.relpath(os.path.join(dirname, "src/agg_count.cpp")),
         os.path.relpath(os.path.join(dirname, "src/agg.cpp")),
         os.path.relpath(os.path.join(dirname, "src/binner_combined.cpp")),

@@ -58,7 +58,7 @@ void add_agg_primitives_(Module m, const Base &base) {
     add_agg_max_primitive<T, FlipEndian>(m, base);
 
     add_agg_nunique_primitive<T, FlipEndian>(m, base);
-    // add_agg<AggFirst<T, default_index_type, FlipEndian>, Base, Module>(m, base, ("AggFirst_" + postfix).c_str());
+    add_agg_first_primitive<T, FlipEndian>(m, base);
 }
 
 template <class T, class Base, class Module>
