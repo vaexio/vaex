@@ -139,9 +139,12 @@ jobs:
       run: |
         # by default on 3.6 we get an old version, so manually upgrade
         pip install gcsfs==0.8.0
-    - name: Setup upterm session
-      uses: lhotari/action-upterm@v1
-    - name: Test with pytest
+    - name: Test with pytest (3.6)
+      if: ${{ (matrix.python-version == '3.6' && matrix.os == 'ubuntu-latest')  }}
+      run: |
+        VAEX_TEST_SKIP_REMOTE=1 ./ci/04-run-test-suite.sh
+    - name: Test with pytest (non 3.6)
+      if: ${{ !(matrix.python-version == '3.6' && matrix.os == 'ubuntu-latest')  }}
       run: |
         ./ci/04-run-test-suite.sh
     - name: Test with pytest (with cache on)
