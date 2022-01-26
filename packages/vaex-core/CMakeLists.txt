@@ -62,10 +62,35 @@ target_include_directories("superagg" PUBLIC
     "vendor/hopscotch-map/include"
 )
 
+# util/hash library
+add_library("superutils" MODULE
+    "src/hash_string.cpp"
+    "src/hash_primitives_pot.cpp"
+    "src/hash_object.cpp"
+    "src/hash_primitives_prime.cpp"
+    "src/superutils.cpp"
+    "src/string_utils.cpp"
+    "src/agg.cpp"
+    "src/binner_combined.cpp"
+    "src/binner_ordinal.cpp"
+    "src/binner_hash.cpp"
+    "src/binners.cpp"
+    "src/string_utils.cpp"
+)
+target_include_directories("superutils" PUBLIC
+    ${NumPy_INCLUDE_DIRS}
+    "vendor/abseil-cpp"
+    "vendor/flat_hash_map"
+    "vendor/sparse-map/include"
+    "vendor/hopscotch-map/include"
+    "vendor/string-view-lite/include"
+    "vendor/pybind11/include"
+)
+
 
 add_compile_definitions(VAEX_USE_TSL)
 
 
 python_extension_module("superagg")
-install(TARGETS "superagg" "superstrings" LIBRARY DESTINATION vaex)
+install(TARGETS "superagg" "superstrings" "superutils" LIBRARY DESTINATION vaex)
 # install(TARGETS "superagg" LIBRARY DESTINATION vaex)
