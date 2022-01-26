@@ -95,7 +95,7 @@ class GroupByCat1K(Aggregates):
         super().setup(N)
 
     def time_binby_iB_1M(self, N, B):
-        self.df.groupby(f'i{B}_1k', agg='count')
+        self.df.groupby(f'i{B}_1K', agg='count')
 
 
 class GroupByCat1M(Aggregates):
