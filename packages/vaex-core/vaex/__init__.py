@@ -21,12 +21,12 @@ Or connecting to a remove server:
 
 A few strong features of vaex are:
 
- * Performance: works with huge tabular data, process over a billion (> 10\\ :sup:`9`\\ ) rows/second.
- * Expression system / Virtual columns: compute on the fly, without wasting ram.
- * Memory efficient: no memory copies when doing filtering/selections/subsets.
- * Visualization: directly supported, a one-liner is often enough.
- * User friendly API: you will only need to deal with a DataFrame object, and tab completion + docstring will help you out: `ds.mean<tab>`, feels very similar to Pandas.
- * Very fast statistics on N dimensional grids such as histograms, running mean, heatmaps.
+- Performance: works with huge tabular data, process over a billion (> 10\\ :sup:`9`\\ ) rows/second.
+- Expression system / Virtual columns: compute on the fly, without wasting ram.
+- Memory efficient: no memory copies when doing filtering/selections/subsets.
+- Visualization: directly supported, a one-liner is often enough.
+- User friendly API: you will only need to deal with a DataFrame object, and tab completion + docstring will help you out: `ds.mean<tab>`, feels very similar to Pandas.
+- Very fast statistics on N dimensional grids such as histograms, running mean, heatmaps.
 
 
 Follow the tutorial at https://docs.vaex.io/en/latest/tutorial.html to learn how to use vaex.
