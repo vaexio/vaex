@@ -821,6 +821,9 @@ class GroupBy(GroupByBase):
         @vaex.delayed
         def process(args):
             counts, arrays = args
+            for name, array in arrays.items():
+                if array.shape != counts.shape:
+                    raise RuntimeError(f'{array} {name} has shape {array.shape} while we expected {counts.shape}')
 
             arrays = {key: self._extract_center(value) for key, value in arrays.items()}
             counts = self._extract_center(counts)
