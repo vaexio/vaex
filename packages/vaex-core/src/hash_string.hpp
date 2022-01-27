@@ -368,6 +368,7 @@ class ordered_set : public hash_base<ordered_set<T>, T, T, V> {
         ordered_set *set = new ordered_set(1);
         {
             size_t size = keys->length;
+            set->maps[0].reserve(size);
             py::gil_scoped_release gil;
             for (size_t i = 0; i < size; i++) {
                 if (keys->is_null(i)) {
@@ -521,20 +522,70 @@ class ordered_set : public hash_base<ordered_set<T>, T, T, V> {
     py::array_t<OutputType> _map_ordinal(StringSequence *strings) {
         int64_t size = strings->length;
         py::array_t<OutputType> result(size);
+        if (size == 0) {
+            return result;
+        }
         auto output = result.template mutable_unchecked<1>();
         py::gil_scoped_release gil;
         size_t nmaps = this->maps.size();
         auto offsets = this->offsets();
 
-        // split slow and fast path
-        if (strings->has_null()) {
-            for (int64_t i = 0; i < size; i++) {
-                if (strings->is_null(i)) {
-                    output(i) = this->null_value;
-                    assert(this->null_count > 0);
-                } else {
+        if (nmaps == 1) {
+            auto map0 = this->maps[0];
+            // split slow and fast path
+            if (strings->has_null()) {
+                auto map0 = this->maps[0];
+                for (int64_t i = 0; i < size; i++) {
+                    if (strings->is_null(i)) {
+                        output(i) = this->null_value;
+                        assert(this->null_count > 0);
+                    } else {
+                        const storage_type_view &key = strings->view(i);
+                        auto search = map0.find(key);
+                        auto end = map0.end();
+                        if (search == end) {
+                            output(i) = -1;
+                        } else {
+                            output(i) = search->second;
+                        }
+                    }
+                }
+            } else {
+                for (int64_t i = 0; i < size; i++) {
                     const storage_type_view &key = strings->view(i);
-                    size_t hash = hasher_map_choice()(key);
+                    auto search = map0.find(key);
+                    auto end = map0.end();
+                    if (search == end) {
+                        output(i) = -1;
+                    } else {
+                        output(i) = search->second;
+                    }
+                }
+            }
+        } else {
+            // split slow and fast path
+            if (strings->has_null()) {
+                for (int64_t i = 0; i < size; i++) {
+                    if (strings->is_null(i)) {
+                        output(i) = this->null_value;
+                        assert(this->null_count > 0);
+                    } else {
+                        const storage_type_view &key = strings->view(i);
+                        size_t hash = hasher_map_choice()(key);
+                        size_t map_index = (hash % nmaps);
+                        auto search = this->maps[map_index].find(key, hash);
+                        auto end = this->maps[map_index].end();
+                        if (search == end) {
+                            output(i) = -1;
+                        } else {
+                            output(i) = search->second + offsets[map_index];
+                        }
+                    }
+                }
+            } else {
+                for (int64_t i = 0; i < size; i++) {
+                    const storage_type_view &key = strings->view(i);
+                    std::size_t hash = hasher_map_choice()(key);
                     size_t map_index = (hash % nmaps);
                     auto search = this->maps[map_index].find(key, hash);
                     auto end = this->maps[map_index].end();
@@ -543,19 +594,6 @@ class ordered_set : public hash_base<ordered_set<T>, T, T, V> {
                     } else {
                         output(i) = search->second + offsets[map_index];
                     }
-                }
-            }
-        } else {
-            for (int64_t i = 0; i < size; i++) {
-                const storage_type_view &key = strings->view(i);
-                std::size_t hash = hasher_map_choice()(key);
-                size_t map_index = (hash % nmaps);
-                auto search = this->maps[map_index].find(key, hash);
-                auto end = this->maps[map_index].end();
-                if (search == end) {
-                    output(i) = -1;
-                } else {
-                    output(i) = search->second + offsets[map_index];
                 }
             }
         }

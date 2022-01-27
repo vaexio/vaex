@@ -72,6 +72,13 @@ class HashMapUnique:
         else:
             self._internal = _internal
 
+    def flatten(self):
+        if self.dtype == object:
+            return self # already flat
+        keys = self._internal.key_array()
+        map = type(self._internal)(keys, self.null_value, self.nan_count, self.null_count, self.fingerprint)
+        return HashMapUnique(self.dtype, _internal=map)
+
     @staticmethod
     def encode(encoding, obj):
         keys = obj._internal.key_array()
