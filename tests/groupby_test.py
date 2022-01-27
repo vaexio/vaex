@@ -346,6 +346,23 @@ def test_groupby_boolean_with_null(df_factory):
     assert dfg['g'].tolist() == [False, True, None]
     assert dfg['sum'].tolist() == [3, 4+5, 6+7]
 
+
+def test_groupby_uint8_with_null(df_factory):
+    df = df_factory(g=[0, 1, 1, 255, None, None], x=[3, None, 4, 5, None, 6])
+    df['g'] = df['g'].astype('uint8')
+    dfg = df.groupby('g', agg={'sum': vaex.agg.sum('x')}, sort=True)
+    assert dfg['g'].tolist() == [0, 1, 255, None]
+    assert dfg['sum'].tolist() == [3, 4, 5, 6]
+
+
+def test_groupby_int8_with_null(df_factory):
+    df = df_factory(g=[-10, 1, 1, 127, None, None], x=[3, None, 4, 5, None, 6])
+    df['g'] = df['g'].astype('int8')
+    dfg = df.groupby('g', agg={'sum': vaex.agg.sum('x')}, sort=True)
+    assert dfg['g'].tolist() == [-10, 1, 127, None]
+    assert dfg['sum'].tolist() == [3, 4, 5, 6]
+
+
 def test_groupby_std():
     g = np.array([9, 2, 3, 4, 0, 1, 2, 3, 2, 5], dtype='int32')
     s = np.array(list(map(str, [0, 0, 0, 0, 1, 1, 1, 1, 2, 2])))
