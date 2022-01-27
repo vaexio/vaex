@@ -27,10 +27,8 @@ class BinnerOrdinal : public Binner {
                 if (value != value) {               // nan goes to index 0
                 } else if (masked || (value < 0)) { // negative values are interpreted as null
                     index = 1;
-                } else if ((int64_t)value >= ordinal_count) { // bigger values are put at offset -1 (last)
-                    index = ordinal_count - 1 + 3;
                 } else {
-                    index = value + 2; // real data starts at 2
+                    index = index > ordinal_count ? ordinal_count + 2 : value + 2;
                 }
                 output[i - offset] += index * stride;
             }
@@ -44,10 +42,8 @@ class BinnerOrdinal : public Binner {
                 if (value != value) {   // nan goes to index 0
                 } else if (value < 0) { // negative values are interpreted as null
                     index = 1;
-                } else if ((int64_t)value >= ordinal_count) { // bigger values are put at offset -1 (last)
-                    index = ordinal_count - 1 + 3;
                 } else {
-                    index = value + 2; // real data starts at 2
+                    index = index > ordinal_count ? ordinal_count + 2 : value + 2;
                 }
                 output[i - offset] += index * stride;
             }
