@@ -303,7 +303,15 @@ class AggregatorDescriptorBasic(AggregatorDescriptor):
     def get_result(self, agg_operation):
         grid = agg_operation.get_result()
         if not self.edges:
-            grid = vaex.utils.extract_central_part(grid)
+            def binner2slice(binner):
+                if 'BinnerScalar_' in str(binner):
+                    return slice(2, -1)
+                elif 'BinnerOrdinal_' in str(binner):
+                    return slice(0, -2)
+                else:
+                    raise TypeError(f'Binner not supported with edges=False {binner}')
+            slices = [binner2slice(binner) for binner in agg_operation.grid.binners]
+            grid = grid[tuple(slices)]
         return grid
 
 
