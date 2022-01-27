@@ -2,6 +2,8 @@ from functools import reduce
 import operator
 import os
 import sys
+import logging
+
 import numpy as np
 
 import dask.base
@@ -17,10 +19,12 @@ from .docstrings import docsubst
 import vaex.utils
 
 
+logger = logging.getLogger("vaex.agg")
+
 if vaex.utils.has_c_extension:
     import vaex.superagg
 
-
+_min = min  # we're gonna overwrite builtin min
 aggregates = {}
 
 
@@ -279,13 +283,15 @@ class AggregatorDescriptorBasic(AggregatorDescriptor):
         # the more grid cells we have, the less more work have to do to
         # merge/reduce the grids
         if ncells >= 1e4:
-            grids = grids//2
+            grids = _min(32, nthreads)
         if ncells >= 1e5:
-            grids = grids//2
+            grids = _min(16, nthreads)
         if ncells >= 1e6:
-            grids = grids//2
+            grids = _min(8, nthreads)
         if grids < 1:
             grids = 1
+        if logger.isEnabledFor(logging.INFO):
+            logger.info("Using %r grids for %r thread for aggerator %r (total grid cells %s)", grids, nthreads, self, f"{ncells:,}")
         predicted_memory_usage = bytes_per_cell * cells * grids
         vaex.memory.local.agg.pre_alloc(predicted_memory_usage, f"aggregator data for {agg_op_type}")
         agg_op = agg_op_type(grid, grids, nthreads, *self.agg_args)
