@@ -90,7 +90,7 @@ void add_binner_ordinal_(py::module &m, py::class_<Binner> &base, std::string po
     typedef BinnerOrdinal<T, default_index_type, FlipEndian> Type;
     std::string class_name = "BinnerOrdinal_" + postfix;
     py::class_<Type>(m, class_name.c_str(), base)
-        .def(py::init<int, std::string, uint64_t, uint64_t>())
+        .def(py::init<int, std::string, int64_t, int64_t>())
         .def("set_data", &Type::set_data)
         .def("clear_data_mask", &Type::clear_data_mask)
         .def("set_data_mask", &Type::set_data_mask)

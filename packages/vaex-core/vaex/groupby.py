@@ -132,13 +132,14 @@ class BinnerTime(BinnerBase):
 class BinnerInteger(BinnerBase):
     '''Bins an expression into it's natural bin (i.e. 5 for the number 5)
 
-    Useful for boolean, uint8, which only have a limited number of possibilities (2, 256)
+    Useful for boolean, int8/uint8, which only have a limited number of possibilities (2, 256)
     '''
     def __init__(self, expression, label=None, dropmissing=False):
         self.expression = expression
         self.df = expression.df
         self.dtype = self.expression.dtype
         self.label = label or self.expression._label
+        self.min_value = 0
         if self.dtype.numpy == np.dtype('bool'):
             if dropmissing:
                 self.binby_expression = str(self.expression)
@@ -157,6 +158,16 @@ class BinnerInteger(BinnerBase):
                 self.binby_expression = f'fillmissing(astype({str(self.expression)}, "int16"), 256)'
                 self.bin_values = pa.array(list(range(256)) + [None])
                 self.N = 257
+        elif self.dtype.numpy == np.dtype('int8'):
+            self.min_value = -128
+            if dropmissing:
+                self.binby_expression = str(self.expression)
+                self.bin_values = np.arange(-128, 128, dtype="int8")
+                self.N = 256
+            else:
+                self.binby_expression = f'fillmissing(astype({str(self.expression)}, "int16"), 128)'
+                self.bin_values = pa.array(list(range(-128, 128)) + [None])
+                self.N = 257
         else:
             raise TypeError(f'Only boolean and uint8 are supported, not {self.dtype}')
         self.sort_indices = None
@@ -165,7 +176,7 @@ class BinnerInteger(BinnerBase):
     def _create_binner(self, df):
         assert df.dataset == self.df.dataset, "you passed a dataframe with a different dataset to the grouper/binned"
         self.df = df
-        self.binner = self.df._binner_ordinal(self.binby_expression, self.N)
+        self.binner = self.df._binner_ordinal(self.binby_expression, self.N, self.min_value)
 
 
 class Grouper(BinnerBase):
@@ -501,7 +512,7 @@ class GroupByBase(object):
                     by_value = GrouperCategory(expression, sort=sort, row_limit=row_limit)
                 else:
                     dtype = expression.dtype
-                    if dtype == np.dtype('uint8') or dtype == np.dtype('bool'):
+                    if dtype == np.dtype('uint8') or dtype == np.dtype('int8') or dtype == np.dtype('bool'):
                         by_value = BinnerInteger(expression)  # doesn't modify, always sorted
                     else:
                         by_value = Grouper(expression, sort=sort, row_limit=row_limit, df_original=df_original, progress=self.progressbar_groupers)
