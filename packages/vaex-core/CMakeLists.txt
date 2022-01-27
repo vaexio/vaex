@@ -40,6 +40,11 @@ target_include_directories("superstrings" PUBLIC
     "${PYTHON_PREFIX}/include"
 )
 
+
+target_link_directories("superstrings" PUBLIC
+    "${PYTHON_PREFIX}/lib")
+target_link_libraries("superstrings" pcre pcrecpp)
+
 # aggregation library
 add_library("superagg" MODULE
     "src/agg_nunique_string.cpp"
@@ -70,11 +75,6 @@ add_library("superutils" MODULE
     "src/hash_primitives_prime.cpp"
     "src/superutils.cpp"
     "src/string_utils.cpp"
-    "src/agg.cpp"
-    "src/binner_combined.cpp"
-    "src/binner_ordinal.cpp"
-    "src/binner_hash.cpp"
-    "src/binners.cpp"
     "src/string_utils.cpp"
 )
 target_include_directories("superutils" PUBLIC
@@ -86,11 +86,16 @@ target_include_directories("superutils" PUBLIC
     "vendor/string-view-lite/include"
     "vendor/pybind11/include"
 )
+target_link_directories("superutils" PUBLIC
+    "${PYTHON_PREFIX}/lib")
+target_link_libraries("superutils" pcre pcrecpp)
 
 
 add_compile_definitions(VAEX_USE_TSL)
 
 
 python_extension_module("superagg")
+python_extension_module("superstrings")
+python_extension_module("superutils")
 install(TARGETS "superagg" "superstrings" "superutils" LIBRARY DESTINATION vaex)
 # install(TARGETS "superagg" LIBRARY DESTINATION vaex)
