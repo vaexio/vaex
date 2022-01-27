@@ -71,7 +71,7 @@ def test_cat_missing_values(lazy):
     colors = np.ma.array(colors, mask=mask)
     ds0 = vaex.from_arrays(colors=colors)
     ds = ds0.ordinal_encode('colors', ['red', 'green', 'blue'], lazy=lazy)
-    assert ds.count(binby=ds.colors, edges=True).tolist() == [1, 0, 1, 2, 1, 0]
+    assert ds.count(binby=ds.colors, edges=True).tolist() == [1, 2, 1, 1, 0]
 
     # if we want missing values and non-categorized values to be reported seperately
     # the following is expected

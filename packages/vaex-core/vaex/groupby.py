@@ -30,6 +30,7 @@ product = lambda l: reduce(operator.mul, l)
 
 
 class BinnerBase:
+    simpler = None  # a binner may realize there is a simpler fallback
     def extract_center(self, dim, ar):
         # gets rid of the nan and out of bound values
         slices = [
@@ -128,13 +129,24 @@ class BinnerTime(BinnerBase):
     def per_year(cls, expression, df=None):
         return cls(expression, 'Y', df)
 
+    def extract_center(self, dim, ar):
+        # gets rid of the nan and out of bound values
+        slices = [
+            slice(None, None),
+        ] * ar.ndim
+        slices[dim] = slice(0, -2) # remove null and nan
+        return ar[tuple(slices)]
 
 class BinnerInteger(BinnerBase):
     '''Bins an expression into it's natural bin (i.e. 5 for the number 5)
 
     Useful for boolean, int8/uint8, which only have a limited number of possibilities (2, 256)
     '''
-    def __init__(self, expression, label=None, dropmissing=False, sort=False):
+    # these are always true
+    pre_sort = True
+    sort = True
+
+    def __init__(self, expression, label=None, dropmissing=False, min_value=None, max_value=None):
         self.expression = expression
         self.df = expression.df
         self.dtype = self.expression.dtype
@@ -143,41 +155,28 @@ class BinnerInteger(BinnerBase):
         self.dropmissing = dropmissing
         if self.dtype.numpy == np.dtype('bool'):
             self.binby_expression = str(self.expression)
-            if sort:
-                self.bin_values = pa.array([False, True, None])
-            else:
-                self.bin_values = pa.array([None, False, True])
+            self.bin_values = pa.array([False, True, None])
             self.N = 2
         elif self.dtype.numpy == np.dtype('uint8'):
             self.binby_expression = str(self.expression)
-            if sort:
-                self.bin_values = pa.array(list(range(256)) + [None])
-            else:
-                self.bin_values = pa.array([None] + list(range(256)))
+            self.bin_values = pa.array(list(range(256)) + [None])
             self.N = 256
         elif self.dtype.numpy == np.dtype('int8'):
             self.min_value = -128
             self.binby_expression = str(self.expression)
-            if sort:
-                self.bin_values = pa.array(list(range(-128, 128)) + [None])
-            else:
-                self.bin_values = pa.array([None] + list(range(-128, 128)))
+            self.bin_values = pa.array(list(range(-128, 128)) + [None])
             self.N = 256
+        elif min_value is not None and max_value is not None:
+            self.min_value = min_value
+            self.N = max_value - min_value + 1
+            self.binby_expression = str(self.expression)
+            self.bin_values = pa.array(list(range(min_value, max_value + 1)) + [None])
         else:
-            raise TypeError(f'Only boolean, int8 and uint8 are supported, not {self.dtype}')
+            raise TypeError(f"Only boolean, int8 and uint8 are supported, not {self.dtype}, or private min_value and max_value")
         if self.dropmissing:
             # if we remove the missing values, we are already sorted
-            if sort:
-                self.bin_values = self.bin_values[:-1]
-            else:
-                self.bin_values = self.bin_values[1:]
-            self.sort_indices = None
-        else:
-            # we just need to put missing last
-            if sort:
-                self.sort_indices = np.array(list(range(1, self.N + 1)) + [0])
-            else:
-                self.sort_indices = None
+            self.bin_values = self.bin_values[:-1]
+        self.sort_indices = None
         self.bin_values = vaex.array_types.to_numpy(self.bin_values)
         self._promise = vaex.promise.Promise.fulfilled(None)
 
@@ -188,9 +187,9 @@ class BinnerInteger(BinnerBase):
             slice(None, None),
         ] * ar.ndim
         if self.dropmissing:
-            slices[dim] = slice(2, -1)
+            slices[dim] = slice(0, -2)  # remove null and nan
         else:
-            slices[dim] = slice(1, -1)
+            slices[dim] = slice(0, -1)  # remove nan
         return ar[tuple(slices)]
 
     def _create_binner(self, df):
@@ -201,7 +200,8 @@ class BinnerInteger(BinnerBase):
 
 class Grouper(BinnerBase):
     """Bins an expression to a set of unique bins, like an SQL like groupby."""
-    def __init__(self, expression, df=None, sort=False, pre_sort=True, row_limit=None, df_original=None, materialize_experimental=False, progress=None):
+
+    def __init__(self, expression, df=None, sort=False, pre_sort=True, row_limit=None, df_original=None, materialize_experimental=False, progress=None, allow_simplify=False):
         self.df = df or expression.ds
         self.sort = sort
         self.pre_sort = pre_sort
@@ -210,6 +210,7 @@ class Grouper(BinnerBase):
             df_original = self.df
         self.sort = sort
         self.expression = expression
+        self.allow_simplify = allow_simplify
         # make sure it's an expression
         self.expression = self.df[_ensure_string_from_expression(self.expression)]
         self.label = self.expression._label
@@ -232,6 +233,14 @@ class Grouper(BinnerBase):
             @vaex.delayed
             def process(hashmap_unique):
                 self.bin_values = hashmap_unique.keys()
+                if self.allow_simplify and dtype == int:
+                    vmin = self.bin_values.min()
+                    vmax = self.bin_values.max()
+                    int_range = vmax - vmin + 1
+                    # we allow for 25% unused 'slots'
+                    if int_range <= (len(self.bin_values) * 4 / 3):
+                        self.simpler = BinnerInteger(self.expression, min_value=vmin, max_value=vmax, dropmissing=not hashmap_unique.has_null)
+                        return
 
                 if vaex.dtype_of(self.bin_values) == int:
                     max_value = self.bin_values.max()
@@ -259,6 +268,9 @@ class Grouper(BinnerBase):
                     self.bin_values = dtype.create_array(self.bin_values)
             self._promise = process(df_original._hash_map_unique(self.expression, limit=row_limit, delay=True, progress=self.progressbar))
 
+    def __repr__(self):
+        return f"vaex.groupby.Grouper({str(self.expression)})"
+
     def _create_binner(self, df):
         # TODO: we modify the dataframe in place, this is not nice
         assert df.dataset == self.df.dataset, "you passed a dataframe with a different dataset to the grouper/binned"
@@ -281,7 +293,7 @@ class Grouper(BinnerBase):
         if _EXPERIMENTAL_BINNER_HASH:
             slices[dim] = slice(1, -1)
         else:
-            slices[dim] = slice(2, -1)
+            slices[dim] = slice(0, -2)  # remove null and nan, actually null in grouper is part of the 'dictionary' (self.bin_values)
         return ar[tuple(slices)]
 
 
@@ -291,11 +303,15 @@ class GrouperCombined(Grouper):
 
         Used in the sparse/combined group by.
         '''
-        super().__init__(expression, df, sort=sort, row_limit=row_limit, progress=progress)
+        super().__init__(expression, df, sort=sort, row_limit=row_limit, progress=progress, allow_simplify=False)
         assert len(multipliers) == len(parents)
+        self.parents = parents
 
         assert multipliers[-1] == 1
         self.df = df
+        for parent in parents:
+            assert isinstance(parent, (Grouper, GrouperCategory)), "only (Grouper, GrouperCategory) supported for combining"
+            assert parent.simpler is None, "oops, cannot use simplified binner"
         self.label = 'SHOULD_NOT_BE_USED'
         self.expression = expression
         # efficient way to find the original bin values (parent.bin_value) from the 'compressed'
@@ -405,6 +421,12 @@ class GrouperCategory(BinnerBase):
             self.binby_expression = str(self.expression)
             self.binner = self.df._binner_ordinal(self.binby_expression, self.N, self.min_value)
 
+    def extract_center(self, dim, ar):
+        slices = [
+            slice(None, None),
+        ] * ar.ndim
+        slices[dim] = slice(0, -2)  # again, null is in the dictionary
+        return ar[tuple(slices)]
 
 class GrouperLimited(BinnerBase):
     """Group to a limited set of values, store the rest in an (optional) other bin"""
@@ -451,6 +473,15 @@ class GrouperLimited(BinnerBase):
         # modulo N will map -1 (value not found) to N-1
         self.binby_expression = "_ordinal_values(%s, %s) %% %s" % (self.expression, self.var_name, self.N)
         self.binner = self.df._binner_ordinal(self.binby_expression, self.N)
+
+    def extract_center(self, dim, ar):
+        # gets rid of the nan and out of bound values
+        # indices = n
+        slices = [
+            slice(None, None),
+        ] * ar.ndim
+        slices[dim] = slice(0, -2)  # remove null values
+        return ar[tuple(slices)]
 
 
 def _combine(df, groupers, sort, row_limit=None, progress=None):
@@ -525,6 +556,7 @@ class GroupByBase(object):
 
         self.by = []
         self.by_original = by
+        multiple = len(by) > 1
         for by_value in by:
             if not isinstance(by_value, BinnerBase):
                 expression = df[_ensure_string_from_expression(by_value)]
@@ -533,12 +565,15 @@ class GroupByBase(object):
                 else:
                     dtype = expression.dtype
                     if dtype == np.dtype('uint8') or dtype == np.dtype('int8') or dtype == np.dtype('bool'):
-                        by_value = BinnerInteger(expression, sort=sort)
+                        by_value = BinnerInteger(expression)  # always sorted, and pre_sorted
                     else:
-                        by_value = Grouper(expression, sort=sort, row_limit=row_limit, df_original=df_original, progress=self.progressbar_groupers)
+                        # we cannot mix _combine with BinnerInteger yet
+                        by_value = Grouper(expression, sort=sort, row_limit=row_limit, df_original=df_original, progress=self.progressbar_groupers, allow_simplify=not multiple)
             self.by.append(by_value)
         @vaex.delayed
         def possible_combine(*binner_promises):
+            # if a binner realized there is a simpler way (e.g. grouper -> intbinner)
+            self.by = [by.simpler if by.simpler is not None else by for by in self.by]
             # because binners can be created from other dataframes (we make a copy)
             # we let it mutate *our* dataframe
             for binner in self.by:
@@ -711,6 +746,12 @@ class GroupByBase(object):
         mask = counts > 0
         return mask.sum()
 
+    def _extract_center(self, array):
+        # take out the edges
+        for i, by in enumerate(self.by):
+            array = by.extract_center(i, array)
+        return array
+
 
 class BinBy(GroupByBase):
     """Implementation of the binning and aggregation of data, see :method:`binby`."""
@@ -724,7 +765,7 @@ class BinBy(GroupByBase):
         @vaex.delayed
         def process(arrays):
             # take out the edges
-            arrays = {key: vaex.utils.extract_central_part(value) for key, value in arrays.items()}
+            arrays = {key: self._extract_center(value) for key, value in arrays.items()}
             # make sure we respect the sorting
             sorting = tuple(by.sort_indices if by.sort_indices is not None else slice(None) for by in self.by)
             arrays = {key: value[sorting] for key, value in arrays.items()}
@@ -780,14 +821,9 @@ class GroupBy(GroupByBase):
         @vaex.delayed
         def process(args):
             counts, arrays = args
-            # take out the edges
-            def extract_center(array):
-                for i, by in enumerate(self.by):
-                    array = by.extract_center(i, array)
-                return array
 
-            arrays = {key: extract_center(value) for key, value in arrays.items()}
-            counts = extract_center(counts)
+            arrays = {key: self._extract_center(value) for key, value in arrays.items()}
+            counts = self._extract_center(counts)
 
             # make sure we respect the sorting
             def sort(ar):
