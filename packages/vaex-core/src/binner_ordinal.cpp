@@ -6,6 +6,7 @@ namespace vaex {
 template <class T = uint64_t, class BinIndexType = default_index_type, bool FlipEndian = false>
 class BinnerOrdinal : public Binner {
   public:
+    // format of bins is [nan, null, bin0, bin1, ..., binN-1, out of range]
     using index_type = BinIndexType;
     BinnerOrdinal(int threads, std::string expression, int64_t ordinal_count, int64_t min_value = 0)
         : Binner(threads, expression), ordinal_count(ordinal_count), min_value(min_value), data_ptr(threads), data_size(threads), data_mask_ptr(threads), data_mask_size(threads) {}
@@ -16,15 +17,15 @@ class BinnerOrdinal : public Binner {
         auto data_mask_ptr = this->data_mask_ptr[thread];
         if (data_mask_ptr) {
             for (uint64_t i = offset; i < offset + length; i++) {
-                T value = data_ptr[i] - min_value;
+                int64_t value = data_ptr[i] - min_value;
                 if (FlipEndian) {
                     value = _to_native<>(value);
                 }
                 index_type index = 0;
                 // this followes numpy, 1 is masked
                 bool masked = data_mask_ptr[i] == 1;
-                if (value != value || masked) { // nan goes to index 0
-                } else if (value < 0) {         // smaller values are put at offset 1
+                if (value != value) {               // nan goes to index 0
+                } else if (masked || (value < 0)) { // negative values are interpreted as null
                     index = 1;
                 } else if ((int64_t)value >= ordinal_count) { // bigger values are put at offset -1 (last)
                     index = ordinal_count - 1 + 3;
@@ -35,13 +36,13 @@ class BinnerOrdinal : public Binner {
             }
         } else {
             for (uint64_t i = offset; i < offset + length; i++) {
-                T value = data_ptr[i] - min_value;
+                int64_t value = data_ptr[i] - min_value;
                 if (FlipEndian) {
                     value = _to_native<>(value);
                 }
                 index_type index = 0;
                 if (value != value) {   // nan goes to index 0
-                } else if (value < 0) { // smaller values are put at offset 1
+                } else if (value < 0) { // negative values are interpreted as null
                     index = 1;
                 } else if ((int64_t)value >= ordinal_count) { // bigger values are put at offset -1 (last)
                     index = ordinal_count - 1 + 3;

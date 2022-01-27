@@ -134,44 +134,64 @@ class BinnerInteger(BinnerBase):
 
     Useful for boolean, int8/uint8, which only have a limited number of possibilities (2, 256)
     '''
-    def __init__(self, expression, label=None, dropmissing=False):
+    def __init__(self, expression, label=None, dropmissing=False, sort=False):
         self.expression = expression
         self.df = expression.df
         self.dtype = self.expression.dtype
         self.label = label or self.expression._label
         self.min_value = 0
+        self.dropmissing = dropmissing
         if self.dtype.numpy == np.dtype('bool'):
-            if dropmissing:
-                self.binby_expression = str(self.expression)
-                self.bin_values = np.array([False, True])
-                self.N = 2
-            else:
-                self.binby_expression = f'fillmissing(astype({str(self.expression)}, "uint8"), 2)'
+            self.binby_expression = str(self.expression)
+            if sort:
                 self.bin_values = pa.array([False, True, None])
-                self.N = 3
-        elif self.dtype.numpy == np.dtype('uint8'):
-            if dropmissing:
-                self.binby_expression = str(self.expression)
-                self.bin_values = np.arange(0, 256, dtype="uint8")
-                self.N = 256
             else:
-                self.binby_expression = f'fillmissing(astype({str(self.expression)}, "int16"), 256)'
+                self.bin_values = pa.array([None, False, True])
+            self.N = 2
+        elif self.dtype.numpy == np.dtype('uint8'):
+            self.binby_expression = str(self.expression)
+            if sort:
                 self.bin_values = pa.array(list(range(256)) + [None])
-                self.N = 257
+            else:
+                self.bin_values = pa.array([None] + list(range(256)))
+            self.N = 256
         elif self.dtype.numpy == np.dtype('int8'):
             self.min_value = -128
-            if dropmissing:
-                self.binby_expression = str(self.expression)
-                self.bin_values = np.arange(-128, 128, dtype="int8")
-                self.N = 256
-            else:
-                self.binby_expression = f'fillmissing(astype({str(self.expression)}, "int16"), 128)'
+            self.binby_expression = str(self.expression)
+            if sort:
                 self.bin_values = pa.array(list(range(-128, 128)) + [None])
-                self.N = 257
+            else:
+                self.bin_values = pa.array([None] + list(range(-128, 128)))
+            self.N = 256
         else:
-            raise TypeError(f'Only boolean and uint8 are supported, not {self.dtype}')
-        self.sort_indices = None
+            raise TypeError(f'Only boolean, int8 and uint8 are supported, not {self.dtype}')
+        if self.dropmissing:
+            # if we remove the missing values, we are already sorted
+            if sort:
+                self.bin_values = self.bin_values[:-1]
+            else:
+                self.bin_values = self.bin_values[1:]
+            self.sort_indices = None
+        else:
+            # we just need to put missing last
+            if sort:
+                self.sort_indices = np.array(list(range(1, self.N + 1)) + [0])
+            else:
+                self.sort_indices = None
+        self.bin_values = vaex.array_types.to_numpy(self.bin_values)
         self._promise = vaex.promise.Promise.fulfilled(None)
+
+    def extract_center(self, dim, ar):
+        # gets rid of the nan and out of bound values
+        # indices = n
+        slices = [
+            slice(None, None),
+        ] * ar.ndim
+        if self.dropmissing:
+            slices[dim] = slice(2, -1)
+        else:
+            slices[dim] = slice(1, -1)
+        return ar[tuple(slices)]
 
     def _create_binner(self, df):
         assert df.dataset == self.df.dataset, "you passed a dataframe with a different dataset to the grouper/binned"
@@ -513,7 +533,7 @@ class GroupByBase(object):
                 else:
                     dtype = expression.dtype
                     if dtype == np.dtype('uint8') or dtype == np.dtype('int8') or dtype == np.dtype('bool'):
-                        by_value = BinnerInteger(expression)  # doesn't modify, always sorted
+                        by_value = BinnerInteger(expression, sort=sort)
                     else:
                         by_value = Grouper(expression, sort=sort, row_limit=row_limit, df_original=df_original, progress=self.progressbar_groupers)
             self.by.append(by_value)
