@@ -362,6 +362,16 @@ def test_groupby_int8_with_null(df_factory):
     assert dfg['g'].tolist() == [-10, 1, 127, None]
     assert dfg['sum'].tolist() == [3, 4, 5, 6]
 
+    dfg = df.groupby('g', agg={'sum': vaex.agg.sum('x')}, sort=False)
+    assert set(dfg['g'].tolist()) == set([-10, 1, 127, None])
+    assert set(dfg['sum'].tolist()) == set([3, 4, 5, 6])
+
+    for sort in [True, False]:
+        binner = vaex.groupby.BinnerInteger(df.g, dropmissing=True)
+        dfg = df.groupby(binner, agg={'sum': vaex.agg.sum('x')}, sort=sort)
+        assert set(dfg['g'].tolist()) == set([-10, 1, 127])
+        assert set(dfg['sum'].tolist()) == set([3, 4, 5])
+
 
 def test_groupby_std():
     g = np.array([9, 2, 3, 4, 0, 1, 2, 3, 2, 5], dtype='int32')
