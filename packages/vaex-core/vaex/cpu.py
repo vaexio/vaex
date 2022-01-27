@@ -243,7 +243,8 @@ class TaskPartHashmapUniqueCreate(TaskPart):
                     raise vaex.RowLimitException(f'Resulting set has {count:,} unique combinations, which is larger than the allowed value of {self.limit:,}')
                 else:
                     hash_map_unique_merged = hash_map_unique_merged.limit(self.limit)
-        self.hash_map_unique = hash_map_unique_merged
+
+        self.hash_map_unique = hash_map_unique_merged.flatten()
         self.hash_map_unique._internal.fingerprint = f'hash-map-unique-{self.fingerprint}'
 
     @classmethod
