@@ -81,6 +81,38 @@ def test_fillmissing():
     assert (df.o.fillmissing({'a':1}).tolist()[:3] == ["aap", {'a':1}, False])
     assert np.isnan(df.o.fillmissing([1]).tolist()[3])
 
+
+def test_fillmissing_upcast(df_factory):
+    df = df_factory(x=[1, 2, None])
+    df['x']  = df['x'].astype('int8')
+    assert df.x.dtype == np.dtype('int8')
+
+    # no upcast needed
+    df['y'] = df['x'].fillmissing(127)
+    assert df.y.dtype == np.dtype('int8')
+
+    df['z'] = df['x'].fillmissing(128)
+    assert df.z.dtype != np.dtype('int8')
+    assert df.z.dtype == np.dtype('int16')
+
+    df['z'] = df['x'].fillmissing(-129)
+    assert df.z.dtype != np.dtype('int8')
+    assert df.z.dtype == np.dtype('int16')
+
+    # unsigned
+    df = df_factory(x=[1, 2, None])
+    df['x']  = df['x'].astype('uint8')
+    assert df.x.dtype == np.dtype('uint8')
+
+    df['z'] = df['x'].fillmissing(256)
+    assert df.z.dtype != np.dtype('int8')
+    assert df.z.dtype == np.dtype('uint16')
+
+    df['z'] = df['x'].fillmissing(-129)
+    assert df.z.dtype != np.dtype('int8')
+    assert df.z.dtype == np.dtype('int16')
+
+
 # equivalent of isna_test
 def test_fillnan():
     s = vaex.string_column(["aap", None, "noot", "mies"])

@@ -1136,7 +1136,27 @@ class Expression(with_metaclass(Meta)):
     # it now also misses the docstring, reconsider how the the meta class auto
     # adds this method
     def fillna(self, value, fill_nan=True, fill_masked=True):
-        return self.ds.func.fillna(self, value=value, fill_nan=fill_nan, fill_masked=fill_masked)
+        expression = self._upcast_for(value)
+        return self.ds.func.fillna(expression, value=value, fill_nan=fill_nan, fill_masked=fill_masked)
+
+    def _upcast_for(self, value):
+        # make sure the dtype is compatible with value
+        expression = self
+        dtype = self.dtype
+
+        if dtype == int:
+            required_dtype = vaex.utils.required_dtype_for_int(value, signed=dtype.is_signed)
+            if required_dtype.itemsize > dtype.numpy.itemsize:
+                expression = self.astype(str(required_dtype))
+        return expression
+
+    def fillmissing(self, value):
+        '''Returns an array where missing values are replaced by value.
+
+        See :`ismissing` for the definition of missing values.
+        '''
+        expression = self._upcast_for(value)
+        return self.df.func.fillmissing(expression, value=value)
 
     def clip(self, lower=None, upper=None):
         return self.ds.func.clip(self, lower, upper)
