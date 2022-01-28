@@ -42,6 +42,10 @@ def filter(ar, boolean_mask):
         return ar[boolean_mask]
 
 
+def take(ar, indices):
+    return ar.take(indices)
+
+
 def slice(ar, offset, length=None):
     if offset == 0 and len(ar) == length:
         return ar

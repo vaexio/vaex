@@ -40,6 +40,7 @@ class BinnerBase:
         return ar[tuple(slices)]
 
 class Binner(BinnerBase):
+    dense = False
     def __init__(self, expression, vmin, vmax, bins, df=None, label=None):
         self.df = df or expression.df
         self.expression = self.df[str(expression)]
@@ -81,6 +82,9 @@ class BinnerTime(BinnerBase):
     4  2015-01-29 00:00:00   87
 
     """
+
+    dense = False
+
     def __init__(self, expression, resolution='W', df=None, every=1):
         self.resolution = resolution
         self.expression = expression
@@ -146,7 +150,7 @@ class BinnerInteger(BinnerBase):
     pre_sort = True
     sort = True
 
-    def __init__(self, expression, label=None, dropmissing=False, min_value=None, max_value=None):
+    def __init__(self, expression, label=None, dropmissing=False, min_value=None, max_value=None, dense=False):
         self.expression = expression
         self.df = expression.df
         self.dtype = self.expression.dtype
@@ -160,6 +164,7 @@ class BinnerInteger(BinnerBase):
             values[len(values)-1] = 0
             return np.ma.array(values, mask=mask, shrink=False)
 
+        self.dense = dense
         if self.dtype.numpy == np.dtype('bool'):
             self.binby_expression = str(self.expression)
             self.bin_values = vaex.array_types.to_numpy(pa.array([False, True, None]))
@@ -207,6 +212,8 @@ class BinnerInteger(BinnerBase):
 class Grouper(BinnerBase):
     """Bins an expression to a set of unique bins, like an SQL like groupby."""
 
+    dense = True
+
     def __init__(self, expression, df=None, sort=False, pre_sort=True, row_limit=None, df_original=None, materialize_experimental=False, progress=None, allow_simplify=False):
         self.df = df or expression.ds
         self.sort = sort
@@ -244,8 +251,10 @@ class Grouper(BinnerBase):
                     vmax = self.bin_values.max()
                     int_range = vmax - vmin + 1
                     # we allow for 25% unused 'slots'
-                    if int_range <= (len(self.bin_values) * 4 / 3):
-                        self.simpler = BinnerInteger(self.expression, min_value=vmin, max_value=vmax, dropmissing=not hashmap_unique.has_null)
+                    bins = len(self.bin_values)
+                    if int_range <= (bins * 4 / 3):
+                        dense = bins == int_range
+                        self.simpler = BinnerInteger(self.expression, min_value=vmin, max_value=vmax, dropmissing=not hashmap_unique.has_null, dense=dense)
                         return
 
                 if vaex.dtype_of(self.bin_values) == int:
@@ -304,6 +313,8 @@ class Grouper(BinnerBase):
 
 
 class GrouperCombined(Grouper):
+    dense = True
+
     def __init__(self, expression, df, multipliers, parents, sort, row_limit=None, progress=None):
         '''Will group by 1 expression, which is build up from multiple expressions.
 
@@ -369,6 +380,8 @@ class GrouperCombined(Grouper):
 
 class GrouperCategory(BinnerBase):
     """Faster grouper that will use the fact that a column is categorical."""
+
+    dense = True
 
     def __init__(self, expression, df=None, sort=False, row_limit=None, pre_sort=True):
         self.df = df or expression.ds
@@ -436,6 +449,8 @@ class GrouperCategory(BinnerBase):
 
 class GrouperLimited(BinnerBase):
     """Group to a limited set of values, store the rest in an (optional) other bin"""
+
+    dense = True
 
     def __init__(self, expression, values, keep_other=True, other_value=None, sort=False, label=None, df=None):
         self.df = df or expression.df
@@ -610,6 +625,7 @@ class GroupByBase(object):
                 promise = vaex.promise.Promise.fulfilled(None)
             @vaex.delayed
             def process(_ignore):
+                self.dense = len(self.by) == 1 and self.by[0].dense
                 self.groupby_expression = [str(by.expression) for by in self.by]
                 self.binners = tuple(by.binner for by in self.by)
                 self.shape = [by.N for by in self.by]
@@ -817,8 +833,7 @@ class GroupBy(GroupByBase):
             # but they may not aways exist
             counts = self.counts
             # nobody wanted to know count*, but we need it if we included non-existing pairs
-            if counts is None:
-                # TODO: it seems this path is never tested
+            if counts is None and not self.dense:
                 count_agg = vaex.agg.count(edges=True)
                 counts = self.df._agg(count_agg, self.binners, delay=_USE_DELAY, progress=progressbar)
             arrays = delayed_dict(arrays)
@@ -827,12 +842,14 @@ class GroupBy(GroupByBase):
         @vaex.delayed
         def process(args):
             counts, arrays = args
-            for name, array in arrays.items():
-                if array.shape != counts.shape:
-                    raise RuntimeError(f'{array} {name} has shape {array.shape} while we expected {counts.shape}')
+            if counts is not None:
+                for name, array in arrays.items():
+                    if array.shape != counts.shape:
+                        raise RuntimeError(f'{array} {name} has shape {array.shape} while we expected {counts.shape}')
 
             arrays = {key: self._extract_center(value) for key, value in arrays.items()}
-            counts = self._extract_center(counts)
+            if not self.dense:
+                counts = self._extract_center(counts)
 
             # make sure we respect the sorting
             def sort(ar):
@@ -857,12 +874,24 @@ class GroupBy(GroupByBase):
                     assert value.ndim == 1
                     columns[key] = value
             else:
-                counts = sort(counts)
-                mask = counts > 0
                 columns = {}
-                for by, indices in zip(self.by, np.where(mask)):
-                    columns[by.label] = by.bin_values.take(indices)
-                if mask.sum() == mask.size:
+                if self.dense:
+                    if len(self.by) == 1:
+                        for by in self.by:
+                            columns[by.label] = by.bin_values
+                    else:
+                        array0 = arrays[list(arrays)[0]]
+                        # similar to the where, this creates indices like [0, 0, 1, 1, 2, 2], [0, 1, 0, 1, 0, 1]
+                        indices = [k.ravel() for k in np.mgrid[[slice(0, n) for n in array0.shape]]]
+                        for by, index in zip(self.by, indices):
+                            columns[by.label] = vaex.array_types.take(by.bin_values, index)
+
+                else:
+                    counts = sort(counts)
+                    mask = counts > 0
+                    for by, indices in zip(self.by, np.where(mask)):
+                        columns[by.label] = by.bin_values.take(indices)
+                if self.dense or mask.sum() == mask.size:
                     # if we want all, just take it all
                     # should be faster
                     for key, value in arrays.items():
