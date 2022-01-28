@@ -153,31 +153,37 @@ class BinnerInteger(BinnerBase):
         self.label = label or self.expression._label
         self.min_value = 0
         self.dropmissing = dropmissing
+        def make_array_with_null(vmin, vmax, dtype='int64'):
+            values = np.arange(vmin, vmax+1, dtype=dtype)
+            mask = np.zeros(values.shape, dtype='?')
+            mask[len(values)-1] = 1
+            values[len(values)-1] = 0
+            return np.ma.array(values, mask=mask, shrink=False)
+
         if self.dtype.numpy == np.dtype('bool'):
             self.binby_expression = str(self.expression)
-            self.bin_values = pa.array([False, True, None])
+            self.bin_values = vaex.array_types.to_numpy(pa.array([False, True, None]))
             self.N = 2
         elif self.dtype.numpy == np.dtype('uint8'):
             self.binby_expression = str(self.expression)
-            self.bin_values = pa.array(list(range(256)) + [None])
+            self.bin_values = make_array_with_null(0, 256)
             self.N = 256
         elif self.dtype.numpy == np.dtype('int8'):
             self.min_value = -128
             self.binby_expression = str(self.expression)
-            self.bin_values = pa.array(list(range(-128, 128)) + [None])
+            self.bin_values = make_array_with_null(-128, 128)
             self.N = 256
         elif min_value is not None and max_value is not None:
             self.min_value = min_value
             self.N = max_value - min_value + 1
             self.binby_expression = str(self.expression)
-            self.bin_values = pa.array(list(range(min_value, max_value + 1)) + [None])
+            self.bin_values = make_array_with_null(min_value, max_value + 1)
         else:
             raise TypeError(f"Only boolean, int8 and uint8 are supported, not {self.dtype}, or private min_value and max_value")
         if self.dropmissing:
             # if we remove the missing values, we are already sorted
             self.bin_values = self.bin_values[:-1]
         self.sort_indices = None
-        self.bin_values = vaex.array_types.to_numpy(self.bin_values)
         self._promise = vaex.promise.Promise.fulfilled(None)
 
     def extract_center(self, dim, ar):
