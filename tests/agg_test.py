@@ -570,3 +570,44 @@ def test_all():
 
     assert df.groupby('g', agg={'all': vaex.agg.all(selection=df.b1)})['all'].tolist() == [False, False]
     assert df.groupby('g', agg={'all': vaex.agg.all(selection=df.b2)})['all'].tolist() == [False, True]
+
+
+def test_agg_bare():
+    df = vaex.from_arrays(x=[1, 2, 3], s=["aap", "aap", "noot"])
+
+    result = df._agg(vaex.agg.count('x'))
+    assert result == 3
+    assert result.ndim == 0
+    result = df._agg(vaex.agg.nunique('x'))
+    assert result.ndim == 0
+    assert result.item() is 3
+
+    result = df._agg(vaex.agg.count('s'))
+    assert result == 3
+    assert result.ndim == 0
+    result = df._agg(vaex.agg.nunique('s'))
+    assert result.ndim == 0
+    assert result.item() is 2
+
+
+def test_unique_large():
+    x = np.arange(1000)
+    df = vaex.from_arrays(x=x)
+    with small_buffer(df, 10):
+        assert df._agg(vaex.agg.nunique('x'))
+
+def test_unique_1d():
+    x = np.arange(1024)
+    y = x % 16
+    df = vaex.from_arrays(x=x, y=y)
+    with small_buffer(df, 10):
+        assert df.groupby('y', sort=True, agg=vaex.agg.nunique('x'))['x_nunique'].tolist() == [1024//16]* 16
+
+
+def test_unique_2d():
+    x = np.arange(1024)
+    y = x % 16
+    z = x % 8
+    df = vaex.from_arrays(x=x, y=y, z=z)
+    with small_buffer(df, 10):
+        assert df.groupby(['y', 'z'], sort=True, agg=vaex.agg.nunique('x'))['x_nunique'].tolist() == [1024//16]* 8

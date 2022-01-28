@@ -17,6 +17,9 @@ class AggNUniquePrimitive : public AggregatorPrimitive<DataType, counter<DataTyp
         py::array_t<int64_t> result_array(this->grid->length1d);
         auto result = result_array.template mutable_unchecked<1>();
         {
+            if (this->grids != 1) {
+                throw std::runtime_error("Expected 1 grid");
+            }
             py::gil_scoped_release release;
             for (size_t j = 0; j < this->grid->length1d; j++) {
                 result[j] = 0;
@@ -31,7 +34,11 @@ class AggNUniquePrimitive : public AggregatorPrimitive<DataType, counter<DataTyp
                 }
             }
         }
-        return result_array;
+        auto shape = py::tuple(this->grid->shapes.size());
+        for (int i = 0; i < this->grid->shapes.size(); i++) {
+            shape[i] = this->grid->shapes[i];
+        }
+        return result_array.attr("reshape")(shape);
     }
     virtual void merge(std::vector<Aggregator *> others) {
         if (others.size() > 0) {
