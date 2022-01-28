@@ -9,12 +9,8 @@ class AggCountPrimitive : public AggregatorPrimitive<DataType, int64_t, IndexTyp
   public:
     using Base = AggregatorPrimitive<DataType, int64_t, IndexType>;
     using Base::Base;
-    AggCountPrimitive(Grid<IndexType> *grid, int grids, int threads) : Base(grid, grids, threads) { this->initial_fill(); }
-    void initial_fill() {
-        // this->fill(0);
-        std::fill(this->grid_data, this->grid_data + this->count(), 0);
-        // printf("filled with count: %i\n", this->count());
-    }
+    // AggCountPrimitive(Grid<IndexType> *grid, int grids, int threads) : Base(grid, grids, threads) { }
+    void initial_fill(int grid) { this->fill(0, grid); }
 
     virtual void merge(std::vector<Aggregator *> others) {
         py::gil_scoped_release release;
@@ -28,9 +24,14 @@ class AggCountPrimitive : public AggregatorPrimitive<DataType, int64_t, IndexTyp
     virtual py::object get_result() {
         {
             py::gil_scoped_release release;
-            for (size_t j = 0; j < this->grid->length1d; j++) {
-                for (int64_t i = 1; i < this->grids; ++i) {
-                    this->grid_data[j] += this->grid_data[j + i * this->grid->length1d];
+            if (!this->grid_used[0]) {
+                this->initial_fill(0);
+            }
+            for (int64_t grid = 1; grid < this->grids; ++grid) {
+                if (this->grid_used[grid]) {
+                    for (size_t j = 0; j < this->grid->length1d; j++) {
+                        this->grid_data[j] += this->grid_data[j + grid * this->grid->length1d];
+                    }
                 }
             }
         }
@@ -72,8 +73,8 @@ class AggCountObject : public AggBaseObject<GridType, IndexType> {
     using Base = AggBaseObject<GridType, IndexType>;
     using Type = AggCountObject<GridType, IndexType>;
     using Base::Base;
-    AggCountObject(Grid<IndexType> *grid, int grids, int threads) : Base(grid, grids, threads) { this->initial_fill(); }
-    void initial_fill() { this->fill(0); }
+    // AggCountObject(Grid<IndexType> *grid, int grids, int threads) : Base(grid, grids, threads) { }
+    void initial_fill(int grid) { this->fill(0, grid); }
     virtual void merge(std::vector<Aggregator *> others) {
         for (auto i : others) {
             auto other = static_cast<AggCountObject *>(i);
@@ -85,9 +86,14 @@ class AggCountObject : public AggBaseObject<GridType, IndexType> {
     virtual py::object get_result() {
         {
             py::gil_scoped_release release;
-            for (size_t j = 0; j < this->grid->length1d; j++) {
-                for (int64_t i = 1; i < this->grids; ++i) {
-                    this->grid_data[j] += this->grid_data[j + i * this->grid->length1d];
+            if (!this->grid_used[0]) {
+                this->initial_fill(0);
+            }
+            for (int64_t grid = 1; grid < this->grids; ++grid) {
+                if (this->grid_used[grid]) {
+                    for (size_t j = 0; j < this->grid->length1d; j++) {
+                        this->grid_data[j] += this->grid_data[j + grid * this->grid->length1d];
+                    }
                 }
             }
         }
@@ -128,8 +134,8 @@ class AggCountString : public AggBaseString<GridType, IndexType> {
     using Base = AggBaseString<GridType, IndexType>;
     using Type = AggCountString<GridType, IndexType>;
     using Base::Base;
-    AggCountString(Grid<IndexType> *grid, int grids, int threads) : Base(grid, grids, threads) { this->initial_fill(); }
-    void initial_fill() { this->fill(0); }
+    // AggCountString(Grid<IndexType> *grid, int grids, int threads) : Base(grid, grids, threads) { }
+    void initial_fill(int grid) { this->fill(0, grid); }
     virtual void merge(std::vector<Aggregator *> others) {
         for (auto j : others) {
             auto other = static_cast<AggCountString *>(j);
@@ -141,9 +147,14 @@ class AggCountString : public AggBaseString<GridType, IndexType> {
     virtual py::object get_result() {
         {
             py::gil_scoped_release release;
-            for (size_t j = 0; j < this->grid->length1d; j++) {
-                for (int64_t i = 1; i < this->grids; ++i) {
-                    this->grid_data[j] += this->grid_data[j + i * this->grid->length1d];
+            if (!this->grid_used[0]) {
+                this->initial_fill(0);
+            }
+            for (int64_t grid = 1; grid < this->grids; ++grid) {
+                if (this->grid_used[grid]) {
+                    for (size_t j = 0; j < this->grid->length1d; j++) {
+                        this->grid_data[j] += this->grid_data[j + grid * this->grid->length1d];
+                    }
                 }
             }
         }

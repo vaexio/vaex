@@ -80,9 +80,14 @@ class AggregatorPrimitiveCRTP : public AggregatorPrimitive<DataType, GridType, I
     virtual py::object get_result() {
         {
             py::gil_scoped_release release;
-            for (size_t j = 0; j < this->grid->length1d; j++) {
-                for (int64_t i = 1; i < this->grids; ++i) {
-                    this->grid_data[j] = static_cast<const Derived &>(*this).op_reduce(this->grid_data[j], this->grid_data[j + i * this->grid->length1d]);
+            if (!this->grid_used[0]) {
+                this->initial_fill(0);
+            }
+            for (int64_t grid = 1; grid < this->grids; ++grid) {
+                if (this->grid_used[grid]) {
+                    for (size_t j = 0; j < this->grid->length1d; j++) {
+                        this->grid_data[j] = static_cast<const Derived &>(*this).op_reduce(this->grid_data[j], this->grid_data[j + grid * this->grid->length1d]);
+                    }
                 }
             }
         }
@@ -130,8 +135,8 @@ class AggSumPrimitive : public AggregatorPrimitiveCRTP<AggSumPrimitive<DataType,
     using Base::Base;
     using grid_type = typename Base::grid_type;
 
-    AggSumPrimitive(Grid<IndexType> *grid, int grids, int threads) : Base(grid, grids, threads) { this->initial_fill(); }
-    void initial_fill() { this->fill(0); }
+    // AggSumPrimitive(Grid<IndexType> *grid, int grids, int threads) : Base(grid, grids, threads) { }
+    void initial_fill(int grid) { this->fill(0, grid); }
 
     void op_mutate(grid_type &a, grid_type b) const { a += b; }
     grid_type op(grid_type a, grid_type b) const { return a + b; }
@@ -148,8 +153,8 @@ class AggSumMomentPrimitive : public AggregatorPrimitiveCRTP<AggSumMomentPrimiti
     using Base::Base;
     using grid_type = typename Base::grid_type;
 
-    AggSumMomentPrimitive(Grid<IndexType> *grid, int grids, int threads, uint32_t moment) : Base(grid, grids, threads), moment(moment) { this->initial_fill(); }
-    void initial_fill() { this->fill(0); }
+    AggSumMomentPrimitive(Grid<IndexType> *grid, int grids, int threads, uint32_t moment) : Base(grid, grids, threads), moment(moment) {}
+    void initial_fill(int grid) { this->fill(0, grid); }
 
     void op_mutate(grid_type &a, grid_type b) const { a += pow(b, moment); }
     grid_type op(grid_type a, grid_type b) const { return a + pow(b, moment); }
