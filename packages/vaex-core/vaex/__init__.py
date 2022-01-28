@@ -68,8 +68,6 @@ except:
     print("version file not found, please run git/hooks/post-commit or git/hooks/post-checkout and/or install them as hooks (see git/README)", file=sys.stderr)
     raise
 
-vaex = vaex.utils.optional_import("vaex", modules=["vaex.ml"])
-
 logger = root_logging.getLogger('vaex')
 DEBUG_MODE = os.environ.get('VAEX_DEBUG', '')
 __version__ = version.get_versions()

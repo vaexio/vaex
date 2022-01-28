@@ -216,7 +216,15 @@ jobs:
         key:
           pip-${{ runner.os }}-${{ matrix.python-version }}-${{ env.CACHE_NUMBER }}
 
-    - name: Install the packages
+    - name: Install core packages
+      run: |
+        pip install -vv dist/vaex*core* dist/vaex*hdf5*
+
+    - name: Test core import
+      run: |
+        python -c "import vaex; df = vaex.example()"
+
+    - name: Install all packages
       run: |
         pip install -vv dist/*
 
