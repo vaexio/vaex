@@ -14,8 +14,11 @@ class AggFirstPrimitive : public AggregatorPrimitive<DataType, DataType, IndexTy
 
     AggFirstPrimitive(Grid<IndexType> *grid, int grids, int threads) : Base(grid, grids, threads), data_ptr2(threads), data_size2(threads), data_mask_ptr2(threads), data_mask_size2(threads) {
         grid_data_order = new data_type2[this->count()];
+    }
+    void initial_fill(int grid) {
+        this->fill(0, grid);
         typedef std::numeric_limits<data_type2> limit_type;
-        std::fill(grid_data_order, grid_data_order + this->count(), limit_type::max());
+        std::fill(grid_data_order + this->grid->length1d * grid, grid_data_order + this->grid->length1d * (grid + 1), limit_type::max());
     }
     virtual ~AggFirstPrimitive() { delete[] grid_data_order; }
     void set_data(int thread, py::buffer ar, size_t index) {
@@ -53,12 +56,17 @@ class AggFirstPrimitive : public AggregatorPrimitive<DataType, DataType, IndexTy
     virtual pybind11::object get_result() {
         {
             py::gil_scoped_release release;
-            for (size_t j = 0; j < this->grid->length1d; j++) {
-                for (int64_t i = 1; i < this->grids; ++i) {
-                    int64_t j2 = j + i * this->grid->length1d;
-                    if (grid_data_order[j2] < grid_data_order[j]) {
-                        this->grid_data[j] = this->grid_data[j2];
-                        grid_data_order[j] = grid_data_order[j2];
+            if (!this->grid_used[0]) {
+                this->initial_fill(0);
+            }
+            for (int64_t grid = 1; grid < this->grids; ++grid) {
+                if (this->grid_used[grid]) {
+                    for (size_t j = 0; j < this->grid->length1d; j++) {
+                        int64_t j2 = j + grid * this->grid->length1d;
+                        if (grid_data_order[j2] < grid_data_order[j]) {
+                            this->grid_data[j] = this->grid_data[j2];
+                            grid_data_order[j] = grid_data_order[j2];
+                        }
                     }
                 }
             }

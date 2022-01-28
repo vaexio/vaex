@@ -10,6 +10,7 @@ class AggNUniqueString : public AggBaseString<GridType> {
     using Base::Base;
     using grid_type = GridType;
     AggNUniqueString(Grid<IndexType> *grid, int grids, int threads, bool dropmissing, bool dropnan) : Base(grid, grids, threads), dropmissing(dropmissing), dropnan(dropnan) {}
+    void initial_fill(int grid) {}
     virtual py::object get_result() {
         py::array_t<int64_t> result_array(this->grid->length1d);
         auto result = result_array.template mutable_unchecked<1>();

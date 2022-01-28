@@ -26,7 +26,8 @@ class AggregatorBase : public Aggregator {
   public:
     using index_type = IndexType;
     using grid_type = GridType;
-    AggregatorBase(Grid<IndexType> *grid, int grids, int threads) : grid(grid), grids(grids), threads(threads), selection_mask_ptr(threads), selection_mask_size(threads), free_grids(grids) {
+    AggregatorBase(Grid<IndexType> *grid, int grids, int threads)
+        : grid(grid), grid_used(grids, false), grids(grids), threads(threads), selection_mask_ptr(threads), selection_mask_size(threads), free_grids(grids) {
         grid_data = new grid_type[count()];
         if (grids != threads) {
             free_grids.resize(grids);
@@ -39,7 +40,8 @@ class AggregatorBase : public Aggregator {
 
     virtual size_t count() { return grids * grid->length1d; }
     virtual size_t bytes_used() { return sizeof(grid_type) * count(); }
-    void fill(grid_type fill_value) { std::fill(grid_data, grid_data + count(), fill_value); }
+    void fill(grid_type fill_value, int grid) { std::fill(grid_data + this->grid->length1d * grid, grid_data + this->grid->length1d * (grid + 1), fill_value); }
+    virtual void initial_fill(int grid) = 0;
 
     virtual void aggregate(int thread, default_index_type *indices1d, size_t length, uint64_t offset) {
         int grid = 0;
@@ -47,6 +49,10 @@ class AggregatorBase : public Aggregator {
             grid = thread;
         } else {
             grid = get();
+        }
+        if (!this->grid_used[grid]) {
+            this->initial_fill(grid);
+            this->grid_used[grid] = true;
         }
         this->aggregate(grid, thread, indices1d, length, offset);
         if (grids != threads) {
@@ -116,6 +122,7 @@ class AggregatorBase : public Aggregator {
 
     Grid<IndexType> *grid;
     grid_type *grid_data; // no vector due to bool issues
+    std::vector<bool> grid_used;
     int grids;
     int threads;
     std::vector<uint8_t *> selection_mask_ptr;

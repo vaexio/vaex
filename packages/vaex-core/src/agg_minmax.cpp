@@ -9,12 +9,12 @@ class AggMaxPrimitive : public AggregatorPrimitive<DataType, DataType, IndexType
   public:
     using Base = AggregatorPrimitive<DataType, DataType, IndexType>;
     using Base::Base;
-    AggMaxPrimitive(Grid<IndexType> *grid, int grids, int threads) : Base(grid, grids, threads) { this->initial_fill(); }
-    void initial_fill() {
+    // AggMaxPrimitive(Grid<IndexType> *grid, int grids, int threads) : Base(grid, grids, threads) {}
+    virtual void initial_fill(int grid) {
         // ignore fill_value
         typedef std::numeric_limits<DataType> limit_type;
         DataType fill_value = limit_type::has_infinity ? -limit_type::infinity() : limit_type::min();
-        this->fill(fill_value);
+        this->fill(fill_value, grid);
     }
     virtual void merge(std::vector<Aggregator *> others) {
         for (auto i : others) {
@@ -27,9 +27,14 @@ class AggMaxPrimitive : public AggregatorPrimitive<DataType, DataType, IndexType
     virtual py::object get_result() {
         {
             py::gil_scoped_release release;
-            for (size_t j = 0; j < this->grid->length1d; j++) {
-                for (int64_t i = 1; i < this->grids; ++i) {
-                    this->grid_data[j] = std::max(this->grid_data[j], this->grid_data[j + i * this->grid->length1d]);
+            if (!this->grid_used[0]) {
+                this->initial_fill(0);
+            }
+            for (int64_t grid = 1; grid < this->grids; ++grid) {
+                if (this->grid_used[grid]) {
+                    for (size_t j = 0; j < this->grid->length1d; j++) {
+                        this->grid_data[j] = std::max(this->grid_data[j], this->grid_data[j + grid * this->grid->length1d]);
+                    }
                 }
             }
         }
@@ -74,11 +79,11 @@ class AggMinPrimitive : public AggregatorPrimitive<DataType, DataType, IndexType
   public:
     using Base = AggregatorPrimitive<DataType, DataType, IndexType>;
     using Base::Base;
-    AggMinPrimitive(Grid<IndexType> *grid, int grids, int threads) : Base(grid, grids, threads) { this->initial_fill(); }
-    void initial_fill() {
+    // AggMinPrimitive(Grid<IndexType> *grid, int grids, int threads) : Base(grid, grids, threads) { }
+    void initial_fill(int grid) {
         typedef std::numeric_limits<DataType> limit_type;
         DataType fill_value = limit_type::has_infinity ? limit_type::infinity() : limit_type::max();
-        this->fill(fill_value);
+        this->fill(fill_value, grid);
     }
     virtual void merge(std::vector<Aggregator *> others) {
         for (auto i : others) {
@@ -91,9 +96,14 @@ class AggMinPrimitive : public AggregatorPrimitive<DataType, DataType, IndexType
     virtual py::object get_result() {
         {
             py::gil_scoped_release release;
-            for (size_t j = 0; j < this->grid->length1d; j++) {
-                for (int64_t i = 1; i < this->grids; ++i) {
-                    this->grid_data[j] = std::min(this->grid_data[j], this->grid_data[j + i * this->grid->length1d]);
+            if (!this->grid_used[0]) {
+                this->initial_fill(0);
+            }
+            for (int64_t grid = 1; grid < this->grids; ++grid) {
+                if (this->grid_used[grid]) {
+                    for (size_t j = 0; j < this->grid->length1d; j++) {
+                        this->grid_data[j] = std::min(this->grid_data[j], this->grid_data[j + grid * this->grid->length1d]);
+                    }
                 }
             }
         }
