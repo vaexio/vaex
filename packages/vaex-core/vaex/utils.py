@@ -818,7 +818,23 @@ def required_dtype_for_max(N, signed=True):
         if N <= np.iinfo(dtype).max:
             return np.dtype(dtype)
     else:
-        raise ValueError(f'Cannot store a max value on {N} inside an uint64/int64')
+        raise ValueError(f"Cannot store a max value of {N} inside an uint64/int64")
+
+
+def required_dtype_for_int(value, signed=True):
+    if signed or value < 0:
+        dtypes = [np.int8, np.int16, np.int32, np.int64]
+    else:
+        dtypes = [np.uint8, np.uint16, np.uint32, np.uint64]
+    for dtype in dtypes:
+        if value >= 0:
+            if value <= np.iinfo(dtype).max:
+                return np.dtype(dtype)
+        else:
+            if value >= np.iinfo(dtype).min:
+                return np.dtype(dtype)
+    else:
+        raise ValueError(f"Cannot store a value of {value} inside an uint64/int64")
 
 
 def print_stack_trace(*args, **kwargs):

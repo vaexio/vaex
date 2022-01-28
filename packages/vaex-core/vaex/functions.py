@@ -142,11 +142,8 @@ def array_sum(ar, axis):
     return np.sum(ar, axis=tuple(axis))
 
 
-@register_function()
+@register_function(on_expression=False)
 def fillmissing(ar, value):
-    '''Returns an array where missing values are replaced by value.
-    See :`ismissing` for the definition of missing values.
-    '''
     dtype = vaex.dtype_of(ar)
     if dtype.is_arrow:
         return pc.fill_null(ar, value)
