@@ -28,7 +28,11 @@ class AggNUniqueString : public AggBaseString<GridType> {
                 }
             }
         }
-        return result_array;
+        auto shape = py::tuple(this->grid->shapes.size());
+        for (int i = 0; i < this->grid->shapes.size(); i++) {
+            shape[i] = this->grid->shapes[i];
+        }
+        return result_array.attr("reshape")(shape);
     }
     virtual void merge(std::vector<Aggregator *> others) {
         if (others.size() > 0) {
