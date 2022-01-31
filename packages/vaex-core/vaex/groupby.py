@@ -180,7 +180,7 @@ class BinnerInteger(BinnerBase):
             self.N = 256
         elif min_value is not None and max_value is not None:
             self.min_value = min_value
-            self.N = max_value - min_value + 1
+            self.N = int(max_value - min_value + 1)
             self.binby_expression = str(self.expression)
             self.bin_values = make_array_with_null(min_value, max_value + 1)
         else:
@@ -188,6 +188,7 @@ class BinnerInteger(BinnerBase):
         if self.dropmissing:
             # if we remove the missing values, we are already sorted
             self.bin_values = self.bin_values[:-1]
+        self.combine_expression = self.df[self.binby_expression].fillmissing(self.N).expression
         self.sort_indices = None
         self._promise = vaex.promise.Promise.fulfilled(None)
 
@@ -300,6 +301,7 @@ class Grouper(BinnerBase):
         else:
             self.binby_expression = "_ordinal_values(%s, %s)" % (self.expression, self.hash_map_unique_name)
             self.binner = self.df._binner_ordinal(self.binby_expression, self.N)
+        self.combine_expression = self.binby_expression
 
     def extract_center(self, dim, ar):
         slices = [
@@ -327,8 +329,7 @@ class GrouperCombined(Grouper):
         assert multipliers[-1] == 1
         self.df = df
         for parent in parents:
-            assert isinstance(parent, (Grouper, GrouperCategory)), "only (Grouper, GrouperCategory) supported for combining"
-            assert parent.simpler is None, "oops, cannot use simplified binner"
+            assert isinstance(parent, (Grouper, GrouperCategory, BinnerInteger, GrouperLimited)), "only (Grouper, GrouperCategory) supported for combining"
         self.label = 'SHOULD_NOT_BE_USED'
         self.expression = expression
         # efficient way to find the original bin values (parent.bin_value) from the 'compressed'
@@ -439,6 +440,7 @@ class GrouperCategory(BinnerBase):
         else:
             self.binby_expression = str(self.expression)
             self.binner = self.df._binner_ordinal(self.binby_expression, self.N, self.min_value)
+        self.combine_expression = self.binby_expression
 
     def extract_center(self, dim, ar):
         slices = [
@@ -480,7 +482,6 @@ class GrouperLimited(BinnerBase):
         self.hash_map_unique = vaex.hash.HashMapUnique.from_keys(self.values, fingerprint=fingerprint)
 
         self.basename = "hash_map_unique_%s" % vaex.utils._python_save_name(str(self.expression) + "_" + self.hash_map_unique.fingerprint)
-        self.binby_expression = expression
         self.sort_indices = None
         self._promise = vaex.promise.Promise.fulfilled(None)
 
@@ -493,6 +494,7 @@ class GrouperLimited(BinnerBase):
             self.var_name = self.basename
         # modulo N will map -1 (value not found) to N-1
         self.binby_expression = "_ordinal_values(%s, %s) %% %s" % (self.expression, self.var_name, self.N)
+        self.combine_expression = self.binby_expression
         self.binner = self.df._binner_ordinal(self.binby_expression, self.N)
 
     def extract_center(self, dim, ar):
@@ -518,6 +520,9 @@ def _combine(df, groupers, sort, row_limit=None, progress=None):
     combine_later = []
     counts = [first.N]
 
+    for grouper in groupers:
+        assert isinstance(grouper, (Grouper, GrouperCategory, BinnerInteger, GrouperLimited)), f"not supported binner {type(grouper)}"
+
     # when does the cartesian product overflow 64 bits?
     next = groupers.pop(0)
     while (product(counts) * next.N < max_count_64bit):
@@ -528,24 +533,24 @@ def _combine(df, groupers, sort, row_limit=None, progress=None):
         else:
             next = None
             break
-
     counts.append(1)
     # decreasing [40, 4, 1] for 2 groupers (N=10 and N=4)
     cumulative_counts = np.cumproduct(counts[::-1], dtype='i8').tolist()[::-1]
     assert len(combine_now) >= 2
     combine_later = ([next] if next else []) + groupers
 
-    binby_expressions = [df[k.binby_expression] for k in combine_now]
-    for i in range(0, len(binby_expressions)):
-        binby_expression = binby_expressions[i]
+    logger.info("combining groupers, now %r, next %r", combine_now, combine_later)
+    combine_expressions = [df[k.combine_expression] for k in combine_now]
+    for i in range(0, len(combine_expressions)):
+        combine_expression = combine_expressions[i]
         dtype = vaex.utils.required_dtype_for_max(cumulative_counts[i])
-        binby_expression = binby_expression.astype(str(dtype))
-        if isinstance(combine_now[i], GrouperCategory) and combine_now[i].min_value != 0:
-            binby_expression -= combine_now[i].min_value
-        if cumulative_counts[i+1] != 1:
-            binby_expression = binby_expression * cumulative_counts[i+1]
-        binby_expressions[i] = binby_expression
-    expression = reduce(operator.add, binby_expressions)
+        combine_expression = combine_expression.astype(str(dtype))
+        if isinstance(combine_now[i], (GrouperCategory, BinnerInteger)) and combine_now[i].min_value != 0:
+            combine_expression -= combine_now[i].min_value
+        if cumulative_counts[i + 1] != 1:
+            combine_expression = combine_expression * cumulative_counts[i + 1]
+        combine_expressions[i] = combine_expression
+    expression = reduce(operator.add, combine_expressions)
     grouper = GrouperCombined(expression, df, multipliers=cumulative_counts[1:], parents=combine_now, sort=sort, row_limit=row_limit, progress=progressbar)
     if combine_later:
         @vaex.delayed
@@ -577,7 +582,6 @@ class GroupByBase(object):
 
         self.by = []
         self.by_original = by
-        multiple = len(by) > 1
         for by_value in by:
             if not isinstance(by_value, BinnerBase):
                 expression = df[_ensure_string_from_expression(by_value)]
@@ -589,7 +593,7 @@ class GroupByBase(object):
                         by_value = BinnerInteger(expression)  # always sorted, and pre_sorted
                     else:
                         # we cannot mix _combine with BinnerInteger yet
-                        by_value = Grouper(expression, sort=sort, row_limit=row_limit, df_original=df_original, progress=self.progressbar_groupers, allow_simplify=not multiple)
+                        by_value = Grouper(expression, sort=sort, row_limit=row_limit, df_original=df_original, progress=self.progressbar_groupers, allow_simplify=True)
             self.by.append(by_value)
         @vaex.delayed
         def possible_combine(*binner_promises):

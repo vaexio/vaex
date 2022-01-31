@@ -635,3 +635,14 @@ def test_groupby_limited_with_nan(df_factory):
     # we don't check, because comparing nan is always false
     # assert dfg['type'].tolist() == [a, b,  None, others]
     assert dfg['sum'].tolist() == [1+2+2, 3+3, 9+9, 4]
+
+
+@pytest.mark.parametrize("assume_sparse", [True, False])
+def test_binner2d_limited_combine(df_factory, assume_sparse):
+    df = df_factory(x=[1, 2, 2, 3, 3, 4], s=["aap", "aap", "aap", "noot", "noot", "mies"])
+    g1 = vaex.groupby.GrouperLimited(df.s, values=['aap', 'noot'], keep_other=True, other_value='others', label="type")
+    g2 = vaex.groupby.Grouper(df.x, sort=True)
+    dfg = df.groupby([g1, g2], agg={'sum': vaex.agg.sum('x')}, assume_sparse=assume_sparse)
+    assert dfg['type'].tolist() == ['aap', 'aap', 'noot', 'others']
+    assert dfg['x'].tolist() == [1, 2, 3, 4]
+    assert dfg['sum'].tolist() == [1, 4, 6, 4]
