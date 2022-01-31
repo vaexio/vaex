@@ -521,9 +521,13 @@ class Expression(with_metaclass(Meta)):
             start, stop, step = item.start, item.stop, item.step
             assert step in [None, 1]
             return self.evaluate(start, stop, parallel=False)
-        dsk = da.core.getem(name, chunks, getitem=getitem, shape=self.shape, dtype=dtype.numpy)
-        dsk[name] = self
-        return da.Array(dsk, name, chunks, dtype=dtype.numpy)
+        if hasattr(da.core, "getem"):
+            dsk = da.core.getem(name, chunks, getitem=getitem, shape=self.shape, dtype=dtype.numpy)
+            dsk[name] = self
+            return da.Array(dsk, name, chunks, dtype=dtype.numpy)
+        else:
+            dsk = da.core.graph_from_arraylike(self, name=name, chunks=chunks, getitem=getitem, shape=self.shape, dtype=dtype.numpy)
+            return da.Array(dsk, name, chunks, dtype=dtype.numpy)
 
     def to_pandas_series(self):
         """Return a pandas.Series representation of the expression.

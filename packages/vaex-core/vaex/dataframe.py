@@ -3325,9 +3325,14 @@ class DataFrame(object):
         name = 'vaex-df-%s' % str(uuid.uuid1())
         def getitem(df, item):
             return np.array(df.__getitem__(item).to_arrays(parallel=False)).T
-        dsk = da.core.getem(name, chunks, getitem=getitem, shape=self.shape, dtype=dtype.numpy)
-        dsk[name] = self
-        return da.Array(dsk, name, chunks, dtype=dtype.numpy)
+        # broken since https://github.com/dask/dask/pull/7417
+        if hasattr(da.core, "getem"):
+            dsk = da.core.getem(name, chunks, getitem=getitem, shape=self.shape, dtype=dtype.numpy)
+            dsk[name] = self
+            return da.Array(dsk, name, chunks, dtype=dtype.numpy)
+        else:
+            dsk = da.core.graph_from_arraylike(self, name=name, chunks=chunks, getitem=getitem, shape=self.shape, dtype=dtype.numpy)
+            return da.Array(dsk, name, chunks, dtype=dtype.numpy)
 
     def validate_expression(self, expression):
         """Validate an expression (may throw Exceptions)"""
