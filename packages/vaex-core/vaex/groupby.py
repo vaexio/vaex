@@ -337,6 +337,7 @@ class GrouperCombined(Grouper):
         progressbar = self.progressbar.add("extract labels from sparse set")
         @vaex.delayed
         def process(_ignore):
+            logger.info(f"extracing indices of parent groupers ({self.N:,} unique rows)")
             df = vaex.from_dict({'row': vaex.vrange(0, self.N, dtype='i8'), 'bin_value': self.bin_values})
             df[f'index_0'] = df['bin_value'] // multipliers[0]
             df[f'leftover_0'] = df[f'bin_value'] % multipliers[0]
@@ -353,6 +354,7 @@ class GrouperCombined(Grouper):
                     return ar
             indices_parents = [compress(ar) for ar in indices_parents]
             bin_values = {}
+            logger.info(f"extracing labels of parent groupers...")
             # NOTE: we can also use dict encoding instead of take
             for indices, parent in zip(indices_parents, parents):
                 if sort:
@@ -367,6 +369,7 @@ class GrouperCombined(Grouper):
                 else:
                     bin_values[parent.label] = parent.bin_values.take(indices)
                     # bin_values[parent.label] = pa.DictionaryArray.from_arrays(indices, parent.bin_values)
+            logger.info(f"extracing labels of parent groupers done")
             return pa.StructArray.from_arrays(bin_values.values(), bin_values.keys())
         self._promise_parent = self._promise
         def key_function():
@@ -846,6 +849,7 @@ class GroupBy(GroupByBase):
         @vaex.delayed
         def process(args):
             counts, arrays = args
+            logger.info(f"aggregated on grid, constructing dataframe...")
             if counts is not None:
                 for name, array in arrays.items():
                     if array.shape != counts.shape:
@@ -903,6 +907,7 @@ class GroupBy(GroupByBase):
                 else:
                     for key, value in arrays.items():
                         columns[key] = value[mask]
+            logger.info(f"constructed dataframe")
             dataset_arrays = vaex.dataset.DatasetArrays(columns)
             dataset = DatasetGroupby(dataset_arrays, self.df, self.by_original, actions, combine=self.combine, expand=self.expand, sort=self.sort)
             df_grouped = vaex.from_dataset(dataset)
