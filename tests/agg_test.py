@@ -596,18 +596,27 @@ def test_unique_large():
     with small_buffer(df, 10):
         assert df._agg(vaex.agg.nunique('x'))
 
-def test_unique_1d():
-    x = np.arange(1024)
-    y = x % 16
-    df = vaex.from_arrays(x=x, y=y)
+def test_unique_1d(df_factory):
+    x = [0, 0, 1, 1, 1, None, None, np.nan]
+    y = [1, 1, 1, 2, 3, 1,    2,    1]
+    df = df_factory(x=x, y=y)
     with small_buffer(df, 10):
-        assert df.groupby('y', sort=True, agg=vaex.agg.nunique('x'))['x_nunique'].tolist() == [1024//16]* 16
+        dfg = df.groupby('x', sort=True, agg=vaex.agg.nunique('y'))
+        assert dfg['x'].tolist()[:2] == [0, 1]
+        assert dfg['x'].tolist()[-1] is None
+        assert dfg['y_nunique'].tolist() == [1, 3, 1, 2]
 
-
-def test_unique_2d():
-    x = np.arange(1024)
-    y = x % 16
-    z = x % 8
-    df = vaex.from_arrays(x=x, y=y, z=z)
+@pytest.mark.parametrize("binner1", [vaex.groupby.BinnerInteger, lambda x: vaex.groupby.Grouper(x, sort=True)])
+@pytest.mark.parametrize("binner2", [vaex.groupby.BinnerInteger, lambda x: vaex.groupby.Grouper(x, sort=True)])
+def test_unique_2d(df_factory, binner1, binner2):
+    x = [0, 0, 1, 1, 1, 2, 2, 2, 2]
+    y = [4, 5, 4, 5, 5, 4, 5, 5, 5]
+    z = [0, 0, 0, 0, 1, 0, 1, 2, 3]
+    df = df_factory(x=x, y=y, z=z)
+    df['x'] = df['x'].astype('int8')
+    df['y'] = df['y'].astype('int8')
     with small_buffer(df, 10):
-        assert df.groupby(['y', 'z'], sort=True, agg=vaex.agg.nunique('x'))['x_nunique'].tolist() == [1024//16]* 8
+        dfg = df.groupby([binner1(df.x), binner2(df.y)], sort=True, agg={'c': vaex.agg.nunique('z')})
+        assert dfg['x'].tolist() == [0, 0, 1, 1, 2, 2]
+        assert dfg['y'].tolist() == [4, 5, 4, 5, 4, 5]
+        assert dfg['c'].tolist() == [1, 1, 1, 2, 1, 3]
