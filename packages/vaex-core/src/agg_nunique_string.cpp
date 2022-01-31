@@ -30,9 +30,9 @@ class AggNUniqueString : public AggBaseString<GridType> {
         }
         auto shape = py::tuple(this->grid->shapes.size());
         for (int i = 0; i < this->grid->shapes.size(); i++) {
-            shape[i] = this->grid->shapes[i];
+            shape[i] = this->grid->shapes[this->grid->shapes.size() - i - 1];
         }
-        return result_array.attr("reshape")(shape);
+        return result_array.attr("reshape")(shape).attr("T");
     }
     virtual void merge(std::vector<Aggregator *> others) {
         if (others.size() > 0) {
