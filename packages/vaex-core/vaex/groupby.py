@@ -247,7 +247,7 @@ class Grouper(BinnerBase):
             @vaex.delayed
             def process(hashmap_unique):
                 self.bin_values = hashmap_unique.keys()
-                if self.allow_simplify and dtype == int:
+                if self.allow_simplify and dtype == int and len(self.bin_values):
                     vmin = self.bin_values.min()
                     vmax = self.bin_values.max()
                     int_range = vmax - vmin + 1
@@ -258,7 +258,7 @@ class Grouper(BinnerBase):
                         self.simpler = BinnerInteger(self.expression, min_value=vmin, max_value=vmax, dropmissing=not hashmap_unique.has_null, dense=dense)
                         return
 
-                if vaex.dtype_of(self.bin_values) == int:
+                if vaex.dtype_of(self.bin_values) == int and len(self.bin_values):
                     max_value = self.bin_values.max()
                     self.bin_values = self.bin_values.astype(vaex.utils.required_dtype_for_max(max_value))
                 logger.debug('Constructed grouper for expression %s with %i values', str(expression), len(self.bin_values))
@@ -606,27 +606,29 @@ class GroupByBase(object):
             # we let it mutate *our* dataframe
             for binner in self.by:
                 binner._create_binner(self.df)
+            cells = product([grouper.N for grouper in self.by])
             @vaex.delayed
             def set_combined(combined):
                 combined._create_binner(self.df)
                 self.by = [combined]
                 self.combine = True
-            if combine is True and len(self.by) >= 2:
+            if combine is True and len(self.by) >= 2 and cells > 0:
                 promise = set_combined(_combine(self.df, self.by, sort=sort, row_limit=row_limit, progress=self.progressbar_groupers))
             elif combine == 'auto' and len(self.by) >= 2:
-                cells = product([grouper.N for grouper in self.by])
-                dim = len(self.by)
-                rows = df.length_unfiltered()  # we don't want to trigger a computation
-                occupancy = rows/cells
-                logger.debug('%s rows and %s grid cells => occupancy=%s', rows, cells, occupancy)
-                # we want each cell to have a least 10x occupacy
-                if occupancy < 10:
-                    logger.info(f'Combining {len(self.by)} groupers into 1')
-                    promise = set_combined(_combine(self.df, self.by, sort=sort, row_limit=row_limit, progress=self.progressbar_groupers))
-                    self.combine = True
-                else:
-                    self.combine = False
-                    promise = vaex.promise.Promise.fulfilled(None)
+                # default assume we cannot combined
+                self.combine = False
+                promise = vaex.promise.Promise.fulfilled(None)
+                # don't even try when one grouper has 0 options
+                if cells > 0:
+                    dim = len(self.by)
+                    rows = df.length_unfiltered()  # we don't want to trigger a computation
+                    occupancy = rows/cells
+                    logger.debug('%s rows and %s grid cells => occupancy=%s', rows, cells, occupancy)
+                    # we want each cell to have a least 10x occupacy
+                    if occupancy < 10:
+                        logger.info(f'Combining {len(self.by)} groupers into 1')
+                        promise = set_combined(_combine(self.df, self.by, sort=sort, row_limit=row_limit, progress=self.progressbar_groupers))
+                        self.combine = True
             else:
                 self.combine = False
                 promise = vaex.promise.Promise.fulfilled(None)

@@ -76,10 +76,23 @@ def test_groupby_long_name(df_local):
     assert 'long_name_mean' in dfg
 
 
-def test_groupby_empty(df_local):
+def test_groupby_empty_1d(df_local):
     df = df_local
     dff = df[df.x > 1000]
-    dff.groupby('x', agg='count')
+    # floats
+    assert dff.groupby('x', agg='count')['count'].tolist() == []
+    # ints
+    dff.groupby('mi', agg='count')['count'].tolist() == []
+    # using groupers
+    dff.groupby("name", agg="count")['count'].tolist() == []
+
+
+@pytest.mark.parametrize("assume_sparse", ['auto', True, False])
+def test_groupby_empty_combine(df_local, assume_sparse):
+    df = df_local
+    dff = df[df.x > 1000]
+    assert dff.groupby(['x', 'y'], agg='count', assume_sparse=assume_sparse)['count'].tolist() == []
+    assert dff.groupby(["name", "y"], agg="count", assume_sparse=assume_sparse)['count'].tolist() == []
 
 
 def test_groupby_space_in_name(df_local):
