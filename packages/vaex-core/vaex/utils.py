@@ -973,7 +973,10 @@ def file_lock(name):
 
 def create_hasher(initial_data=None, large_data=True):
     """Creates a blake3 hasher"""
-    version = tuple(map(int, blake3.__version__.split(".")[:2]))
+    if not hasattr(blake3, "__version__"):
+        version = (0, 2)
+    else:
+        version = tuple(map(int, blake3.__version__.split(".")[:2]))
     if version < (0, 3):
         return blake3.blake3(initial_data, multithreading=large_data)
     else:
