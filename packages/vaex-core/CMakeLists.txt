@@ -15,6 +15,10 @@ IF(CMAKE_COMPILER_IS_GNUCC)
     set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -O0")
 ENDIF(CMAKE_COMPILER_IS_GNUCC)
 
+if(MSVC)
+    add_compile_options("/bigobj")
+endif()
+
 # this doesn't seem to work:
 #find_package(pybind11 REQUIRED)
 #message(STATUS "Found pybind11: ${pybind11_INCLUDE_DIRS}/pybind11")
