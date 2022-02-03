@@ -655,7 +655,8 @@ def test_binner2d_limited_combine(df_factory, assume_sparse):
     df = df_factory(x=[1, 2, 2, 3, 3, 4], s=["aap", "aap", "aap", "noot", "noot", "mies"])
     g1 = vaex.groupby.GrouperLimited(df.s, values=['aap', 'noot'], keep_other=True, other_value='others', label="type")
     g2 = vaex.groupby.Grouper(df.x, sort=True)
-    dfg = df.groupby([g1, g2], agg={'sum': vaex.agg.sum('x')}, assume_sparse=assume_sparse)
+    g = df.groupby([g1, g2], assume_sparse=assume_sparse, sort=True)
+    dfg = g.agg({'sum': vaex.agg.sum('x')})
     assert dfg['type'].tolist() == ['aap', 'aap', 'noot', 'others']
     assert dfg['x'].tolist() == [1, 2, 3, 4]
     assert dfg['sum'].tolist() == [1, 4, 6, 4]
