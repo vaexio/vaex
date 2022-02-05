@@ -6573,7 +6573,7 @@ class DataFrameLocal(DataFrame):
         return vaex.join.join(**kwargs)
 
     @docsubst
-    def export(self, path, progress=None, chunk_size=default_chunk_size, parallel=True, fs_options=None, fs=None):
+    def export(self, path, progress=None, chunk_size=default_chunk_size, parallel=True, fs_options=None, fs=None, progress_title=None):
         """Exports the DataFrame to a file depending on the file extension.
 
         E.g if the filename ends on .hdf5, `df.export_hdf5` is called.
@@ -6583,27 +6583,28 @@ class DataFrameLocal(DataFrame):
         :param int chunk_size: {chunk_size_export}, if supported.
         :param bool parallel: {evaluate_parallel}
         :param dict fs_options: {fs_options}
+        :param progress_title: {progress_title}
         :return:
         """
         naked_path, options = vaex.file.split_options(path)
         fs_options = fs_options or {}
         if naked_path.endswith('.arrow'):
-            self.export_arrow(path, progress=progress, chunk_size=chunk_size, parallel=parallel, fs_options=fs_options, fs=fs)
+            self.export_arrow(path, progress=progress, chunk_size=chunk_size, parallel=parallel, fs_options=fs_options, fs=fs, progress_title=progress_title)
         elif naked_path.endswith('.feather'):
             self.export_feather(path, parallel=parallel, fs_options=fs_options)
         elif naked_path.endswith('.hdf5'):
-            self.export_hdf5(path, progress=progress, parallel=parallel)
+            self.export_hdf5(path, progress=progress, parallel=parallel, progress_title=progress_title)
         elif naked_path.endswith('.fits'):
             self.export_fits(path, progress=progress)
         elif naked_path.endswith('.parquet'):
-            self.export_parquet(path, progress=progress, parallel=parallel, chunk_size=chunk_size, fs_options=fs_options, fs=fs)
+            self.export_parquet(path, progress=progress, parallel=parallel, chunk_size=chunk_size, fs_options=fs_options, fs=fs, progress_title=progress_title)
         elif naked_path.endswith('.csv'):
-            self.export_csv(path, progress=progress, parallel=parallel, chunk_size=chunk_size)
+            self.export_csv(path, progress=progress, parallel=parallel, chunk_size=chunk_size, progress_title=progress_title)
         else:
             raise ValueError('''Unrecognized file extension. Please use .arrow, .hdf5, .parquet, .fits, or .csv to export to the particular file format.''')
 
     @docsubst
-    def export_arrow(self, to, progress=None, chunk_size=default_chunk_size, parallel=True, reduce_large=True, fs_options=None, fs=None, as_stream=True):
+    def export_arrow(self, to, progress=None, chunk_size=default_chunk_size, parallel=True, reduce_large=True, fs_options=None, fs=None, as_stream=True, progress_title=None):
         """Exports the DataFrame to a file of stream written with arrow
 
         :param to: filename, file object, or :py:data:`pyarrow.RecordBatchStreamWriter`, py:data:`pyarrow.RecordBatchFileWriter` or :py:data:`pyarrow.parquet.ParquetWriter`
@@ -6614,12 +6615,14 @@ class DataFrameLocal(DataFrame):
         :param bool as_stream: Write as an Arrow stream if true, else a file.
             see also https://arrow.apache.org/docs/format/Columnar.html?highlight=arrow1#ipc-file-format
         :param dict fs_options: {fs_options}
+        :param progress_title: {progress_title}
         :return:
         """
+        title = progress_title or "export(arrow)"
         def write(writer):
             N = len(self)
             if chunk_size:
-                with vaex.progress.tree(progress, title="export(arrow)") as progressbar:
+                with vaex.progress.tree(progress, title=title) as progressbar:
                     for i1, i2, table in self.to_arrow_table(chunk_size=chunk_size, parallel=parallel, reduce_large=reduce_large):
                         writer.write_table(table)
                         progressbar(i2/N)
@@ -6662,7 +6665,7 @@ class DataFrameLocal(DataFrame):
             feather.write_feather(table, sink, compression=compression)
 
     @docsubst
-    def export_parquet(self, path, progress=None, chunk_size=default_chunk_size, parallel=True, fs_options=None, fs=None, **kwargs):
+    def export_parquet(self, path, progress=None, chunk_size=default_chunk_size, parallel=True, fs_options=None, fs=None, progress_title=None, **kwargs):
         """Exports the DataFrame to a parquet file.
 
         Note: This may require that all of the data fits into memory (memory mapped data is an exception).
@@ -6674,14 +6677,16 @@ class DataFrameLocal(DataFrame):
         :param bool parallel: {evaluate_parallel}
         :param dict fs_options: {fs_options}
         :param fs: {fs}
+        :param progress_title: {progress_title}
         :param **kwargs: Extra keyword arguments to be passed on to py:data:`pyarrow.parquet.ParquetWriter`.
         :return:
         """
         import pyarrow.parquet as pq
+        title = progress_title or "export(parquet)"
         schema = self.schema_arrow(reduce_large=True)
         with vaex.file.open(path=path, mode='wb', fs_options=fs_options, fs=fs) as sink:
             with pq.ParquetWriter(sink, schema, **kwargs) as writer:
-                self.export_arrow(writer, progress=progress, chunk_size=chunk_size, parallel=parallel, reduce_large=True)
+                self.export_arrow(writer, progress=progress, chunk_size=chunk_size, parallel=parallel, reduce_large=True, progress_title=title)
 
     @docsubst
     def export_partitioned(self, path, by, directory_format='{key}={value}', progress=None, chunk_size=default_chunk_size, parallel=True, fs_options={}, fs=None):
@@ -6787,7 +6792,7 @@ class DataFrameLocal(DataFrame):
         progressbar(1)
 
     @docsubst
-    def export_hdf5(self, path, byteorder="=", progress=None, chunk_size=default_chunk_size, parallel=True, column_count=1, writer_threads=0, group='/table', mode='w'):
+    def export_hdf5(self, path, byteorder="=", progress=None, chunk_size=default_chunk_size, parallel=True, column_count=1, writer_threads=0, group='/table', mode='w', progress_title=None):
         """Exports the DataFrame to a vaex hdf5 file
 
         :param str path: path for file
@@ -6798,10 +6803,12 @@ class DataFrameLocal(DataFrame):
         :param int writer_threads: Use threads for writing or not, only useful when column_count > 1.
         :param str group: Write the data into a custom group in the hdf5 file.
         :param str mode: If set to "w" (write), an existing file will be overwritten. If set to "a", one can append additional data to the hdf5 file, but it needs to be in a different group.
+        :param progress_title: The title of the progress bar, if being used
         :return:
         """
+        title = progress_title or "export(hdf5)"
         from vaex.hdf5.writer import Writer
-        with vaex.utils.progressbars(progress, title="export(hdf5)") as progressbar:
+        with vaex.utils.progressbars(progress, title=title) as progressbar:
             progressbar_layout = progressbar.add("layout file structure")
             progressbar_write = progressbar.add("write data")
             with Writer(path=path, group=group, mode=mode, byteorder=byteorder) as writer:
@@ -6826,19 +6833,21 @@ class DataFrameLocal(DataFrame):
         export_fits(self, path, progress=progress)
 
     @docsubst
-    def export_csv(self, path, progress=None, chunk_size=default_chunk_size, parallel=True, **kwargs):
+    def export_csv(self, path, progress=None, chunk_size=default_chunk_size, parallel=True, progress_title=None, **kwargs):
         """ Exports the DataFrame to a CSV file.
 
         :param str path: Path for file
         :param progress: {progress}
         :param int chunk_size: {chunk_size_export}
         :param parallel: {evaluate_parallel}
+        :param progress_title: {progress_title}
         :param **kwargs: Extra keyword arguments to be passed on pandas.DataFrame.to_csv()
         :return:
         """
         import pandas as pd
         expressions = self.get_column_names()
-        progressbar = vaex.utils.progressbars(progress, title="export(csv)")
+        title = progress_title or "export(csv)"
+        progressbar = vaex.utils.progressbars(progress, title=title)
         dtypes = self[expressions].dtypes
         n_samples = len(self)
         if chunk_size is None:

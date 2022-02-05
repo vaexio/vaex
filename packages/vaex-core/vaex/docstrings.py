@@ -17,6 +17,7 @@ _doc_snippets["selection"] = """Name of selection to use (or True for the 'defau
 _doc_snippets["selection1"] = """Name of selection to use (or True for the 'default'), or all the data (when selection is None or False)"""
 _doc_snippets["delay"] = """Do not return the result, but a proxy for asychronous calculations (currently only for internal use)"""
 _doc_snippets["progress"] = """True to display a progress bar, or a callable that takes one argument (a floating point value between 0 and 1) indicating the progress, calculations are cancelled when this callable returns False"""
+_doc_snippets["progress_title"] = """The title of the progress bar, if being used"""
 _doc_snippets["expression_limits"] = _doc_snippets["expression"]
 _doc_snippets["grid"] = """If grid is given, instead if compuation a statistic given by what, use this Nd-numpy array instead, this is often useful when a custom computation/statistic is calculated, but you still want to use the plotting machinery."""
 _doc_snippets["edges"] = """Currently for internal use only (it includes nan's and values outside the limits at borders, nan and 0, smaller than at 1, and larger at -1"""
