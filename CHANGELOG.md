@@ -1,3 +1,42 @@
+# vaex 4.8.0
+## vaex-core 4.8.0
+   * Feature
+      * Multiple example datasets provided in `vaex.datasets` [#1317](https://github.com/vaexio/vaex/pull/1317)
+      * We do not use asyncio for the default sync execute path [#1783](https://github.com/vaexio/vaex/pull/1783)
+      * Executor works with asyncio with multiple tasks [#1784]https://github.com/vaexio/vaex/pull/1784)
+      * Auto execute context manager makes vaex behave normal with await [#1785](https://github.com/vaexio/vaex/pull/1785)
+      * Support exporting arrow and parquet to file like objects [#1790](https://github.com/vaexio/vaex/pull/1790)
+      * Put lock files in $VAEX_HOME/lock [#1797](https://github.com/vaexio/vaex/pull/1797)
+      * Show progress when converting the included datasets [#1798](https://github.com/vaexio/vaex/pull/1798)
+      * Limit and limit_raise for unique and nunique  [#1801](https://github.com/vaexio/vaex/pull/1801)
+      * Lazy ordinal encode [#1813](https://github.com/vaexio/vaex/pull/1813)
+      * Configure logging using settings system[#1811](https://github.com/vaexio/vaex/pull/1811)
+      * Export to JSON [#1789](https://github.com/vaexio/vaex/pull/1789)
+      * Progress bar can be configured using settings system [#1815](https://github.com/vaexio/vaex/pull/1815)
+      * fillna and fillmissing should upcast integers when needed [#1869](https://github.com/vaexio/vaex/pull/1869)
+   * Performance
+      * Moved mutex use to the C++ layer to avoid GIL issues [#1847](https://github.com/vaexio/vaex/pull/1847)
+      * Many refactors to improve performance [#1863](https://github.com/vaexio/vaex/pull/1863) [#1869](https://github.com/vaexio/vaex/pull/1869)
+   * Fix
+      * Support empty parquet and arrow files [#1791](https://github.com/vaexio/vaex/pull/1791)
+      * Keep virtual column order when renaming/dropping to not break state transfer [#1788](https://github.com/vaexio/vaex/pull/1788)
+      * blake3 compatibility issues [#1818](https://github.com/vaexio/vaex/pull/1818) [db527a6](https://github.com/vaexio/vaex/commit/db527a6942db6ee74d97f1f1e8e5ddb3e8978f0c)
+      * Avoid frozendict 2.2.0 which can segfault on Python 3.6[#1856](https://github.com/vaexio/vaex/pull/1856)
+      * Use label instead of expression for non-ident column names in binby [#1842](https://github.com/vaexio/vaex/pull/1842)
+   * Development
+      * Use cmake/scikit-build [1847](https://github.com/vaexio/vaex/pull/1847) [92af1b1](https://github.com/vaexio/vaex/commit/92af1b1fab55dcc36c93e327495ac239c3fef772) [ad88d4b](https://github.com/vaexio/vaex/commit/ad88d4b2525c9fda7798c685985d9391a6b498a5)
+
+## vaex-hdf5 0.12.0
+   * Features
+      * Support storing Arrow Dictionary encoded/categoricals in hdf5 [#1814](https://github.com/vaexio/vaex/pull/1814)
+
+## vaex-ml 0.17.0
+   Requires vaex-core 4.8.0 for the `vaex.datasets.iris()`
+
+## vaex-server 0.8.1
+   Made compatible with Python 3.6
+
+
 # vaex 4.7.0
 ## vaex-core 4.7.0
    * Features
