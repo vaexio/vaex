@@ -1518,7 +1518,7 @@ class DataFrame(object):
 
     @docsubst
     @stat_1d
-    def median_approx(self, expression, percentage=50., binby=[], limits=None, shape=default_shape, percentile_shape=256, percentile_limits="minmax", selection=False, delay=False):
+    def median_approx(self, expression, percentage=50., binby=[], limits=None, shape=default_shape, percentile_shape=256, percentile_limits="minmax", selection=False, delay=False, progress=None):
         """Calculate the median, possibly on a grid defined by binby.
 
         NOTE: this value is approximated by calculating the cumulative distribution on a grid defined by
@@ -1533,12 +1533,13 @@ class DataFrame(object):
         :param percentile_shape: {percentile_shape}
         :param selection: {selection}
         :param delay: {delay}
+        :param progress: {progress}
         :return: {return_stat_scalar}
         """
-        return self.percentile_approx(expression, 50, binby=binby, limits=limits, shape=shape, percentile_shape=percentile_shape, percentile_limits=percentile_limits, selection=selection, delay=delay)
+        return self.percentile_approx(expression, 50, binby=binby, limits=limits, shape=shape, percentile_shape=percentile_shape, percentile_limits=percentile_limits, selection=selection, delay=delay, progress=progress)
 
     @docsubst
-    def percentile_approx(self, expression, percentage=50., binby=[], limits=None, shape=default_shape, percentile_shape=1024, percentile_limits="minmax", selection=False, delay=False):
+    def percentile_approx(self, expression, percentage=50., binby=[], limits=None, shape=default_shape, percentile_shape=1024, percentile_limits="minmax", selection=False, delay=False, progress=None):
         """Calculate the percentile given by percentage, possibly on a grid defined by binby.
 
         NOTE: this value is approximated by calculating the cumulative distribution on a grid defined by
@@ -1564,6 +1565,7 @@ class DataFrame(object):
         :param percentile_shape: {percentile_shape}
         :param selection: {selection}
         :param delay: {delay}
+        :param progress: {progress}
         :return: {return_stat_scalar}
         """
         waslist, [expressions, ] = vaex.utils.listify(expression)
@@ -1577,7 +1579,7 @@ class DataFrame(object):
             # task =  TaskStatistic(self, [expression] + binby, shape, limits, op=OP_ADD1, selection=selection)
             # self.executor.schedule(task)
             # return task
-            return self.count(binby=list(binby) + [expression], shape=shape, limits=limits, selection=selection, delay=True, edges=True)
+            return self.count(binby=list(binby) + [expression], shape=shape, limits=limits, selection=selection, delay=True, edges=True, progress=progress)
 
         @delayed
         def finish(percentile_limits, counts_list):
@@ -1707,6 +1709,7 @@ class DataFrame(object):
 
         :param expression: {expression_limits}
         :param float percentage: Value between 0 and 100
+        :param progress: {progress}
         :param delay: {delay}
         :return: {return_limits}
         """
@@ -1764,6 +1767,7 @@ class DataFrame(object):
         :param value: {limits}
         :param selection: {selection}
         :param delay: {delay}
+        :param progress: {progress}
         :return: {return_limits}
         """
         if expression == []:
