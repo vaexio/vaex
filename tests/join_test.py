@@ -372,3 +372,18 @@ def test_join_datetime():
                                       np.datetime64('2009-10-12T11:00:00'),
                                       None,
                                       np.datetime64('2009-12-12T03:00:00')]
+
+
+def test_join_on_virtual_apply():
+    df1 = vaex.from_arrays(x=[3, 2, 1], y=[10, 20, 30])
+    df2 = vaex.from_arrays(x=[10, 10, 40])
+
+    df2['y'] = df2.x.apply(lambda x: int(x/10))
+
+    joined = df1.join(df2, left_on='x', right_on='y', how='left', allow_duplication=True, lsuffix='_l', rsuffix='_r')
+
+    assert joined.shape == (4, 4)
+    assert joined.x_l.tolist() == [3, 2, 1, 1]
+    assert joined.y_l.tolist() == [10, 20, 30, 30]
+    assert joined.x_r.tolist() == [None, None, 10, 10]
+    assert joined.y_r.tolist() == [None, None, 1, 1]
