@@ -370,7 +370,7 @@ def create_base_ds():
     obj[2:12] = np.ma.MaskedArray(data=obj_data, mask=obj_mask, dtype='object')
     columns["obj"] = obj #, dtype=np.dtype('O')
 
-    booleans = np.ones(21, dtype=np.bool)
+    booleans = np.ones(21, dtype=bool)
     booleans[[4, 6, 8, 14, 16, 19]] = False
     columns["bool"] = booleans
 

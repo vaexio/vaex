@@ -161,7 +161,7 @@ def export_hdf5(dataset, path, column_names=None, byteorder="=", shuffle=False, 
 
             data = dataset.evaluate(column_name, 0, 1)
             if np.ma.isMaskedArray(data):
-                mask = h5column_output.require_dataset('mask', shape=shape, dtype=np.bool)
+                mask = h5column_output.require_dataset('mask', shape=shape, dtype=bool)
                 mask[0] = mask[0]  # make sure the array really exists
         random_index_name = None
         column_order = list(column_names)  # copy
