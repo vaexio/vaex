@@ -534,7 +534,7 @@ class ordered_set : public hash_base<ordered_set<T>, T, T, V> {
             auto map0 = this->maps[0];
             // split slow and fast path
             if (strings->has_null()) {
-                auto map0 = this->maps[0];
+                auto& map0 = this->maps[0];
                 for (int64_t i = 0; i < size; i++) {
                     if (strings->is_null(i)) {
                         output(i) = this->null_value;

@@ -619,7 +619,7 @@ class ordered_set : public hash_base<ordered_set<T2, Hashmap2>, T2, Hashmap2> {
         }
         // auto input = values.template unchecked<1>();
         // auto output = result.template mutable_unchecked<1>();
-        // key_type *output py::gil_scoped_release gil;
+        // key_type *output
         const key_type *input = values.data(0);
         OutputType *output = result.mutable_data(0);
         if (values.strides()[0] != values.itemsize()) {
@@ -628,11 +628,12 @@ class ordered_set : public hash_base<ordered_set<T2, Hashmap2>, T2, Hashmap2> {
         if (result.strides()[0] != result.itemsize()) {
             throw std::runtime_error("stride not equal to bytesize for output");
         }
+        py::gil_scoped_release gil;
 
         size_t nmaps = this->maps.size();
         auto offsets = this->offsets();
         if (nmaps == 1) {
-            auto map0 = this->maps[0];
+            auto& map0 = this->maps[0];
             for (int64_t i = 0; i < size; i++) {
                 const key_type &value = input[i];
                 // the caller is responsible for finding masked values
