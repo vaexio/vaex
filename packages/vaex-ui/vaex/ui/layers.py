@@ -2233,7 +2233,7 @@ class LayerTable(object):
             self.layer_slice_source = layer
             self.slice_axis = [True] * layer.dimensions
             shape = (layer.plot_window.state.grid_size, ) * layer.dimensions
-            self.slice_selection_grid = np.ones(shape, dtype=np.bool)
+            self.slice_selection_grid = np.ones(shape, dtype=bool)
             self.layer_slice_source.signal_slice_change.connect(self.on_slice_change)
             self.layer_slice_source.signal_needs_update.connect(self.on_slice_source_needs_update)
             self.update()
@@ -2323,7 +2323,7 @@ class LayerTable(object):
                     self.check_selection_undo_redo()
                     return
 
-                    mask = np.zeros(self.dataset._fraction_length, dtype=np.bool)
+                    mask = np.zeros(self.dataset._fraction_length, dtype=bool)
                     t0 = time.time()
 
                     def select(info, blockmask):

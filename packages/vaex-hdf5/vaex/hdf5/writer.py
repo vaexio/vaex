@@ -200,7 +200,7 @@ class ColumnWriterPrimitive:
         self.array[0] = self.array[0]  # make sure the array really exists
 
         if has_null:
-            self.mask = self.h5group.require_dataset('mask', shape=shape, dtype=np.bool, track_times=False)
+            self.mask = self.h5group.require_dataset('mask', shape=shape, dtype=bool, track_times=False)
             self.mask[0] = self.mask[0]  # make sure the array really exists
         else:
             self.mask = None

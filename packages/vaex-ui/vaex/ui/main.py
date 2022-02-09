@@ -1761,7 +1761,7 @@ class VaexApp(QtGui.QMainWindow):
             if id is not None:
                 for dataset in self._samp_find_datasets(id):
                     if dataset not in datasets_updated:
-                        mask = np.zeros(len(dataset), dtype=np.bool)
+                        mask = np.zeros(len(dataset), dtype=bool)
                         mask[row_list] = True
                         print("match dataset", dataset)
                         dataset._set_mask(mask)

@@ -439,7 +439,7 @@ class PlotDialog(QtGui.QWidget):
         return total_fraction / len(updating_layers)
 
     def slice_none(self):
-        mask = np.ones((self.state.grid_size,) * self.dimensions, dtype=np.bool)
+        mask = np.ones((self.state.grid_size,) * self.dimensions, dtype=bool)
         layer = self.current_layer
         if layer:
             layer.signal_slice_change.emit(mask, False)
