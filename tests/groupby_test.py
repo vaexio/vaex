@@ -660,3 +660,13 @@ def test_binner2d_limited_combine(df_factory, assume_sparse):
     assert dfg['type'].tolist() == ['aap', 'aap', 'noot', 'others']
     assert dfg['x'].tolist() == [1, 2, 3, 4]
     assert dfg['sum'].tolist() == [1, 4, 6, 4]
+
+
+def test_row_limit_sparse():
+    x = np.arange(100) % 10
+    y = np.arange(100) % 11
+    # > 11 combinations, but not x and y seperately
+    # we should force a 'compress' phase to detect the row_limit
+    df = vaex.from_arrays(x=x, y=y)
+    with pytest.raises(vaex.RowLimitException, match='.* would have >= 11 unique combinations.*'):
+        df.groupby(['x', 'y'], assume_sparse=False, row_limit=11)

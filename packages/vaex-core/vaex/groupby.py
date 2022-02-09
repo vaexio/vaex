@@ -612,7 +612,7 @@ class GroupByBase(object):
                 combined._create_binner(self.df)
                 self.by = [combined]
                 self.combine = True
-            if combine is True and len(self.by) >= 2 and cells > 0:
+            if ((row_limit is not None) or (combine is True)) and len(self.by) >= 2 and cells > 0:
                 promise = set_combined(_combine(self.df, self.by, sort=sort, row_limit=row_limit, progress=self.progressbar_groupers))
             elif combine == 'auto' and len(self.by) >= 2:
                 # default assume we cannot combined
