@@ -53,3 +53,15 @@ def test_astype_timedelta(df_factory):
     df = df_factory(x=x)
     df['x_expected'] = df.x.astype('timedelta64[s]')
     assert x_result.tolist() == df.x_expected.tolist()
+
+
+def test_astype_str_to_datetime(df_factory):
+    x = ['2020-05', '2021-10', '2022-01']
+    y = ['2020', '2021', '2022']
+    x_validation = np.array(x, dtype='datetime64[M]')
+    y_validation = np.array(y, dtype='datetime64[Y]')
+    df = df_factory(x=x, y=y)
+    df['x_dt'] = df.x.astype('datetime64[M]')
+    df['y_dt'] = df.y.astype('datetime64[Y]')
+    assert all(df.x_dt.values == x_validation)
+    assert all(df.y_dt.values == y_validation)
