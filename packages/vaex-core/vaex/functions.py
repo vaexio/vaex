@@ -2513,8 +2513,13 @@ def _astype(x, dtype):
                     units = dtype[len('datetime64')+1:-1]
                 else:
                     units = 'ns'
-                dtype = pa.timestamp(units)
-
+                if vaex.dtype_of(x) == str and units in ['m', 'h', 'D', 'W', 'M', 'Y']:
+                    # it's a slower path, but it works
+                    # using pc.strptime seems to offset by a day orso?
+                    x = np.array(x, dtype=dtype)
+                    return x.astype(dtype)
+                else:
+                    dtype = pa.timestamp(units)
             else:  # parse dtype
                 if len(dtype) > len('timedelta64'):
                     units = dtype[len('timedelta64')+1:-1]
