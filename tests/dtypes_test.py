@@ -90,3 +90,14 @@ def test_dtype_no_eval():
     df._evaluate_implementation = MagicMock()
     assert df.data_type(df['#']) == float
     assert df.data_type(df['with space']) == str
+
+
+def test_dtype_object_to_int():
+    x = [1, None, 3]
+    df = vaex.from_arrays(x=x)
+    assert df.data_type('x') == 'int'
+
+def test_dtype_object_to_string():
+    x = [1, None, 'foo']
+    df = vaex.from_arrays(x=x)
+    assert df.data_type('x') == 'string'
