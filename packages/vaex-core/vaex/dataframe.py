@@ -6416,7 +6416,7 @@ class DataFrameLocal(DataFrame):
                 deps |= filter_deps
             columns = {k: dataset[k][:] for k in deps if k in dataset}
 
-            if self.filtered:
+            if self.filtered and filtered:
                 filter_scope = scopes._BlockScope(df, i1, i2, None, selection=True, values={**df.variables, **{k: columns[k] for k in filter_deps if k in columns}})
                 filter_scope.filter_mask = None
                 filter_mask = filter_scope.evaluate(vaex.dataframe.FILTER_SELECTION_NAME)

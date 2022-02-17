@@ -90,3 +90,29 @@ def test_dtype_no_eval():
     df._evaluate_implementation = MagicMock()
     assert df.data_type(df['#']) == float
     assert df.data_type(df['with space']) == str
+
+
+def test_dtype_filtered():
+    df = vaex.from_arrays(x=[None, "aap", "noot", "mies"])
+    df["y"] = df.x.str.lower()
+    dff = df.dropna()
+    assert dff.y.dtype == str
+
+
+def test_dtype_apply():
+    def func(x):
+        if x == "b":
+            clr = "blue"
+        elif x == "r":
+            clr = "red"
+        elif x == "y":
+            clr = "yellow"
+        else:
+            clr = "other"
+        return clr
+
+    x = [None, "b", None, "y", "r"]
+    df = vaex.from_arrays(x=x)
+    df = df.dropna()
+    df["y"] = df.x.apply(func)
+    assert df.y.dtype == str
