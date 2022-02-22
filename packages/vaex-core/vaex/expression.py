@@ -605,7 +605,7 @@ class Expression(with_metaclass(Meta)):
             indices, fields = slicer
         else:
             raise NotImplementedError
-        
+
         if indices != slice(None):
             expr = self.df[indices][self.expression]
         else:
@@ -930,6 +930,20 @@ class Expression(with_metaclass(Meta)):
         del kwargs['self']
         kwargs['expression'] = self.expression
         return self.ds.var(**kwargs)
+
+    def skew(self, binby=[], limits=None, shape=default_shape, selection=False, delay=False, progress=None):
+        '''Shortcut for df.skew(expression, ...), see `DataFrame.skew`'''
+        kwargs = dict(locals())
+        del kwargs['self']
+        kwargs['expression'] = self.expression
+        return self.df.skew(**kwargs)
+
+    def kurtosis(self, binby=[], limits=None, shape=default_shape, selection=False, delay=False, progress=None):
+        '''Shortcut for df.kurtosis(expression, ...), see `DataFrame.kurtosis`'''
+        kwargs = dict(locals())
+        del kwargs['self']
+        kwargs['expression'] = self.expression
+        return self.df.kurtosis(**kwargs)
 
     def minmax(self, binby=[], limits=None, shape=default_shape, selection=False, delay=False, progress=None):
         '''Shortcut for ds.minmax(expression, ...), see `Dataset.minmax`'''

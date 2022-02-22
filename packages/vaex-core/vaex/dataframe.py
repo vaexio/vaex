@@ -1171,8 +1171,6 @@ class DataFrame(object):
         array([ 15271.90481083,   7284.94713504,   3738.52239232,   1449.63418988])
         >>> df.var("vz", binby=["(x**2+y**2)**0.5"], shape=4)**0.5
         array([ 123.57954851,   85.35190177,   61.14345748,   38.0740619 ])
-        >>> df.std("vz", binby=["(x**2+y**2)**0.5"], shape=4)
-        array([ 123.57954851,   85.35190177,   61.14345748,   38.0740619 ])
 
         :param expression: {expression}
         :param binby: {binby}
@@ -1186,6 +1184,56 @@ class DataFrame(object):
         """
         edges = False
         return self._compute_agg('var', expression, binby, limits, shape, selection, delay, edges, progress, array_type=array_type)
+
+    @docsubst
+    def skew(self, expression, binby=[], limits=None, shape=default_shape, selection=False, delay=False, progress=None, edges=False, array_type=None):
+        '''
+        Calculate the skew for the given expression, possible on a grid defined by binby.
+
+        Example:
+
+        >>> df.skew("vz")
+        0.02116528
+        >>> df.skew("vz", binby=["E"], shape=4)
+        array([-0.069976  , -0.01003445,  0.05624177, -2.2444322 ])
+
+        :param expression: {expression}
+        :param binby: {binby}
+        :param limits: {limits}
+        :param shape: {shape}
+        :param selection: {selection}
+        :param delay: {delay}
+        :param progress: {progress}
+        :param array_type: {array_type}
+        :return: {return_stat_scalar}
+        '''
+        edges=False
+        return self._compute_agg('skew', expression, binby, limits, shape, selection, delay, edges, progress, array_type=array_type)
+
+    @docsubst
+    def kurtosis(self, expression, binby=[], limits=None, shape=default_shape, selection=False, delay=False, progress=None, edges=False, array_type=None):
+        '''
+        Calculate the kurtosis for the given expression, possible on a grid defined by binby.
+
+        Example:
+
+        >>> df.kurtosis('vz')
+        0.33414303
+        >>> df.kurtosis("vz", binby=["E"], shape=4)
+        array([0.35286113, 0.14455428, 0.52955107, 5.06716345])
+
+        :param expression: {expression}
+        :param binby: {binby}
+        :param limits: {limits}
+        :param shape: {shape}
+        :param selection: {selection}
+        :param delay: {delay}
+        :param progress: {progress}
+        :param array_type: {array_type}
+        :return: {return_stat_scalar}
+        '''
+        edges=False
+        return self._compute_agg('kurtosis', expression, binby, limits, shape, selection, delay, edges, progress, array_type=array_type)
 
     @docsubst
     def covar(self, x, y, binby=[], limits=None, shape=default_shape, selection=False, delay=False, progress=None):
