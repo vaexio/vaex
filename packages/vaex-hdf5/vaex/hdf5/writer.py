@@ -77,7 +77,7 @@ class Writer:
                 labels = df.category_labels(name)
                 self.column_writers[name] = ColumnWriterDictionaryEncoded(self.columns, name, dtypes[name], labels, shape, has_null[name], self.byteorder, df)
             else:
-                raise TypeError(f"Cannot export column of type: {dtype}")
+                raise TypeError(f"Cannot export column of type: {dtype} (column {name})")
             progressbar_reserve((i+1)/len(column_names))
         self.columns.attrs["column_order"] = ",".join(column_names)
 

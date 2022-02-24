@@ -135,6 +135,21 @@ def test_df_project():
     assert df_a.fingerprint() == 'dataframe-c13a4ab588272f03855ae5627731f7e5'
 
 
+def test_df_selection_references_virtual_column():
+    x = np.arange(10, dtype='i4')
+    y = x**2
+    df = vaex.from_arrays(x=x, y=y)
+    df1 = df.copy()
+    df1['z'] = df1.x + df1.y
+    df2 = df.copy()
+    df2['z'] = df1.x - df1.y
+    df1f = df1[df1.z < 5]
+    df2f = df2[df2.z < 5]
+    fp1 = df1f.fingerprint(dependencies=['x', 'y'])
+    fp2 = df2f.fingerprint(dependencies=['x', 'y'])
+    assert fp1 != fp2
+
+
 def test_set():
     x = np.arange(10)
     df = vaex.from_arrays(x=x)
