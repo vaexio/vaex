@@ -229,6 +229,13 @@ class DataFrame(object):
         :param bool treeshake: Get rid of unused variables before calculating the fingerprint.
         '''
         df = self.copy(treeshake=True) if treeshake else self
+        selections = {name: self.get_selection(name) for name, history in self.selection_histories.items() if self.has_selection(name)}
+        if dependencies is not None:
+            dependencies = set(dependencies)  # copy
+            # these are implicit dependencies that we need to add
+            for selection in selections.values():
+                dependencies.update(selection.dependencies(self))
+
         # we only use the state parts that affect data (no metadata)
         encoding = vaex.encoding.Encoding()
         def dep_filter(d : dict):
@@ -245,10 +252,8 @@ class DataFrame(object):
             functions={name: encoding.encode("function", value) for name, value in dep_filter(self.functions).items()},
             active_range=[self._index_start, self._index_end]
         )
-        selections = {name: self.get_selection(name) for name, history in self.selection_histories.items() if self.has_selection(name)}
-        selections = {name: selection.to_dict() if selection is not None else None for name, selection in selections.items()}
         # selections can affect the filter, so put them all in
-        state['selections'] = selections
+        state['selections'] = {name: selection.to_dict() if selection is not None else None for name, selection in selections.items()}
         fp = vaex.cache.fingerprint(state, df.dataset.fingerprint)
         return f'dataframe-{fp}'
 
