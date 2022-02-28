@@ -11,7 +11,7 @@ dependencies:
 - cachetools
 - catboost
 - diskcache
-- fsspec
+- fsspec<2022.2.0
 - gcsfs
 - geopandas
 - graphviz
