@@ -19,7 +19,7 @@ defaults:
 jobs:
   main:
     env:
-      CACHE_NUMBER_COMPILE: 5
+      CACHE_NUMBER_COMPILE: 6
       MAMBA_ROOT_PREFIX: /dev/shm/mambaroot
     runs-on: ${{ matrix.os }}
     strategy:

@@ -5,9 +5,10 @@ runs:
   steps:
     - shell: bash
       run: |
-        ls /c/Program\ Files\ \(x86\)/Microsoft\ Visual\ Studio/2019/Enterprise/VC/Redist/
-        ls /c/Program\ Files\ \(x86\)/Microsoft\ Visual\ Studio/2019/Enterprise/VC/Redist/MSVC/
-        cp /c/Program\ Files\ \(x86\)/Microsoft\ Visual\ Studio/2019/Enterprise/VC/Redist/MSVC/14.29.30133/x64/Microsoft.VC142.CRT/vcruntime140_1.dll packages/vaex-core/vaex/
+        ls /c/Program\ Files/Microsoft\ Visual\ Studio/2022
+        ls /c/Program\ Files/Microsoft\ Visual\ Studio/2022/Enterprise/VC/Redist/
+        ls /c/Program\ Files/Microsoft\ Visual\ Studio/2022/Enterprise/VC/Redist/MSVC/
+        cp /c/Program\ Files/Microsoft\ Visual\ Studio/2022/Enterprise/VC/Redist/MSVC/14.29.30133/x64/Microsoft.VC142.CRT/vcruntime140_1.dll packages/vaex-core/vaex/
         mkdir packages/vaex-core/vendor/pcre
         cd packages/vaex-core/vendor/pcre
         curl https://anaconda.org/conda-forge/pcre/8.44/download/win-64/pcre-8.44-h6538335_0.tar.bz2 -Lo pcre.tar.bz2
