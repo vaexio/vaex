@@ -264,7 +264,10 @@ class ColumnArrowDictionaryEncoded(Column):
     @property
     def nbytes(self):
         # consistent with arrow
-        return self.indices.nbytes
+        if int(pa.__version__.split(".")[0]) >= 7:
+            return self.indices.nbytes + self.dictionary.nbytes
+        else:
+            return self.indices.nbytes
 
     @property
     def dtype(self):
