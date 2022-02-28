@@ -188,3 +188,14 @@ def test_datetime_filtering(df_factory):
     max_date = df.x_dt.max()
     cond = df.x_dt < max_date
     assert cond.tolist() == [True, True, False]
+
+
+    max_date = df.x_dt.max()
+    df['x_td'] = df.x_dt - max_date
+    cond = df.x_td < np.timedelta64(0)
+    assert cond.tolist() == [True, True, False]
+
+    # it seems there are two types of scalars... ?
+    as_scalar = df['x_td'].max()
+    cond = df.x_td < as_scalar
+    assert cond.tolist() == [True, True, False]

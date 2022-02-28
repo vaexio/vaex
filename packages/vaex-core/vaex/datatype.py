@@ -247,7 +247,7 @@ class DataType:
         False
         '''
         if self.is_arrow:
-            return False
+            return isinstance(self.arrow, pa.DurationType)
         else:
             return self.kind in 'm'
 
