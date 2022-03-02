@@ -1735,6 +1735,13 @@ def str_replace(x, pat, repl, n=-1, flags=0, regex=False):
     """
     sl = _to_string_sequence(x).replace(pat, repl, n, flags, regex)
     return column.ColumnStringArrow.from_string_sequence(sl)
+    # TODO: we should be using arrow compute functions (since MB rewrote them in arrow)
+    # except that they don't support flags yet (case insensitive)
+    # we could invoke it when flags=0 though
+    # if regex:
+    #     return pc.replace_substring_regex(x, pattern=pat, max_replacements=None if n==-1 else n, replacement=repl)
+    # else:
+    #     return pc.replace_substring(x, pattern=pat, max_replacements=None if n==-1 else n, replacement=repl)
 
 
 @register_function(scope='str')

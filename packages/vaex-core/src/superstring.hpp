@@ -524,6 +524,7 @@ class StringList : public StringSequenceBase {
     }
     void grow() {
         byte_length *= 2;
+        byte_length = byte_length == 0 ? 1 : byte_length;
         bytes = (char *)realloc(bytes, byte_length);
     }
     virtual StringSequenceBase *capitalize();
