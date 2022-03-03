@@ -5857,7 +5857,7 @@ class DataFrameLocal(DataFrame):
         return df
 
     # for backward compatibility
-    label_encode = _hidden(vaex.utils.deprecated('use is_category')(ordinal_encode))
+    label_encode = _hidden(vaex.utils.deprecated('use ordinal_encode')(ordinal_encode))
 
     @property
     def data(self):
