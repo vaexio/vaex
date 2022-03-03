@@ -19,6 +19,18 @@ def test_to_items(df_local):
         assert ycvalues.tolist() == yvalues[i1:i2].tolist()
 
 
+def test_to_numpy(df_factory):
+    x = [0, 1, 2, None, 4]
+    df = df_factory(x=x)
+    assert df.x.to_numpy().tolist() == x
+
+
+def test_to_list(df_factory):
+    x = [0, 1, 2, None, 4]
+    df = df_factory(x=x)
+    assert df.x.tolist() == x
+
+
 def test_to_array_type_list(df_local):
     df = df_local
     data = df[:3]['x', 'y'].to_dict(array_type='list')

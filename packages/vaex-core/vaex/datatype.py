@@ -136,7 +136,13 @@ class DataType:
 
         >>> DataType(pa.float64()).numpy == np.dtype('f8')
         True
+
+        Dictionary encoded types will return the NumPy type of the value_type
+        >>> DataType(pa.dictionary(pa.int32(), pa.float32())).numpy
+        dtype('float32')
         '''
+        if self.is_encoded:
+            return self.value_type.numpy
         return vaex.array_types.to_numpy_type(self.internal)
 
     @property

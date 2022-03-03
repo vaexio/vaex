@@ -9,7 +9,10 @@ features = ['petal_length', 'petal_width', 'sepal_length', 'sepal_width']
 
 
 @pytest.mark.skipif(sys.version_info < (3, 6), reason="requires python3.6 or higher")
-def test_linear_model(df_iris):
+def test_linear_model(df_iris, df_factory):
+    if df_factory.__name__ == 'df_factory_arrow_dict_encoded_implementation':
+        # not supported
+        return
     ds = df_iris
     m1 = vaex.ml.linear_model.LinearRegression(features=['petal_width'], binned=False)
     m1.fit(ds, 'petal_length')

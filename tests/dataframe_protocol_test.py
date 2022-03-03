@@ -1,3 +1,4 @@
+import common
 import numpy as np
 import pyarrow as pa
 import pytest
@@ -36,6 +37,8 @@ def test_mixed_intfloat(df_factory):
 
 
 def test_mixed_intfloatbool(df_factory):
+    if df_factory == common.df_factory_arrow_dict_encoded_implementation:
+        return  # skip this
     df = df_factory(x=np.array([True, True, False]), y=np.array([1, 2, 0]), z=np.array([9.2, 10.5, 11.8]))
     df2 = _from_dataframe_to_vaex(df.__dataframe__())
 
@@ -166,7 +169,7 @@ def test_arrow_dictionary():
     assert_dataframe_equal(df.__dataframe__(), df)
 
 
-def test_arrow_dictionary_missing():
+def test_arrow_dictionary_missing_in_indices():
     indices = pa.array([0, 1, 2, 0, 1], mask=np.array([0, 1, 1, 0, 0], dtype=bool))
     dictionary = pa.array(["aap", "noot", "mies"])
     dict_array = pa.DictionaryArray.from_arrays(indices, dictionary)
@@ -176,6 +179,25 @@ def test_arrow_dictionary_missing():
     col = df.__dataframe__().get_column_by_name("x")
     assert col.dtype[0] == _DtypeKind.CATEGORICAL
     assert col.describe_categorical == (False, True, {0: "aap", 1: "noot", 2: "mies"})
+
+    df2 = _from_dataframe_to_vaex(df.__dataframe__())
+    assert df2.x.tolist() == df.x.tolist()
+    assert df2.__dataframe__().get_column_by_name("x").null_count == 2
+    assert df["x"].dtype.index_type == df2["x"].dtype.index_type
+
+    assert_dataframe_equal(df.__dataframe__(), df)
+
+
+def test_arrow_dictionary_missing_in_dict():
+    indices = pa.array([0, 3, 3, 0, 1])
+    dictionary = pa.array(["aap", "noot", "mies", None])
+    dict_array = pa.DictionaryArray.from_arrays(indices, dictionary)
+    df = vaex.from_arrays(x=dict_array)
+
+    # Some detailed testing for correctness of dtype and null handling:
+    col = df.__dataframe__().get_column_by_name("x")
+    assert col.dtype[0] == _DtypeKind.CATEGORICAL
+    assert col.describe_categorical == (False, True, {0: "aap", 1: "noot", 2: "mies", 3:None})
 
     df2 = _from_dataframe_to_vaex(df.__dataframe__())
     assert df2.x.tolist() == df.x.tolist()
@@ -324,7 +346,12 @@ def assert_buffer_equal(buffer_dtype: Tuple[_VaexBuffer, Any], vaexcol: vaex.exp
 def assert_column_equal(col: _VaexColumn, vaexcol: vaex.expression.Expression):
     assert col.size == vaexcol.df.count("*")
     assert col.offset == 0
-    assert col.null_count == vaexcol.countmissing()
+    if vaexcol.dtype.is_encoded:
+        # see also null_count
+        expected = (vaexcol.ismissing().fillmissing(True) | vaexcol.index_values().ismissing()).sum().item()
+    else:
+        expected = vaexcol.countmissing()
+    assert col.null_count == expected
     assert_buffer_equal(col._get_data_buffer(), vaexcol)
 
 

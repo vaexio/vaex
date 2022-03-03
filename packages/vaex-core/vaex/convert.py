@@ -158,7 +158,7 @@ def main(argv):
             if args.shuffle:
                 df = df.shuffle()
             if args.optimize or args.categorize:
-                df = df.optimize.categorize()
+                df = df.optimize.categorize()._future()
             if args.optimize or args.downcast:
                 df = df.optimize.downcast(float64=args.optimize or args.downcast_float)
         try:

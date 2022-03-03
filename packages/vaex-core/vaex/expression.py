@@ -18,6 +18,7 @@ import tabulate
 import pyarrow as pa
 
 import vaex.hash
+import vaex.utils
 import vaex.serialize
 from vaex.utils import _ensure_strings_from_expressions, _ensure_string_from_expression
 from vaex.column import ColumnString, _to_string_sequence
@@ -102,12 +103,26 @@ class Meta(type):
                     # print(op, a, b)
                     if isinstance(b, str) and self.dtype.is_datetime:
                         b = np.datetime64(b)
-                    if self.df.is_category(self.expression) and self.df._future_behaviour and not isinstance(b, Expression):
-                        labels = self.df.category_labels(self.expression)
+                    compare = op["code"] in ["==", "!="]
+                    # if we are arrow dict encoded, or we have v5 behaviour, we can do auto decoding or special behaviour
+                    as_encoded_a = isinstance(a, Expression) and (a.dtype.is_encoded or (self.df._future_behaviour and self.df.is_category(a)))
+                    as_encoded_b = isinstance(b, Expression) and (b.dtype.is_encoded or (self.df._future_behaviour and self.df.is_category(b)))
+                    # for comparisons we compare the labels/dictionary instead
+                    if as_encoded_a and not isinstance(b, Expression) and compare:
+                        # map comparing values to comparing index value
+                        labels = vaex.array_types.tolist(self.df.category_labels(self.expression))
                         if b not in labels:
-                            raise ValueError(f'Value {b} not present in {labels}')
-                        b = labels.index(b)
+                            b = -1
+                            # raise ValueError(f'Value {b} not present in {labels}')
+                        else:
+                            b = labels.index(b)
                         a = self.index_values()
+                    else:
+                        # we would optimize things like precompute '*' when the number of combinations are small
+                        if as_encoded_a and isinstance(a, Expression) and self.df.is_category(a):
+                            a = a.dictionary_decode()
+                        if as_encoded_b and isinstance(b, Expression) and self.df.is_category(b):
+                            b = b.dictionary_decode()
                     try:
                         stringy = isinstance(b, str) or b.is_string()
                     except:
@@ -150,6 +165,8 @@ class Meta(type):
                 if op['name'] in reversable:
                     def f(a, b):
                         self = a
+                        as_encoded_a = isinstance(a, Expression) and (a.dtype.is_encoded or (self.df._future_behaviour and self.df.is_category(a)))
+                        as_encoded_b = isinstance(b, Expression) and (b.dtype.is_encoded or (self.df._future_behaviour and self.df.is_category(b)))
                         if isinstance(b, str):
                             if op['code'] == '+':
                                 expression = 'str_cat({1}, {0})'.format(a.expression, repr(b))
@@ -157,6 +174,10 @@ class Meta(type):
                                 raise ValueError('operand %r not supported for string comparison' % op['code'])
                             return Expression(self.ds, expression=expression)
                         else:
+                            if as_encoded_a:
+                                a = a.dictionary_decode()
+                            if as_encoded_b:
+                                b = b.dictionary_decode()
                             if isinstance(b, Expression):
                                 assert b.ds == a.ds
                                 b = b.expression
@@ -169,6 +190,9 @@ class Meta(type):
             def wrap(op=op):
                 def f(a):
                     self = a
+                    as_encoded_a = self.dtype.is_encoded or (self.df._future_behaviour and self.df.is_category(a))
+                    if as_encoded_a:
+                        a = a.dictionary_decode()
                     expression = '{0}({1})'.format(op['code'], a.expression)
                     return Expression(self.ds, expression=expression)
                 attrs['__%s__' % op['name']] = f
@@ -513,8 +537,11 @@ class Expression(with_metaclass(Meta)):
         return pa.array(values, type=type)
 
     def to_numpy(self, strict=True):
-        """Return a numpy representation of the data"""
-        values = self.values
+        """Return a numpy representation of the data, dictionary encoded data is automatically decoded."""
+        expression = self
+        if expression.df.is_category(expression):
+            expression = expression.dictionary_decode()
+        values = expression.values
         return vaex.array_types.to_numpy(values, strict=strict)
 
     def to_dask_array(self, chunks="auto"):
@@ -791,10 +818,9 @@ class Expression(with_metaclass(Meta)):
 
     def tolist(self, i1=None, i2=None):
         '''Short for expr.evaluate().tolist()'''
+        expression = self
         values = self.evaluate(i1=i1, i2=i2)
-        if isinstance(values, (pa.Array, pa.ChunkedArray)):
-            return values.to_pylist()
-        return values.tolist()
+        return vaex.array_types.tolist(values)
 
     if not os.environ.get('VAEX_DEBUG', ''):
         def __repr__(self):
@@ -988,14 +1014,22 @@ class Expression(with_metaclass(Meta)):
             dropmissing = True
 
         data_type = self.data_type()
+        expression = self
         data_type_item = self.data_type(axis=-1)
+        decode_labels = None
+        if data_type_item.is_encoded:
+            expression = self.index_values()
+            data_type_item = data_type_item.index_type
+            decode_labels = self.df.category_labels(self)
+        expression = expression.expression
 
-        transient = self.transient or self.ds.filtered or self.ds.is_masked(self.expression)
-        if self.is_string() and not transient:
-            # string is a special case, only ColumnString are not transient
-            ar = self.ds.columns[self.expression]
-            if not isinstance(ar, ColumnString):
-                transient = True
+        transient = True
+        # transient = self.transient or self.ds.filtered or self.ds.is_masked(expression)
+        # if self.is_string() and not transient:
+        #     # string is a special case, only ColumnString are not transient
+        #     ar = self.ds.columns[expression]
+        #     if not isinstance(ar, ColumnString):
+        #         transient = True
 
         counter_type = counter_type_from_dtype(data_type_item, transient)
         counters = [None] * self.ds.executor.thread_pool.nthreads
@@ -1018,7 +1052,7 @@ class Expression(with_metaclass(Meta)):
         def reduce(a, b):
             return a+b
         progressbar = vaex.utils.progressbars(progress, title="value counts")
-        self.ds.map_reduce(map, reduce, [self.expression], delay=False, progress=progressbar, name='value_counts', info=True, to_numpy=False)
+        self.ds.map_reduce(map, reduce, [expression], delay=False, progress=progressbar, name='value_counts', info=True, to_numpy=False)
         counters = [k for k in counters if k is not None]
         counter = counters[0]
         for other in counters[1:]:
@@ -1047,16 +1081,30 @@ class Expression(with_metaclass(Meta)):
             counts = counter.counts()
             if isinstance(keys, (vaex.strings.StringList32, vaex.strings.StringList64)):
                 keys = vaex.strings.to_arrow(keys)
-
             deletes = []
-            if counter.has_nan:
-                null_offset = 1
+            if decode_labels:
+                keys = pa.array(decode_labels).take(keys).tolist()
+                if dropnan:
+                    try:
+                        index = vaex.utils.index_with_nan(keys, np.nan)
+                        deletes.append(index)
+                    except ValueError:
+                        pass
+                if dropmissing:
+                    try:
+                        index = keys.index(None)
+                        deletes.append(index)
+                    except ValueError:
+                        pass
             else:
-                null_offset = 0
-            if dropmissing and counter.has_null:
-                deletes.append(null_offset)
-            if dropnan and counter.has_nan:
-                deletes.append(0)
+                if counter.has_nan:
+                    null_offset = 1
+                else:
+                    null_offset = 0
+                if dropmissing and counter.has_null:
+                    deletes.append(null_offset)
+                if dropnan and counter.has_nan:
+                    deletes.append(0)
             if vaex.array_types.is_arrow_array(keys):
                 indices = np.delete(np.arange(len(keys)), deletes)
                 keys = keys.take(indices)
@@ -1137,15 +1185,36 @@ class Expression(with_metaclass(Meta)):
         """Returns the number of missing values in the expression."""
         return self.ismissing().sum().item()  # so the output is int, not array
 
+    def isna(self):
+        """Returns a boolean expression indicating if the values are Not Availiable (missing) or NaN."""
+        return self.isnan() | self.ismissing()
+
+    def isnan(self):
+        """Returns an booleans expression where there are NaN values"""
+        if self.dtype.is_encoded:
+            labels = self.df.category_labels(self.expression)
+            try:
+                index = vaex.utils.index_with_nan(labels, np.nan)
+            except ValueError:
+                index = -1
+            return self.index_values() == index
+        else:
+            return Expression(self.df, 'isnan(%s)' % self.expression)
+
+    def ismissing(self):
+        """Returns an booleans expression where there are missing (masked/null) values"""
+        if self.dtype.is_encoded:
+            labels = self.df.category_labels(self.expression)
+            try:
+                index = labels.index(None)
+            except ValueError:
+                index = -1
+            return self.index_values() == index
+        else:
+            return Expression(self.df, 'ismissing(%s)' % self.expression)
+
     def evaluate(self, i1=None, i2=None, out=None, selection=None, parallel=True, array_type=None):
         return self.ds.evaluate(self, i1, i2, out=out, selection=selection, array_type=array_type, parallel=parallel)
-
-    # TODO: it is not so elegant we need to have a custom version of this
-    # it now also misses the docstring, reconsider how the the meta class auto
-    # adds this method
-    def fillna(self, value, fill_nan=True, fill_masked=True):
-        expression = self._upcast_for(value)
-        return self.ds.func.fillna(expression, value=value, fill_nan=fill_nan, fill_masked=fill_masked)
 
     def _upcast_for(self, value):
         # make sure the dtype is compatible with value
@@ -1408,16 +1477,20 @@ def f({0}):
                 except:
                     return False
             mapper_nan_key_mask = np.array([try_nan(k) for k in mapper_keys])
-        mapper_has_nan = mapper_nan_key_mask.sum() > 0
         if mapper_nan_key_mask.sum() > 1:
             raise ValueError('Insanity, you provided multiple nan values as keys for your dict')
-        if mapper_has_nan:
-            for key, value in mapper.items():
-                if key != key:
-                    nan_value = value
-        for key, value in mapper.items():
-            if key is None:
-                missing_value = value
+        if self.dtype.is_encoded or (self.df.is_category(self) and self.df._future_behaviour):
+            labels = self.df.category_labels(self.expression)
+            indices = []
+            mapper_values_existing = []
+            for key_value, map_value in zip(mapper_keys, mapper_values):
+                if vaex.utils.in_with_nan(key_value, labels):
+                    indices.append(vaex.utils.index_with_nan(labels, key_value))
+                    mapper_values_existing.append(map_value)
+            mapper = dict(zip(indices, mapper_values_existing))
+            # TODO(performance): we might be able to do faster, not using a hashmap, that might also be something
+            # we can detect after creating the hashmap
+            return self.index_values().map(mapper, nan_value=nan_value, missing_value=missing_value, default_value=default_value, allow_missing=allow_missing, axis=axis)
 
         if axis is not None:
             raise ValueError('only axis=None is supported')

@@ -10,6 +10,7 @@ import pyarrow as pa
 from vaex.delayed import delayed_args, delayed_dict, delayed_list
 from vaex.utils import _ensure_list, _ensure_string_from_expression
 import vaex
+import vaex.array_types
 import vaex.hash
 
 
@@ -45,11 +46,14 @@ class Binner(BinnerBase):
         self.df = df or expression.df
         self.expression = self.df[str(expression)]
         self.label = label or self.expression._label
+        # TODO: we could prebin the dictionary, and use a different binner
+        if self.expression.dtype.is_encoded:
+            self.expression = self.expression.dictionary_decode()
         self.vmin = vmin
         self.vmax = vmax
         self.N = bins
-        self.binby_expression = str(expression)
-        self.bin_values = self.df.bin_centers(expression, (self.vmin, self.vmax), bins)
+        self.binby_expression = str(self.expression)
+        self.bin_values = self.df.bin_centers(self.expression, (self.vmin, self.vmax), bins)
         self.sort_indices = None
         self._promise = vaex.promise.Promise.fulfilled(None)
 
@@ -230,6 +234,8 @@ class Grouper(BinnerBase):
         self.label = self.expression._label
         self.progressbar = vaex.utils.progressbars(progress, title=f"grouper: {repr(self.label)}" )
         dtype = self.expression.dtype
+        if dtype.is_encoded:
+            raise TypeError(f"Expression {expression} is an encoded/categorical type, use GrouperCategory instead")
         if materialize_experimental:
             set, values = df_original._set(self.expression, limit=row_limit, return_inverse=True)
             # TODO: add column should have a unique argument
@@ -299,7 +305,7 @@ class Grouper(BinnerBase):
             self.binby_expression = str(self.expression)
             self.binner = self.df._binner_hash(self.binby_expression, self.hashmap_unique)
         else:
-            self.binby_expression = "_ordinal_values(%s, %s)" % (self.expression, self.hash_map_unique_name)
+            self.binby_expression = "hashmap_apply(%s, %s)" % (self.expression, self.hash_map_unique_name)
             self.binner = self.df._binner_ordinal(self.binby_expression, self.N)
         self.combine_expression = self.binby_expression
 
@@ -398,10 +404,13 @@ class GrouperCategory(BinnerBase):
         self.expression = expression.index_values() if expression.dtype.is_encoded else expression
         self.row_limit = row_limit
 
-        self.min_value = self.df.category_offset(self.expression_original)
+        # if we encode as arrow, we subtract it already in df._auto_encode
+        if self.df._future_behaviour:
+            self.min_value = 0
+        else:
+            self.min_value = self.df.category_offset(self.expression_original)
         self.bin_values = self.df.category_labels(self.expression_original, aslist=False)
         self.N = self.df.category_count(self.expression_original)
-        dtype = self.expression.dtype  # should be the dtype of the 'codes'
         if self.sort:
             # not pre-sorting is faster
             sort_indices = pa.compute.sort_indices(self.bin_values)
@@ -464,21 +473,42 @@ class GrouperLimited(BinnerBase):
         self.expression = self.df[str(expression)]
         self.label = label or self.expression._label
         self.keep_other = keep_other
+
         if isinstance(values, pa.ChunkedArray):
             values = pa.concat_arrays(values.chunks)
+
+        values = vaex.array_types.to_arrow(values)
         if sort:
             indices = pa.compute.sort_indices(values)
             values = pa.compute.take(values, indices)
 
-        if self.keep_other:
-            self.bin_values = pa.array(vaex.array_types.tolist(values) + [other_value])
-            self.values = self.bin_values.slice(0, len(self.bin_values) - 1)
+        if self.df.is_category(self.expression):
+            # if encoded, we map this to integers
+            labels = self.df.category_labels(self.expression)
+            used_indices = []
+            values = vaex.array_types.tolist(values)
+            for value in values:
+                if not vaex.utils.in_with_nan(value, labels):
+                    raise ValueError(f"Value {value} not present in {labels}")
+                used_indices.append(vaex.utils.index_with_nan(labels, value))
+            dtype = self.expression.dtype
+            used_indices = dtype.index_type.create_array(used_indices)
+            self.expression = self.expression.index_values()
+            if self.keep_other:
+                self.bin_values = pa.array(vaex.array_types.tolist(values) + [other_value])
+                self.values = used_indices.slice(0, len(self.bin_values) - 1)
+            else:
+                raise NotImplementedError("not supported yet")
         else:
-            raise NotImplementedError("not supported yet")
-            # although we can support this, it will fail with _combine, because of
-            # the mapping of the set to -1
-            self.bin_values = pa.array(vaex.array_types.tolist(values))
-            self.values = self.bin_values
+            if self.keep_other:
+                self.bin_values = pa.array(vaex.array_types.tolist(values) + [other_value])
+                self.values = self.bin_values.slice(0, len(self.bin_values) - 1)
+            else:
+                raise NotImplementedError("not supported yet")
+                # although we can support this, it will fail with _combine, because of
+                # the mapping of the set to -1
+                self.bin_values = pa.array(vaex.array_types.tolist(values))
+                self.values = self.bin_values
         self.N = len(self.bin_values)
         fp = vaex.cache.fingerprint(values)
         fingerprint = f"set-grouper-fixed-{fp}"
@@ -496,7 +526,7 @@ class GrouperLimited(BinnerBase):
         else:
             self.var_name = self.basename
         # modulo N will map -1 (value not found) to N-1
-        self.binby_expression = "_ordinal_values(%s, %s) %% %s" % (self.expression, self.var_name, self.N)
+        self.binby_expression = "hashmap_apply(%s, %s) %% %s" % (self.expression, self.var_name, self.N)
         self.combine_expression = self.binby_expression
         self.binner = self.df._binner_ordinal(self.binby_expression, self.N)
 

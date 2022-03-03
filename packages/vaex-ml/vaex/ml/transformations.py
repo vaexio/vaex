@@ -402,7 +402,8 @@ class OneHotEncoder(Transformer):
         uniques = []
         for i in self.features:
             expression = _ensure_strings_from_expressions(i)
-            unique_values = vaex.array_types.tolist(df.unique(expression))
+            unique_values_array = df.unique(expression, array_type='numpy-arrow')
+            unique_values = vaex.array_types.tolist(unique_values_array)
 
             if None in unique_values:
                 unique_values.remove(None)
@@ -410,6 +411,13 @@ class OneHotEncoder(Transformer):
                 unique_values.insert(0, None)  # This is done in place
             else:
                 unique_values.sort()
+            if vaex.dtype_of(unique_values_array) == float:
+                nans = np.isnan(unique_values_array)
+                if nans.sum():
+                    nan_index = np.where(nans)[0][0]
+                    del unique_values[nan_index]
+                    unique_values.sort()
+                    unique_values.insert(0, np.nan)  # This is done in place
             uniques.append(unique_values)
         self.uniques_ = uniques
 

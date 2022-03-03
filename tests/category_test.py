@@ -93,6 +93,8 @@ def test_categorize_integers():
 
 @pytest.mark.parametrize("auto_encode", [False, True])
 def test_cat_compare(df_factory, auto_encode):
+    if df_factory == df_factory_arrow_dict_encoded_implementation:
+        return
     df = df_factory(x=np.array([0, 1, 2, 0], dtype='uint8'))
     df = df.categorize('x', labels=['a', 'b', 'c'])
     df = df._future() if auto_encode else df
@@ -100,15 +102,14 @@ def test_cat_compare(df_factory, auto_encode):
         assert df['x'].tolist() == ['a', 'b', 'c', 'a']
         assert str(df.x == 'a') == '(index_values(x) == 0)'
         assert df[df.x == 'a'].x.tolist() == ['a', 'a']
-        with pytest.raises(ValueError):
-            assert str(df.x == 'x') == '(x == 0)'
+        # non existing value
+        assert (df.x == 'x').tolist() == [False] * 4
     else:
         # assert df['x'].tolist() == [0, 1, 2, 0]
         # # assert str(df.x == 'a') == '(x == 0)'
         assert df['x'].tolist() == [0, 1, 2, 0]
         assert str(df.x == 0) == '(x == 0)'
         assert df[df.x == 0].x.tolist() == [0, 0]
-
 
 def test_arrow_dict_encoded(df_factory_arrow):
     indices = pa.array([0, 1, 0, 1, 2, 0, None, 2])
@@ -144,3 +145,25 @@ def test_ordinal_with_offset():
     df = df.ordinal_encode('x')
     df = df._future()
     assert df.x.index_values().tolist() == [0, 1, 2, 0]
+
+
+@pytest.mark.parametrize("as_expression", [False, True])
+def test_category_basics(as_expression):
+    # test with non identifier
+    df = vaex.from_dict({'#': ['a', 'b']})
+    if as_expression:
+        column = df['#']
+    else:
+        column = '#'
+    df = df.ordinal_encode(column)
+    assert df.is_category(column)
+    assert set(df.category_labels(column)) == {'a', 'b'}
+    assert df.category_count(column) == 2
+    assert df.category_offset(column) == 0
+
+    df = vaex.from_dict({'#': [1, 2]})
+    df = df.categorize(column)
+    assert df.is_category(column)
+    assert set(df.category_labels(column)) == {1, 2}
+    assert df.category_count(column) == 2
+    assert df.category_offset(column) == 1

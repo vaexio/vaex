@@ -35,6 +35,7 @@ import vaex.execution
 import vaex.expresso
 import logging
 import vaex.kld
+
 from . import selections, tasks, scopes
 from .expression import expression_namespace
 from .delayed import delayed, delayed_args, delayed_list
@@ -252,6 +253,8 @@ class DataFrame(object):
             functions={name: encoding.encode("function", value) for name, value in dep_filter(self.functions).items()},
             active_range=[self._index_start, self._index_end]
         )
+        if self._categories:
+            state["categories"] = self._categories
         # selections can affect the filter, so put them all in
         state['selections'] = {name: selection.to_dict() if selection is not None else None for name, selection in selections.items()}
         fp = vaex.cache.fingerprint(state, df.dataset.fingerprint)
@@ -341,6 +344,8 @@ class DataFrame(object):
 
     def is_category(self, column):
         """Returns true if column is a category."""
+        if isinstance(column, vaex.expression.Expression):
+            column = column._label
         column = _ensure_string_from_expression(column)
         #  TODO: we don't support DictionaryType for remote dataframes
         if self.is_local() and column in self.columns:
@@ -365,6 +370,8 @@ class DataFrame(object):
                 return dictionary
 
     def category_labels(self, column, aslist=True):
+        if isinstance(column, vaex.expression.Expression):
+            column = column._label
         column = _ensure_string_from_expression(column)
         if column in self._categories:
             return self._categories[column]['labels']
@@ -381,6 +388,8 @@ class DataFrame(object):
         return self._categories[column]['values']
 
     def category_count(self, column):
+        if isinstance(column, vaex.expression.Expression):
+            column = column._label
         column = _ensure_string_from_expression(column)
         if column in self._categories:
             return self._categories[column]['N']
@@ -391,6 +400,8 @@ class DataFrame(object):
             raise ValueError(f'Column {column} is not a categorical')
 
     def category_offset(self, column):
+        if isinstance(column, vaex.expression.Expression):
+            column = column._label
         column = _ensure_string_from_expression(column)
         if column in self._categories:
             return self._categories[column]['min_value']
@@ -497,6 +508,9 @@ class DataFrame(object):
         if selection is not None:
             selection = str(selection)
         expression = _ensure_string_from_expression(expression)
+        if self.is_category(expression):
+            if self.data_type(expression).is_encoded or self._future_behaviour:
+                raise TypeError(f"Encoded data not supported")
         task = vaex.tasks.TaskHashmapUniqueCreate(self, expression, flatten, limit=limit, selection=selection, return_inverse=return_inverse, limit_raise=limit_raise)
         task = self.executor.schedule(task)
         progressbar = vaex.utils.progressbars(progress)
@@ -585,19 +599,30 @@ class DataFrame(object):
         if axis is not None:
             raise ValueError('only axis=None is supported')
         expression = _ensure_string_from_expression(expression)
-        if self._future_behaviour and self.is_category(expression):
+        if (self._future_behaviour and self.is_category(expression)) or self.data_type(expression).is_encoded:
+            if dropna or dropnan:
+                df = self
+                if dropna:
+                    df = df.dropna(expression)
+                if dropnan:
+                    df = df.dropnan(expression)
+                return self._delay(delay, df.unique(expression, return_inverse, progress=progress, selection=selection, axis=axis, delay=True, limit=limit, limit_raise=limit_raise, array_type=array_type))
             if self.filtered:
                 keys = pa.array(self.category_labels(expression))
                 @delayed
                 def encode(codes):
                     used_keys = keys.take(codes)
                     return vaex.array_types.convert(used_keys, array_type)
-                codes = self[expression].index_values().unique(delay=True)
+                codes = self[expression].index_values().unique(delay=True, array_type="arrow")
                 return self._delay(delay, encode(codes))
             else:
                 keys = pa.array(self.category_labels(expression))
                 keys = vaex.array_types.convert(keys, array_type)
-                return self._delay(delay, vaex.promise.Promise.fulfilled(keys))
+                if return_inverse:
+                    inverse = self[expression].index_values().to_numpy()
+                    return self._delay(delay, vaex.promise.Promise.fulfilled((keys, inverse)))
+                else:
+                    return self._delay(delay, vaex.promise.Promise.fulfilled(keys))
         else:
             @delayed
             def process(hash_map_unique):
@@ -1428,6 +1453,7 @@ class DataFrame(object):
         """
         # vmin  = self._compute_agg('min', expression, binby, limits, shape, selection, delay, edges, progress)
         # vmax =  self._compute_agg('max', expression, binby, limits, shape, selection, delay, edges, progress)
+        # TODO: can we do the minmax of the dictionary?
         selection = _ensure_strings_from_expressions(selection)
         selection = _normalize_selection(selection)
         @delayed
@@ -1445,6 +1471,15 @@ class DataFrame(object):
         expression = _ensure_strings_from_expressions(expression)
         binby = _ensure_strings_from_expressions(binby)
         waslist, [expressions, ] = vaex.utils.listify(expression)
+        def auto_dict_decode(expression):
+            expression = self[expression]
+            if self.is_category(expression):
+                expression = str(expression.dictionary_decode())
+            return str(expression)
+
+        # this gets special treatment compared to the other aggregators, because we are still using the
+        # old vaexfast code
+        expressions = list(map(auto_dict_decode, expressions))
         column_names = self.get_column_names(hidden=True)
         expressions = [vaex.utils.valid_expression(column_names, k) for k in expressions]
         data_types = [self.data_type(expr) for expr in expressions]
@@ -1816,7 +1851,7 @@ class DataFrame(object):
                 if not _is_limit(value):
                     expression_values[(expression, value)] = None
                 if self.is_category(expression):
-                    N = self._categories[_ensure_string_from_expression(expression)]['N']
+                    N = self.category_count(expression)
                     expression_shapes[expression] = min(N, shapes[shape_index] if shape is not None else default_shape)
                 else:
                     expression_shapes[expression] = shapes[shape_index] if shape is not None else default_shape
@@ -1824,7 +1859,7 @@ class DataFrame(object):
         limits_list = []
         for expression, value in expression_values.keys():
             if self.is_category(expression):
-                N = self._categories[_ensure_string_from_expression(expression)]['N']
+                N = self.category_count(expression)
                 limits = [-0.5, N-0.5]
             else:
                 if isinstance(value, six.string_types):
@@ -3041,7 +3076,7 @@ class DataFrame(object):
             with concurrent.futures.ThreadPoolExecutor(1) as executor:
                 iter = self._unfiltered_chunk_slices(chunk_size)
                 def f(i1, i2):
-                    return self._evaluate_implementation(expression, i1=i1, i2=i2, out=out, selection=selection, filtered=filtered, array_type=array_type, parallel=parallel, raw=True)
+                    return self._evaluate_implementation(expression, i1=i1, i2=i2, out=out, selection=selection, filtered=filtered, array_type=array_type, parallel=parallel, raw=True, progress=progressbar)
                 try:
                     previous_l1, previous_l2, previous_i1, previous_i2 = next(iter)
                 except StopIteration:
@@ -4947,7 +4982,7 @@ class DataFrame(object):
         :param column_names: The columns to consider, default: all (real, non-virtual) columns
         :rtype: DataFrame
         """
-        return self._filter_all(self.func.ismissing, column_names)
+        return self._filter_all(vaex.expression.Expression.ismissing, column_names)
 
     def dropnan(self, column_names=None):
         """Create a shallow copy of a DataFrame, with filtering set using isnan.
@@ -4955,7 +4990,7 @@ class DataFrame(object):
         :param column_names: The columns to consider, default: all (real, non-virtual) columns
         :rtype: DataFrame
         """
-        return self._filter_all(self.func.isnan, column_names)
+        return self._filter_all(vaex.expression.Expression.isnan, column_names)
 
     def dropna(self, column_names=None):
         """Create a shallow copy of a DataFrame, with filtering set using isna.
@@ -4963,7 +4998,7 @@ class DataFrame(object):
         :param column_names: The columns to consider, default: all (real, non-virtual) columns
         :rtype: DataFrame
         """
-        return self._filter_all(self.func.isna, column_names)
+        return self._filter_all(vaex.expression.Expression.isna, column_names)
 
     def dropinf(self, column_names=None):
         """ Create a shallow copy of a DataFrame, with filtering set using isinf.
@@ -5725,6 +5760,8 @@ class DataFrameLocal(DataFrame):
         :param inplace: {inplace}
         """
         df = self if inplace else self.copy()
+        if isinstance(column, vaex.expression.Expression):
+            column = column._label
         column = _ensure_string_from_expression(column)
         if df[column].dtype != int:
             raise TypeError(f'Only integer columns can be marked as categorical, {column} is {df[column].dtype}')
@@ -5750,10 +5787,16 @@ class DataFrameLocal(DataFrame):
         The existing column is renamed to a hidden column and replaced by a numerical columns
         with values between [0, len(values)-1].
 
+        If the column is already categorical, we do nothing.
+
         :param lazy: When False, it will materialize the ordinal codes.
         """
+        if isinstance(column, vaex.expression.Expression):
+            column = column._label
         column = _ensure_string_from_expression(column)
         df = self if inplace else self.copy()
+        if df.is_category(column):
+            return df
         # for the codes, we need to work on the unfiltered dataset, since the filter
         # may change, and we also cannot add an array that is smaller in length
         df_unfiltered = df.copy()
@@ -6373,7 +6416,9 @@ class DataFrameLocal(DataFrame):
                         values = array_types.convert(chunks, array_type)
                 else:
                     values = array_types.convert(arrays[expression], array_type)
-                values = self._auto_encode_data(expression, values)
+                # not all expressions go throught the blockscope, which will auto encode, so make sure it is encoded
+                if array_type in [None, "arrow", "python-arrow"]:
+                    values = self._auto_encode_data(expression, values)
                 return values
             result = [finalize_result(k) for k in expressions]
             if not was_list:

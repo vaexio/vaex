@@ -44,10 +44,11 @@ class _LinearBase(state.HasState):
         return ds
 
     def fit(self, dataset, y_expression, progress=False):
+        dataset = dataset._future()
         assert len(set(self.features)) == len(self.features), "duplicate features"
         if not self.binned:
             X = np.array(dataset[self.features])
-            y = dataset.evaluate(y_expression)
+            y = dataset[y_expression].to_numpy()
             m = self._make_model()
             m.fit(X, y)
             self.coef_ = m.coef_.tolist()

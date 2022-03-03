@@ -870,7 +870,7 @@ class ProxyModule:
                 # the module object itself needs to be the top module
                 top_name = self.name.split(".")[0]
                 self.module = importlib.import_module(top_name)
-            except Exception as e:
+            except ModuleNotFoundError as e:
                 raise ImportError(f'''Error importing module {self.name}: {e}
 
 Vaex needs an optional dependency '{self.name}' for the feature you are using. To install, use:
@@ -997,3 +997,51 @@ def create_hasher(initial_data=None, large_data=True):
         return blake3.blake3(initial_data, multithreading=large_data)
     else:
         return blake3.blake3(initial_data, max_threads=blake3.blake3.AUTO if large_data else 1)
+
+
+def in_with_nan(x, sequence):
+    """Test 'x in sequence', but also supports nan
+
+    >>> from math import nan
+    >>> in_with_nan(nan, [1, 2])
+    False
+    >>> in_with_nan(nan, [1, 2, nan])
+    True
+    """
+    if x in sequence:
+        return True
+    x_is_nan = False
+    try:
+        x_is_nan = math.isnan(x)
+    except TypeError:
+        pass
+    if x_is_nan:
+            for item in sequence:
+                try:
+                    if math.isnan(item):
+                        return True
+                except TypeError:
+                    pass
+    return False
+
+
+def index_with_nan(list, value):
+    """Similar to list.index(value) but with support for nan
+
+    >>> from math import nan
+    >>> index_with_nan([1, nan, 2], 2)
+    2
+    >>> index_with_nan([1, nan, 2], nan)
+    1
+    """
+    try:
+        return list.index(value)
+    except ValueError:
+        if math.isnan(value):
+            for index, item in enumerate(list):
+                try:
+                    if math.isnan(item):
+                        return index
+                except TypeError:
+                    pass  # ignore if items is for instance a string value
+            raise ValueError("nan is not in list")

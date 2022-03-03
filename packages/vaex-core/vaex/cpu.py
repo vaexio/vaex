@@ -9,6 +9,7 @@ import numpy as np
 import pyarrow as pa
 
 import vaex
+import vaex.array_types
 import vaex.encoding
 from .utils import as_flat_float, as_flat_array, _issequence, _ensure_list
 from .array_types import filter
@@ -542,7 +543,8 @@ class TaskPartAggregation(TaskPart):
                 N = len(blocks[0])
             else:
                 N = filter_mask.sum()
-        blocks = [vaex.array_types.to_numpy(block, strict=False) for block in blocks]
+        # TODO: we might be able to avoid the decode step using a custom binner
+        blocks = [vaex.array_types.to_numpy(vaex.array_types.dictionary_decode(block), strict=False) for block in blocks]
         for block in blocks:
             assert len(block) == N, f'Oops, got a block of length {len(block)} while it is expected to be of length {N} (at {i1}-{i2}, filter={filter_mask is not None})'
         block_map = {expr: block for expr, block in zip(self.expressions, blocks)}

@@ -82,13 +82,13 @@ def test_dropmissing():
 
 
 # equivalent of isna_test
-def test_dropnan():
-    s = vaex.string_column(["aap", None, "noot", "mies"])
-    o = ["aap", None, "noot", np.nan]
+def test_dropnan(df_factory):
+    s = ["aap", None, "noot", "mies"]
+    o = ["aap", None, "noot", None]
     x = np.arange(4, dtype=np.float64)
     x[2] = x[3] = np.nan
     m = np.ma.array(x, mask=[0, 1, 0, 1])
-    df = vaex.from_arrays(x=x, m=m, s=s, o=o)
+    df = df_factory(x=x, m=m, s=s, o=o)
     x = df.x.dropnan().tolist()
     assert x == [0, 1]
     m = df.m.dropnan().tolist()
@@ -98,13 +98,13 @@ def test_dropnan():
     # columns is seen as string
     assert (df.o.dropnan().tolist() == ["aap", None, "noot", None])
 
-def test_dropna():
+def test_dropna(df_factory):
     s = vaex.string_column(["aap", None, "noot", "mies"])
-    o = ["aap", None, "noot", np.nan]
+    o = ["aap", None, "noot", None]
     x = np.arange(4, dtype=np.float64)
     x[2] = x[3] = np.nan
     m = np.ma.array(x, mask=[0, 1, 0, 1])
-    df = vaex.from_arrays(x=x, m=m, s=s, o=o)
+    df = df_factory(x=x, m=m, s=s, o=o)
     x = df.x.dropna().tolist()
     assert x == [0, 1]
     m = df.m.dropna().tolist()

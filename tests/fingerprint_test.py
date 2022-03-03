@@ -1,4 +1,5 @@
 import vaex
+import vaex.dataset
 import numpy as np
 import pyarrow as pa
 
@@ -9,6 +10,7 @@ def test_dataframe(df_factory):
     df2 = df_factory(x=[1, 3], y=[4, 5])
 
     assert df1.fingerprint() == df1b.fingerprint()
+    assert df1.dataset.fingerprint != df2.dataset.fingerprint
     assert df1.fingerprint() != df2.fingerprint()
 
     assert df1.fingerprint() == df1b.fingerprint()
@@ -17,6 +19,11 @@ def test_dataframe(df_factory):
     # but if we treeshake, it does not
     assert df1.fingerprint(treeshake=True) != df1b.fingerprint()
 
+
+def test_categorize():
+    df1 = vaex.from_arrays(x=[1, 2])
+    df2 = df1.categorize("x")
+    assert df1.fingerprint() != df2.fingerprint()
 
 def test_groupby(df_factory):
     df1 = df_factory(x=[1, 2], y=[4, 5])
@@ -92,6 +99,13 @@ def test_dataset_arrays():
         'z': 'a4cead13bef1fd1ec5974d1a2f5ceffd243a7aa6c6b08b80e09a7454b7d04293'
     }
     assert ds.fingerprint == 'dataset-arrays-hashed-88244cf38fe91c6bf435caa6160b089b'
+
+def test_dataset_encoded(df_factory_arrow_dict_encoded):
+    s1 = ["aap", "noot"]
+    s2 = ["Aap", "Noot"]
+    ds1 = df_factory_arrow_dict_encoded(s=s1).dataset
+    ds2 = df_factory_arrow_dict_encoded(s=s2).dataset
+    assert ds1.fingerprint != ds2.fingerprint
 
 
 df_fingerprint_xy = 'dataframe-943761acaa2ff2060d21ef519c77e1b9'
