@@ -2,6 +2,7 @@ import ast
 import copy
 import os
 import base64
+import datetime
 import time
 import cloudpickle as pickle
 import functools
@@ -130,12 +131,19 @@ class Meta(type):
                             assert b.ds == a.ds
                             b = b.expression
                         elif isinstance(b, (np.timedelta64)):
-                            unit, step = np.datetime_data(b)
+                            unit, step = np.datetime_data(b.dtype)
                             assert step == 1
                             b = b.astype(np.uint64).item()
                             b = f'scalar_timedelta({b}, {unit!r})'
                         elif isinstance(b, (np.datetime64)):
                             b = f'scalar_datetime("{b}")'
+                        elif isinstance(b, np.ndarray) and b.ndim == 0 and vaex.dtype_of(b).is_datetime:
+                            b = f'scalar_datetime("{b}")'
+                        elif isinstance(b, np.ndarray) and b.ndim == 0 and vaex.dtype_of(b).is_timedelta:
+                            unit, step = np.datetime_data(b.dtype)
+                            assert step == 1
+                            b = b.astype(np.uint64).item()
+                            b = f'scalar_timedelta({b}, {unit!r})'
                         expression = '({0} {1} {2})'.format(a.expression, op['code'], b)
                     return Expression(self.ds, expression=expression)
                 attrs['__%s__' % op['name']] = f

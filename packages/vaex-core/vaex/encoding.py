@@ -224,6 +224,10 @@ class dtype_encoding:
     @staticmethod
     def encode(encoding, dtype):
         dtype = DataType(dtype)
+        if dtype.is_arrow and dtype.is_timedelta:
+            return {'type': 'duration', 'unit': dtype.arrow.unit}
+        if dtype.is_arrow and dtype.is_datetime:
+            return {'type': 'timestamp', 'unit': dtype.arrow.unit}
         if dtype.is_list:
             return {'type': 'list', 'value_type': encoding.encode('dtype', dtype.value_type)}
         elif dtype.is_encoded:
@@ -234,7 +238,11 @@ class dtype_encoding:
     @staticmethod
     def decode(encoding, type_spec):
         if isinstance(type_spec, dict):
-            if type_spec['type'] == 'list':
+            if type_spec['type'] == 'duration':
+                return DataType(pa.duration(type_spec['unit']))
+            elif type_spec['type'] == 'timestamp':
+                return DataType(pa.timestamp(type_spec['unit']))
+            elif type_spec['type'] == 'list':
                 sub = encoding.decode('dtype', type_spec['value_type']).arrow
                 return DataType(pa.list_(sub))
             elif type_spec['type'] == 'dict':

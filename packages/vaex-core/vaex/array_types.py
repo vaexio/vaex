@@ -13,6 +13,9 @@ map_arrow_to_numpy[pa.bool_()] = np.dtype("?")
 for unit in 's ms us ns'.split():
     map_arrow_to_numpy[pa.timestamp(unit)] = np.dtype(f"datetime64[{unit}]")
 
+for unit in 's ms us ns'.split():
+    map_arrow_to_numpy[pa.duration(unit)] = np.dtype(f"timedelta64[{unit}]")
+
 
 def full(n, value, dtype):
     from .datatype import DataType
