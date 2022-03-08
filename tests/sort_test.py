@@ -27,6 +27,7 @@ def test_sort_filtered():
     df_sel_sorted = df[df.x > 4].sort(by='x')
     assert df_sel_sorted.x.tolist() == [5, 6, 7]
 
+
 def test_sort_multikey():
     x = np.array([5, 3, 1, 1, 5])
     y = np.array([0, 3, 4, 2, 1])
@@ -44,3 +45,15 @@ def test_sort_multikey():
     assert df_sorted_2.x.tolist() ==  [1, 3, 1, 5, 5]
     assert df_sorted_2.y.tolist() ==  [4, 3, 2, 0, 1]
     assert df_sorted_2.z.tolist() == ['cat', 'cat', 'dog', 'dog', 'mouse']
+
+    # Case 3: str key followed by numeric key, mixed ascending and descending
+    df_sorted_2 = df.sort(by=['z', 'x'], ascending=[False, True])
+    assert df_sorted_2.x.tolist() ==  [5, 1, 5, 1, 3]
+    assert df_sorted_2.y.tolist() ==  [1, 2, 0, 4, 3]
+    assert df_sorted_2.z.tolist() == ['mouse', 'dog', 'dog', 'cat', 'cat']
+
+
+def test_sort_strings_masked():
+    df = vaex.from_arrays(x=['Groningen', 'Skopje', None, 'Amsterdam', 'Ohrid'])
+    assert df.sort('x').x.tolist() == ['Amsterdam', 'Groningen', 'Ohrid', 'Skopje', None]
+    assert df.sort('x', ascending=False).x.tolist() == ['Skopje', 'Ohrid', 'Groningen', 'Amsterdam', None]
