@@ -4595,10 +4595,11 @@ class DataFrame(object):
             start = offset
 
     @docsubst
-    def sort(self, by, ascending=True, kind='quicksort'):
+    def sort(self, by, ascending=True):
         '''Return a sorted DataFrame, sorted by the expression 'by'.
 
-        The kind keyword is ignored if doing multi-key sorting.
+        Both 'by' and 'ascending' arguments can be lists.
+        Note that missing/nan/NA values will always be pushed to the end, no matter the sorting order.
 
         {note_copy}
 
@@ -4622,22 +4623,26 @@ class DataFrame(object):
           2  a      1  0.64
           3  b      2  0.04
 
-        :param str or expression by: expression to sort by
-        :param bool ascending: ascending (default, True) or descending (False).
-        :param str kind: kind of algorithm to use (passed to numpy.argsort)
+        :param str or expression or list of str/expressions by: expression to sort by.
+        :param bool or list of bools ascending: ascending (default, True) or descending (False).
         '''
-        if isinstance(ascending, Iterable):
-            raise ValueError("Cannot sort differently by multiple columns. Param ascending must be a single boolean value.")
         self = self.trim()
-        if not isinstance(by, list):
-            values = self.evaluate(by)
-            indices = np.argsort(values, kind=kind)
-        if isinstance(by, (list, tuple)):
-            by = _ensure_strings_from_expressions(by)[::-1]
-            values = self.evaluate(by)
-            indices = np.lexsort(values)
-        if not ascending:
-            indices = indices[::-1].copy()  # this may be used a lot, so copy for performance
+        # Ensure "by" is in the proper format
+        by = vaex.utils._ensure_list(by)
+        by = vaex.utils._ensure_strings_from_expressions(by)
+
+        # Ensure "ascending is in the proper format"
+        if isinstance(ascending, list):
+            assert len(ascending) == len(by), 'If "ascending" is a list, it must have the same number of elements as "by".'
+        else:
+            ascending = vaex.utils._ensure_list(ascending) * len(by)
+
+        sort_keys = [(key, 'ascending') if order is True else (key, 'descending') for key, order in zip(by, ascending)]
+        pa_table = self[by].to_arrow_table()
+        indices = pa.compute.sort_indices(pa_table, sort_keys=sort_keys)
+
+        # if we don't cast to int64, we get uint64 scalars, which when adding numbers to will auto case to float (numpy)
+        indices = vaex.array_types.to_numpy(indices).astype('int64')
         return self.take(indices)
 
     @docsubst
