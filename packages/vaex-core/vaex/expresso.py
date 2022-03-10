@@ -516,6 +516,7 @@ class NameCollector(ast.NodeTransformer):
 
     def visit_Call(self, node):
         # we skip visiting node.id
+        self.visit(node.func)
         node.args = [self.visit(k) for k in node.args]
         if hasattr(node, 'keywords'):
             node.keywords = [self.visit(k) for k in node.keywords]

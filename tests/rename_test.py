@@ -99,3 +99,16 @@ def test_rename_expression():
     assert expr.tolist() == [1, 2]
     expr2 = expr._rename('1', '#')
     assert expr2.tolist() == [2, 3]
+
+
+def test_rename_function():
+    df = vaex.from_arrays(x=[1, 2], y=[2, 4])
+    def add(a, b):
+        return a + b
+    df.add_function('add', add)
+    assert 'add' in df.functions
+    df['z'] = df.func.add(df.x, df.y)
+    assert df.z.tolist() == [3, 6]
+    df.rename('add', 'add_test')
+    assert df.z.tolist() == [3, 6]
+    assert 'add' not in df.functions
