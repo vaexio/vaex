@@ -779,6 +779,9 @@ class Expression(with_metaclass(Meta)):
 
     def __str__(self):
         return self.expression
+    
+    def __contains__(self, v):
+        return v in self.values
 
     # def __array__(self, dtype=None):
     #     '''For casting to a numpy array
