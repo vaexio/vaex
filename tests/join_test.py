@@ -378,7 +378,7 @@ def test_join_on_virtual_apply():
     df1 = vaex.from_arrays(x=[3, 2, 1], y=[10, 20, 30])
     df2 = vaex.from_arrays(x=[10, 10, 40])
 
-    df2['y'] = df2.x.apply(lambda x: int(x/10))
+    df2['y'] = df2.x.apply(lambda x: int(x/10) if x is not None else None)
 
     joined = df1.join(df2, left_on='x', right_on='y', how='left', allow_duplication=True, lsuffix='_l', rsuffix='_r')
 
