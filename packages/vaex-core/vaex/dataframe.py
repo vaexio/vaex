@@ -3753,9 +3753,13 @@ class DataFrame(object):
 
     def _rename(self, old, new, rename_meta_data=False):
         is_variable = False
+        is_function = False
         if old in self.variables:
             self.variables[new] = self.variables.pop(old)
             is_variable = True
+        if old in self.functions:
+            self.functions[new] = self.functions.pop(old)
+            is_function = True
         elif old in self.virtual_columns:
             # renaming a column should not change the internal order, otherwise virtual
             # columns do not resolve (it will reference an unknown column)
@@ -3773,7 +3777,7 @@ class DataFrame(object):
                     del d[old]
         for key, value in self.selection_histories.items():
             self.selection_histories[key] = list([k if k is None else k._rename(self, old, new) for k in value])
-        if not is_variable:
+        if not (is_variable or is_function):
             if new not in self.virtual_columns:
                 self._renamed_columns.append((old, new))
             self.column_names[self.column_names.index(old)] = new
