@@ -44,3 +44,8 @@ def test_sort_multikey():
     assert df_sorted_2.x.tolist() ==  [1, 3, 1, 5, 5]
     assert df_sorted_2.y.tolist() ==  [4, 3, 2, 0, 1]
     assert df_sorted_2.z.tolist() == ['cat', 'cat', 'dog', 'dog', 'mouse']
+
+def test_sort_strings_masked():
+    df = vaex.from_arrays(x=['Groningen', 'Skopje', None, 'Amsterdam', 'Ohrid'])
+    assert df.sort('x').x.tolist() == ['Amsterdam', 'Groningen', 'Ohrid', 'Skopje', None]
+    assert df.sort('x', ascending=False).x.tolist() == [None, 'Skopje', 'Ohrid', 'Groningen', 'Amsterdam']
