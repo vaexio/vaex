@@ -4992,6 +4992,17 @@ class DataFrame(object):
         :rtype: DataFrame
         """
         return self._filter_all(self.func.isna, column_names)
+    
+    def drop_empty_columns(column_names=None):
+        """Drops any columns from the dataframe that have only missing values
+        
+        :param column_names: The columns to consider, default: all columns
+        :rtype: DataFrame
+        """
+        cols = df.get_column_names() if column_names is not None else column_names
+        col_counts = df.count(cols)
+        empty_cols = [col for col, col_count in zip(cols, col_counts) if col_count == 0]
+        return df.drop(empty_cols) if empty_cols else df
 
     def dropinf(self, column_names=None):
         """ Create a shallow copy of a DataFrame, with filtering set using isinf.
