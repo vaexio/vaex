@@ -4993,7 +4993,7 @@ class DataFrame(object):
         """
         return self._filter_all(self.func.isna, column_names)
     
-    def drop_empty_columns(column_names=None):
+    def drop_empty_columns(self, column_names=None):
         """Drops any columns from the dataframe that have only missing values
         
         :param column_names: The columns to consider, default: all columns
