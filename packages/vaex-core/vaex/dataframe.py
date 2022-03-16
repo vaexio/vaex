@@ -6641,6 +6641,8 @@ class DataFrameLocal(DataFrame):
             self.export_parquet(path, progress=progress, parallel=parallel, chunk_size=chunk_size, fs_options=fs_options, fs=fs)
         elif naked_path.endswith('.csv'):
             self.export_csv(path, progress=progress, parallel=parallel, chunk_size=chunk_size)
+        elif naked_path.endswith('.json'):
+            self.export_json(path, progress=progress, chunk_size=chunk_size, parallel=parallel, fs_options=fs_options, fs=fs)
         else:
             raise ValueError('''Unrecognized file extension. Please use .arrow, .hdf5, .parquet, .fits, or .csv to export to the particular file format.''')
 
