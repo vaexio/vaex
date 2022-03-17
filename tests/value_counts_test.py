@@ -128,7 +128,6 @@ def test_value_counts_list(df_types):
 
 
 def test_value_counts_chunked_array():
-    
     df = vaex.from_arrays(
         id=list(range(1000)),
         text=[f"some text here {random()} text {random()} text {random()}" for _ in range(1000)]
