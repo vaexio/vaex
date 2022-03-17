@@ -109,7 +109,7 @@ class BinnerHash<std::string, default_index_type, false> : public Binner {
     // format of bins if [invalid, bin0, bin1, ..., binN-1, out of range]
   public:
     using index_type = default_index_type;
-    using T = std::string;
+    using T = string_ref;
     using hash_type = hash_map<T>;
     BinnerHash(int threads, std::string expression, hash_type *hashmap)
         : Binner(threads, expression), hashmap(hashmap), hash_bins(hashmap->size()), missing_bin(hashmap->null_index() + 1), strings(threads) {}

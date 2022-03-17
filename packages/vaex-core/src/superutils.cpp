@@ -153,10 +153,46 @@ std::size_t hash_func(T v) {
     return h(v);
 }
 
+class TestObject {
+    public:
+    // TestObject(std::string name) : name(name) {}
+    TestObject(std::string name, py::memoryview bytes) : name(name), bytes(bytes) {}
+    ~TestObject() {
+        name = "destroyed";
+    }
+    std::string name;
+    py::memoryview bytes;
+};
+
+class TestContainer {
+    public:
+    TestContainer(std::string name) : name(name) {}
+    void add(std::shared_ptr<TestObject> member) {
+        members.push_back(member);
+    }
+    std::string name;
+    std::vector<std::shared_ptr<TestObject>> members;
+};
+
 PYBIND11_MODULE(superutils, m) {
     _import_array();
 
     m.doc() = "fast utils";
+
+    py::class_<TestObject, std::shared_ptr<TestObject>>(m, "TestObject")
+        // .def(py::init<std::string>())
+        .def(py::init([](std::string name, py::buffer bytes) {
+                return new TestObject(name, py::memoryview(bytes.request()));
+            }), py::keep_alive<1, 3>())
+        .def_property_readonly("name", [](const TestObject &test) { return test.name; })
+        .def_property_readonly("bytes", [](const TestObject &test) { return test.bytes; })
+    ;
+    py::class_<TestContainer, std::shared_ptr<TestContainer>>(m, "TestContainer")
+        .def(py::init<std::string>())
+        .def("add", &TestContainer::add)
+        .def_property_readonly("name", [](const TestContainer &test) { return test.name; })
+        .def_property_readonly("members", [](const TestContainer &test) { return test.members; })
+    ;
 
     py::class_<Mask>(m, "Mask", py::buffer_protocol())
         .def(py::init<size_t>())

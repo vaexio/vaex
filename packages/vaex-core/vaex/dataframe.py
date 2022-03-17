@@ -644,9 +644,9 @@ class DataFrame(object):
                     # TODO: we might want to put the dropmissing in .keys(..)
                     deletes = []
                     if dropmissing and hash_map_unique.has_null:
-                        deletes.append(hash_map_unique.null_value)
+                        deletes.append(hash_map_unique.null_index)
                     if dropnan and hash_map_unique.has_nan:
-                        deletes.append(hash_map_unique.nan_value)
+                        deletes.append(hash_map_unique.nan_index)
                     if isinstance(keys, (vaex.strings.StringList32, vaex.strings.StringList64)):
                         keys = vaex.strings.to_arrow(keys)
                         indices = np.delete(np.arange(len(keys)), deletes)
@@ -655,7 +655,7 @@ class DataFrame(object):
                         keys = np.delete(keys, deletes)
                         if not dropmissing and hash_map_unique.has_null:
                             mask = np.zeros(len(keys), dtype=np.uint8)
-                            mask[hash_map_unique.null_value] = 1
+                            mask[hash_map_unique.null_index] = 1
                             keys = np.ma.array(keys, mask=mask)
                         if data_type_item == str and isinstance(keys, np.ndarray):
                             # the np.delete will cast to dtype object

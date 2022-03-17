@@ -19,7 +19,9 @@ void bind_common(Cls &cls) {
         .def_property_readonly("nan_count", [](const Type &c) { return c.nan_count; })
         .def_property_readonly("null_count", [](const Type &c) { return c.null_count; })
         .def_property_readonly("has_nan", [](const Type &c) { return c.nan_count > 0; })
-        .def_property_readonly("has_null", [](const Type &c) { return c.null_count > 0; });
+        .def_property_readonly("has_null", [](const Type &c) { return c.null_count > 0; })
+        .def_property_readonly("null_index", [](const Type &c) { return c.null_index(); })
+        .def_property_readonly("nan_index", [](const Type &c) { return c.nan_index(); });
 }
 
 namespace vaex {
@@ -49,8 +51,6 @@ void init_hash_(M m, std::string name, std::string suffix) {
                        .def("isin", &Type::isin)
                        .def("flatten_values", &Type::flatten_values)
                        .def("map_ordinal", &Type::map_ordinal)
-                       .def_property_readonly("null_value", [](const Type &c) { return c.null_value; })
-                       .def_property_readonly("nan_value", [](const Type &c) { return c.nan_value; })
                        .def_readwrite("fingerprint", &Type::fingerprint);
         bind_common<Type>(cls);
     }

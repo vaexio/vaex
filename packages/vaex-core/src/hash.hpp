@@ -26,6 +26,12 @@ namespace vaex {
 
 namespace py = pybind11;
 
+// a reference to a string in an arrow array / StringList32/64
+struct string_ref {
+    int64_t index;
+    string_ref(int64_t index) : index(index) {}
+};
+
 // simple and fast https://stackoverflow.com/questions/664014/what-integer-hash-function-are-good-that-accepts-an-integer-hash-key
 static inline std::size_t _hash64(uint64_t x) {
     x = (x ^ (x >> 30)) * uint64_t(0xbf58476d1ce4e5b9);
@@ -47,6 +53,24 @@ struct hash {
 
 template <>
 struct hash<std::string> {
+    std::size_t operator()(std::string const &val) const {
+        std::hash<std::string> h;
+        return h(val);
+    }
+    std::size_t operator()(string_view const &val) const {
+        std::hash<string_view> h;
+        return h(val);
+    }
+};
+
+template <>
+struct hash<string_ref> {
+    StringList64 *strings_hash;
+    std::size_t operator()(string_ref const &val) const {
+        std::hash<string_view> h;
+        string_view view = strings_hash->view(val.index);
+        return h(view);
+    }
     std::size_t operator()(std::string const &val) const {
         std::hash<std::string> h;
         return h(val);
@@ -95,6 +119,15 @@ struct equal_to<std::string> {
     bool operator()(const string_view a, const std::string &b) const { return a == b; }
     bool operator()(const string_view a, const string_view b) const { return a == b; }
     bool operator()(const std::string &a, const string_view b) const { return a == b; }
+};
+
+template <>
+struct equal_to<string_ref> {
+    using is_transparent = void;
+    StringList64 *strings_equals;
+    bool operator()(const string_ref &a, const string_ref &b) const { return strings_equals->view(a.index) == strings_equals->view(b.index); }
+    bool operator()(const string_view &a, const string_ref &b) const { return a == strings_equals->view(b.index); }
+    bool operator()(const string_ref &a, const string_view &b) const { return strings_equals->view(a.index) == b; }
 };
 
 #pragma GCC diagnostic push
@@ -157,9 +190,19 @@ struct view {
     typedef T type;
 };
 
+template <typename T>
+struct non_view {
+    typedef T type;
+};
+
 template <>
-struct view<std::string> {
+struct view<string_ref> {
     typedef string_view type;
+};
+
+template <>
+struct non_view<string_ref> {
+    typedef std::string type;
 };
 
 template <typename T>
@@ -168,7 +211,7 @@ struct key_container {
 };
 
 template <>
-struct key_container<std::string> {
+struct key_container<string_ref> {
     typedef StringSequence *type;
 };
 template <class KeyType>
@@ -180,8 +223,8 @@ class hash_map {
     virtual int64_t map_key(key_type_view) { return 0; }
     virtual void map_many(key_container, int64_t offset, int64_t length, int64_t *output) { throw std::runtime_error("not implemented"); };
     virtual int64_t size() = 0;
-    virtual int64_t nan_index() = 0;
-    virtual int64_t null_index() = 0;
+    virtual int64_t nan_index() const = 0;
+    virtual int64_t null_index() const = 0;
 };
 
 template <class Derived, class KeyType, class Hashmap = hashmap<KeyType, int64_t>>
@@ -190,6 +233,7 @@ class hash_common : public hash_map<KeyType> {
     using value_type = int64_t;
     using key_type = KeyType;
     using key_type_view = typename view<KeyType>::type;
+    using key_type_non_view = typename non_view<KeyType>::type;
     using hashmap_type = Hashmap;
     using hasher = typename hashmap_type::hasher;
     using hasher_map = typename hashmap_type::hasher;
@@ -239,8 +283,9 @@ class hash_common : public hash_map<KeyType> {
         return std::move(out);
     }
 
-    virtual value_type nan_index() { return 0; }
-    virtual value_type null_index() { return this->nan_count ? 1 : 0; }
+    virtual value_type nan_index() const { return 0; }
+    virtual value_type null_index() const { return this->nan_count ? 1 : 0; }
+    virtual key_type_non_view _get(hashmap_type &map, typename hashmap_type::key_type key) = 0;
     py::list keys() {
         // if(!this->sealed) {
         //     throw std::runtime_error("hashmap not sealed, call .seal() first");
@@ -251,7 +296,7 @@ class hash_common : public hash_map<KeyType> {
         auto offsets = this->offsets();
         for (auto &map : this->maps) {
             for (auto &el : map) {
-                key_type key = el.first;
+                key_type_non_view key = _get(map, el.first);
                 int64_t index = static_cast<Derived &>(*this).key_offset(natural_order++, map_index, el, offsets[map_index]);
                 l[index] = key;
             }

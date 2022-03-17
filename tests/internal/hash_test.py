@@ -25,6 +25,18 @@ def test_counter_string(counter_cls):
     assert counts["n00t"] == 1
     assert counts["mies"] == 1
 
+    # test merge
+    strings1 = vaex.strings.array(['aap', 'noot', 'mies'])
+    counter1 = counter_cls(1)
+    counter1.update(strings1)
+
+    strings2 = vaex.strings.array(['kees', None])
+    counter2 = counter_cls(1)
+    counter2.update(strings2)
+    counter1.merge(counter2)
+    assert set(counter1.key_array().tolist()) == {'aap', 'noot', 'mies', 'kees', None}
+    assert counter1.counts().tolist() == [1, 1, 1, 1, 1]
+
 
 def test_set_string():
     set = ordered_set_string(1)
@@ -73,7 +85,7 @@ def test_set_float(repickle, nan, missing, nmaps):
     ordinals = oset.flatten_values(ordinals_local, map_index, ordinals)
     keys = oset.keys()
     # if missing:
-    #     ordinals[oset.null_value] = oset.null_value
+    #     ordinals[oset.null_index] = oset.null_index
     assert dropnan(np.take(keys, ordinals).tolist()) == dropnan(keys_expected)
 
     # plain object keys
@@ -83,44 +95,43 @@ def test_set_float(repickle, nan, missing, nmaps):
     assert dropnan(set(keys), expect=expect_nan) == dropnan(set(keys_expected), expect=expect_nan)
     assert oset.map_ordinal(keys).dtype.name == 'int8'
 
-
     # arrays
     keys = oset.key_array().tolist()
     if missing:
-        keys[oset.null_value] = None
+        keys[oset.null_index] = None
     assert dropnan(set(keys), expect=expect_nan) == dropnan(set(keys_expected), expect=expect_nan)
     if nan:
-        assert np.isnan(keys[oset.nan_value])
+        assert np.isnan(keys[oset.nan_index])
     ordinals = oset.map_ordinal(keys).tolist()
     if missing:
-        ordinals[oset.null_value] = oset.null_value
+        ordinals[oset.null_index] = oset.null_index
     assert ordinals == list(range(4))
 
     # tests extraction and constructor
     keys = oset.key_array()
-    set_copy = ordered_set_float64(keys, oset.null_value, oset.nan_count, oset.null_count, '')
+    set_copy = ordered_set_float64(keys, oset.null_index, oset.nan_count, oset.null_count, '')
     keys = set_copy.key_array().tolist()
     if missing:
-        keys[oset.null_value] = None
+        keys[oset.null_index] = None
     assert dropnan(set(keys)) == dropnan(set(keys_expected))
     if nan:
-         assert np.isnan(keys[set_copy.nan_value])
+         assert np.isnan(keys[set_copy.nan_index])
     ordinals = set_copy.map_ordinal(keys).tolist()
     if missing:
-        ordinals[set_copy.null_value] = set_copy.null_value
+        ordinals[set_copy.null_index] = set_copy.null_index
     assert ordinals == list(range(4))
 
     # test pickle
     set_copy = repickle(oset)
     keys = set_copy.key_array().tolist()
     if missing:
-        keys[oset.null_value] = None
+        keys[oset.null_index] = None
     assert dropnan(set(keys)) == dropnan(set(keys_expected))
     if nan:
-        assert np.isnan(keys[set_copy.nan_value])
+        assert np.isnan(keys[set_copy.nan_index])
     ordinals = set_copy.map_ordinal(keys).tolist()
     if missing:
-        ordinals[set_copy.null_value] = set_copy.null_value
+        ordinals[set_copy.null_index] = set_copy.null_index
     assert ordinals == list(range(4))
 
 
@@ -135,6 +146,7 @@ def test_set_string(repickle, missing, nmaps):
         ar[null_index] = None
         keys_expected[null_index] = None
         keys_expected = ar
+    arlist = ar
     ar = vaex.strings.array(ar)
     oset = ordered_set_string(nmaps)
     ordinals_local, map_index = oset.update(ar, return_values=True)
@@ -145,7 +157,6 @@ def test_set_string(repickle, missing, nmaps):
 
     # plain object keys
     oset.seal()
-    # import pdb; pdb.set_trace()
     keys = oset.keys()
     assert set(keys) == set(keys_expected)
     # return
@@ -157,17 +168,17 @@ def test_set_string(repickle, missing, nmaps):
     assert set(keys.tolist()) == set(keys_expected)
     ordinals = oset.map_ordinal(keys).tolist()
     if missing:
-        ordinals[oset.null_value] = oset.null_value
+        ordinals[oset.null_index] = oset.null_index
     assert ordinals == list(range(4))
 
     # tests extraction and constructor
     keys = oset.key_array()
-    set_copy = ordered_set_string(keys, oset.null_value, oset.nan_count, oset.null_count, '')
+    set_copy = ordered_set_string(keys, oset.null_index, oset.nan_count, oset.null_count, '')
     keys = set_copy.key_array()
     assert set(keys.tolist()) == set(keys_expected)
     ordinals = set_copy.map_ordinal(keys).tolist()
     if missing:
-        ordinals[set_copy.null_value] = set_copy.null_value
+        ordinals[set_copy.null_index] = set_copy.null_index
     assert ordinals == list(range(4))
 
     # test pickle
@@ -176,8 +187,28 @@ def test_set_string(repickle, missing, nmaps):
     assert set(keys.tolist()) == set(keys_expected)
     ordinals = set_copy.map_ordinal(keys).tolist()
     if missing:
-        ordinals[set_copy.null_value] = set_copy.null_value
+        ordinals[set_copy.null_index] = set_copy.null_index
     assert ordinals == list(range(4))
+
+    ar1 = vaex.strings.array(arlist[:2])
+    ar2 = vaex.strings.array(arlist[2:])
+    oset1 = ordered_set_string(nmaps)
+    oset1.update(ar1)
+    oset2 = ordered_set_string(nmaps)
+    oset2.update(ar2)
+    oset1.merge([oset2])
+    assert set(oset1.keys()) == set(keys_expected)
+    assert set(oset1.key_array().tolist()) == set(keys_expected)
+
+    ar1 = vaex.strings.array(arlist[:1])
+    ar2 = vaex.strings.array(arlist[1:])
+    oset1 = ordered_set_string(nmaps)
+    oset1.update(ar1)
+    oset2 = ordered_set_string(nmaps)
+    oset2.update(ar2)
+    oset1.merge([oset2])
+    assert set(oset1.keys()) == set(keys_expected)
+    assert set(oset1.key_array().tolist()) == set(keys_expected)
 
 
 def test_counter_float64(repickle):
@@ -437,3 +468,25 @@ def test_set_max_unique(buffer_size):
         # TODO: this does not happen any more if we have a single set/hashmap
         # with pytest.raises(vaex.RowLimitException, match='.*larger than.*'):
         #     df._set('x', unique_limit=len(df)-1)
+
+
+@pytest.mark.parametrize("nmaps", [1])#, 2, 3])
+def test_string_refs(nmaps):
+    strings = vaex.strings.array(['aap', 'noot', 'mies'])
+    oset = ordered_set_string(nmaps)
+    oset.update(strings, 0)
+    strings = oset.key_array()
+    refs = sys.getrefcount(strings)
+    assert refs == 2
+    assert set(strings.tolist()) == {'aap', 'noot', 'mies'}
+
+    set_copy = ordered_set_string(strings, 0, 0, 0, 'fingerprint')
+    assert sys.getrefcount(strings) == refs + 1
+    strings_copy = oset.key_array()
+    # assert sys.getrefcount(strings) == 2
+    assert set(strings_copy.tolist()) == {'aap', 'noot', 'mies'}
+
+    # assert index.map_index(strings).tolist() == [0, 1, 2]
+    # assert [k.tolist() for k in index.map_index_duplicates(strings, 0)] == [[], []]
+    # assert index.has_duplicates is False
+    # assert len(index) == 3
