@@ -24,7 +24,7 @@ inline bool _is_null(uint8_t *null_bitmap, size_t i) {
     }
 }
 
-class StringSequence {
+class StringSequence : public std::enable_shared_from_this<StringSequence> {
   public:
     StringSequence(size_t length, uint8_t *null_bitmap = nullptr, int64_t null_offset = 0) : length(length), null_bitmap(null_bitmap), null_offset(null_offset) {}
     virtual ~StringSequence() {}
@@ -487,19 +487,21 @@ class StringList : public StringSequenceBase {
     typedef IC index_type;
     typedef string_view value_value;
 
+
     StringList(char *bytes, size_t byte_length, index_type *indices, size_t length, size_t offset = 0, uint8_t *null_bitmap = 0, int64_t null_offset = 0)
         : StringSequenceBase(length, null_bitmap, null_offset), bytes(bytes), byte_length(byte_length), indices(indices), offset(offset), _own_bytes(false), _own_indices(false),
-          _own_null_bitmap(false) {}
+          _own_null_bitmap(false), indices_length(length+1) {}
     StringList(size_t byte_length, size_t string_count, index_type *indices, size_t offset = 0, uint8_t *null_bitmap = 0)
-        : StringSequenceBase(string_count, null_bitmap), bytes(0), byte_length(byte_length), indices(indices), offset(offset), _own_bytes(true), _own_indices(false), _own_null_bitmap(false) {
+        : StringSequenceBase(string_count, null_bitmap), bytes(0), byte_length(byte_length), indices(indices), offset(offset), _own_bytes(true), _own_indices(false), _own_null_bitmap(false), indices_length(length+1) {
         bytes = (char *)malloc(byte_length);
         _own_bytes = true;
     }
-    StringList(size_t byte_length, size_t string_count, size_t offset = 0, uint8_t *null_bitmap = 0, int64_t null_offset = 0)
-        : StringSequenceBase(string_count, null_bitmap, null_offset), bytes(0), byte_length(byte_length), indices(0), offset(offset), _own_bytes(true), _own_indices(true), _own_null_bitmap(false) {
+    StringList(size_t byte_length=0, size_t string_count=0, size_t offset = 0, uint8_t *null_bitmap = 0, int64_t null_offset = 0)
+        : StringSequenceBase(string_count, null_bitmap, null_offset), bytes(0), byte_length(byte_length), indices(0), offset(offset), _own_bytes(true), _own_indices(true), _own_null_bitmap(false), indices_length(length+1) {
         bytes = (char *)malloc(byte_length);
         indices = (index_type *)malloc(sizeof(index_type) * (length + 1));
         _own_bytes = true;
+        indices[0] = 0;
     }
     virtual ~StringList() {
         if (_own_bytes) {
@@ -526,6 +528,11 @@ class StringList : public StringSequenceBase {
         byte_length *= 2;
         byte_length = byte_length == 0 ? 1 : byte_length;
         bytes = (char *)realloc(bytes, byte_length);
+    }
+    void grow_indices() {
+        indices_length *= 2;
+        indices_length = indices_length == 0 ? 1 : indices_length;
+        indices = (index_type *)realloc(indices, indices_length * sizeof(index_type));
     }
     virtual StringSequenceBase *capitalize();
     // a slice for when the indices are not filled yet
@@ -683,10 +690,33 @@ class StringList : public StringSequenceBase {
         size_t count = end - start;
         return std::string(bytes + start, count);
     }
+    virtual void push_null() {
+        string_view empty("");
+        push(empty);
+        this->ensure_null_bitmap();
+        this->set_null(this->length-1);
+    }
+    virtual void push(string_view str) {
+        // indices_length should always be at least length + 1
+        if(indices_length <= (this->length + 1)) {
+            this->grow_indices();
+        }
+        size_t byte_offset = indices[this->length];
+        int64_t length = str.length();
+        while ((byte_offset + length) > byte_length) {
+            this->grow();
+        }
+        std::copy(str.begin(), str.end(), bytes + byte_offset);
+        indices[++this->length] = byte_offset + length;
+    }
+    virtual string_view end() const {
+        return this->view(this->length-1);
+    }
 
   public:
     char *bytes;
     size_t byte_length;
+    size_t indices_length;
     index_type *indices;
     /* in order to make zero copy slices, the indices will need to be 'corrected' by the offset */
     size_t offset;

@@ -1054,9 +1054,9 @@ class Expression(with_metaclass(Meta)):
             else:
                 null_offset = 0
             if dropmissing and counter.has_null:
-                deletes.append(null_offset)
+                deletes.append(counter.null_index)
             if dropnan and counter.has_nan:
-                deletes.append(0)
+                deletes.append(counter.nan_index)
             if vaex.array_types.is_arrow_array(keys):
                 indices = np.delete(np.arange(len(keys)), deletes)
                 keys = keys.take(indices)

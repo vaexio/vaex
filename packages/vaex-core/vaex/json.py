@@ -125,14 +125,14 @@ class OrdererSetSerializer:
         keys = obj.keys()
         clsname = obj.__class__.__name__
         return {
-            'type': clsname,
-            'data': {
-                'keys': keys,
-                'null_value': obj.null_value,
-                'nan_count': obj.nan_count,
-                'missing_count': obj.null_count,
-                'fingerprint': obj.fingerprint,
-            }
+            "type": clsname,
+            "data": {
+                "keys": keys,
+                "null_index": obj.null_index,
+                "nan_count": obj.nan_count,
+                "missing_count": obj.null_count,
+                "fingerprint": obj.fingerprint,
+            },
         }
 
     @staticmethod
@@ -147,7 +147,7 @@ class OrdererSetSerializer:
         keys = data['data']['keys']
         if "string" in clsname:
             keys = vaex.strings.to_string_sequence(keys)
-        value = cls(keys, data['data']['null_value'], data['data']['nan_count'], data['data']['missing_count'], data['data']['fingerprint'])
+        value = cls(keys, data["data"]["null_index"], data["data"]["nan_count"], data["data"]["missing_count"], data["data"]["fingerprint"])
         return value
 
 
