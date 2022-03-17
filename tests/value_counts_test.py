@@ -124,3 +124,9 @@ def test_value_counts_list(df_types):
     vc = df.int_list.value_counts()
     assert vc[1] == 2
     assert vc[2] == 1
+
+def test_value_counts_small_chunk_size():
+    df = vaex.datasets.iris()
+    df.executor.chunk_size = 3
+    result = df[df.petal_width > 1].class_.value_counts()
+    assert result.tolist() == [50, 43]
