@@ -1004,7 +1004,10 @@ class Expression(with_metaclass(Meta)):
             if counters[thread_index] is None:
                 counters[thread_index] = counter_type(1)
             if data_type.is_list and axis is None:
-                ar = ar.values
+                try:
+                    ar = ar.values
+                except AttributeError:  # pyarrow ChunkedArray
+                    ar = ar.combine_chunks().values
             if data_type_item.is_string:
                 ar = _to_string_sequence(ar)
             else:
