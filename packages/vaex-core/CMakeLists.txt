@@ -56,6 +56,7 @@ add_library("superagg" MODULE
     "src/agg_nunique.cpp"
     "src/agg_sum.cpp"
     "src/agg_first.cpp"
+    "src/agg_list.cpp"
     "src/agg_count.cpp"
     "src/agg.cpp"
     "src/binner_combined.cpp"

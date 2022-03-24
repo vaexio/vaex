@@ -637,10 +637,10 @@ class TaskPartAggregation(TaskPart):
                 grid = agg_desc.get_result(aggregation[selection_index])
                 grids.append(grid)
             result = np.asarray(grids) if selection_waslist else grids[0]
-            if agg_desc.dtype_out != str:
+            if agg_desc.dtype_out.is_primitive or agg_desc.dtype_out.is_temporal:
                 dtype_out = agg_desc.dtype_out.to_native()
                 result = result.view(dtype_out.numpy)
-            result = result.copy()
+                result = result.copy()
             results.append(result)
         return results
 

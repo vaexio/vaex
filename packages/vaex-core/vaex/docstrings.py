@@ -44,3 +44,6 @@ _doc_snippets['random_state'] = 'Sets a seed or `RandomState` for reproducabilit
 _doc_snippets['trim'] = 'Trim off begin or end of dataframe to avoid missing values'
 _doc_snippets['limit'] = 'Limit the amount of results'
 _doc_snippets['limit_raise'] = 'Raise :exception:`vaex.RowLimitException` when limit is exceeded, or return at maximum \'limit\' amount of results.'
+_doc_snippets['dropmissing'] = 'Drop rows with missing values'
+_doc_snippets['dropnan'] = 'Drop rows with NaN values'
+_doc_snippets['dropna'] = 'Drop rows with Not Available (NA) values (NaN or missing values).'

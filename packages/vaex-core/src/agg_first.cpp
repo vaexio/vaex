@@ -181,7 +181,7 @@ void add_agg_first_primitive_mixed(py::module &m, const py::class_<Aggregator> &
     class_name += type_name<T2>::value;
     class_name += FlipEndian ? "_non_native" : "";
     using Class = AggFirstPrimitive<T, T2, default_index_type, FlipEndian>;
-    py::class_<Class>(m, class_name.c_str(), base).def(py::init<Grid<> *, int, int, bool>(), py::keep_alive<1, 2>()).def_buffer(&Class::buffer_info); // .def("set_data_mask2", &Class::set_data_mask2)
+    py::class_<Class>(m, class_name.c_str(), base).def(py::init<Grid<> *, int, int, bool>(), py::keep_alive<1, 2>()).def_buffer(&agg_buffer_info<Class>); // .def("set_data_mask2", &Class::set_data_mask2)
     // .def("clear_data_mask2", &Class::clear_data_mask2);
 }
 

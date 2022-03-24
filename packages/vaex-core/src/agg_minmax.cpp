@@ -150,7 +150,7 @@ void add_agg_min_primitive(py::module &m, const py::class_<Aggregator> &base) {
     class_name += type_name<T>::value;
     class_name += FlipEndian ? "_non_native" : "";
     using Class = AggMinPrimitive<T, default_index_type, FlipEndian>;
-    py::class_<Class>(m, class_name.c_str(), base).def(py::init<Grid<> *, int, int>(), py::keep_alive<1, 2>()).def_buffer(&Class::buffer_info);
+    py::class_<Class>(m, class_name.c_str(), base).def(py::init<Grid<> *, int, int>(), py::keep_alive<1, 2>()).def_buffer(&agg_buffer_info<Class>);
 }
 
 template <class T, bool FlipEndian>
@@ -159,7 +159,7 @@ void add_agg_max_primitive(py::module &m, const py::class_<Aggregator> &base) {
     class_name += type_name<T>::value;
     class_name += FlipEndian ? "_non_native" : "";
     using Class = AggMaxPrimitive<T, default_index_type, FlipEndian>;
-    py::class_<Class>(m, class_name.c_str(), base).def(py::init<Grid<> *, int, int>(), py::keep_alive<1, 2>()).def_buffer(&Class::buffer_info);
+    py::class_<Class>(m, class_name.c_str(), base).def(py::init<Grid<> *, int, int>(), py::keep_alive<1, 2>()).def_buffer(&agg_buffer_info<Class>);
 }
 
 #define create(type)                                                                                                                                                                                   \

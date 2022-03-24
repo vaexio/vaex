@@ -36,9 +36,9 @@ class BinnerBase:
         # gets rid of the nan and out of bound values
         slices = [
             slice(None, None),
-        ] * ar.ndim
+        ] * vaex.array_types.ndim(ar)
         slices[dim] = slice(2, -1)
-        return ar[tuple(slices)]
+        return vaex.array_types.getitem(ar, tuple(slices))
 
 class Binner(BinnerBase):
     dense = False
@@ -138,9 +138,9 @@ class BinnerTime(BinnerBase):
         # gets rid of the nan and out of bound values
         slices = [
             slice(None, None),
-        ] * ar.ndim
+        ] * vaex.array_types.ndim(ar)
         slices[dim] = slice(0, -2) # remove null and nan
-        return ar[tuple(slices)]
+        return vaex.array_types.getitem(ar, tuple(slices))
 
 class BinnerInteger(BinnerBase):
     '''Bins an expression into it's natural bin (i.e. 5 for the number 5)
@@ -208,12 +208,12 @@ class BinnerInteger(BinnerBase):
         # indices = n
         slices = [
             slice(None, None),
-        ] * ar.ndim
+        ] * vaex.array_types.ndim(ar)
         if self.dropmissing:
             slices[dim] = slice(0, -2)  # remove null and nan
         else:
             slices[dim] = slice(0, -1)  # remove nan
-        return ar[tuple(slices)]
+        return vaex.array_types.getitem(ar, tuple(slices))
 
     def _create_binner(self, df: DataFrame):
         assert df.dataset == self.df.dataset, "you passed a dataframe with a different dataset to the grouper/binned"
@@ -317,12 +317,12 @@ class Grouper(BinnerBase):
     def extract_center(self, dim, ar):
         slices = [
             slice(None, None),
-        ] * ar.ndim
+        ] * vaex.array_types.ndim(ar)
         if _EXPERIMENTAL_BINNER_HASH:
             slices[dim] = slice(1, -1)
         else:
             slices[dim] = slice(0, -2)  # remove null and nan, actually null in grouper is part of the 'dictionary' (self.bin_values)
-        return ar[tuple(slices)]
+        return vaex.array_types.getitem(ar, tuple(slices))
 
 
 class GrouperCombined(Grouper):
@@ -459,9 +459,9 @@ class GrouperCategory(BinnerBase):
     def extract_center(self, dim, ar):
         slices = [
             slice(None, None),
-        ] * ar.ndim
+        ] * vaex.array_types.ndim(ar)
         slices[dim] = slice(0, -2)  # again, null is in the dictionary
-        return ar[tuple(slices)]
+        return vaex.array_types.getitem(ar, tuple(slices))
 
 class GrouperLimited(BinnerBase):
     """Group to a limited set of values, store the rest in an (optional) other bin"""
@@ -516,9 +516,9 @@ class GrouperLimited(BinnerBase):
         # indices = n
         slices = [
             slice(None, None),
-        ] * ar.ndim
+        ] * vaex.array_types.ndim(ar)
         slices[dim] = slice(0, -2)  # remove null values
-        return ar[tuple(slices)]
+        return vaex.array_types.getitem(ar, tuple(slices))
 
 
 def _combine(df, groupers, sort, row_limit=None, progress=None):
@@ -886,7 +886,8 @@ class GroupBy(GroupByBase):
             logger.info(f"aggregated on grid, constructing dataframe...")
             if counts is not None:
                 for name, array in arrays.items():
-                    if array.shape != counts.shape:
+
+                    if vaex.array_types.shape(array) != vaex.array_types.shape(counts):
                         raise RuntimeError(f'{array} {name} has shape {array.shape} while we expected {counts.shape}')
 
             arrays = {key: self._extract_center(value) for key, value in arrays.items()}
@@ -937,7 +938,11 @@ class GroupBy(GroupByBase):
                     # if we want all, just take it all
                     # should be faster
                     for key, value in arrays.items():
-                        columns[key] = value.ravel()
+                        if vaex.array_types.ndim(value) > 1:
+                            # only happens for numpy
+                            columns[key] = value.ravel()
+                        else:
+                            columns[key] = value
                 else:
                     for key, value in arrays.items():
                         columns[key] = value[mask]
