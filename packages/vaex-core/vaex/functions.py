@@ -228,6 +228,8 @@ def ismissing(x):
 
 @register_function()
 def notmissing(x):
+    if isinstance(x, vaex.array_types.supported_arrow_array_types):
+        return pa.compute.invert(ismissing(x))
     return ~ismissing(x)
 
 
@@ -250,6 +252,8 @@ def isnan(x):
 
 @register_function()
 def notnan(x):
+    if isinstance(x, vaex.array_types.supported_arrow_array_types):
+        return pa.compute.invert(isnan(x))
     return ~isnan(x)
 
 
@@ -262,6 +266,8 @@ def isna(x):
 @register_function()
 def notna(x):
     """Opposite of isna"""
+    if isinstance(x, vaex.array_types.supported_arrow_array_types):
+        return pa.compute.invert(isna(x))
     return ~isna(x)
 
 

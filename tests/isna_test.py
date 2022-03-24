@@ -1,5 +1,6 @@
 import vaex
 import numpy as np
+import pyarrow as pa
 
 def test_is_missing():
     s = vaex.string_column(["aap", None, "noot", "mies"])
@@ -67,3 +68,16 @@ def test_notna():
 
     assert df.x.notna().tolist() == pandas_df.x.notna().tolist()
     assert df.y.notna().tolist() == pandas_df.y.notna().tolist()
+
+
+def test_notna_arrow():
+    x = pa.array(['Apple', None, 'Orange'])
+    y = pa.array([1, None, 3.5])
+    z = np.array([1, np.nan, 3.5])
+    df = vaex.from_arrays(x=x, y=y, z=z)
+
+    assert df.x.notmissing().tolist() == [True, False, True]
+    assert df.y.notna().tolist() == [True, False, True]
+    assert df.y.notnan().tolist() == [True, True, True]
+    assert df.z.notnan().tolist() == [True, False, True]
+    assert df.z.notna().tolist() == [True, False, True]
