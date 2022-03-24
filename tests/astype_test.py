@@ -28,9 +28,12 @@ def test_astype_to_str(array_factory):
 
 def test_astype_numeric(array_factory):
     df = vaex.from_arrays(x=array_factory([1, 2, None]))
+    assert df.x.astype('float').tolist() == [1., 2., None]
     assert df.x.astype('float32').tolist() == [1., 2., None]
     assert df.x.astype('float64').tolist() == [1., 2., None]
-    assert df.x.astype('int8').tolist() == [1., 2., None]
+    assert df.x.astype('int8').tolist() == [1, 2, None]
+    assert df.x.astype('int').tolist() == [1, 2, None]
+
 
 
 def test_astype_dtype():

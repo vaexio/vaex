@@ -2540,6 +2540,9 @@ def _astype(x, dtype):
                     units = 'ns'
                 dtype = pa.duration(units)
 
+        if dtype == 'int':  # "int" is not automatically recognized by arrow, unlike "float" for example.
+            dtype = pa.int64()
+
         y = x.cast(dtype, safe=False)
         return y
     else:  # numpy case
