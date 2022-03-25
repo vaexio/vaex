@@ -248,10 +248,10 @@ class HashMapUnique:
     def null_count(self):
         return self._internal.null_count
 
-    def sorted(self, keys=None, indices=None, return_keys=False):
+    def sorted(self, keys=None, ascending=True, indices=None, return_keys=False):
         keys = self.keys() if keys is None else keys
         keys = vaex.array_types.to_arrow(keys)
-        indices = pa.compute.sort_indices(keys) if indices is None else indices
+        indices = pa.compute.sort_indices(keys, sort_keys=[('x', "ascending" if ascending else "descending")]) if indices is None else indices
         # arrow sorts with null last
         null_index = -1 if not self.has_null else len(keys)-1
         keys = pa.compute.take(keys, indices)

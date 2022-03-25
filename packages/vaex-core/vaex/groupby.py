@@ -6,6 +6,7 @@ import six
 
 import numpy as np
 import pyarrow as pa
+from vaex.dataframe import DataFrame
 
 from vaex.delayed import delayed_args, delayed_dict, delayed_list
 from vaex.utils import _ensure_list, _ensure_string_from_expression
@@ -150,7 +151,7 @@ class BinnerInteger(BinnerBase):
     pre_sort = True
     sort = True
 
-    def __init__(self, expression, label=None, dropmissing=False, min_value=None, max_value=None, dense=False):
+    def __init__(self, expression, label=None, dropmissing=False, min_value=None, max_value=None, dense=False, sort=False, ascending=True):
         self.expression = expression
         self.df = expression.df
         self.dtype = self.expression.dtype
@@ -158,37 +159,47 @@ class BinnerInteger(BinnerBase):
         self.min_value = 0
         self.dropmissing = dropmissing
         def make_array_with_null(vmin, vmax, dtype='int64'):
-            values = np.arange(vmin, vmax+1, dtype=dtype)
-            mask = np.zeros(values.shape, dtype='?')
-            mask[len(values)-1] = 1
-            values[len(values)-1] = 0
+            if sort and not ascending:
+                values = np.arange(vmax - 1, vmin - 2, -1, dtype=dtype)
+            else:
+                values = np.arange(vmin, vmax + 1, dtype=dtype)
+            mask = np.zeros(values.shape, dtype="?")
+            mask[len(values) - 1] = 1
+            values[len(values) - 1] = 0
             return np.ma.array(values, mask=mask, shrink=False)
 
         self.dense = dense
         if self.dtype.numpy == np.dtype('bool'):
-            self.binby_expression = str(self.expression)
-            self.bin_values = vaex.array_types.to_numpy(pa.array([False, True, None]))
+            if sort and not ascending:
+                self.bin_values = vaex.array_types.to_numpy(pa.array([False, True, None]))
+            else:
+                self.bin_values = vaex.array_types.to_numpy(pa.array([False, True, None]))
             self.N = 2
         elif self.dtype.numpy == np.dtype('uint8'):
-            self.binby_expression = str(self.expression)
             self.bin_values = make_array_with_null(0, 256)
             self.N = 256
         elif self.dtype.numpy == np.dtype('int8'):
             self.min_value = -128
-            self.binby_expression = str(self.expression)
             self.bin_values = make_array_with_null(-128, 128)
             self.N = 256
         elif min_value is not None and max_value is not None:
             self.min_value = min_value
             self.N = int(max_value - min_value + 1)
-            self.binby_expression = str(self.expression)
             self.bin_values = make_array_with_null(min_value, max_value + 1)
         else:
             raise TypeError(f"Only boolean, int8 and uint8 are supported, not {self.dtype}, or private min_value and max_value")
         if self.dropmissing:
             # if we remove the missing values, we are already sorted
             self.bin_values = self.bin_values[:-1]
-        self.combine_expression = self.df[self.binby_expression].fillmissing(self.N).expression
+        self.binby_expression = str(self.expression)
+        # no need to invert if we don't sort, but sort is always implicit
+        self.invert = sort and not ascending
+        if self.invert:
+            # invert the range, taking into account min_value
+            self.combine_expression = (self.N - 1 - (self.df[self.binby_expression] - self.min_value) + self.min_value).fillmissing(self.N).expression
+        else:
+            self.combine_expression = self.df[self.binby_expression].fillmissing(self.N).expression
+        # self.combine_expression.expression = self.combine_expression.expression
         self.sort_indices = None
         self._promise = vaex.promise.Promise.fulfilled(None)
 
@@ -204,10 +215,10 @@ class BinnerInteger(BinnerBase):
             slices[dim] = slice(0, -1)  # remove nan
         return ar[tuple(slices)]
 
-    def _create_binner(self, df):
+    def _create_binner(self, df: DataFrame):
         assert df.dataset == self.df.dataset, "you passed a dataframe with a different dataset to the grouper/binned"
         self.df = df
-        self.binner = self.df._binner_ordinal(self.binby_expression, self.N, self.min_value)
+        self.binner = self.df._binner_ordinal(self.binby_expression, self.N, self.min_value, self.invert)
 
 
 class Grouper(BinnerBase):
@@ -215,7 +226,7 @@ class Grouper(BinnerBase):
 
     dense = True
 
-    def __init__(self, expression, df=None, sort=False, pre_sort=True, row_limit=None, df_original=None, materialize_experimental=False, progress=None, allow_simplify=False):
+    def __init__(self, expression, df=None, sort=False, ascending=True, pre_sort=True, row_limit=None, df_original=None, materialize_experimental=False, progress=None, allow_simplify=False):
         self.df = df or expression.ds
         self.sort = sort
         self.pre_sort = pre_sort
@@ -245,7 +256,7 @@ class Grouper(BinnerBase):
             self.sort_indices = None
         else:
             @vaex.delayed
-            def process(hashmap_unique):
+            def process(hashmap_unique: vaex.hash.HashMapUnique):
                 self.bin_values = hashmap_unique.keys()
                 if self.allow_simplify and dtype == int and len(self.bin_values):
                     vmin = self.bin_values.min()
@@ -255,7 +266,7 @@ class Grouper(BinnerBase):
                     bins = len(self.bin_values)
                     if int_range <= (bins * 4 / 3):
                         dense = bins == int_range
-                        self.simpler = BinnerInteger(self.expression, min_value=vmin, max_value=vmax, dropmissing=not hashmap_unique.has_null, dense=dense)
+                        self.simpler = BinnerInteger(self.expression, min_value=vmin, max_value=vmax, dropmissing=not hashmap_unique.has_null, dense=dense, sort=sort, ascending=ascending)
                         return
 
                 if vaex.dtype_of(self.bin_values) == int and len(self.bin_values):
@@ -265,10 +276,10 @@ class Grouper(BinnerBase):
 
                 if self.sort:
                     if pre_sort:
-                        hashmap_unique, self.bin_values = hashmap_unique.sorted(keys=self.bin_values, return_keys=True)
+                        hashmap_unique, self.bin_values = hashmap_unique.sorted(keys=self.bin_values, ascending=ascending, return_keys=True)
                         self.sort_indices = None
                     else:
-                        indices = pa.compute.sort_indices(self.bin_values)
+                        indices = pa.compute.sort_indices(self.bin_values, sort_keys=[("x", "ascending" if ascending else "descending")])
                         self.sort_indices = vaex.array_types.to_numpy(indices)
                         # the bin_values will still be pre sorted, maybe that is confusing (implementation detail)
                         self.bin_values = pa.compute.take(self.bin_values, self.sort_indices)
@@ -387,7 +398,7 @@ class GrouperCategory(BinnerBase):
 
     dense = True
 
-    def __init__(self, expression, df=None, sort=False, row_limit=None, pre_sort=True):
+    def __init__(self, expression, df=None, sort=False, ascending=True, row_limit=None, pre_sort=True):
         self.df = df or expression.ds
         self.sort = sort
         self.pre_sort = pre_sort
@@ -404,7 +415,7 @@ class GrouperCategory(BinnerBase):
         dtype = self.expression.dtype  # should be the dtype of the 'codes'
         if self.sort:
             # not pre-sorting is faster
-            sort_indices = pa.compute.sort_indices(self.bin_values)
+            sort_indices = pa.compute.sort_indices(self.bin_values, sort_keys=[("x", "ascending" if ascending else "descending")])
             self.bin_values = pa.compute.take(self.bin_values, sort_indices)
             if self.pre_sort:
                 # we will map from int to int
@@ -457,7 +468,7 @@ class GrouperLimited(BinnerBase):
 
     dense = True
 
-    def __init__(self, expression, values, keep_other=True, other_value=None, sort=False, label=None, df=None):
+    def __init__(self, expression, values, keep_other=True, other_value=None, sort=False, ascending=True, label=None, df=None):
         self.df = df or expression.df
         self.sort = sort
         self.pre_sort = True
@@ -467,7 +478,7 @@ class GrouperLimited(BinnerBase):
         if isinstance(values, pa.ChunkedArray):
             values = pa.concat_arrays(values.chunks)
         if sort:
-            indices = pa.compute.sort_indices(values)
+            indices = pa.compute.sort_indices(values, sort_keys=[("x", "ascending" if ascending else "descending")])
             values = pa.compute.take(values, indices)
 
         if self.keep_other:
@@ -567,14 +578,29 @@ def _combine(df, groupers, sort, row_limit=None, progress=None):
         return combine(grouper._promise)
     return grouper._promise.then(lambda x: grouper)
 
+
+def grouper(df, column, sort=False, ascending=True, row_limit=None, df_original=None, progress=None):
+    if df_original is None:
+        df_original = df
+    expression = df[_ensure_string_from_expression(column)]
+    if df.is_category(column):
+        by_value = GrouperCategory(expression, sort=sort, ascending=ascending, row_limit=row_limit)
+    else:
+        dtype = expression.dtype
+        if dtype == np.dtype("uint8") or dtype == np.dtype("int8") or dtype == np.dtype("bool"):
+            by_value = BinnerInteger(expression, sort=sort, ascending=ascending)  # always sorted, and pre_sorted
+        else:
+            # we cannot mix _combine with BinnerInteger yet
+            by_value = Grouper(expression, sort=sort, ascending=ascending, row_limit=row_limit, df_original=df_original, progress=progress, allow_simplify=True)
+    return by_value
+
 class GroupByBase(object):
-    def __init__(self, df, by, sort=False, combine=False, expand=True, row_limit=None, copy=True, progress=None):
+    def __init__(self, df, by, sort=False, ascending=True, combine=False, expand=True, row_limit=None, copy=True, progress=None):
         '''Note that row_limit only works in combination with combine=True'''
         df_original = df
         if copy:
             df = df.copy() # we will mutate the df (Add variables), this will keep the original dataframe unchanged
         self.df = df
-        self.sort = sort
         self.expand = expand  # keep as pyarrow struct?
         self.progressbar = vaex.utils.progressbars(progress)
         self.progressbar_groupers = self.progressbar.add("groupers")
@@ -583,20 +609,24 @@ class GroupByBase(object):
             or isinstance(by, six.string_types):
             by = [by]
 
+        if isinstance(ascending, (list, tuple)):
+            assert len(ascending) == len(by), 'If "ascending" is a list, it must have the same number of elements as "by".'
+        else:
+            ascending = [ascending] * len(by)
+
+        if isinstance(sort, (list, tuple)):
+            assert len(sort) == len(by), 'If "sort" is a list, it must have the same number of elements as "by".'
+        else:
+            sort = [sort] * len(by)
+        self.sort = sort
+        self.ascending = ascending
+
         self.by = []
         self.by_original = by
-        for by_value in by:
+        for by_value, sort, ascending in zip(by, self.sort, self.ascending):
             if not isinstance(by_value, BinnerBase):
                 expression = df[_ensure_string_from_expression(by_value)]
-                if df.is_category(by_value):
-                    by_value = GrouperCategory(expression, sort=sort, row_limit=row_limit)
-                else:
-                    dtype = expression.dtype
-                    if dtype == np.dtype('uint8') or dtype == np.dtype('int8') or dtype == np.dtype('bool'):
-                        by_value = BinnerInteger(expression)  # always sorted, and pre_sorted
-                    else:
-                        # we cannot mix _combine with BinnerInteger yet
-                        by_value = Grouper(expression, sort=sort, row_limit=row_limit, df_original=df_original, progress=self.progressbar_groupers, allow_simplify=True)
+                by_value = grouper(df, by_value, row_limit=row_limit, df_original=df_original, progress=self.progressbar_groupers, sort=sort, ascending=ascending)
             self.by.append(by_value)
         @vaex.delayed
         def possible_combine(*binner_promises):
@@ -786,8 +816,9 @@ class GroupByBase(object):
 
 class BinBy(GroupByBase):
     """Implementation of the binning and aggregation of data, see :method:`binby`."""
-    def __init__(self, df, by, sort=False, progress=None, copy=True):
-        super(BinBy, self).__init__(df, by, sort=sort, progress=progress, copy=copy)
+
+    def __init__(self, df, by, sort=False, ascending=True, progress=None, copy=True):
+        super(BinBy, self).__init__(df, by, sort=sort, ascending=ascending, progress=progress, copy=copy)
 
     def agg(self, actions, merge=False, delay=False, progress=None):
         progressbar_agg = vaex.progress.tree(progress)
@@ -827,8 +858,9 @@ class BinBy(GroupByBase):
 
 class GroupBy(GroupByBase):
     """Implementation of the binning and aggregation of data, see :method:`groupby`."""
-    def __init__(self, df, by, sort=False, combine=False, expand=True, row_limit=None, copy=True, progress=None):
-        super(GroupBy, self).__init__(df, by, sort=sort, combine=combine, expand=expand, row_limit=row_limit, copy=copy, progress=progress)
+
+    def __init__(self, df, by, sort=False, ascending=True, combine=False, expand=True, row_limit=None, copy=True, progress=None):
+        super(GroupBy, self).__init__(df, by, sort=sort, ascending=ascending, combine=combine, expand=expand, row_limit=row_limit, copy=copy, progress=progress)
 
     def agg(self, actions, delay=False, progress=None):
         progressbar = vaex.progress.tree(progress, title="aggregators")

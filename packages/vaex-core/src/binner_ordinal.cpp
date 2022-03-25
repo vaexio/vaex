@@ -8,87 +8,166 @@ class BinnerOrdinal : public Binner {
   public:
     // format of bins is [bin0, bin1, ..., binN-1, [other], null, nan]
     // where other is optional, otherwise negative of out of bound values to into the null bin
+    // if invert is true: [binN-1, ..., bin1, bin0, [other], null, nan]
     using index_type = BinIndexType;
-    BinnerOrdinal(int threads, std::string expression, int64_t ordinal_count, int64_t min_value = 0, bool allow_other = false)
+    BinnerOrdinal(int threads, std::string expression, int64_t ordinal_count, int64_t min_value = 0, bool allow_other = false, bool invert = false)
         : Binner(threads, expression), ordinal_count(ordinal_count), min_value(min_value), data_ptr(threads), data_size(threads), data_mask_ptr(threads), data_mask_size(threads),
-          allow_other(allow_other) {}
+          allow_other(allow_other), invert(invert) {}
     BinnerOrdinal *copy() { return new BinnerOrdinal(*this); }
     virtual ~BinnerOrdinal() {}
     virtual void to_bins(int thread, uint64_t offset, index_type *output, uint64_t length, uint64_t stride) {
         T *data_ptr = this->data_ptr[thread];
         auto data_mask_ptr = this->data_mask_ptr[thread];
-        if (allow_other) {
-            if (data_mask_ptr) {
-                for (uint64_t i = offset; i < offset + length; i++) {
-                    int64_t value = data_ptr[i] - min_value;
-                    if (FlipEndian) {
-                        value = _to_native<>(value);
+        if(invert) {
+            if (allow_other) {
+                if (data_mask_ptr) {
+                    for (uint64_t i = offset; i < offset + length; i++) {
+                        int64_t value = data_ptr[i] - min_value;
+                        if (FlipEndian) {
+                            value = _to_native<>(value);
+                        }
+                        index_type index = 0;
+                        // this followes numpy, 1 is masked
+                        bool masked = data_mask_ptr[i] == 1;
+                        if (value != value) { // nan
+                            index = ordinal_count + 2;
+                        } else if (masked) { // missing/null
+                            index = ordinal_count + 1;
+                        } else if ((value < 0) || (value >= ordinal_count)) { // 'other'
+                            index = ordinal_count;
+                        } else {
+                            index = ordinal_count - 1 - value;
+                        }
+                        output[i - offset] += index * stride;
                     }
-                    index_type index = 0;
-                    // this followes numpy, 1 is masked
-                    bool masked = data_mask_ptr[i] == 1;
-                    if (value != value) { // nan
-                        index = ordinal_count + 2;
-                    } else if (masked) { // missing/null
-                        index = ordinal_count + 1;
-                    } else if ((value < 0) || (value >= ordinal_count)) { // 'other'
-                        index = ordinal_count;
-                    } else {
-                        index = value;
+                } else {
+                    for (uint64_t i = offset; i < offset + length; i++) {
+                        int64_t value = data_ptr[i] - min_value;
+                        if (FlipEndian) {
+                            value = _to_native<>(value);
+                        }
+                        index_type index = 0;
+                        if (value != value) { // nan
+                            index = ordinal_count + 2;
+                        } else if ((value < 0) || (value >= ordinal_count)) { // 'other'
+                            index = ordinal_count;
+                        } else {
+                            index = ordinal_count - 1 - value;
+                        }
+                        output[i - offset] += index * stride;
                     }
-                    output[i - offset] += index * stride;
                 }
             } else {
-                for (uint64_t i = offset; i < offset + length; i++) {
-                    int64_t value = data_ptr[i] - min_value;
-                    if (FlipEndian) {
-                        value = _to_native<>(value);
+                if (data_mask_ptr) {
+                    for (uint64_t i = offset; i < offset + length; i++) {
+                        int64_t value = data_ptr[i] - min_value;
+                        if (FlipEndian) {
+                            value = _to_native<>(value);
+                        }
+                        index_type index = 0;
+                        // this followes numpy, 1 is masked
+                        bool masked = data_mask_ptr[i] == 1;
+                        if (value != value) { // nan
+                            index = ordinal_count + 1;
+                        } else if (masked || (value < 0) || (value >= ordinal_count)) { // negative values are interpreted as null, as well as out of bound
+                            index = ordinal_count;
+                        } else {
+                            index = ordinal_count - 1 - value;
+                        }
+                        output[i - offset] += index * stride;
                     }
-                    index_type index = 0;
-                    if (value != value) { // nan
-                        index = ordinal_count + 2;
-                    } else if ((value < 0) || (value >= ordinal_count)) { // 'other'
-                        index = ordinal_count;
-                    } else {
-                        index = value;
+                } else {
+                    for (uint64_t i = offset; i < offset + length; i++) {
+                        int64_t value = data_ptr[i] - min_value;
+                        if (FlipEndian) {
+                            value = _to_native<>(value);
+                        }
+                        index_type index = 0;
+                        if (value != value) { // nan
+                            index = ordinal_count + 1;
+                        } else if ((value < 0) || (value >= ordinal_count)) { // negative values are interpreted as null, as well as out of bound
+                            index = ordinal_count;
+                        } else {
+                            index = ordinal_count - 1 - value;
+                        }
+                        output[i - offset] += index * stride;
                     }
-                    output[i - offset] += index * stride;
                 }
             }
         } else {
-            if (data_mask_ptr) {
-                for (uint64_t i = offset; i < offset + length; i++) {
-                    int64_t value = data_ptr[i] - min_value;
-                    if (FlipEndian) {
-                        value = _to_native<>(value);
+            if (allow_other) {
+                if (data_mask_ptr) {
+                    for (uint64_t i = offset; i < offset + length; i++) {
+                        int64_t value = data_ptr[i] - min_value;
+                        if (FlipEndian) {
+                            value = _to_native<>(value);
+                        }
+                        index_type index = 0;
+                        // this followes numpy, 1 is masked
+                        bool masked = data_mask_ptr[i] == 1;
+                        if (value != value) { // nan
+                            index = ordinal_count + 2;
+                        } else if (masked) { // missing/null
+                            index = ordinal_count + 1;
+                        } else if ((value < 0) || (value >= ordinal_count)) { // 'other'
+                            index = ordinal_count;
+                        } else {
+                            index = value;
+                        }
+                        output[i - offset] += index * stride;
                     }
-                    index_type index = 0;
-                    // this followes numpy, 1 is masked
-                    bool masked = data_mask_ptr[i] == 1;
-                    if (value != value) { // nan
-                        index = ordinal_count + 1;
-                    } else if (masked || (value < 0) || (value >= ordinal_count)) { // negative values are interpreted as null, as well as out of bound
-                        index = ordinal_count;
-                    } else {
-                        index = value;
+                } else {
+                    for (uint64_t i = offset; i < offset + length; i++) {
+                        int64_t value = data_ptr[i] - min_value;
+                        if (FlipEndian) {
+                            value = _to_native<>(value);
+                        }
+                        index_type index = 0;
+                        if (value != value) { // nan
+                            index = ordinal_count + 2;
+                        } else if ((value < 0) || (value >= ordinal_count)) { // 'other'
+                            index = ordinal_count;
+                        } else {
+                            index = value;
+                        }
+                        output[i - offset] += index * stride;
                     }
-                    output[i - offset] += index * stride;
                 }
             } else {
-                for (uint64_t i = offset; i < offset + length; i++) {
-                    int64_t value = data_ptr[i] - min_value;
-                    if (FlipEndian) {
-                        value = _to_native<>(value);
+                if (data_mask_ptr) {
+                    for (uint64_t i = offset; i < offset + length; i++) {
+                        int64_t value = data_ptr[i] - min_value;
+                        if (FlipEndian) {
+                            value = _to_native<>(value);
+                        }
+                        index_type index = 0;
+                        // this followes numpy, 1 is masked
+                        bool masked = data_mask_ptr[i] == 1;
+                        if (value != value) { // nan
+                            index = ordinal_count + 1;
+                        } else if (masked || (value < 0) || (value >= ordinal_count)) { // negative values are interpreted as null, as well as out of bound
+                            index = ordinal_count;
+                        } else {
+                            index = value;
+                        }
+                        output[i - offset] += index * stride;
                     }
-                    index_type index = 0;
-                    if (value != value) { // nan
-                        index = ordinal_count + 1;
-                    } else if ((value < 0) || (value >= ordinal_count)) { // negative values are interpreted as null, as well as out of bound
-                        index = ordinal_count;
-                    } else {
-                        index = value;
+                } else {
+                    for (uint64_t i = offset; i < offset + length; i++) {
+                        int64_t value = data_ptr[i] - min_value;
+                        if (FlipEndian) {
+                            value = _to_native<>(value);
+                        }
+                        index_type index = 0;
+                        if (value != value) { // nan
+                            index = ordinal_count + 1;
+                        } else if ((value < 0) || (value >= ordinal_count)) { // negative values are interpreted as null, as well as out of bound
+                            index = ordinal_count;
+                        } else {
+                            index = value;
+                        }
+                        output[i - offset] += index * stride;
                     }
-                    output[i - offset] += index * stride;
                 }
             }
         }
@@ -125,6 +204,7 @@ class BinnerOrdinal : public Binner {
     std::vector<uint8_t *> data_mask_ptr;
     std::vector<uint64_t> data_mask_size;
     bool allow_other;
+    bool invert = false;
 };
 
 template <class T, bool FlipEndian = false>
@@ -132,7 +212,7 @@ void add_binner_ordinal_(py::module &m, py::class_<Binner> &base, std::string po
     typedef BinnerOrdinal<T, default_index_type, FlipEndian> Type;
     std::string class_name = "BinnerOrdinal_" + postfix;
     py::class_<Type>(m, class_name.c_str(), base)
-        .def(py::init<int, std::string, int64_t, int64_t, bool>())
+        .def(py::init<int, std::string, int64_t, int64_t, bool, bool>())
         .def("set_data", &Type::set_data)
         .def("clear_data_mask", &Type::clear_data_mask)
         .def("set_data_mask", &Type::set_data_mask)
