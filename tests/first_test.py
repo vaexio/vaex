@@ -58,24 +58,24 @@ def test_first_mixed(dtype1, dtype2):
 
 
 def test_first_groupby_agg():
-    d = {'x': [0, 0, 0, 1, 1, 1, 2, 2],
-         'y': [1, 2, 3, 4, 5, 6, 7, 8],
-         'z': [4, 1, 3, 2, 7, 0, 1, 1],
-        'w': ['yes', 'no', 'foo', 'bar', 'NL', 'MK', '?!', 'other']}
+    d = {'ex': [0, 0, 0, 1, 1, 1, 2, 2],
+         'why': [1, 2, 3, 4, 5, 6, 7, 8],
+         'zet': [4, 1, 3, 2, 7, 0, 1, 1],
+        'word': ['yes', 'no', 'foo', 'bar', 'NL', 'MK', '?!', 'other']}
     df = vaex.from_dict(d)
 
     #TODO: strings
-    result = df.groupby('x', sort=True).agg({'f': vaex.agg.first('y'),
-                                             'l': vaex.agg.last('y'),
-                                             'fo': vaex.agg.first('y', order_expression='z'),
-                                             'lo': vaex.agg.last('y', order_expression='z'),
+    result = df.groupby('ex', sort=True).agg({'f': vaex.agg.first('why'),
+                                             'l': vaex.agg.last('why'),
+                                             'fo': vaex.agg.first('why', order_expression='zet'),
+                                             'lo': vaex.agg.last(df.why, order_expression=df.zet),
                                             #  'wf': vaex.agg.first('w'),
                                             #  'wl': vaex.agg.last('w'),
                                             #  'wfo': vaex.agg.first('w', order_expression='z'),
                                             #  'wfl': vaex.agg.last('w', order_expression='z')
                                              })
 
-    assert result.x.tolist() == [0, 1, 2]
+    assert result.ex.tolist() == [0, 1, 2]
     assert result.f.tolist() == [1, 4, 7]
     assert result.l.tolist() == [3, 6, 8]
     assert result.fo.tolist() == [2, 6, 7]
