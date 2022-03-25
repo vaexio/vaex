@@ -49,16 +49,15 @@ class aggregation_encoding:
         if type == '_sum_moment':
             if 'parameters' in agg_spec:  # renameing between spec and implementation
                 agg_spec['moment'] = agg_spec.pop('parameters')[0]
-        if type == 'first':
-            args = agg_spec.pop('expression')
-            if not isinstance(args, list):
-                args = [args]
+        if 'expressions' in agg_spec:
+            args = agg_spec.pop('expressions')
         return f(*args, **agg_spec)
 
 
 class AggregatorDescriptor(object):
     def __repr__(self):
-        return 'vaex.agg.{}({!r})'.format(self.short_name, str(self.expression))
+        args = [*self.expressions]
+        return 'vaex.agg.{}({!r})'.format(self.short_name, ", ".join(map(str, args)))
 
     def pretty_name(self, id, df):
         if id is None:
@@ -77,7 +76,6 @@ class AggregatorExpressionUnary(AggregatorDescriptor):
         self.code = code
         self.expressions = self.agg.expressions
         self.selection = self.agg.selection
-        self.expression = self.agg.expression
 
     def __repr__(self):
         return f'{self.code}{self.agg!r}'
@@ -216,35 +214,29 @@ for op in _unary_ops:
 
 
 class AggregatorDescriptorBasic(AggregatorDescriptor):
-    def __init__(self, name, expression, short_name, multi_args=False, agg_args=[], selection=None, edges=False):
+    def __init__(self, name, expressions, short_name, multi_args=False, agg_args=[], selection=None, edges=False):
         self.name = name
         self.short_name = short_name
-        self.expression = str(expression)
         self.agg_args = agg_args
         self.edges = edges
         self.selection = _normalize_selection_name(selection)
-        if not multi_args:
-            if self.expression == '*':
-                self.expressions = []
-            else:
-                self.expressions = [self.expression]
-        else:
-            self.expressions = expression
+        assert isinstance(expressions, (list, tuple))
+        for e in expressions:
+            assert not isinstance(e, (list, tuple))
+        self.expressions = [str(k) for k in expressions]
+        if len(self.expressions) == 1 and self.expressions[0] == '*':
+            self.expressions = []
 
     def __repr__(self):
-        if self.agg_args:
-            return 'vaex.agg.{}({!r}, {})'.format(self.short_name, str(self.expression), ", ".join(map(str, self.agg_args)))
-        else:
-            return 'vaex.agg.{}({!r})'.format(self.short_name, str(self.expression))
+        args = [*self.expressions, *self.agg_args]
+        return 'vaex.agg.{}({!r})'.format(self.short_name, ", ".join(map(str, args)))
 
     def encode(self, encoding):
         spec = {'aggregation': self.short_name}
         if len(self.expressions) == 0:
             pass
-        elif len(self.expressions) == 1:
-            spec['expression'] = self.expression
         else:
-            spec['expression'] = [str(k) for k in self.expressions]
+            spec['expressions'] = [str(k) for k in self.expressions]
         if self.selection is not None:
             spec['selection'] = str(self.selection) if isinstance(self.selection, Expression) else self.selection
         if self.edges:
@@ -254,7 +246,7 @@ class AggregatorDescriptorBasic(AggregatorDescriptor):
         return spec
 
     def _prepare_types(self, df):
-        if self.expression == '*':
+        if len(self.expressions) == 0 and self.short_name == "count":
             self.dtype_in = DataType(np.dtype('int64'))
             self.dtype_out = DataType(np.dtype('int64'))
         else:
@@ -361,22 +353,26 @@ class AggregatorDescriptorNUnique(AggregatorDescriptorBasic):
 
 class AggregatorDescriptorMulti(AggregatorDescriptor):
     """Uses multiple operations/aggregation to calculate the final aggretation"""
-    def __init__(self, name, expression, short_name, selection=None, edges=False):
+    def __init__(self, name, expressions, short_name, selection=None, edges=False):
         self.name = name
         self.short_name = short_name
-        self.expression = str(expression)
-        self.expressions = [self.expression]
+        self.expressions = expressions
         self.selection = selection
         self.edges = edges
+        assert isinstance(expressions, (list, tuple))
+        for e in expressions:
+            assert not isinstance(e, (list, tuple))
+        self.expressions = [str(k) for k in expressions]
 
 
 class AggregatorDescriptorMean(AggregatorDescriptorMulti):
-    def __init__(self, name, expression, short_name="mean", selection=None, edges=False):
-        super(AggregatorDescriptorMean, self).__init__(name, expression, short_name, selection=selection, edges=edges)
+    def __init__(self, name, expressions, short_name="mean", selection=None, edges=False):
+        super(AggregatorDescriptorMean, self).__init__(name, expressions, short_name, selection=selection, edges=edges)
+        assert len(expressions) == 1
 
     def add_tasks(self, df, binners, progress):
         progressbar = vaex.utils.progressbars(progress, title=repr(self))
-        expression = expression_sum = expression = df[str(self.expression)]
+        expression = expression_sum = expression = df[str(self.expressions[0])]
 
         sum_agg = sum(expression_sum, selection=self.selection, edges=self.edges)
         count_agg = count(expression, selection=self.selection, edges=self.edges)
@@ -411,7 +407,7 @@ class AggregatorDescriptorVar(AggregatorDescriptorMulti):
 
     def add_tasks(self, df, binners, progress):
         progressbar = vaex.utils.progressbars(progress, title=repr(self))
-        expression_sum = expression = df[str(self.expression)]
+        expression_sum = expression = df[str(self.expressions[0])]
         expression = expression_sum = expression.astype('float64')
         sum_moment = _sum_moment(str(expression_sum), 2, selection=self.selection, edges=self.edges)
         sum_ = sum(str(expression_sum), selection=self.selection, edges=self.edges)
@@ -448,32 +444,32 @@ class AggregatorDescriptorStd(AggregatorDescriptorVar):
 @register
 def count(expression='*', selection=None, edges=False):
     '''Creates a count aggregation'''
-    return AggregatorDescriptorBasic('AggCount', expression, 'count', selection=selection, edges=edges)
+    return AggregatorDescriptorBasic('AggCount', [expression], 'count', selection=selection, edges=edges)
 
 @register
 def sum(expression, selection=None, edges=False):
     '''Creates a sum aggregation'''
-    return AggregatorDescriptorBasic('AggSum', expression, 'sum', selection=selection, edges=edges)
+    return AggregatorDescriptorBasic('AggSum', [expression], 'sum', selection=selection, edges=edges)
 
 @register
 def mean(expression, selection=None, edges=False):
     '''Creates a mean aggregation'''
-    return AggregatorDescriptorMean('mean', expression, 'mean', selection=selection, edges=edges)
+    return AggregatorDescriptorMean('mean', [expression], 'mean', selection=selection, edges=edges)
 
 @register
 def min(expression, selection=None, edges=False):
     '''Creates a min aggregation'''
-    return AggregatorDescriptorBasic('AggMin', expression, 'min', selection=selection, edges=edges)
+    return AggregatorDescriptorBasic('AggMin', [expression], 'min', selection=selection, edges=edges)
 
 @register
 def _sum_moment(expression, moment, selection=None, edges=False):
     '''Creates a sum of moment aggregator'''
-    return AggregatorDescriptorBasic('AggSumMoment', expression, '_sum_moment', agg_args=[moment], selection=selection, edges=edges)
+    return AggregatorDescriptorBasic('AggSumMoment', [expression], '_sum_moment', agg_args=[moment], selection=selection, edges=edges)
 
 @register
 def max(expression, selection=None, edges=False):
     '''Creates a max aggregation'''
-    return AggregatorDescriptorBasic('AggMax', expression, 'max', selection=selection, edges=edges)
+    return AggregatorDescriptorBasic('AggMax', [expression], 'max', selection=selection, edges=edges)
 
 @register
 def first(expression, order_expression=None, selection=None, edges=False):
@@ -484,7 +480,7 @@ def first(expression, order_expression=None, selection=None, edges=False):
     :param selection: {selection1}
     :param edges: {edges}
     '''
-    return AggregatorDescriptorBasic('AggFirst', [expression, order_expression] if order_expression is not None else expression, 'first', multi_args=True, selection=selection, edges=edges, agg_args=[False])
+    return AggregatorDescriptorBasic('AggFirst', [expression, order_expression] if order_expression is not None else [expression], 'first', multi_args=True, selection=selection, edges=edges, agg_args=[False])
 
 @register
 @docsubst
@@ -496,17 +492,17 @@ def last(expression, order_expression=None, selection=None, edges=False):
     :param selection: {selection1}
     :param edges: {edges}
     '''
-    return AggregatorDescriptorBasic('AggFirst', [expression, order_expression] if order_expression is not None else expression, 'last', multi_args=True, selection=selection, edges=edges, agg_args=[True])
+    return AggregatorDescriptorBasic('AggFirst', [expression, order_expression] if order_expression is not None else [expression], 'last', multi_args=True, selection=selection, edges=edges, agg_args=[True])
 
 @register
 def std(expression, ddof=0, selection=None, edges=False):
     '''Creates a standard deviation aggregation'''
-    return AggregatorDescriptorStd('std', expression, 'std', ddof=ddof, selection=selection, edges=edges)
+    return AggregatorDescriptorStd('std', [expression], 'std', ddof=ddof, selection=selection, edges=edges)
 
 @register
 def var(expression, ddof=0, selection=None, edges=False):
     '''Creates a variance aggregation'''
-    return AggregatorDescriptorVar('var', expression, 'var', ddof=ddof, selection=selection, edges=edges)
+    return AggregatorDescriptorVar('var', [expression], 'var', ddof=ddof, selection=selection, edges=edges)
 
 @register
 @docsubst
@@ -522,7 +518,7 @@ def nunique(expression, dropna=False, dropnan=False, dropmissing=False, selectio
     if dropna:
         dropnan = True
         dropmissing = True
-    return AggregatorDescriptorNUnique('AggNUnique', expression, 'nunique', dropmissing, dropnan, selection=selection, edges=edges)
+    return AggregatorDescriptorNUnique('AggNUnique', [expression], 'nunique', dropmissing, dropnan, selection=selection, edges=edges)
 
 @docsubst
 def any(expression=None, selection=None):

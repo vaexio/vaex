@@ -75,7 +75,7 @@ def test_first_groupby_agg():
                                             #  'wfl': vaex.agg.last('w', order_expression='z')
                                              })
 
-    assert result.x.tolist() == [0, 1, 2]
+    assert result.ex.tolist() == [0, 1, 2]
     assert result.f.tolist() == [1, 4, 7]
     assert result.l.tolist() == [3, 6, 8]
     assert result.fo.tolist() == [2, 6, 7]
