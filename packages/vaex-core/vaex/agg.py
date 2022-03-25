@@ -441,6 +441,69 @@ class AggregatorDescriptorVar(AggregatorDescriptorMulti):
         return [task_sum_moment, task_sum, task_count], finish(task_sum_moment, task_sum, task_count)
 
 
+class AggregatorDescriptorSkew(AggregatorDescriptorMulti):
+    def __init__(self, name, expression, short_name='skew', selection=None, edges=False):
+        super(AggregatorDescriptorSkew, self).__init__(name, expression, short_name, selection=selection, edges=edges)
+
+    def add_tasks(self, df, binners, progress):
+        progressbar = vaex.utils.progressbars(progress, title=repr(self))
+        expression = expression_sum = expression = df[str(self.expression)]
+        expression = expression_sum = expression.astype('float64')
+
+        sum_moment1 = _sum_moment(str(expression_sum), 1, selection=self.selection, edges=self.edges)
+        sum_moment2 = _sum_moment(str(expression_sum), 2, selection=self.selection, edges=self.edges)
+        sum_moment3 = _sum_moment(str(expression_sum), 3, selection=self.selection, edges=self.edges)
+        count_ = count(str(expression), selection=self.selection, edges=self.edges)
+
+        task_sum_moment1 = sum_moment1.add_tasks(df, binners, progress=progressbar)[0][0]
+        task_sum_moment2 = sum_moment2.add_tasks(df, binners, progress=progressbar)[0][0]
+        task_sum_moment3 = sum_moment3.add_tasks(df, binners, progress=progressbar)[0][0]
+        task_count = count_.add_tasks(df, binners, progress=progressbar)[0][0]
+
+        @vaex.delayed
+        def finish(sum_moment1, sum_moment2, sum_moment3, count):
+            with np.errstate(divide='ignore', invalid='ignore'):
+                m1 = sum_moment1 / count
+                m2 = sum_moment2 / count
+                m3 = sum_moment3 / count
+                skew = (m3 - 3*m1*m2 + 2*m1**3) / (m2 - m1**2)**(3/2)
+            return self.finish(skew)
+        return [task_sum_moment1, task_sum_moment2, task_sum_moment3, task_count], finish(task_sum_moment1, task_sum_moment2, task_sum_moment3, task_count)
+
+
+class AggregatorDescriptorKurtosis(AggregatorDescriptorMulti):
+    def __init__(self, name, expression, short_name='kurtosis', selection=None, edges=False):
+        super(AggregatorDescriptorKurtosis, self).__init__(name, expression, short_name, selection=selection, edges=edges)
+
+    def add_tasks(self, df, binners, progress):
+        progressbar = vaex.utils.progressbars(progress, title=repr(self))
+        expression = expression_sum = expression = df[str(self.expression)]
+        expression = expression_sum = expression.astype('float64')
+
+        sum_moment1 = _sum_moment(str(expression_sum), 1, selection=self.selection, edges=self.edges)
+        sum_moment2 = _sum_moment(str(expression_sum), 2, selection=self.selection, edges=self.edges)
+        sum_moment3 = _sum_moment(str(expression_sum), 3, selection=self.selection, edges=self.edges)
+        sum_moment4 = _sum_moment(str(expression_sum), 4, selection=self.selection, edges=self.edges)
+        count_ = count(str(expression), selection=self.selection, edges=self.edges)
+
+        task_sum_moment1 = sum_moment1.add_tasks(df, binners, progress=progressbar)[0][0]
+        task_sum_moment2 = sum_moment2.add_tasks(df, binners, progress=progressbar)[0][0]
+        task_sum_moment3 = sum_moment3.add_tasks(df, binners, progress=progressbar)[0][0]
+        task_sum_moment4 = sum_moment4.add_tasks(df, binners, progress=progressbar)[0][0]
+        task_count = count_.add_tasks(df, binners, progress=progressbar)[0][0]
+
+        @vaex.delayed
+        def finish(sum_moment1, sum_moment2, sum_moment3, sum_moment4, count):
+            with np.errstate(divide='ignore', invalid='ignore'):
+                m1 = sum_moment1 / count
+                m2 = sum_moment2 / count
+                m3 = sum_moment3 / count
+                m4 = sum_moment4 / count
+                kurtosis = (m4 - 4*m1*m3 + 6*m1**2*m2 - 3*m1**4) / (m2 - m1**2)**2 -3.0
+            return self.finish(kurtosis)
+        return [task_sum_moment1, task_sum_moment2, task_sum_moment3, task_sum_moment4, task_count], finish(task_sum_moment1, task_sum_moment2, task_sum_moment3, task_sum_moment4, task_count)
+
+
 class AggregatorDescriptorStd(AggregatorDescriptorVar):
     def finish(self, value):
         return value**0.5
@@ -507,6 +570,16 @@ def std(expression, ddof=0, selection=None, edges=False):
 def var(expression, ddof=0, selection=None, edges=False):
     '''Creates a variance aggregation'''
     return AggregatorDescriptorVar('var', expression, 'var', ddof=ddof, selection=selection, edges=edges)
+
+@register
+def skew(expression, selection=None, edges=False):
+    '''Create a skew aggregation.'''
+    return AggregatorDescriptorSkew('skew', expression, 'skew', selection=selection, edges=edges)
+
+@register
+def kurtosis(expression, selection=None, edges=False):
+    '''Create a kurtosis aggregation.'''
+    return AggregatorDescriptorKurtosis('kurtosis', expression, 'kurtosis', selection=selection, edges=edges)
 
 @register
 @docsubst

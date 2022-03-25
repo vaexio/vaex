@@ -1,6 +1,7 @@
 import pytest
 import numpy as np
 from common import *
+from random import random
 
 def test_value_counts():
     ds = create_base_ds()
@@ -130,3 +131,13 @@ def test_value_counts_small_chunk_size(buffer_size):
     with buffer_size(df, 3):
         result = df[df.petal_width > 1].class_.value_counts()
         assert result.tolist() == [50, 43]
+
+def test_value_counts_chunked_array():
+    df = vaex.from_arrays(
+        id=list(range(1000)),
+        text=[f"some text here {random()} text {random()} text {random()}" for _ in range(1000)]
+    )
+    x = df.text.values
+    df["text"] = pa.chunked_array([x[:100], x[100:500], x[500:]])
+    res = df.text.str.split(" ").value_counts()
+    assert list(res.items())[0] == ('text', 3000)

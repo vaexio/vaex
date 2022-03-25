@@ -521,8 +521,8 @@ T *join(std::string sep, py::array_t<typename T::index_type, py::array::c_style>
 template <class StringList, class Base, class Module>
 void add_string_list(Module m, Base &base, const char *class_name) {
 
-    py::class_<StringList>(m, class_name, base)
-        .def(py::init([](py::buffer bytes, py::array_t<typename StringList::index_type, py::array::c_style> &indices, size_t string_count, size_t offset) {
+    py::class_<StringList, std::shared_ptr<StringList>>(m, class_name, base)
+        .def(py::init([](py::buffer bytes, py::buffer indices, size_t string_count, size_t offset) {
                  py::buffer_info bytes_info = bytes.request();
                  py::buffer_info indices_info = indices.request();
                  if (bytes_info.ndim != 1) {
@@ -722,8 +722,8 @@ StringList64 *format_string(StringSequence *values, const char *format) {
 PYBIND11_MODULE(superstrings, m) {
     _import_array();
     m.doc() = "fast operations on string sequences";
-    py::class_<StringSequence> string_sequence(m, "StringSequence");
-    py::class_<StringSequenceBase> string_sequence_base(m, "StringSequenceBase", string_sequence);
+    py::class_<StringSequence, std::shared_ptr<StringSequence>> string_sequence(m, "StringSequence");
+    py::class_<StringSequenceBase, std::shared_ptr<StringSequenceBase>> string_sequence_base(m, "StringSequenceBase", string_sequence);
     string_sequence_base.def("to_numpy", &StringSequenceBase::to_numpy, py::return_value_policy::take_ownership)
         .def("lazy_index", &StringSequenceBase::lazy_index<int32_t>, py::keep_alive<0, 1>(), py::keep_alive<0, 2>())
         .def("lazy_index", &StringSequenceBase::lazy_index<int64_t>, py::keep_alive<0, 1>(), py::keep_alive<0, 2>())
@@ -798,7 +798,7 @@ PYBIND11_MODULE(superstrings, m) {
         .def("__len__", [](const StringListList &obj) { return obj.length; });
     add_string_list<StringList32>(m, string_sequence_base, "StringList32");
     add_string_list<StringList64>(m, string_sequence_base, "StringList64");
-    py::class_<StringArray>(m, "StringArray", string_sequence_base)
+    py::class_<StringArray, std::shared_ptr<StringArray>>(m, "StringArray", string_sequence_base)
         .def(py::init([](py::buffer string_array) {
             py::buffer_info info = string_array.request();
             if (info.ndim != 1) {

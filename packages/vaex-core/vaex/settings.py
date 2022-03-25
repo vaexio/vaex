@@ -286,8 +286,8 @@ def _to_md(cls, f=sys.stdout):
             Logging: 'main.logging',
             Progress: 'main.progress',
         }[cls]
-        pyvar = f'vaex.setting.{flat}.{pyname}'
-        printf(f'Python setting `{pyvar}`')
+        pyvar = f'vaex.settings.{flat}.{pyname}'
+        printf(f'Python settings `{pyvar}`')
         if default not in [None, ""]:
             printf()
             printf(f'Example use: `{pyvar} = {default!r}`')

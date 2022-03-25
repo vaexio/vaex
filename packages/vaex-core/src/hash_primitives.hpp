@@ -59,6 +59,8 @@ class hash_base : public hash_common<Derived, T, Hashmap<T, int64_t>> {
     //         map.reserve((count_ + maps.size() - 1) / maps.size());
     //     }
     // }
+    virtual key_type _get(hashmap_type &map, typename hashmap_type::key_type key) override { return key; };
+
     size_t bytes_used() const {
         size_t bytes = 0;
         for (auto map : this->maps) {
@@ -437,8 +439,8 @@ class ordered_set : public hash_base<ordered_set<T2, Hashmap2>, T2, Hashmap2> {
 
     ordered_set(int nmaps = 1, int64_t limit = -1) : Base(nmaps, limit), nan_value(0x7fffffff), null_value(0x7fffffff), ordinal_code_offset_null_nan(0) {}
 
-    virtual value_type nan_index() { return nan_value; }
-    virtual value_type null_index() { return null_value; }
+    virtual value_type nan_index() const { return nan_value; }
+    virtual value_type null_index() const { return null_value; }
     template <class Bucket>
     int64_t key_offset(int64_t natural_order, int16_t map_index, Bucket &bucket, int64_t offset) {
         int64_t index = bucket.second + offset;
@@ -633,12 +635,14 @@ class ordered_set : public hash_base<ordered_set<T2, Hashmap2>, T2, Hashmap2> {
         size_t nmaps = this->maps.size();
         auto offsets = this->offsets();
         if (nmaps == 1) {
-            auto& map0 = this->maps[0];
+            auto &map0 = this->maps[0];
             for (int64_t i = 0; i < size; i++) {
                 const key_type &value = input[i];
                 // the caller is responsible for finding masked values
                 if (custom_isnan(value)) {
                     output[i] = this->nan_value;
+                    // TODO: the test fail here because we pass in NaN for None?
+                    // but of course only in debug mode
                     assert(this->nan_count > 0);
                 } else {
                     auto search = map0.find(value);
@@ -655,6 +659,8 @@ class ordered_set : public hash_base<ordered_set<T2, Hashmap2>, T2, Hashmap2> {
                 // the caller is responsible for finding masked values
                 if (custom_isnan(value)) {
                     output[i] = this->nan_value;
+                    // TODO: the test fail here because we pass in NaN for None?
+                    // but of course only in debug mode
                     assert(this->nan_count > 0);
                 } else {
                     std::size_t hash = hasher_map_choice()(value);

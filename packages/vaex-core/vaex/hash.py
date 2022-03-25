@@ -20,7 +20,7 @@ if vaex.utils.has_c_extension:
 
     def pickle(x):
         keys = x.key_array()
-        return type(x), (keys, x.null_value, x.nan_count, x.null_count, x.fingerprint)
+        return type(x), (keys, x.null_index, x.nan_count, x.null_count, x.fingerprint)
     for cls in ordered_set:
         copyreg.pickle(cls, pickle)
 
@@ -32,7 +32,7 @@ if vaex.utils.has_c_extension:
     def pickle_set_string(x):
         keys = x.key_array()
         keys = pa.array(keys.to_numpy(), type=pa.large_utf8())
-        return create_set_string, (keys, x.null_value, x.nan_count, x.null_count, x.fingerprint)
+        return create_set_string, (keys, x.null_index, x.nan_count, x.null_count, x.fingerprint)
     copyreg.pickle(ordered_set_string, pickle_set_string)
 
     for ordered_set_cls in ordered_set:
@@ -76,7 +76,7 @@ class HashMapUnique:
         if self.dtype == object:
             return self # already flat
         keys = self._internal.key_array()
-        map = type(self._internal)(keys, self.null_value, self.nan_count, self.null_count, self.fingerprint)
+        map = type(self._internal)(keys, self.null_index, self.nan_count, self.null_count, self.fingerprint)
         return HashMapUnique(self.dtype, _internal=map)
 
     @staticmethod
@@ -91,7 +91,7 @@ class HashMapUnique:
             'dtype': encoding.encode('dtype', vaex.dtype(obj.dtype)),
             'data': {
                 'keys': keys,
-                'null_value': obj.null_value,
+                'null_index': obj.null_index,
                 'nan_count': obj.nan_count,
                 'missing_count': obj.null_count,
                 'fingerprint': obj.fingerprint,
@@ -106,7 +106,7 @@ class HashMapUnique:
         dtype = vaex.dtype_of(keys)
         if dtype.is_string:
             keys = vaex.strings.to_string_sequence(keys)
-        _hash_map_internal = cls(keys, obj_spec['data']['null_value'], obj_spec['data']['nan_count'], obj_spec['data']['missing_count'], obj_spec['data']['fingerprint'])
+        _hash_map_internal = cls(keys, obj_spec['data']['null_index'], obj_spec['data']['nan_count'], obj_spec['data']['missing_count'], obj_spec['data']['fingerprint'])
         dtype = encoding.decode('dtype', obj_spec['dtype'])
         return vaex.hash.HashMapUnique(dtype, _internal=_hash_map_internal)
 
@@ -119,18 +119,20 @@ class HashMapUnique:
         else:
             nancount = 0
         null_count = 0
-        null_value = -1
+        null_index = -1
         if np.ma.isMaskedArray(keys):
             null_count = keys.mask.sum()
             if null_count == 0:
                 keys = keys.data
             elif null_count == 1:
-                null_value = np.where(keys.mask == 1)[0]
+                null_index = np.where(keys.mask == 1)[0]
                 keys = keys.data
             else:
                 raise ValueError('key arrays contained more than 1 null value')
         set_type = vaex.hash.ordered_set_type_from_dtype(dtype)
         if dtype.is_string:
+            # TODO: support 32 bit in hashmap
+            keys = keys.cast(pa.large_string())
             values = vaex.column.ColumnStringArrow.from_arrow(keys)
             string_sequence = values.string_sequence
             mask = string_sequence.mask()
@@ -139,12 +141,12 @@ class HashMapUnique:
                 if null_count == 0:
                     pass  # fine
                 elif null_count == 1:
-                    null_value = np.where(mask == 1)[0]
+                    null_index = np.where(mask == 1)[0]
                 else:
                     raise ValueError('key arrays contained more than 1 null value')
-            hash_map_unique_internal = set_type(string_sequence, null_value, nancount, null_count, fingerprint)
+            hash_map_unique_internal = set_type(string_sequence, null_index, nancount, null_count, fingerprint)
         else:
-            hash_map_unique_internal = set_type(keys, null_value, nancount, null_count, fingerprint)
+            hash_map_unique_internal = set_type(keys, null_index, nancount, null_count, fingerprint)
         return HashMapUnique(dtype, _internal=hash_map_unique_internal)
 
     def add(self, ar, return_inverse=False):
@@ -180,12 +182,11 @@ class HashMapUnique:
             ar = ar.view(self.dtype_item.numpy)
         if isinstance(ar, vaex.superstrings.StringList64):
             # TODO: find out why this more efficient path does not work
-            # col = vaex.column.ColumnStringArrow.from_string_sequence(self.bin_values)
-            # self.bin_values = pa.array(col)
-            ar = pa.array(ar.to_numpy())
+            ar = vaex.column.ColumnStringArrow.from_string_sequence(ar)
+            ar = pa.array(ar)
         if mask and self.has_null and (self.dtype_item.is_primitive or self.dtype_item.is_datetime):
             mask = np.zeros(shape=ar.shape, dtype="?")
-            mask[self.null_value] = 1
+            mask[self.null_index] = 1
             ar = np.ma.array(ar, mask=mask)
         return ar
 
@@ -200,7 +201,7 @@ class HashMapUnique:
             keys = vaex.array_types.to_numpy(keys)
         indices = self._internal.map_ordinal(keys)
         if np.ma.isMaskedArray(keys):
-            indices[keys.mask] = self.null_value
+            indices[keys.mask] = self.null_index
         if check_missing:
             indices = np.ma.array(indices, mask=indices==-1)
         return indices
@@ -228,12 +229,12 @@ class HashMapUnique:
         return self._internal.has_nan
 
     @property
-    def null_value(self):
-        return self._internal.null_value
+    def null_index(self):
+        return self._internal.null_index
 
     @property
-    def nan_value(self):
-        return self._internal.nan_value
+    def nan_index(self):
+        return self._internal.nan_index
 
     @property
     def fingerprint(self):
@@ -252,14 +253,18 @@ class HashMapUnique:
         keys = vaex.array_types.to_arrow(keys)
         indices = pa.compute.sort_indices(keys) if indices is None else indices
         # arrow sorts with null last
-        null_value = -1 if not self.has_null else len(keys)-1
+        null_index = -1 if not self.has_null else len(keys)-1
         keys = pa.compute.take(keys, indices)
         fingerprint = self._internal.fingerprint + "-sorted"
         if self.dtype_item.is_string:
-            string_sequence = vaex.column.ColumnStringArrow.from_arrow(keys).string_sequence
-            set = type(self._internal)(string_sequence, null_value, self._internal.nan_count, self._internal.null_count, fingerprint)
+            # TODO: supported 32 bit in hashmap
+            keys = keys.cast(pa.large_string())
+            ar = vaex.column.ColumnStringArrow.from_arrow(keys)
+            string_sequence = ar.string_sequence
+
+            set = type(self._internal)(string_sequence, null_index, self._internal.nan_count, self._internal.null_count, fingerprint)
         else:
-            set = type(self._internal)(keys, null_value, self._internal.nan_count, self._internal.null_count, fingerprint)
+            set = type(self._internal)(keys, null_index, self._internal.nan_count, self._internal.null_count, fingerprint)
         hash_map_sorted = HashMapUnique(self.dtype, _internal=set)
         if return_keys:
             return hash_map_sorted, keys
@@ -270,20 +275,20 @@ class HashMapUnique:
         fingerprint = self.fingerprint + f"-limit-{limit}"
         keys = self.keys(mask=False)
         keys = keys[:limit]
-        null_value = self.null_value
+        null_index = self.null_index
         null_count = 1
         nan_count = 0
-        if null_value >= limit:
-            null_value = -1
+        if null_index >= limit:
+            null_index = -1
             null_count = 0
         if self.dtype_item == float:
             nan_count = np.isnan(keys).sum()
         if self.dtype_item.is_string:
             bin_values = vaex.column.ColumnStringArrow.from_arrow(keys)
             string_sequence = bin_values.string_sequence
-            hash_map_unique = type(self._internal)(string_sequence, null_value, nan_count, null_count, fingerprint)
+            hash_map_unique = type(self._internal)(string_sequence, null_index, nan_count, null_count, fingerprint)
         else:
-            hash_map_unique = type(self._internal)(keys, null_value, nan_count, null_count, fingerprint)
+            hash_map_unique = type(self._internal)(keys, null_index, nan_count, null_count, fingerprint)
         hash_map_unique.fingerprint = fingerprint
         return HashMapUnique(self.dtype, _internal=hash_map_unique)
 

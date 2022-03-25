@@ -644,9 +644,9 @@ class DataFrame(object):
                     # TODO: we might want to put the dropmissing in .keys(..)
                     deletes = []
                     if dropmissing and hash_map_unique.has_null:
-                        deletes.append(hash_map_unique.null_value)
+                        deletes.append(hash_map_unique.null_index)
                     if dropnan and hash_map_unique.has_nan:
-                        deletes.append(hash_map_unique.nan_value)
+                        deletes.append(hash_map_unique.nan_index)
                     if isinstance(keys, (vaex.strings.StringList32, vaex.strings.StringList64)):
                         keys = vaex.strings.to_arrow(keys)
                         indices = np.delete(np.arange(len(keys)), deletes)
@@ -655,7 +655,7 @@ class DataFrame(object):
                         keys = np.delete(keys, deletes)
                         if not dropmissing and hash_map_unique.has_null:
                             mask = np.zeros(len(keys), dtype=np.uint8)
-                            mask[hash_map_unique.null_value] = 1
+                            mask[hash_map_unique.null_index] = 1
                             keys = np.ma.array(keys, mask=mask)
                         if data_type_item == str and isinstance(keys, np.ndarray):
                             # the np.delete will cast to dtype object
@@ -1171,8 +1171,6 @@ class DataFrame(object):
         array([ 15271.90481083,   7284.94713504,   3738.52239232,   1449.63418988])
         >>> df.var("vz", binby=["(x**2+y**2)**0.5"], shape=4)**0.5
         array([ 123.57954851,   85.35190177,   61.14345748,   38.0740619 ])
-        >>> df.std("vz", binby=["(x**2+y**2)**0.5"], shape=4)
-        array([ 123.57954851,   85.35190177,   61.14345748,   38.0740619 ])
 
         :param expression: {expression}
         :param binby: {binby}
@@ -1186,6 +1184,56 @@ class DataFrame(object):
         """
         edges = False
         return self._compute_agg('var', expression, binby, limits, shape, selection, delay, edges, progress, array_type=array_type)
+
+    @docsubst
+    def skew(self, expression, binby=[], limits=None, shape=default_shape, selection=False, delay=False, progress=None, edges=False, array_type=None):
+        '''
+        Calculate the skew for the given expression, possible on a grid defined by binby.
+
+        Example:
+
+        >>> df.skew("vz")
+        0.02116528
+        >>> df.skew("vz", binby=["E"], shape=4)
+        array([-0.069976  , -0.01003445,  0.05624177, -2.2444322 ])
+
+        :param expression: {expression}
+        :param binby: {binby}
+        :param limits: {limits}
+        :param shape: {shape}
+        :param selection: {selection}
+        :param delay: {delay}
+        :param progress: {progress}
+        :param array_type: {array_type}
+        :return: {return_stat_scalar}
+        '''
+        edges=False
+        return self._compute_agg('skew', expression, binby, limits, shape, selection, delay, edges, progress, array_type=array_type)
+
+    @docsubst
+    def kurtosis(self, expression, binby=[], limits=None, shape=default_shape, selection=False, delay=False, progress=None, edges=False, array_type=None):
+        '''
+        Calculate the kurtosis for the given expression, possible on a grid defined by binby.
+
+        Example:
+
+        >>> df.kurtosis('vz')
+        0.33414303
+        >>> df.kurtosis("vz", binby=["E"], shape=4)
+        array([0.35286113, 0.14455428, 0.52955107, 5.06716345])
+
+        :param expression: {expression}
+        :param binby: {binby}
+        :param limits: {limits}
+        :param shape: {shape}
+        :param selection: {selection}
+        :param delay: {delay}
+        :param progress: {progress}
+        :param array_type: {array_type}
+        :return: {return_stat_scalar}
+        '''
+        edges=False
+        return self._compute_agg('kurtosis', expression, binby, limits, shape, selection, delay, edges, progress, array_type=array_type)
 
     @docsubst
     def covar(self, x, y, binby=[], limits=None, shape=default_shape, selection=False, delay=False, progress=None):
@@ -3753,9 +3801,13 @@ class DataFrame(object):
 
     def _rename(self, old, new, rename_meta_data=False):
         is_variable = False
+        is_function = False
         if old in self.variables:
             self.variables[new] = self.variables.pop(old)
             is_variable = True
+        if old in self.functions:
+            self.functions[new] = self.functions.pop(old)
+            is_function = True
         elif old in self.virtual_columns:
             # renaming a column should not change the internal order, otherwise virtual
             # columns do not resolve (it will reference an unknown column)
@@ -3773,7 +3825,7 @@ class DataFrame(object):
                     del d[old]
         for key, value in self.selection_histories.items():
             self.selection_histories[key] = list([k if k is None else k._rename(self, old, new) for k in value])
-        if not is_variable:
+        if not (is_variable or is_function):
             if new not in self.virtual_columns:
                 self._renamed_columns.append((old, new))
             self.column_names[self.column_names.index(old)] = new
@@ -4595,10 +4647,11 @@ class DataFrame(object):
             start = offset
 
     @docsubst
-    def sort(self, by, ascending=True, kind='quicksort'):
+    def sort(self, by, ascending=True):
         '''Return a sorted DataFrame, sorted by the expression 'by'.
 
-        The kind keyword is ignored if doing multi-key sorting.
+        Both 'by' and 'ascending' arguments can be lists.
+        Note that missing/nan/NA values will always be pushed to the end, no matter the sorting order.
 
         {note_copy}
 
@@ -4622,22 +4675,26 @@ class DataFrame(object):
           2  a      1  0.64
           3  b      2  0.04
 
-        :param str or expression by: expression to sort by
-        :param bool ascending: ascending (default, True) or descending (False).
-        :param str kind: kind of algorithm to use (passed to numpy.argsort)
+        :param str or expression or list of str/expressions by: expression to sort by.
+        :param bool or list of bools ascending: ascending (default, True) or descending (False).
         '''
-        if isinstance(ascending, Iterable):
-            raise ValueError("Cannot sort differently by multiple columns. Param ascending must be a single boolean value.")
         self = self.trim()
-        if not isinstance(by, list):
-            values = self.evaluate(by)
-            indices = np.argsort(values, kind=kind)
-        if isinstance(by, (list, tuple)):
-            by = _ensure_strings_from_expressions(by)[::-1]
-            values = self.evaluate(by)
-            indices = np.lexsort(values)
-        if not ascending:
-            indices = indices[::-1].copy()  # this may be used a lot, so copy for performance
+        # Ensure "by" is in the proper format
+        by = vaex.utils._ensure_list(by)
+        by = vaex.utils._ensure_strings_from_expressions(by)
+
+        # Ensure "ascending is in the proper format"
+        if isinstance(ascending, list):
+            assert len(ascending) == len(by), 'If "ascending" is a list, it must have the same number of elements as "by".'
+        else:
+            ascending = vaex.utils._ensure_list(ascending) * len(by)
+
+        sort_keys = [(key, 'ascending') if order is True else (key, 'descending') for key, order in zip(by, ascending)]
+        pa_table = self[by].to_arrow_table()
+        indices = pa.compute.sort_indices(pa_table, sort_keys=sort_keys)
+
+        # if we don't cast to int64, we get uint64 scalars, which when adding numbers to will auto case to float (numpy)
+        indices = vaex.array_types.to_numpy(indices).astype('int64')
         return self.take(indices)
 
     @docsubst
@@ -5857,7 +5914,7 @@ class DataFrameLocal(DataFrame):
         return df
 
     # for backward compatibility
-    label_encode = _hidden(vaex.utils.deprecated('use is_category')(ordinal_encode))
+    label_encode = _hidden(vaex.utils.deprecated('use ordinal_encode')(ordinal_encode))
 
     @property
     def data(self):
@@ -6636,6 +6693,8 @@ class DataFrameLocal(DataFrame):
             self.export_parquet(path, progress=progress, parallel=parallel, chunk_size=chunk_size, fs_options=fs_options, fs=fs)
         elif naked_path.endswith('.csv'):
             self.export_csv(path, progress=progress, parallel=parallel, chunk_size=chunk_size)
+        elif naked_path.endswith('.json'):
+            self.export_json(path, progress=progress, chunk_size=chunk_size, parallel=parallel, fs_options=fs_options, fs=fs)
         else:
             raise ValueError('''Unrecognized file extension. Please use .arrow, .hdf5, .parquet, .fits, or .csv to export to the particular file format.''')
 

@@ -605,7 +605,7 @@ class Expression(with_metaclass(Meta)):
             indices, fields = slicer
         else:
             raise NotImplementedError
-        
+
         if indices != slice(None):
             expr = self.df[indices][self.expression]
         else:
@@ -931,6 +931,20 @@ class Expression(with_metaclass(Meta)):
         kwargs['expression'] = self.expression
         return self.ds.var(**kwargs)
 
+    def skew(self, binby=[], limits=None, shape=default_shape, selection=False, delay=False, progress=None):
+        '''Shortcut for df.skew(expression, ...), see `DataFrame.skew`'''
+        kwargs = dict(locals())
+        del kwargs['self']
+        kwargs['expression'] = self.expression
+        return self.df.skew(**kwargs)
+
+    def kurtosis(self, binby=[], limits=None, shape=default_shape, selection=False, delay=False, progress=None):
+        '''Shortcut for df.kurtosis(expression, ...), see `DataFrame.kurtosis`'''
+        kwargs = dict(locals())
+        del kwargs['self']
+        kwargs['expression'] = self.expression
+        return self.df.kurtosis(**kwargs)
+
     def minmax(self, binby=[], limits=None, shape=default_shape, selection=False, delay=False, progress=None):
         '''Shortcut for ds.minmax(expression, ...), see `Dataset.minmax`'''
         kwargs = dict(locals())
@@ -1006,7 +1020,10 @@ class Expression(with_metaclass(Meta)):
             if counters[thread_index] is None:
                 counters[thread_index] = counter_type(1)
             if data_type.is_list and axis is None:
-                ar = ar.values
+                try:
+                    ar = ar.values
+                except AttributeError:  # pyarrow ChunkedArray
+                    ar = ar.combine_chunks().values
             if data_type_item.is_string:
                 ar = _to_string_sequence(ar)
             else:
@@ -1056,9 +1073,9 @@ class Expression(with_metaclass(Meta)):
             else:
                 null_offset = 0
             if dropmissing and counter.has_null:
-                deletes.append(null_offset)
+                deletes.append(counter.null_index)
             if dropnan and counter.has_nan:
-                deletes.append(0)
+                deletes.append(counter.nan_index)
             if vaex.array_types.is_arrow_array(keys):
                 indices = np.delete(np.arange(len(keys)), deletes)
                 keys = keys.take(indices)
