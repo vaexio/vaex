@@ -126,6 +126,11 @@ def test_value_counts_list(df_types):
     assert vc[1] == 2
     assert vc[2] == 1
 
+def test_value_counts_small_chunk_size(buffer_size):
+    df = vaex.datasets.iris()
+    with buffer_size(df, 3):
+        result = df[df.petal_width > 1].class_.value_counts()
+        assert result.tolist() == [50, 43]
 
 def test_value_counts_chunked_array():
     df = vaex.from_arrays(

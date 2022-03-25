@@ -1015,6 +1015,8 @@ class Expression(with_metaclass(Meta)):
         counters = [None] * self.ds.executor.thread_pool.nthreads
         def map(thread_index, i1, i2, selection_masks, blocks):
             ar = blocks[0]
+            if len(ar) == 0:
+                return 0
             if counters[thread_index] is None:
                 counters[thread_index] = counter_type(1)
             if data_type.is_list and axis is None:
