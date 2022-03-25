@@ -5548,9 +5548,9 @@ class DataFrame(object):
         dtype = self.data_type(expression)
         return BinnerScalar(expression, limits[0], limits[1], shape, dtype)
 
-    def _binner_ordinal(self, expression, ordinal_count, min_value=0):
+    def _binner_ordinal(self, expression, ordinal_count, min_value=0, invert=False):
         dtype = self.data_type(expression)
-        return BinnerOrdinal(expression, min_value, ordinal_count, dtype)
+        return BinnerOrdinal(expression, min_value, ordinal_count, invert, dtype)
 
     def _binner_hash(self, expression, hash_map_unique):
         dtype = self.data_type(expression)
@@ -7023,7 +7023,7 @@ class DataFrameLocal(DataFrame):
     #     # self.signal_selection_changed.emit(self)
 
     @docsubst
-    def groupby(self, by=None, agg=None, sort=False, assume_sparse='auto', row_limit=None, copy=True, progress=None, delay=False):
+    def groupby(self, by=None, agg=None, sort=False, ascending=True, assume_sparse='auto', row_limit=None, copy=True, progress=None, delay=False):
         """Return a :class:`GroupBy` or :class:`DataFrame` object when agg is not None
 
         Examples:
@@ -7072,6 +7072,8 @@ class DataFrameLocal(DataFrame):
         :param dict, list or agg agg: Aggregate operation in the form of a string, vaex.agg object, a dictionary
             where the keys indicate the target column names, and the values the operations, or the a list of aggregates.
             When not given, it will return the groupby object.
+        :param bool sort: Sort columns for which we group by.
+        :param bool or list of bools ascending: ascending (default, True) or descending (False).
         :param bool or str assume_sparse: Assume that when grouping by multiple keys, that the existing pairs are sparse compared to the cartesian product.
             If 'auto', let vaex decide (e.g. a groupby with 10_000 rows but only 4*3=12 combinations does not matter much to compress into say 8 existing
             combinations, and will save another pass over the data)
@@ -7084,7 +7086,7 @@ class DataFrameLocal(DataFrame):
         """
         from .groupby import GroupBy
         progressbar = vaex.utils.progressbars(progress, title="groupby")
-        groupby = GroupBy(self, by=by, sort=sort, combine=assume_sparse, row_limit=row_limit, copy=copy, progress=progressbar)
+        groupby = GroupBy(self, by=by, sort=sort, ascending=ascending, combine=assume_sparse, row_limit=row_limit, copy=copy, progress=progressbar)
         if agg:
             progressbar_agg = progressbar.add('aggregators')
         @vaex.delayed
@@ -7203,21 +7205,22 @@ class BinnerScalar(BinnerBase):
 @register_binner
 class BinnerOrdinal(BinnerBase):
     snake_name = 'ordinal'
-    def __init__(self, expression, minimum, count, dtype):
+    def __init__(self, expression, minimum, count, invert, dtype):
         self.expression = str(expression)
         self.minimum = minimum
         self.count = count
+        self.invert = invert
         self.dtype = dtype
 
     def __repr__(self):
-        return f'binner_ordinal({self.expression}, {self.minimum}, {self.count})'
+        return f'binner_ordinal({self.expression}, {self.minimum}, {self.count}, {self.invert})'
 
     def encode(self, encoding):
-        datatype = encoding.encode('dtype', self.dtype)
-        return {'type': 'ordinal', 'expression': self.expression, 'dtype': datatype, 'count': self.count, 'minimum': self.minimum}
+        datatype = encoding.encode("dtype", self.dtype)
+        return {"type": "ordinal", "expression": self.expression, "dtype": datatype, "count": self.count, "minimum": self.minimum, "invert": self.invert}
 
     def __hash__(self) -> int:
-        return hash((self.__class__.__name__, self.expression, self.minimum, self.count, self.dtype))
+        return hash((self.__class__.__name__, self.expression, self.minimum, self.count, self.invert, self.dtype))
 
     def __eq__(self, rhs):
         if not isinstance(rhs, BinnerOrdinal):
@@ -7226,6 +7229,7 @@ class BinnerOrdinal(BinnerBase):
             self.expression == rhs.expression and \
             self.minimum == rhs.minimum and \
             self.count == rhs.count and \
+            self.invert == rhs.invert and \
             self.dtype == rhs.dtype
 
 

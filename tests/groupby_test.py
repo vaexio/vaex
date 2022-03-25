@@ -124,23 +124,28 @@ def test_groupby_1d(ds_local):
 
 @pytest.mark.parametrize("as_category", [False, True])
 @pytest.mark.parametrize("pre_sort", [False, True])
-def test_groupby_sort_primitive(df_factory, as_category, pre_sort):
+@pytest.mark.parametrize("ascending", [False, True])
+def test_groupby_sort_primitive(df_factory, as_category, pre_sort, ascending):
     df = df_factory(g=[1, 1, 1, 1, 0, 0, 0, 0, 2, 2])
     if as_category:
-        df = df.ordinal_encode('g')
-    dfg = df.groupby(by=vaex.groupby.Grouper(df.g, sort=True, pre_sort=pre_sort), agg={'count': vaex.agg.count()})
-    assert dfg.g.tolist() == [0, 1, 2]
-    assert dfg['count'].tolist() == [4, 4, 2]
+        df = df.ordinal_encode("g")
+    dfg = df.groupby(by=vaex.groupby.Grouper(df.g, sort=True, ascending=ascending, pre_sort=pre_sort), agg={"count": vaex.agg.count()})
+    direction = 1 if ascending else -1
+    assert dfg.g.tolist() == [0, 1, 2][::direction]
+    assert dfg["count"].tolist() == [4, 4, 2][::direction]
 
 
 @pytest.mark.parametrize("as_category", [False, True])
-def test_groupby_sort_string(df_factory, as_category):
+@pytest.mark.parametrize("ascending", [False, True])
+def test_groupby_sort_string(df_factory, as_category, ascending):
     df = df_factory(g=['a', None, 'c', 'c', 'a', 'a', 'b', None, None, None])
     if as_category:
-        df = df.ordinal_encode('g')
-    dfg = df.groupby(by='g', sort=True, agg={'count': vaex.agg.count()})
-    assert dfg.g.tolist() == ['a', 'b', 'c', None]
-    assert dfg['count'].tolist() == [3, 1, 2, 4]
+        df = df.ordinal_encode("g")
+    dfg = df.groupby(by="g", sort=True, agg={"count": vaex.agg.count()}, ascending=ascending)
+    expected = ["a", "b", "c", None] if ascending else ["c", "b", "a", None]
+    assert dfg.g.tolist() == expected
+    expected = [3, 1, 2, 4] if ascending else [2, 1, 3, 4]
+    assert dfg["count"].tolist() == expected
 
 
 @pytest.mark.parametrize("auto_encode", [False, True])
@@ -375,6 +380,10 @@ def test_groupby_int8_with_null(df_factory):
     assert dfg['g'].tolist() == [-10, 1, 127, None]
     assert dfg['sum'].tolist() == [3, 4, 5, 6]
 
+    dfg = df.groupby("g", agg={"sum": vaex.agg.sum("x")}, sort=True, ascending=False)
+    assert dfg["g"].tolist() == [127, 1, -10, None]
+    assert dfg["sum"].tolist() == [5, 4, 3, 6]
+
     dfg = df.groupby('g', agg={'sum': vaex.agg.sum('x')}, sort=False)
     assert set(dfg['g'].tolist()) == set([-10, 1, 127, None])
     assert set(dfg['sum'].tolist()) == set([3, 4, 5, 6])
@@ -390,10 +399,15 @@ def test_groupby_int_binner_with_null(df_factory):
     large = 2 ** 16
     df = df_factory(g=[-10, 1, 1, 127, large, None], x=[3, None, 4, 5, 99, 6])
 
-    binner = vaex.groupby.BinnerInteger(df.g, min_value=-10, max_value=large)
+    binner = vaex.groupby.BinnerInteger(df.g, min_value=-10, max_value=large, sort=True, ascending=True)
     dfg = df.groupby(binner, agg={"sum": vaex.agg.sum("x")})
     assert dfg["g"].tolist() == [-10, 1, 127, large, None]
     assert dfg["sum"].tolist() == [3, 4, 5, 99, 6]
+
+    binner = vaex.groupby.BinnerInteger(df.g, min_value=-10, max_value=large, sort=True, ascending=False)
+    dfg = df.groupby(binner, agg={"sum": vaex.agg.sum("x")})
+    assert dfg["g"].tolist() == [large, 127, 1, -10, None]
+    assert dfg["sum"].tolist() == [99, 5, 4, 3, 6]
 
 
 def test_groupby_simplify_to_int_binner():
@@ -618,10 +632,15 @@ def test_binby_non_identifiers():
 
 def test_groupby_limited_plain(df_factory):
     df = df_factory(x=[1, 2, 2, 3, 3, 4], s=["aap", "aap", "aap", "noot", "noot", "mies"])
-    g = vaex.groupby.GrouperLimited(df.s, values=['aap', 'noot'], keep_other=True, other_value='others', label="type")
-    dfg = df.groupby(g, agg={'sum': vaex.agg.sum('x')})
-    assert dfg['type'].tolist() == ['aap', 'noot', 'others']
-    assert dfg['sum'].tolist() == [1+2+2, 3+3, 4]
+    g = vaex.groupby.GrouperLimited(df.s, values=["noot", "aap"], keep_other=True, other_value="others", label="type", sort=True)
+    dfg = df.groupby(g, agg={"sum": vaex.agg.sum("x")})
+    assert dfg["type"].tolist() == ["aap", "noot", "others"]
+    assert dfg["sum"].tolist() == [1 + 2 + 2, 3 + 3, 4]
+
+    g = vaex.groupby.GrouperLimited(df.s, values=["aap", "noot"], keep_other=True, other_value="others", label="type", sort=True, ascending=False)
+    dfg = df.groupby(g, agg={"sum": vaex.agg.sum("x")})
+    assert dfg["type"].tolist() == ["noot", "aap", "others"]
+    assert dfg["sum"].tolist() == [3 + 3, 1 + 2 + 2, 4]
 
     # not supported yet
     # g = vaex.groupby.GrouperLimited(df.s, values=['aap', 'noot'], keep_other=False, other_value='others', label="type")
@@ -651,15 +670,57 @@ def test_groupby_limited_with_nan(df_factory):
 
 
 @pytest.mark.parametrize("assume_sparse", [True, False])
-def test_binner2d_limited_combine(df_factory, assume_sparse):
+@pytest.mark.parametrize("ascending1", [False, True])
+@pytest.mark.parametrize("ascending2", [False, True])
+def test_binner2d_limited_combine(df_factory, assume_sparse, ascending1, ascending2):
     df = df_factory(x=[1, 2, 2, 3, 3, 4], s=["aap", "aap", "aap", "noot", "noot", "mies"])
-    g1 = vaex.groupby.GrouperLimited(df.s, values=['aap', 'noot'], keep_other=True, other_value='others', label="type")
-    g2 = vaex.groupby.Grouper(df.x, sort=True)
+    g1 = vaex.groupby.GrouperLimited(df.s, values=["aap", "noot"], keep_other=True, other_value="others", label="type", sort=True, ascending=ascending1)
+    g2 = vaex.groupby.Grouper(df.x, sort=True, ascending=ascending2)
     g = df.groupby([g1, g2], assume_sparse=assume_sparse, sort=True)
     dfg = g.agg({'sum': vaex.agg.sum('x')})
-    assert dfg['type'].tolist() == ['aap', 'aap', 'noot', 'others']
-    assert dfg['x'].tolist() == [1, 2, 3, 4]
-    assert dfg['sum'].tolist() == [1, 4, 6, 4]
+    if ascending1:
+        if ascending2:
+            indices = [0, 1, 2, 3]
+        else:
+            indices = [1, 0, 2, 3]
+    else:
+        if ascending2:
+            indices = [2, 0, 1, 3]
+        else:
+            indices = [2, 1, 0, 3]
+
+    def take(ar, indices):
+        return np.take(ar, indices).tolist()
+
+    assert dfg["type"].tolist() == take(["aap", "aap", "noot", "others"], indices)
+    assert dfg["x"].tolist() == take([1, 2, 3, 4], indices)
+    assert dfg["sum"].tolist() == take([1, 4, 6, 4], indices)
+
+
+@pytest.mark.parametrize("assume_sparse", [True, False])
+@pytest.mark.parametrize("ascending1", [False, True])
+@pytest.mark.parametrize("ascending2", [False, True])
+def test_groupby_sort_ascending(df_factory, ascending1, ascending2, assume_sparse):
+    df = df_factory(x=[1, 2, 2, 3, 3, 4], s=["aap", "aap", "aap", "noot", "noot", "mies"])
+    g = df.groupby(["s", "x"], sort=True, ascending=[ascending1, ascending2], assume_sparse=assume_sparse)
+    dfg = g.agg({"sum": vaex.agg.sum("x")})
+    if ascending1:
+        if ascending2:
+            indices = [0, 1, 2, 3]
+        else:
+            indices = [1, 0, 2, 3]
+    else:
+        if ascending2:
+            indices = [3, 2, 0, 1]
+        else:
+            indices = [3, 2, 1, 0]
+
+    def take(ar, indices):
+        return np.take(ar, indices).tolist()
+
+    assert dfg["s"].tolist() == take(["aap", "aap", "mies", "noot"], indices)
+    assert dfg["x"].tolist() == take([1, 2, 4, 3], indices)
+    assert dfg["sum"].tolist() == take([1, 4, 4, 6], indices)
 
 
 def test_row_limit_sparse():

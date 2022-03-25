@@ -44,8 +44,9 @@ class binner_encoding:
         dtype = encoding.decode('dtype', binner_spec['dtype'])
         if type == 'ordinal':
             cls = vaex.utils.find_type_from_dtype(vaex.superagg, "BinnerOrdinal_", dtype)
-            return cls(nthreads, binner_spec['expression'], binner_spec['count'], binner_spec['minimum'], False)
-        elif type == 'scalar':
+            print(binner_spec)
+            return cls(nthreads, binner_spec["expression"], binner_spec["count"], binner_spec["minimum"], False, binner_spec["invert"])
+        elif type == "scalar":
             cls = vaex.utils.find_type_from_dtype(vaex.superagg, "BinnerScalar_", dtype)
             return cls(nthreads, binner_spec["expression"], binner_spec["minimum"], binner_spec["maximum"], binner_spec["count"])
         elif type == "hash":
