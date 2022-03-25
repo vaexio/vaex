@@ -161,7 +161,7 @@ jobs:
         ./ci/05-run-notebooks.sh
     - name: Authenticate Google Cloud Platform
       if: ${{ (github.event.pull_request.head.repo.full_name == 'vaexio/vaex') }}
-      uses: google-github-actions/setup-gcloud@master
+      uses: google-github-actions/setup-gcloud@v0
       with:
         project_id: ${{ secrets.GCP_PROJECT_ID_VAEX }}
         service_account_key: ${{ secrets.GCP_SA_KEY_VAEX }}
