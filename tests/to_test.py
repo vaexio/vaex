@@ -1,5 +1,6 @@
 import xarray
 import pyarrow as pa
+import numpy as np
 
 
 def test_to_items(df_local):
@@ -65,3 +66,9 @@ def test_to_arrow_arrays(df_local):
     df = df_local
     assert isinstance(df['x'].to_arrow(convert_to_native=True), pa.Array)
     # assert isinstance(pa.array(df['x']), pa.Array)
+
+
+def test_to_cat_pandas(df_factory):
+    df = df_factory(x=np.array([0, 1, 2, 0], dtype='uint8'))
+    df = df.categorize('x', labels=['a', 'b', 'c'])
+    assert df.to_pandas_df()['x'].tolist() == ['a', 'b', 'c', 'a']

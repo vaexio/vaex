@@ -300,3 +300,17 @@ def same_type(*arrays):
         else:
             raise NotImplementedError
     return arrays
+
+
+def ensure_pandas(ar):
+    if vaex.array_types.is_arrow_array(ar):
+        if isinstance(ar.type, pa.DictionaryType):
+            if ar.type.index_type == pa.uint8():
+                # import pdb; pdb.set_trace()
+                indices = ar.indices.cast(pa.int16())
+                ar = pa.DictionaryArray.from_arrays(indices, ar.dictionary)
+            elif ar.type.index_type == pa.uint16():
+                # import pdb; pdb.set_trace()
+                indices = ar.indices.cast(pa.int32())
+                ar = pa.DictionaryArray.from_arrays(indices, ar.dictionary)
+    return ar
