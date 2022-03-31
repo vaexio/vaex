@@ -67,6 +67,7 @@ setup(
     classifiers=[
         'Private :: Do Not Upload to pypi server',
     ],
+    packages=[],
     install_requires=[
         'pip',
     ],
