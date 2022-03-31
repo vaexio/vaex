@@ -19,6 +19,8 @@ from .docstrings import docsubst
 import vaex.utils
 
 
+list_ = list # dangerous, we override list in this module (the aggregator)
+
 logger = logging.getLogger("vaex.agg")
 
 if vaex.utils.has_c_extension:
@@ -220,9 +222,9 @@ class AggregatorDescriptorBasic(AggregatorDescriptor):
         self.agg_args = agg_args
         self.edges = edges
         self.selection = _normalize_selection_name(selection)
-        assert isinstance(expressions, (list, tuple))
+        assert isinstance(expressions, (list_, tuple))
         for e in expressions:
-            assert not isinstance(e, (list, tuple))
+            assert not isinstance(e, (list_, tuple))
         self.expressions = [str(k) for k in expressions]
         if len(self.expressions) == 1 and self.expressions[0] == '*':
             self.expressions = []
@@ -359,9 +361,9 @@ class AggregatorDescriptorMulti(AggregatorDescriptor):
         self.expressions = expressions
         self.selection = selection
         self.edges = edges
-        assert isinstance(expressions, (list, tuple))
+        assert isinstance(expressions, (list_, tuple))
         for e in expressions:
-            assert not isinstance(e, (list, tuple))
+            assert not isinstance(e, (list_, tuple))
         self.expressions = [str(k) for k in expressions]
 
 
@@ -439,11 +441,11 @@ class AggregatorDescriptorVar(AggregatorDescriptorMulti):
 
 class AggregatorDescriptorSkew(AggregatorDescriptorMulti):
     def __init__(self, name, expression, short_name='skew', selection=None, edges=False):
-        super(AggregatorDescriptorSkew, self).__init__(name, expression, short_name, selection=selection, edges=edges)
+        super(AggregatorDescriptorSkew, self).__init__(name, [expression], short_name, selection=selection, edges=edges)
 
     def add_tasks(self, df, binners, progress):
         progressbar = vaex.utils.progressbars(progress, title=repr(self))
-        expression = expression_sum = expression = df[str(self.expression)]
+        expression = expression_sum = expression = df[str(self.expressions[0])]
         expression = expression_sum = expression.astype('float64')
 
         sum_moment1 = _sum_moment(str(expression_sum), 1, selection=self.selection, edges=self.edges)
@@ -469,11 +471,11 @@ class AggregatorDescriptorSkew(AggregatorDescriptorMulti):
 
 class AggregatorDescriptorKurtosis(AggregatorDescriptorMulti):
     def __init__(self, name, expression, short_name='kurtosis', selection=None, edges=False):
-        super(AggregatorDescriptorKurtosis, self).__init__(name, expression, short_name, selection=selection, edges=edges)
+        super(AggregatorDescriptorKurtosis, self).__init__(name, [expression], short_name, selection=selection, edges=edges)
 
     def add_tasks(self, df, binners, progress):
         progressbar = vaex.utils.progressbars(progress, title=repr(self))
-        expression = expression_sum = expression = df[str(self.expression)]
+        expression = expression_sum = expression = df[str(self.expressions[0])]
         expression = expression_sum = expression.astype('float64')
 
         sum_moment1 = _sum_moment(str(expression_sum), 1, selection=self.selection, edges=self.edges)
