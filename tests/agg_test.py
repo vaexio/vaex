@@ -654,3 +654,27 @@ def test_groupby_kurtosis(df_example):
     vaex_g = df.groupby("id", sort=True).agg({"kurtosis": vaex.agg.kurtosis("Lz")})
     pandas_g = pandas_df.groupby("id", sort=True).agg(kurtosis=("Lz", pd.Series.kurtosis))
     np.testing.assert_almost_equal(vaex_g["kurtosis"].values, pandas_g["kurtosis"].values, decimal=3)
+
+
+@pytest.mark.parametrize("dropmissing", [False, True])
+@pytest.mark.parametrize("dropna", [False, True])
+def test_agg_unique(dropmissing, dropna):
+    data = {
+        'id': [1, 2, 2, 1, 1, 3, 3],
+        'num': [1.1, 1.2, 1.3, 1.4, np.nan, 1.6, 1.7],
+        'food': ['cake', 'apples', 'oranges', 'meat', 'meat', 'carrots', None]}
+    df = vaex.from_dict(data)
+
+    gb = df.groupby('id').agg({'food': vaex.agg.unique(df['food'], dropmissing=dropmissing),
+                               'num': vaex.agg.unique(df['num'], dropna=dropna)
+                              })
+
+    if dropmissing:
+        assert gb.food.tolist() == [['cake', 'meat'], ['apples', 'oranges'], ['carrots']]
+    else:
+        assert gb.food.tolist() == [['cake', 'meat'], ['apples', 'oranges'], ['carrots', None]]
+
+    if dropna:
+        assert gb.num.tolist() == [[1.1, 1.4], [1.2, 1.3], [1.6, 1.7]]
+    else:
+        assert gb.num.tolist() == [[1.1, 1.4, None], [1.2, 1.3], [1.6, 1.7]]
