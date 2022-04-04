@@ -674,6 +674,56 @@ class list(AggregatorDescriptorBasic):
         self.dtype_out = vaex.dtype(pa.large_list(self.dtype_out.arrow))
 
 
+# TODO: we could maybe refactor this to support more struct aggregators
+@register
+class describe(AggregatorDescriptor):
+    def __init__(self, expression):
+        self.expression = expression
+        self.expressions = [self.expression]
+        self.short_name = "describe"
+        self.edges = True
+
+    def __repr__(self):
+        return f"describe({self.expression!r})"
+
+    def add_tasks(self, df, binners, progress):
+        expression: Expression = df[str(self.expression)]
+        col = expression._label
+        if expression.data_type() != "string":
+            aggs = {
+                f"count": vaex.agg.count(expression, edges=self.edges),
+                f"count_na": vaex.agg.count(edges=self.edges) - vaex.agg.count(expression, edges=self.edges),
+                f"mean": vaex.agg.mean(expression, edges=self.edges),
+                f"std": vaex.agg.std(expression, edges=self.edges),
+                f"min": vaex.agg.min(expression, edges=self.edges),
+                f"max": vaex.agg.max(expression, edges=self.edges),
+            }
+        else:
+            aggs = {f"count": vaex.agg.count(expression, edges=self.edges), f"count_na": vaex.agg.count(edges=self.edges) - vaex.agg.count(expression, edges=self.edges)}
+
+        progressbar = vaex.utils.progressbars(progress, title=repr(self))
+        tasks = []
+        results = []
+        names = []
+        for name, agg in aggs.items():
+            tasks1, result = agg.add_tasks(df, binners, progress=progressbar)
+            tasks.extend(tasks1)
+            results.append(result)
+            names.append(name)
+
+        @vaex.delayed
+        def finish(*values):
+            return self.finish(values, names)
+
+        return tasks, finish(*results)
+
+    def finish(self, values, names):
+        if len(values):
+            if vaex.array_types.is_scalar(values[0]):
+                return pa.StructArray.from_arrays(arrays=[[k] for k in values], names=names)
+        return pa.StructArray.from_arrays(arrays=values, names=names)
+
+
 # @register
 # def covar(x, y):
 #     '''Creates a standard deviation aggregation'''
