@@ -7,6 +7,7 @@ import six
 import numpy as np
 import pyarrow as pa
 from vaex.dataframe import DataFrame
+from vaex.docstrings import docsubst
 
 import vaex.array_types
 from vaex.delayed import delayed_args, delayed_dict, delayed_list
@@ -76,12 +77,12 @@ class BinnerTime(BinnerBase):
     >>> y = np.arange(len(t))
     >>> df = vaex.from_arrays(t=t, y=y)
     >>> df.groupby(vaex.BinnerTime.per_week(df.t)).agg({'y' : 'sum'})
-    #  t                      y
-    0  2015-01-01 00:00:00   21
-    1  2015-01-08 00:00:00   70
-    2  2015-01-15 00:00:00  119
-    3  2015-01-22 00:00:00  168
-    4  2015-01-29 00:00:00   87
+      #  t             y
+      0  2015-01-01   21
+      1  2015-01-08   70
+      2  2015-01-15  119
+      3  2015-01-22  168
+      4  2015-01-29   87
 
     """
 
@@ -754,20 +755,19 @@ class GroupByBase(object):
         >>> g1 = df.groupby(by='pclass')
         >>> df_group1 = g1.get_group(1)
         >>> df_group1.head(3)
-          #  name                              pclass  sex         age     fare
-          0  Allen, Miss. Elisabeth Walton          1  female  29       211.338
-          1  Allison, Master. Hudson Trevor         1  male     0.9167  151.55
-          2  Allison, Miss. Helen Loraine           1  female   2       151.55
-
+          #    pclass  survived    name                            sex         age    sibsp    parch    ticket     fare  cabin    embarked    boat      body  home_dest
+          0         1  True        Allen, Miss. Elisabeth Walton   female  29             0        0     24160  211.338  B5       S           2          nan  St Louis, MO
+          1         1  True        Allison, Master. Hudson Trevor  male     0.9167        1        2    113781  151.55   C22 C26  S           11         nan  Montreal, PQ / Chesterville, ON
+          2         1  False       Allison, Miss. Helen Loraine    female   2             1        2    113781  151.55   C22 C26  S           --         nan  Montreal, PQ / Chesterville, ON
 
         >>> df = vaex.datasets.titanic()
         >>> g2 = df.groupby(by=['pclass', 'sex'])
         >>> df_group2 = g2.get_group([1, 'female'])
         >>> df_group2.head(3)
-          #  name                                               pclass  sex       age     fare
-          0  Allen, Miss. Elisabeth Walton                           1  female     29  211.338
-          1  Allison, Miss. Helen Loraine                            1  female      2  151.55
-          2  Allison, Mrs. Hudson J C (Bessie Waldo Daniels)         1  female     25  151.55
+          #    pclass  survived    name                                             sex       age    sibsp    parch    ticket     fare  cabin    embarked    boat      body  home_dest
+          0         1  True        Allen, Miss. Elisabeth Walton                    female     29        0        0     24160  211.338  B5       S           2          nan  St Louis, MO
+          1         1  False       Allison, Miss. Helen Loraine                     female      2        1        2    113781  151.55   C22 C26  S           --         nan  Montreal, PQ / Chesterville, ON
+          2         1  False       Allison, Mrs. Hudson J C (Bessie Waldo Daniels)  female     25        1        2    113781  151.55   C22 C26  S           --         nan  Montreal, PQ / Chesterville, ON
 
         :param group: A value or a list of values of the expressions used to create the groupby object.
             If `assume_sparse=True` when greating the groupby object, this param takes an int corresponding to the particular groupby combination.
@@ -959,6 +959,37 @@ class GroupBy(GroupByBase):
         else:
             self.df.execute()
             return result.get()
+
+    @docsubst
+    def describe(self, expression=None):
+        '''Return a dataframe with summary statistics per group for each of the expressions provided.
+
+        Example:
+
+        >>> import vaex
+        >>> df = vaex.datasets.titanic()
+        >>> df.groupby('pclass').describe('age')
+          #    pclass    age_count    age_count_na    age_mean    age_std    age_min    age_max
+          0         1          284              39     39.1599    14.5224     0.9167         80
+          1         2          261              16     29.5067    13.6125     0.6667         70
+          2         3          501             208     24.8164    11.9463     0.1667         74
+
+        Short for:
+        >>> df.groupby('pclass').agg({{'age': vaex.agg.describe('age')}}).struct.flatten()
+          #    pclass    age_count    age_count_na    age_mean    age_std    age_min    age_max
+          0         1          284              39     39.1599    14.5224     0.9167         80
+          1         2          261              16     29.5067    13.6125     0.6667         70
+          2         3          501             208     24.8164    11.9463     0.1667         74
+
+        :param expression: {expression}
+        :rtype: DataFrame
+        '''
+        if expression is None:
+            expression = self.df.get_column_names()
+        columns = vaex.utils._ensure_strings_from_expressions(expression)
+        columns = vaex.utils._ensure_list(columns)
+        aggs = {col: vaex.agg.describe(col) for col in columns}
+        return self.agg(aggs).struct.flatten()
 
 
 @vaex.dataset.register
