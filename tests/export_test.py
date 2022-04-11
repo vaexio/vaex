@@ -107,6 +107,20 @@ def test_export_open_hdf5(ds_local):
     ds_opened = vaex.open(filename)
     assert list(ds) == list(ds_opened)
 
+def test_export_concat_missing_cols_hdf5(tmpdir):
+    df1 = vaex.from_arrays(x=[1, 2, 3], s=['x1', 'x2', 'x3'], y=[10, 20, 30])
+    df2 = vaex.from_arrays(x=[4, 5, 6])
+
+    df = vaex.concat([df1, df2])
+
+    filename = tempfile.mktemp(suffix='.hdf5')
+    df.export_hdf5(filename)
+
+    df_opened = vaex.open(filename)
+    assert df_opened.x.tolist() == [1, 2, 3, 4, 5, 6]
+    assert df_opened.y.tolist() == [10, 20, 30, None, None, None]
+    assert df_opened.s.tolist() == ['x1', 'x2', 'x3', None, None, None]
+
 def test_export_open_csv(ds_local, tmpdir):
     df = ds_local
     path = str(tmpdir.join('test.csv'))
