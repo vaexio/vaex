@@ -1,4 +1,5 @@
 import numpy as np
+from vaex.dataframe import DataFrame
 
 import vaex.dataset
 from vaex.utils import _ensure_string_from_expression
@@ -124,8 +125,8 @@ class DatasetJoin(vaex.dataset.DatasetDecorator):
 def join(df, other, on=None, left_on=None, right_on=None, lprefix='', rprefix='', lsuffix='', rsuffix='', how='left', allow_duplication=False, prime_growth=False, cardinality_other=None, inplace=False):
     # implementation of DataFrameLocal.join
     inner = False
-    left = df
-    right = other
+    left: DataFrame = df
+    right: DataFrame = other
     left_original = left.copy()
     right_original = right.copy()
     rprefix_original, lprefix_original = rprefix, lprefix
@@ -276,13 +277,16 @@ def join(df, other, on=None, left_on=None, right_on=None, lprefix='', rprefix=''
             left.column_names.append(name)
             left._initialize_column(name)
     # merge the two datasets
-    right_dataset = right.dataset.project(*right_columns)
-    if lookup is not None:
-        # if lookup is None, we do a row based join
-        # and we only need to merge.
-        # if we have an array of lookup indices, we 'take' those
-        right_dataset = right_dataset.take(lookup, masked=any(lookup_masked))
-    dataset = left.dataset.merged(right_dataset)
+    if right_columns:
+        right_dataset = right.dataset.project(*right_columns)
+        if lookup is not None:
+            # if lookup is None, we do a row based join
+            # and we only need to merge.
+            # if we have an array of lookup indices, we 'take' those
+            right_dataset = right_dataset.take(lookup, masked=any(lookup_masked))
+        dataset = left.dataset.merged(right_dataset)
+    else:
+        dataset = left.dataset
     # row number etc should not have changed, we only append new columns
     # so no need to reset caches
     left._dataset = DatasetJoin(dataset, left_original, right_original,
