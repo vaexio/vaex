@@ -61,6 +61,28 @@ def slice(ar, offset, length=None):
             return ar[offset:]
 
 
+def shape(ar):
+    if is_arrow_array(ar):
+        return (len(ar),)
+    else:
+        return ar.shape
+
+def ndim(ar):
+    if is_arrow_array(ar):
+        return 1
+    else:
+        return ar.ndim
+
+
+def getitem(ar, item):
+    if is_arrow_array(ar):
+        assert len(item) == 1, "For arrow we only support 1 d items"
+        assert item[0].step is None, "Step not supported for arrow"
+        start, end = item[0].start, item[0].stop
+        return ar[start:end]
+    else:
+        return ar[item]
+
 def concat(arrays):
     if len(arrays) == 1:
         return arrays[0]
@@ -149,6 +171,9 @@ def to_numpy(x, strict=False):
 
 
 def to_arrow(x, convert_to_native=True):
+    if isinstance(x, (vaex.strings.StringList32, vaex.strings.StringList64)):
+        col = vaex.column.ColumnStringArrow.from_string_sequence(x)
+        return pa.array(col)
     if isinstance(x, supported_arrow_array_types):
         return x
     if convert_to_native and isinstance(x, np.ndarray):

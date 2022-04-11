@@ -3,6 +3,7 @@ import copy
 import os
 import base64
 import datetime
+from pydoc import doc
 import time
 import cloudpickle as pickle
 import functools
@@ -980,6 +981,7 @@ class Expression(with_metaclass(Meta)):
         """Alias to df.is_masked(expression)"""
         return self.ds.is_masked(self.expression)
 
+    @docsubst
     def value_counts(self, dropna=False, dropnan=False, dropmissing=False, ascending=False, progress=False, axis=None):
         """Computes counts of unique values.
 
@@ -987,10 +989,11 @@ class Expression(with_metaclass(Meta)):
           * If the expression/column is not categorical, it will be converted on the fly
           * dropna is False by default, it is True by default in pandas
 
-        :param dropna: when True, it will not report the NA (see :func:`Expression.isna`)
-        :param dropnan: when True, it will not report the nans(see :func:`Expression.isnan`)
-        :param dropmissing: when True, it will not report the missing values (see :func:`Expression.ismissing`)
+        :param dropna: {dropna}
+        :param dropnan: {dropnan}
+        :param dropmissing: {dropmissing}
         :param ascending: when False (default) it will report the most frequent occuring item first
+        :param progress: {progress}
         :param bool axis: Axis over which to determine the unique elements (None will flatten arrays or lists)
         :returns: Pandas series containing the counts
         """
@@ -1108,14 +1111,16 @@ class Expression(with_metaclass(Meta)):
     def unique(self, dropna=False, dropnan=False, dropmissing=False, selection=None, axis=None, limit=None, limit_raise=True, array_type='list', progress=None, delay=False):
         """Returns all unique values.
 
-        :param dropmissing: do not count missing values
-        :param dropnan: do not count nan values
-        :param dropna: short for any of the above, (see :func:`Expression.isna`)
+        :param dropna: {dropna}
+        :param dropnan: {dropnan}
+        :param dropmissing: {dropmissing}
+        :param selection: {selection}
         :param bool axis: Axis over which to determine the unique elements (None will flatten arrays or lists)
         :param int limit: {limit}
         :param bool limit_raise: {limit_raise}
-        :param progress: {progress}
         :param bool array_type: {array_type}
+        :param progress: {progress}
+        :param bool delay: {delay}
         """
         return self.ds.unique(self, dropna=dropna, dropnan=dropnan, dropmissing=dropmissing, selection=selection, array_type=array_type, axis=axis, limit=limit, limit_raise=limit_raise, progress=progress, delay=delay)
 
@@ -1123,12 +1128,15 @@ class Expression(with_metaclass(Meta)):
     def nunique(self, dropna=False, dropnan=False, dropmissing=False, selection=None, axis=None, limit=None, limit_raise=True, progress=None, delay=False):
         """Counts number of unique values, i.e. `len(df.x.unique()) == df.x.nunique()`.
 
-        :param dropmissing: do not count missing values
-        :param dropnan: do not count nan values
-        :param dropna: short for any of the above, (see :func:`Expression.isna`)
+        :param dropna: {dropna}
+        :param dropnan: {dropnan}
+        :param dropmissing: {dropmissing}
+        :param selection: {selection}
+        :param bool axis: Axis over which to determine the unique elements (None will flatten arrays or lists)
         :param int limit: {limit}
         :param bool limit_raise: {limit_raise}
-        :param bool axis: Axis over which to determine the unique elements (None will flatten arrays or lists)
+        :param progress: {progress}
+        :param bool delay: {delay}
         """
         def key_function():
             fp = vaex.cache.fingerprint(self.fingerprint(), dropna, dropnan, dropmissing, selection, axis, limit)

@@ -230,7 +230,7 @@ void add_agg_nunique_primitive(py::module &m, const py::class_<Aggregator> &base
     class_name += type_name<T>::value;
     class_name += FlipEndian ? "_non_native" : "";
     using Class = AggNUniquePrimitive<T, default_index_type, FlipEndian>;
-    py::class_<Class>(m, class_name.c_str(), base).def(py::init<Grid<> *, int, int, bool, bool>(), py::keep_alive<1, 2>()); //.def_buffer(&Class::buffer_info);
+    py::class_<Class>(m, class_name.c_str(), base).def(py::init<Grid<> *, int, int, bool, bool>(), py::keep_alive<1, 2>());
 }
 
 #define create(type)                                                                                                                                                                                   \

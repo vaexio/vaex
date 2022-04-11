@@ -13,12 +13,12 @@ using namespace vaex;
 
 template <class Agg, class Base, class Module>
 void add_agg(Module m, Base &base, const char *class_name) {
-    py::class_<Agg>(m, class_name, base).def(py::init<Grid<> *>(), py::keep_alive<1, 2>()).def_buffer(&Agg::buffer_info);
+    py::class_<Agg>(m, class_name, base).def(py::init<Grid<> *>(), py::keep_alive<1, 2>()).def_buffer(&agg_buffer_info<Agg>);
 }
 
 template <class Agg, class Base, class Module, class A>
 void add_agg_arg(Module m, Base &base, const char *class_name) {
-    py::class_<Agg>(m, class_name, base).def(py::init<Grid<> *, A>(), py::keep_alive<1, 2>()).def_buffer(&Agg::buffer_info);
+    py::class_<Agg>(m, class_name, base).def(py::init<Grid<> *, A>(), py::keep_alive<1, 2>()).def_buffer(&agg_buffer_info<Agg>);
 }
 
 namespace vaex {
@@ -43,7 +43,11 @@ void add_agg_nunique_primitive(py::module &m, const py::class_<Aggregator> &base
 template <class T, bool FlipEndian>
 void add_agg_first_primitive(py::module &m, const py::class_<Aggregator> &base);
 
+template <class T, bool FlipEndian>
+void add_agg_list_primitive(py::module &m, const py::class_<Aggregator> &base);
+
 void add_agg_nunique_string(py::module &m, py::class_<Aggregator> &base);
+void add_agg_list_string(py::module &m, py::class_<Aggregator> &base);
 // void add_agg_nunique_primitives(py::module &m, py::class_<Aggregator> &base);
 void add_agg_multithreaded(py::module &m, py::class_<Aggregator> &base);
 void add_binners(py::module &, py::class_<Binner> &base);
@@ -62,6 +66,7 @@ void add_agg_primitives_(Module m, const Base &base) {
 
     add_agg_nunique_primitive<T, FlipEndian>(m, base);
     add_agg_first_primitive<T, FlipEndian>(m, base);
+    add_agg_list_primitive<T, FlipEndian>(m, base);
 }
 
 template <class T, class Base, class Module>
@@ -106,6 +111,7 @@ PYBIND11_MODULE(superagg, m) {
     add_agg_count_string(m, aggregator);
     add_agg_count_object(m, aggregator);
     add_agg_nunique_string(m, aggregator);
+    add_agg_list_string(m, aggregator);
 
 #define create(type) add_agg_primitives<type>(m, aggregator);
 #include "create_alltypes.hpp"

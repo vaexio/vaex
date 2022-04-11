@@ -5,6 +5,7 @@ import sys
 import logging
 
 import numpy as np
+import pyarrow as pa
 
 import dask.base
 from vaex.expression import Expression
@@ -53,10 +54,13 @@ class aggregation_encoding:
                 agg_spec['moment'] = agg_spec.pop('parameters')[0]
         if 'expressions' in agg_spec:
             args = agg_spec.pop('expressions')
+        if type == "list":
+            if "parameters" in agg_spec:  # renameing between spec and implementation
+                agg_spec["dropnan"], agg_spec["dropmissing"] = agg_spec.pop("parameters")
         return f(*args, **agg_spec)
 
 
-class AggregatorDescriptor(object):
+class AggregatorDescriptor:
     def __repr__(self):
         args = [*self.expressions]
         return 'vaex.agg.{}({!r})'.format(self.short_name, ", ".join(map(str, args)))
@@ -272,7 +276,7 @@ class AggregatorDescriptorBasic(AggregatorDescriptor):
         return [task], finish(task)
 
     def _create_operation(self, grid, nthreads):
-        if self.name == "AggFirst":
+        if self.name in ["AggFirst", "AggList"]:
             if len(self.dtypes_in) == 1:
                 # rows use int64
                 agg_op_type = vaex.utils.find_type_from_dtype(vaex.superagg, self.name + "_", self.dtypes_in[0], vaex.dtype(np.dtype('int64')))
@@ -280,7 +284,10 @@ class AggregatorDescriptorBasic(AggregatorDescriptor):
                 agg_op_type = vaex.utils.find_type_from_dtype(vaex.superagg, self.name + "_", self.dtypes_in[0], self.dtypes_in[1])
         else:
             agg_op_type = vaex.utils.find_type_from_dtype(vaex.superagg, self.name + "_", self.dtype_in)
-        bytes_per_cell = self.dtype_out.numpy.itemsize
+        if self.dtype_out.is_primitive or self.dtype_out.is_temporal:
+            bytes_per_cell = self.dtype_out.numpy.itemsize
+        else:
+            bytes_per_cell = self.dtype_out.value_type.numpy.itemsize
         cells = reduce(operator.mul, [len(binner) for binner in grid.binners], 1)
         grids = nthreads
         ncells = len(grid)
@@ -296,12 +303,21 @@ class AggregatorDescriptorBasic(AggregatorDescriptor):
             grids = 1
         if logger.isEnabledFor(logging.INFO):
             logger.info("Using %r grids for %r thread for aggerator %r (total grid cells %s)", grids, nthreads, self, f"{ncells:,}")
-        predicted_memory_usage = bytes_per_cell * cells * grids
-        vaex.memory.local.agg.pre_alloc(predicted_memory_usage, f"aggregator data for {agg_op_type}")
+        if self.short_name in ["list"]:
+            # cannot predict memory usage
+            predicted_memory_usage = None
+            grids = 1
+        else:
+            predicted_memory_usage = bytes_per_cell * cells * grids
+            vaex.memory.local.agg.pre_alloc(predicted_memory_usage, f"aggregator data for {agg_op_type}")
         agg_op = agg_op_type(grid, grids, nthreads, *self.agg_args)
         used_memory = sys.getsizeof(agg_op)
-        if predicted_memory_usage != used_memory:
-            raise RuntimeError(f'Wrong prediction for {agg_op_type}, expected to take {predicted_memory_usage} bytes but actually used {used_memory}')
+
+        if predicted_memory_usage is not None:
+            if predicted_memory_usage != used_memory:
+                raise RuntimeError(f'Wrong prediction for {agg_op_type}, expected to take {predicted_memory_usage} bytes but actually used {used_memory}')
+        else:
+            vaex.memory.local.agg.pre_alloc(used_memory, f"aggregator data for {agg_op_type}")
         return agg_op
 
     def get_result(self, agg_operation):
@@ -585,9 +601,9 @@ def nunique(expression, dropna=False, dropnan=False, dropmissing=False, selectio
     """Aggregator that calculates the number of unique items per bin.
 
     :param expression: {expression_one}
-    :param dropmissing: do not count missing values
-    :param dropnan: do not count nan values
-    :param dropna: short for any of the above, (see :func:`Expression.isna`)
+    :param dropmissing: {dropmissing}
+    :param dropnan: {dropnan}
+    :param dropna: {dropna}
     :param selection: {selection1}
     """
     if dropna:
@@ -633,6 +649,29 @@ def all(expression=None, selection=None):
             else:
                 # since we cannot mix different selections:
                 return sum(f'astype({expression}, "bool") & astype({selection}, "bool")') == count(expression)
+
+
+@register
+@docsubst
+class list(AggregatorDescriptorBasic):
+    '''Aggregator that returns a list of values belonging to the specified expression.
+
+    :param expression: {expression_one}
+    :param selection: {selection1}
+    :param dropmissing: {dropmissing}
+    :param dropnan: {dropnan}
+    :param dropna: {dropna}
+    :param edges: {edges}
+    '''
+    def __init__(self, expression, selection=None, dropna=False, dropnan=False, dropmissing=False, edges=False):
+        if dropna:
+            dropnan = True
+            dropmissing = True
+        super(list, self).__init__("AggList", [expression], "list", selection=selection, edges=edges, agg_args=[dropnan, dropmissing])
+
+    def _prepare_types(self, df):
+        super()._prepare_types(df)
+        self.dtype_out = vaex.dtype(pa.large_list(self.dtype_out.arrow))
 
 
 # @register

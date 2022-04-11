@@ -8,19 +8,6 @@ namespace vaex {
 
 // base classes that make life easier
 
-template <class Agg, class Base, class Module>
-void add_agg_binding_1arg(Module m, Base &base, const char *class_name) {
-    py::class_<Agg>(m, class_name, base)
-        .def(py::init<Grid<> *, int, int>(), py::keep_alive<1, 2>())
-        .def_buffer(&Agg::buffer_info)
-        .def("__sizeof__", &Agg::bytes_used)
-        .def("set_data", &Agg::set_data)
-        .def("clear_data_mask", &Agg::clear_data_mask)
-        .def("set_data_mask", &Agg::set_data_mask)
-        .def_property_readonly("grid", [](const Agg &agg) { return agg.grid; });
-    ;
-}
-
 template <class GridType = double, class IndexType = default_index_type>
 class AggregatorBase : public Aggregator {
   public:
@@ -89,24 +76,6 @@ class AggregatorBase : public Aggregator {
         return result;
     }
 
-    py::buffer_info buffer_info() {
-        std::vector<ssize_t> strides(grid->dimensions + 1);
-        std::vector<ssize_t> shapes(grid->dimensions + 1);
-        shapes[0] = grids;
-        std::copy(&grid->shapes[0], &grid->shapes[grid->dimensions], &shapes[1]);
-        std::transform(&grid->strides[0], &grid->strides[grid->dimensions], &strides[1], [&](uint64_t x) { return x * sizeof(grid_type); });
-        if (grid->dimensions) {
-            strides[0] = strides[1] * shapes[1];
-        } else {
-            strides[0] = sizeof(grid_type);
-        }
-        return py::buffer_info(&grid_data[0],                              /* Pointer to buffer */
-                               sizeof(grid_type),                          /* Size of one scalar */
-                               py::format_descriptor<grid_type>::format(), /* Python struct-style format descriptor */
-                               grid->dimensions + 1,                       /* Number of dimensions */
-                               shapes,                                     /* Buffer dimensions */
-                               strides);
-    }
     void set_selection_mask(int thread, py::buffer ar) {
         py::buffer_info info = ar.request();
         if (info.ndim != 1) {
@@ -132,6 +101,28 @@ class AggregatorBase : public Aggregator {
     std::mutex mutex;
     std::condition_variable not_empty;
 };
+
+
+template <class C>  // make it compile for non primitive types
+py::buffer_info agg_buffer_info(C* this_) {
+    using grid_type = typename C::grid_type;
+    std::vector<ssize_t> strides(this_->grid->dimensions + 1);
+    std::vector<ssize_t> shapes(this_->grid->dimensions + 1);
+    shapes[0] = this_->grids;
+    std::copy(&this_->grid->shapes[0], &this_->grid->shapes[this_->grid->dimensions], &shapes[1]);
+    std::transform(&this_->grid->strides[0], &this_->grid->strides[this_->grid->dimensions], &strides[1], [&](uint64_t x) { return x * sizeof(grid_type); });
+    if (this_->grid->dimensions) {
+        strides[0] = strides[1] * shapes[1];
+    } else {
+        strides[0] = sizeof(grid_type);
+    }
+    return py::buffer_info(&this_->grid_data[0],                              /* Pointer to buffer */
+                            sizeof(grid_type),                          /* Size of one scalar */
+                            py::format_descriptor<grid_type>::format(), /* Python struct-style format descriptor */
+                            this_->grid->dimensions + 1,                       /* Number of dimensions */
+                            shapes,                                     /* Buffer dimensions */
+                            strides);
+}
 
 template <class GridType = double, class IndexType = default_index_type>
 class AggregatorBaseNumpyData : public AggregatorBase<GridType, IndexType> {
@@ -253,5 +244,19 @@ class AggBaseObject : public AggregatorBase<IndexType> {
     std::vector<uint64_t> data_mask_size;
     std::vector<uint64_t> objects_size;
 };
+
+
+template <class Agg, class Base, class Module>
+void add_agg_binding_1arg(Module m, Base &base, const char *class_name) {
+    py::class_<Agg>(m, class_name, base)
+        .def(py::init<Grid<> *, int, int>(), py::keep_alive<1, 2>())
+        .def_buffer(&agg_buffer_info<Agg>)
+        .def("__sizeof__", &Agg::bytes_used)
+        .def("set_data", &Agg::set_data)
+        .def("clear_data_mask", &Agg::clear_data_mask)
+        .def("set_data_mask", &Agg::set_data_mask)
+        .def_property_readonly("grid", [](const Agg &agg) { return agg.grid; });
+    ;
+}
 
 } // namespace vaex

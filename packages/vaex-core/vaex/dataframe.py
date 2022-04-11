@@ -570,13 +570,17 @@ class DataFrame(object):
     def unique(self, expression, return_inverse=False, dropna=False, dropnan=False, dropmissing=False, progress=False, selection=None, axis=None, delay=False, limit=None, limit_raise=True, array_type='python'):
         """Returns all unique values.
 
-        :param dropmissing: do not count missing values
-        :param dropnan: do not count nan values
-        :param dropna: short for any of the above, (see :func:`Expression.isna`)
+        :param expression: {expression}
+        :param return_inverse: Return the inverse mapping from unique values to original values.
+        :param dropna: {dropna}
+        :param dropnan: {dropnan}
+        :param dropmissing: {dropmissing}
+        :param progress: {progress}
+        :param selection: {selection}
         :param int axis: Axis over which to determine the unique elements (None will flatten arrays or lists)
+        :param delay: {delay}
         :param int limit: {limit}
         :param bool limit_raise: {limit_raise}
-        :param progress: {progress}
         :param str array_type: {array_type}
         """
         if dropna:

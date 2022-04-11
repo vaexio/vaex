@@ -1,3 +1,4 @@
+from re import S
 import vaex
 import numpy as np
 from common import *
@@ -654,3 +655,59 @@ def test_groupby_kurtosis(df_example):
     vaex_g = df.groupby("id", sort=True).agg({"kurtosis": vaex.agg.kurtosis("Lz")})
     pandas_g = pandas_df.groupby("id", sort=True).agg(kurtosis=("Lz", pd.Series.kurtosis))
     np.testing.assert_almost_equal(vaex_g["kurtosis"].values, pandas_g["kurtosis"].values, decimal=3)
+
+@pytest.mark.parametrize("dropmissing", [False, True])
+@pytest.mark.parametrize("dropnan", [False, True])
+@pytest.mark.parametrize("by_col_has_missing", [False, True])
+def test_agg_list(dropmissing, dropnan, by_col_has_missing):
+    if by_col_has_missing:
+        special_value = None
+    else:
+        special_value = 3
+    data = {
+        'id': pa.array([1, 2, 2, 1, 1, special_value, special_value]),
+        'num': [1.1, 1.2, 1.3, 1.4, np.nan, 1.6, 1.7],
+        'food': ['cake', 'apples', 'oranges', 'meat', 'meat', 'carrots', None]}
+    df = vaex.from_dict(data)
+
+    gb = df.groupby('id').agg({'food': vaex.agg.list(df['food'], dropmissing=dropmissing),
+                               'num': vaex.agg.list(df['num'], dropnan=dropnan)
+                              })
+
+    if dropmissing:
+        assert gb.food.tolist() == [['cake', 'meat', 'meat'], ['apples', 'oranges'], ['carrots']]
+    else:
+        assert gb.food.tolist() == [['cake', 'meat', 'meat'], ['apples', 'oranges'], ['carrots', None]]
+
+    result = gb.num.tolist()
+    if dropnan:
+        assert result == [[1.1, 1.4], [1.2, 1.3], [1.6, 1.7]]
+    else:
+        assert result[1:] == [[1.2, 1.3], [1.6, 1.7]]
+        assert result[0][:2] == [1.1, 1.4]
+        assert np.isnan(result[0][2])
+
+    if by_col_has_missing:
+        assert gb.id.tolist() == [1, 2, None]
+    else:
+        assert gb.id.tolist() == [1, 2, 3]
+
+def test_agg_arrow():
+    # cover different groupers with the aggregator resulting in arrow data (e.g. a list)
+    s = ['aap', 'aap', 'noot', 'mies', None, 'mies', 'kees', 'mies', 'aap']
+    x = [0,     0,     0,      0,      0,     1,      1,     1,      2]
+    y = [1,     1,     0,      1,      0,     0,      0,     1,      1]
+    df = vaex.from_arrays(x=x, s=s, y=y)
+    dfg = df.groupby(df.s, agg={'l': vaex.agg.list(df.x)}, sort=True)
+    assert dfg.s.tolist() == ['aap', 'kees', 'mies', 'noot', None]
+    assert set(dfg.l.tolist()[0]) == {0, 2}
+
+    g = vaex.groupby.GrouperLimited(df.s, ['aap', 'kees'], other_value='other', sort=True)
+    dfg = df.groupby(g, agg={'l': vaex.agg.list(df.x)}, sort=True)
+    assert dfg.s.tolist() == ['aap', 'kees', 'other']
+    assert set(dfg.l.tolist()[0]) == {0, 2}
+
+    df = df.ordinal_encode('s')
+    dfg = df.groupby(df.s, agg={'l': vaex.agg.list(df.x)}, sort=True)
+    assert dfg.s.tolist() == ['aap', 'kees', 'mies', 'noot', None]
+    assert set(dfg.l.tolist()[0]) == {0, 2}
