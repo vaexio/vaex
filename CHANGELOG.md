@@ -1,6 +1,37 @@
+# vaex 4.9.0
+
+# vaex-core 4.9.0
+   * Features
+      * Progress bar for percentile_approx and median_approx [#1889](https://github.com/vaexio/vaex/pull/1889)
+      * Better casting of strings to datetime [#1920](https://github.com/vaexio/vaex/pull/1920)
+      * We better support numpy scalars now, and more arrow time units. [#1921](https://github.com/vaexio/vaex/pull/1921)
+      * Allow sorting by strings, multiple columns and multiple directions [#1963](https://github.com/vaexio/vaex/pull/1963)
+      * Support JSON in df.export [#1974](https://github.com/vaexio/vaex/pull/1974)
+      * New/better aggregators
+        * first/last use different type 'sort column. [#1848](https://github.com/vaexio/vaex/pull/1848)
+        * Skew and kurtosis [#1946](https://github.com/vaexio/vaex/pull/1946)
+        * List aggregator [#1987](https://github.com/vaexio/vaex/pull/1987)
+      * Pre-sort by the grouping columns in df.groupby (better performance) [#1990](https://github.com/vaexio/vaex/pull/1990)
+   * Performance
+      * No copy of hashmap and GIL release [#1893](https://github.com/vaexio/vaex/pull/1893) [#1961](https://github.com/vaexio/vaex/pull/1961)
+      * Store strings in hashmap in arrow array, making map.key_array() faster [#1976](https://github.com/vaexio/vaex/pull/1976)
+   * Fix
+      * Respect row_limit when the groupby is dense [#1894](https://github.com/vaexio/vaex/pull/1894)
+      * Fingerprint collision possible if filter uses virtual column [#1949](https://github.com/vaexio/vaex/pull/1949)
+      * Apply with filtered data could give wrong dtypes [#1936](https://github.com/vaexio/vaex/pull/1936)
+      * Strings array growing failed when first string was zero length [#1956](https://github.com/vaexio/vaex/pull/1956)
+      * Use less processes for when using multiprocessing. [#1979](https://github.com/vaexio/vaex/pull/1979)
+      * Support chunked arrays and empty chunks in value counts. [#1958](https://github.com/vaexio/vaex/pull/1958) [#1975](https://github.com/vaexio/vaex/pull/1975)
+      * Allow renaming of function, to make join use with functions without name collisions. [#1966](https://github.com/vaexio/vaex/pull/1966)
+      * Join would fail if the rhs had no columns besides the join one [#2010](https://github.com/vaexio/vaex/pull/2010)
+      * hdf5 export fails for concat df with missing columns [#1493](https://github.com/vaexio/vaex/pull/1493)
+      * Allow `col` as column name [#1992](https://github.com/vaexio/vaex/issues/1992)
+
+
+
 # vaex 4.8.0
 ## vaex-core 4.8.0
-   * Feature
+   * Features
       * Multiple example datasets provided in `vaex.datasets` [#1317](https://github.com/vaexio/vaex/pull/1317)
       * We do not use asyncio for the default sync execute path [#1783](https://github.com/vaexio/vaex/pull/1783)
       * Executor works with asyncio with multiple tasks [#1784]https://github.com/vaexio/vaex/pull/1784)
