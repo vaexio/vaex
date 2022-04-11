@@ -384,3 +384,11 @@ def test_apply_function_name_collision():
     df2["y2"] = df2["y"].apply(transform, multiprocessing=False)
     joined = df1.join(df2, left_on="x2", right_on="y2", allow_duplication=True)
     assert joined.y2.tolist() == [2, 99]
+
+
+def test_join_no_right_columns_left():
+    df1 = vaex.from_arrays(a=[1, 2, 3])
+    # df2 only contains 'a', so we don't do the join for real
+    df2 = vaex.from_arrays(a=[1, 10])
+    df = df1.join(df2, on="a", how="inner")
+    assert df["a"].tolist() == [1]
