@@ -2184,8 +2184,11 @@ class DataFrame(object):
             pass
         data = ColumnList()
         for name in self.get_column_names():
-            expression = getattr(self, name, None)
-            if not isinstance(expression, Expression):
+            if name != 'col':  # avoid recursion
+                expression = getattr(self, name, None)
+                if not isinstance(expression, Expression):
+                    expression = Expression(self, name)
+            else:
                 expression = Expression(self, name)
             setattr(data, name, expression)
         return data

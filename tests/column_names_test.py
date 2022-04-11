@@ -94,3 +94,6 @@ def test_special_names():
     # getattr(df, 'data', None) to return None
     df = vaex.from_arrays(data=[1, 2])
     assert df['data'].tolist() == [1, 2]
+
+    df = vaex.from_arrays(col=[1, 2])
+    assert df['col'].tolist() == [1, 2]
