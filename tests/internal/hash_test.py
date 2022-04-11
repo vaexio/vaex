@@ -38,6 +38,18 @@ def test_counter_string(counter_cls):
     assert counter1.counts().tolist() == [1, 1, 1, 1, 1]
 
 
+def test_counter_string_nulls_issue():
+    first = [None, 'b', 'c']
+    strings = vaex.strings.array(first)
+    counter = counter_string(1)
+    counter.update(strings)
+    more = ['d', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o']
+    strings2 = vaex.strings.array(more)
+    # the second update would nut grow the null array correctly
+    counter.update(strings2)
+    assert set(counter.key_array().tolist()) == set(first + more)
+
+
 def test_set_string():
     set = ordered_set_string(1)
     strings = ['aap', 'noot', 'mies']

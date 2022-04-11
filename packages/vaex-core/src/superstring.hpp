@@ -516,7 +516,7 @@ class StringList : public StringSequenceBase {
     }
     void add_null_bitmap() {
         _own_null_bitmap = true;
-        size_t null_bitmap_length = (length + 7) / 8;
+        size_t null_bitmap_length = (indices_length + 7) / 8;
         null_bitmap = (unsigned char *)malloc(null_bitmap_length);
         memset(null_bitmap, 0xff, null_bitmap_length);
     }
@@ -530,9 +530,16 @@ class StringList : public StringSequenceBase {
         bytes = (char *)realloc(bytes, byte_length);
     }
     void grow_indices() {
+        auto indices_length_prev = indices_length;
         indices_length *= 2;
         indices_length = indices_length == 0 ? 1 : indices_length;
         indices = (index_type *)realloc(indices, indices_length * sizeof(index_type));
+        if(null_bitmap) {
+            size_t null_bitmap_length_prev = (indices_length_prev + 7) / 8;
+            size_t null_bitmap_length = (indices_length + 7) / 8;
+            null_bitmap = (unsigned char *)realloc(null_bitmap, null_bitmap_length);
+            memset(null_bitmap + null_bitmap_length_prev, 0xff, null_bitmap_length - null_bitmap_length_prev);
+        }
     }
     virtual StringSequenceBase *capitalize();
     // a slice for when the indices are not filled yet
