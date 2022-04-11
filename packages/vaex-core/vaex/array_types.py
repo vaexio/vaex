@@ -38,6 +38,9 @@ def is_array(ar):
     return is_arrow_array(ar) or is_numpy_array(ar)
 
 
+def is_scalar(x):
+    return not is_array(x) or (is_numpy_array(x) and x.ndim == 0)
+
 def filter(ar, boolean_mask):
     if isinstance(ar, supported_arrow_array_types):
         return ar.filter(pa.array(boolean_mask))
