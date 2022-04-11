@@ -117,7 +117,7 @@ def test_export_concat_missing_cols_hdf5(tmpdir):
     df.export_hdf5(filename)
 
     df_opened = vaex.open(filename)
-    assert df_opened.x.tolist() == [1, 2, 3, 7, 8, 9]
+    assert df_opened.x.tolist() == [1, 2, 3, 4, 5, 6]
     assert df_opened.y.tolist() == [10, 20, 30, None, None, None]
     assert df_opened.s.tolist() == ['x1', 'x2', 'x3', None, None, None]
 
