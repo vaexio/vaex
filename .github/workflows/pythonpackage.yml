@@ -156,7 +156,7 @@ jobs:
 #      run: |
 #        py.test vaex-enterprise/tests --timeout=1000
     - name: Test notebooks
-      if: matrix.os != 'windows-latest'
+      if: matrix.os != 'windows-latest' && matrix.python-version == '3.6'
       run: |
         ./ci/05-run-notebooks.sh
     - name: Authenticate Google Cloud Platform
