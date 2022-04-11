@@ -29,7 +29,7 @@ _EXPERIMENTAL_BINNER_HASH = False
 
 
 # pure Python to avoid int overflow
-product = lambda l: reduce(operator.mul, l)
+product = lambda l: reduce(operator.mul, l, 1)
 
 
 class BinnerBase:
@@ -607,7 +607,9 @@ class GroupByBase(object):
         self.progressbar = vaex.utils.progressbars(progress)
         self.progressbar_groupers = self.progressbar.add("groupers")
 
-        if not isinstance(by, collections_abc.Iterable)\
+        if by is None:
+            by = []
+        elif not isinstance(by, collections_abc.Iterable)\
             or isinstance(by, six.string_types):
             by = [by]
 
@@ -885,11 +887,22 @@ class GroupBy(GroupByBase):
         def process(args):
             counts, arrays = args
             logger.info(f"aggregated on grid, constructing dataframe...")
+            if counts is not None and vaex.array_types.is_scalar(counts):
+                counts = np.array([counts])
+
+
+            for name, array in list(arrays.items()):
+                if array is not None and vaex.array_types.is_scalar(array):
+                    array = np.array([array])
+                    arrays[name] = array
+
             if counts is not None:
                 for name, array in arrays.items():
 
-                    if vaex.array_types.shape(array) != vaex.array_types.shape(counts):
-                        raise RuntimeError(f'{array} {name} has shape {array.shape} while we expected {counts.shape}')
+                    shape1 = vaex.array_types.shape(array)
+                    shape2 = vaex.array_types.shape(counts)
+                    if shape1 != shape2:
+                        raise RuntimeError(f'{array} {name} has shape {shape1} while we expected {shape2}')
 
             arrays = {key: self._extract_center(value) for key, value in arrays.items()}
             if not self.dense:
