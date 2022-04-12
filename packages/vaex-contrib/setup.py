@@ -1,6 +1,5 @@
 import os
 import imp
-from numpy.lib.function_base import extract
 from setuptools import setup
 
 dirname = os.path.dirname(__file__)
