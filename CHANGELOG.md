@@ -1,3 +1,10 @@
+# vaex 4.9.1
+
+# vaex-core 4.9.1
+   * Fix
+      * When aggregation leads to arrow data, non-dense binners failed (e.g. vaex.agg.list) [#2017](https://github.com/vaexio/vaex/pull/2017)
+      * Filtering by boolean column would miss the column as dependency [#2016](https://github.com/vaexio/vaex/pull/2016)
+
 # vaex 4.9.0
 
 # vaex-core 4.9.0
