@@ -68,6 +68,14 @@ def test_copy_filter():
     assert dffy.get_column_names() == ['z']
 
 
+def test_copy_filter_boolean_column():
+    df = vaex.from_scalars(x=1, ok=True)
+    dff = df[df.ok]
+    assert dff.get_column_names(hidden=True) == ["x", "ok"]
+    dff2 = dff[["x"]]
+    assert dff2.get_column_names(hidden=True) == ["x", "__ok"]
+
+
 def test_copy_selection():
     # simply selection, that depends on a column
     df = vaex.from_arrays(x=[0, 1, 2], z=[2, 3, 4])

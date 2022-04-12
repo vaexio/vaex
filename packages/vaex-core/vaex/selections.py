@@ -55,13 +55,7 @@ class Selection(object):
 
     def _depending_columns(self, ds):
         '''Find all columns that this selection depends on for df ds'''
-        depending = set()
-        for expression in self.expressions:
-            expression = ds._expr(expression)  # make sure it is an expression
-            depending |= expression.variables()
-        if self.previous_selection:
-            depending |= self.previous_selection._depending_columns(ds)
-        return depending
+        return self.dependencies(ds)
 
 
 class SelectionDropNa(Selection):
