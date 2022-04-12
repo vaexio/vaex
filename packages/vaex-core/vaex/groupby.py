@@ -8,6 +8,7 @@ import numpy as np
 import pyarrow as pa
 from vaex.dataframe import DataFrame
 
+import vaex.array_types
 from vaex.delayed import delayed_args, delayed_dict, delayed_list
 from vaex.utils import _ensure_list, _ensure_string_from_expression
 import vaex
@@ -945,7 +946,7 @@ class GroupBy(GroupByBase):
                             columns[key] = value
                 else:
                     for key, value in arrays.items():
-                        columns[key] = value[mask]
+                        columns[key] = vaex.array_types.filter(value, mask)
             logger.info(f"constructed dataframe")
             dataset_arrays = vaex.dataset.DatasetArrays(columns)
             dataset = DatasetGroupby(dataset_arrays, self.df, self.by_original, actions, combine=self.combine, expand=self.expand, sort=self.sort)
