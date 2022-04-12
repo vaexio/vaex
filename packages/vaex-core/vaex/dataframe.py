@@ -6011,7 +6011,7 @@ class DataFrameLocal(DataFrame):
                 track(name)
 
             # track all selection dependencies, this includes the filters
-            for key, value in self.selection_histories.items():
+            for key, value in list(self.selection_histories.items()):
                 selection = self.get_selection(key)
                 if selection:
                     for name in selection._depending_columns(self):
