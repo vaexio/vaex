@@ -707,6 +707,11 @@ def test_agg_arrow():
     assert dfg.s.tolist() == ['aap', 'kees', 'other']
     assert set(dfg.l.tolist()[0]) == {0, 2}
 
+    g = vaex.groupby.BinnerInteger(df.x, sort=True, min_value=0, max_value=2)
+    dfg = df.groupby(g, agg={'s': vaex.agg.list(df.s)}, sort=True)
+    assert dfg.x.tolist() == [0, 1, 2]
+    assert set(dfg.s.tolist()[0]) == {'mies', 'aap', 'noot', None}
+
     df = df.ordinal_encode('s')
     dfg = df.groupby(df.s, agg={'l': vaex.agg.list(df.x)}, sort=True)
     assert dfg.s.tolist() == ['aap', 'kees', 'mies', 'noot', None]
