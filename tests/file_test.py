@@ -114,6 +114,12 @@ def test_fsspec(df_trimmed):
     df.state_load('test.json', fs=fs)
     assert df.test.tolist() == df_trimmed.test.tolist()
 
+    import pyarrow
+
+    fs = pyarrow.fs.FSSpecHandler(fs)
+    fs = vaex.file.cache.FileSystemHandlerCached(fs, scheme="memory")
+    df_trimmed.state_write("test.json", fs=fs)
+
 
 def test_stream_sync():
     f = vaex.file.asyncio.WriteStream()

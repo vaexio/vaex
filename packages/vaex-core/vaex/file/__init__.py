@@ -343,7 +343,12 @@ def _make_argument_optional(f, **defaults):
         for name, value in defaults.items():
             if name in params and name not in kwargs:
                 kwargs[name] = value
-        return f(*args, **kwargs)
+        try:
+            return f(*args, **kwargs)
+        except TypeError:
+            # fallback, just pass all args
+            return f(*args, **kwargs, **defaults)
+
     return wrapper
 
 
