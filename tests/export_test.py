@@ -264,3 +264,15 @@ def test_export_json(tmpdir, df_filtered):
     # for column in df.get_column_names():
     for column in ['x', 'name']:
         assert df[column].tolist() == df2[column].tolist()
+
+
+@pytest.mark.parametrize("filename", ["test.hdf5", "test.arrow", "test.parquet"])
+def test_export_data_with_list(tmpdir, filename):
+    path = str(tmpdir.join(filename))
+    data = ['this is a very nice sentence',  'vaex is is an incredibly fast dataframe']
+    df = vaex.from_arrays(x=data)
+    df['tok'] = df.x.str.split()
+    df.export(path)
+    df2 = vaex.open(path)
+    assert df.x.tolist() == df2.x.tolist()
+    assert df.tok.tolist() == df2.tok.tolist()
