@@ -1670,7 +1670,7 @@ class DataFrame(object):
         def finish(percentile_limits, counts_list):
             results = []
             for i, counts in enumerate(counts_list):
-                counts = counts.astype(np.float)
+                counts = counts.astype(np.float64)
                 # remove the nan and boundary edges from the first dimension,
                 nonnans = list([slice(2, -1, None) for k in range(len(counts.shape) - 1)])
                 nonnans.append(slice(1, None, None))  # we're gonna get rid only of the nan's, and keep the overflow edges
