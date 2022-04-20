@@ -213,6 +213,21 @@ def test_filter(rebuild_dataset):
     assert ds == rebuild_dataset(ds)
 
 
+def test_take_masked(df_factory_numpy):
+    df_factory = df_factory_numpy
+    df = df_factory(x=[0, 1, None, 3], y=[2, 3, 4, 5])
+    assert df.is_masked('x')
+    assert not df.is_masked('y')
+
+    dft = df.take([0, 1])
+    assert dft.is_masked('x')
+    assert not dft.is_masked('y')
+
+    dft = df.copy()
+    # -1 is used for missing values
+    dft.dataset = dft.dataset.take(np.array([0, 1, -1]), masked=True)
+    assert dft.is_masked('x')
+    assert dft.is_masked('y')
 
 
 def test_take(rebuild_dataset):

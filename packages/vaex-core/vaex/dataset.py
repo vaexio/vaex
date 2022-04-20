@@ -867,6 +867,9 @@ class DatasetTake(DatasetDecorator):
         self._create_columns()
         self._set_row_count()
 
+    def is_masked(self, column):
+        return self.masked or self.original.is_masked(column)
+
     @property
     def _fingerprint(self):
         id = vaex.cache.fingerprint(self.original.fingerprint, self._hash_index, self.masked)
