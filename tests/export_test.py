@@ -2,6 +2,7 @@ from common import *
 import os
 from pathlib import Path
 import tempfile
+import pyarrow as pa
 import pandas as pd
 import platform
 import hashlib
@@ -264,3 +265,9 @@ def test_export_json(tmpdir, df_filtered):
     # for column in df.get_column_names():
     for column in ['x', 'name']:
         assert df[column].tolist() == df2[column].tolist()
+
+
+def test_export_large_string(tmpdir):
+    s = pa.array(["Hi", "there"], type=pa.large_string())
+    df = vaex.from_arrays(s=s)
+    df.export_arrow(tmpdir / "test.arrow")

@@ -6732,7 +6732,7 @@ class DataFrameLocal(DataFrame):
                 writer.write_table(table)
 
         if vaex.file.is_path_like(to) or vaex.file.is_file_object(to):
-            schema = self.schema_arrow()
+            schema = self.schema_arrow(reduce_large=reduce_large)
             with vaex.file.open(path=to, mode='wb', fs_options=fs_options, fs=fs) as sink:
                 if as_stream:
                     with pa.RecordBatchStreamWriter(sink, schema) as writer:
