@@ -915,7 +915,7 @@ class GroupBy(GroupByBase):
                 values = self.by[0].bin_values
                 columns = {field.name: ar for field, ar in zip(values.type, values.flatten())}
                 for key, value in arrays.items():
-                    assert value.ndim == 1
+                    assert vaex.array_types.ndim(value) == 1
                     columns[key] = value
             else:
                 columns = {}

@@ -716,3 +716,10 @@ def test_agg_arrow():
     dfg = df.groupby(df.s, agg={'l': vaex.agg.list(df.x)}, sort=True)
     assert dfg.s.tolist() == ['aap', 'kees', 'mies', 'noot', None]
     assert set(dfg.l.tolist()[0]) == {0, 2}
+
+
+    df = vaex.from_arrays(x=x, s=s, y=y)
+    dfg = df.groupby([df.s, df.x], agg={'l': vaex.agg.list(df.y)}, sort=True, assume_sparse=True)
+    assert dfg.s.tolist() == ['aap', 'aap', 'kees', 'mies', 'mies', 'noot', None]
+    assert dfg.x.tolist() == [0, 2, 1, 0, 1, 0, 0]
+    assert set(dfg.l.tolist()[0]) == {1}
