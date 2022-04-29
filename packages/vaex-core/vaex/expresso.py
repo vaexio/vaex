@@ -366,7 +366,7 @@ class ExpressionString(ast.NodeVisitor):
             key = self.visit(key)
             value = self.visit(value)
             parts.append(f'{key}: {value}')
-        return '{' + ' '.join(parts) + '}'
+        return '{' + ', '.join(parts) + '}'
 
     def visit_Call(self, node):
         args = [self.visit(k) for k in node.args]

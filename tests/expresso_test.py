@@ -63,7 +63,7 @@ def test_lists():
     assert expr == expr_translate
 
 def test_dicts():
-    expr = "fillmissing(o, {'a': 1})"
+    expr = "fillmissing(o, {'a': 1, 'b': 2})"
     validate_expression(expr, {'o'}, {'fillmissing'})
     node = parse_expression(expr)
     assert node is not None
