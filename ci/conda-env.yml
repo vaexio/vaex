@@ -32,7 +32,7 @@ dependencies:
 - pyarrow>=5.0.0
 - pyqt
 - pytest
-- pytest-asyncio<0.14
+- pytest-asyncio
 - pytest-mpl
 - pytest-timeout
 - python-graphviz
