@@ -72,19 +72,19 @@ def histogram(self, x=None, what="count(*)", grid=None, shape=64, facet=None, li
     :param grid: If the binning is done before by yourself, you can pass it
     :param facet: Expression to produce facetted plots ( facet='x:0,1,12' will produce 12 plots with x in a range between 0 and 1)
     :param limits: list of [xmin, xmax], or a description such as 'minmax', '99%'
-    :param figsize: (x, y) tuple passed to pylab.figure for setting the figure size
+    :param figsize: (x, y) tuple passed to plt.figure for setting the figure size
     :param f: transform values by: 'identity' does nothing 'log' or 'log10' will show the log of the value
     :param n: normalization function, currently only 'normalize' is supported, or None for no normalization
     :param normalize_axis: which axes to normalize on, None means normalize by the global maximum.
     :param normalize_axis:
     :param xlabel: String for label on x axis (may contain latex)
     :param ylabel: Same for y axis
-    :param: tight_layout: call pylab.tight_layout or not
-    :param kwargs: extra argument passed to pylab.plot
+    :param: tight_layout: call plt.tight_layout or not
+    :param kwargs: extra argument passed to plt.plot
     :return:
     """
 
-    import pylab
+    import matplotlib.pyplot as plt
     f = _parse_f(f)
     n = _parse_n(n)
     if type(shape) == int:
@@ -96,8 +96,8 @@ def histogram(self, x=None, what="count(*)", grid=None, shape=64, facet=None, li
             binby = [expression] + binby
     limits = self.limits(binby, limits)
     if figsize is not None:
-        pylab.figure(num=None, figsize=figsize, dpi=80, facecolor='w', edgecolor='k')
-    fig = pylab.gcf()
+        plt.figure(num=None, figsize=figsize, dpi=80, facecolor='w', edgecolor='k')
+    fig = plt.gcf()
     import re
     if facet is not None:
         match = re.match("(.*):(.*),(.*),(.*)", facet)
@@ -165,39 +165,39 @@ def histogram(self, x=None, what="count(*)", grid=None, shape=64, facet=None, li
         rows, columns = int(math.ceil(facet_count / 4.)), 4
         values = np.linspace(facet_limits[0], facet_limits[1], facet_count + 1)
         for i in range(facet_count):
-            ax = pylab.subplot(rows, columns, i + 1)
+            ax = plt.subplot(rows, columns, i + 1)
             value = ax.plot(xar, ngrid[i], drawstyle="steps-mid", label=label, **kwargs)
             v1, v2 = values[i], values[i + 1]
-            pylab.xlabel(xlabel or x)
-            pylab.ylabel(ylabel or what)
+            plt.xlabel(xlabel or x)
+            plt.ylabel(ylabel or what)
             ax.set_title("%3f <= %s < %3f" % (v1, facet_expression, v2))
             if self.iscategory(xexpression):
                 labels = self.category_labels(xexpression)
                 step = len(labels) // max_labels
-                pylab.xticks(range(len(labels))[::step], labels[::step], size='small')
+                plt.xticks(range(len(labels))[::step], labels[::step], size='small')
     else:
-        # im = pylab.imshow(rgrid, extent=np.array(limits[:2]).flatten(), origin="lower", aspect=aspect)
-        pylab.xlabel(xlabel or self.label(x))
-        pylab.ylabel(ylabel or what)
+        # im = plt.imshow(rgrid, extent=np.array(limits[:2]).flatten(), origin="lower", aspect=aspect)
+        plt.xlabel(xlabel or self.label(x))
+        plt.ylabel(ylabel or what)
         # print(xar, ngrid)
         # repeat the first element, that's how plot/steps likes it..
         g = np.concatenate([ngrid[0:1], ngrid])
-        value = pylab.plot(xar, g, drawstyle="steps-pre", label=label, **kwargs)
+        value = plt.plot(xar, g, drawstyle="steps-pre", label=label, **kwargs)
         if self.iscategory(xexpression):
             labels = self.category_labels(xexpression)
             step = len(labels) // max_labels
-            pylab.xticks(range(len(labels))[::step], labels[::step], size='small')
+            plt.xticks(range(len(labels))[::step], labels[::step], size='small')
     if tight_layout:
-        pylab.tight_layout()
+        plt.tight_layout()
     if hardcopy:
-        pylab.savefig(hardcopy)
+        plt.savefig(hardcopy)
     if show:
-        pylab.show()
+        plt.show()
     return value
     # N = len(grid)
     # xmin, xmax = limits[0]
-    # return pylab.plot(np.arange(N) / (N-1.0) * (xmax-xmin) + xmin, f(grid,), drawstyle="steps", **kwargs)
-    # pylab.ylim(-1, 6)
+    # return plt.plot(np.arange(N) / (N-1.0) * (xmax-xmin) + xmin, f(grid,), drawstyle="steps", **kwargs)
+    # plt.ylim(-1, 6)
 
 
 @patch
@@ -211,12 +211,12 @@ def scatter(self, x, y, xerr=None, yerr=None, cov=None, corr=None, s_expr=None, 
     length_check=True, label=None, xlabel=None, ylabel=None, errorbar_kwargs={}, ellipse_kwargs={}, **kwargs):
     """Viz (small amounts) of data in 2d using a scatter plot
 
-    Convenience wrapper around pylab.scatter when for working with small DataFrames or selections
+    Convenience wrapper around plt.scatter when for working with small DataFrames or selections
 
     :param x: Expression for x axis
     :param y: Idem for y
-    :param s_expr: When given, use if for the s (size) argument of pylab.scatter
-    :param c_expr: When given, use if for the c (color) argument of pylab.scatter
+    :param s_expr: When given, use if for the s (size) argument of plt.scatter
+    :param c_expr: When given, use if for the c (color) argument of plt.scatter
     :param labels: Annotate the points with these text values
     :param selection: Single selection expression, or None
     :param length_limit: maximum number of rows it will plot
@@ -225,10 +225,10 @@ def scatter(self, x, y, xerr=None, yerr=None, cov=None, corr=None, s_expr=None, 
     :param xlabel: label for x axis, if None .label(x) is used
     :param ylabel: label for y axis, if None .label(y) is used
     :param errorbar_kwargs: extra dict with arguments passed to plt.errorbar
-    :param kwargs: extra arguments passed to pylab.scatter
+    :param kwargs: extra arguments passed to plt.scatter
     :return:
     """
-    import pylab as plt
+    import matplotlib.pyplot as plt
     x = _ensure_strings_from_expressions(x)
     y = _ensure_strings_from_expressions(y)
     label = str(label or selection)
@@ -382,18 +382,18 @@ def heatmap(self, x=None, y=None, z=None, what="count(*)", vwhat=None, reduce=["
     :param limits: list of [[xmin, xmax], [ymin, ymax]], or a description such as 'minmax', '99%'
     :param grid: if the binning is done before by yourself, you can pass it
     :param colormap: matplotlib colormap to use
-    :param figsize: (x, y) tuple passed to pylab.figure for setting the figure size
+    :param figsize: (x, y) tuple passed to plt.figure for setting the figure size
     :param xlabel:
     :param ylabel:
     :param aspect:
-    :param tight_layout: call pylab.tight_layout or not
+    :param tight_layout: call plt.tight_layout or not
     :param colorbar: plot a colorbar or not
     :param interpolation: interpolation for imshow, possible options are: 'nearest', 'bilinear', 'bicubic', see matplotlib for more
     :param return_extra:
     :return:
     """
-    import pylab
     import matplotlib
+    import matplotlib.pyplot as plt
     n = _parse_n(normalize)
     if type(shape) == int:
         shape = (shape,) * 2
@@ -403,7 +403,7 @@ def heatmap(self, x=None, y=None, z=None, what="count(*)", vwhat=None, reduce=["
     for expression in [y, x]:
         if expression is not None:
             binby = [expression] + binby
-    fig = pylab.gcf()
+    fig = plt.gcf()
     if figsize is not None:
         fig.set_size_inches(*figsize)
     import re
@@ -621,7 +621,7 @@ def heatmap(self, x=None, y=None, z=None, what="count(*)", vwhat=None, reduce=["
     # print(grid.shape)
     # grid = self.reduce(grid, )
     axes = []
-    # cax = pylab.subplot(1,1,1)
+    # cax = plt.subplot(1,1,1)
 
     background_color = np.array(matplotlib.colors.colorConverter.to_rgb(background_color))
 
@@ -738,7 +738,7 @@ def heatmap(self, x=None, y=None, z=None, what="count(*)", vwhat=None, reduce=["
                 sm = matplotlib.cm.ScalarMappable(norm, colormaps[j])
                 sm.set_array(1)  # make matplotlib happy (strange behavious)
                 if facets > 1:
-                    ax = pylab.subplot(gs[0, j])
+                    ax = plt.subplot(gs[0, j])
                     colorbar = fig.colorbar(sm, cax=ax, orientation="horizontal")
                 else:
                     colorbar = fig.colorbar(sm)
@@ -754,7 +754,7 @@ def heatmap(self, x=None, y=None, z=None, what="count(*)", vwhat=None, reduce=["
                 sm = matplotlib.cm.ScalarMappable(norm, colormaps[i])
                 sm.set_array(1)  # make matplotlib happy (strange behavious)
                 if facets > 1:
-                    ax = pylab.subplot(gs[i, -1])
+                    ax = plt.subplot(gs[i, -1])
                     colorbar = fig.colorbar(sm, cax=ax)
                 else:
                     colorbar = fig.colorbar(sm)
@@ -793,7 +793,7 @@ def heatmap(self, x=None, y=None, z=None, what="count(*)", vwhat=None, reduce=["
                 sm = matplotlib.cm.ScalarMappable(norm, colormaps[what_index])
                 sm.set_array(1)  # make matplotlib happy (strange behavious)
                 if facets > 1:
-                    ax = pylab.subplot(gs[row, column])
+                    ax = plt.subplot(gs[row, column])
                     colorbar = fig.colorbar(sm, ax=ax)
                 else:
                     colorbar = fig.colorbar(sm)
@@ -801,9 +801,9 @@ def heatmap(self, x=None, y=None, z=None, what="count(*)", vwhat=None, reduce=["
                 colorbar.ax.set_ylabel(colorbar_label or label)
 
             if facets > 1:
-                ax = pylab.subplot(gs[row_offset + row * row_scale:row_offset + (row + 1) * row_scale, column * column_scale:(column + 1) * column_scale])
+                ax = plt.subplot(gs[row_offset + row * row_scale:row_offset + (row + 1) * row_scale, column * column_scale:(column + 1) * column_scale])
             else:
-                ax = pylab.gca()
+                ax = plt.gca()
             axes.append(ax)
             logger.debug("rgrid: %r", rgrid.shape)
             plot_rgrid = rgrid
@@ -834,10 +834,10 @@ def heatmap(self, x=None, y=None, z=None, what="count(*)", vwhat=None, reduce=["
                     return self.label(expression)
             if visual_reverse["x"] =='x':
                 labelsx = labels['x']
-                pylab.xlabel(labelsx[subplot_index])
+                plt.xlabel(labelsx[subplot_index])
             if visual_reverse["x"] =='x':
                 labelsy = labels['y']
-                pylab.ylabel(labelsy[subplot_index])
+                plt.ylabel(labelsy[subplot_index])
             if visual["z"] in ['row']:
                 labelsz = labels['z']
                 ax.set_title(labelsz[i])
@@ -850,24 +850,24 @@ def heatmap(self, x=None, y=None, z=None, what="count(*)", vwhat=None, reduce=["
             if self.iscategory(xexpression):
                 labels = self.category_labels(xexpression)
                 step = max(len(labels) // max_labels, 1)
-                pylab.xticks(np.arange(len(labels))[::step], labels[::step], size='small')
+                plt.xticks(np.arange(len(labels))[::step], labels[::step], size='small')
             yexpression = yexpressions[subplot_index]
             if self.iscategory(yexpression):
                 labels = self.category_labels(yexpression)
                 step = max(len(labels) // max_labels, 1)
-                pylab.yticks(np.arange(len(labels))[::step], labels[::step], size='small')
+                plt.yticks(np.arange(len(labels))[::step], labels[::step], size='small')
             facet_index += 1
     if title:
         fig.suptitle(title, fontsize="x-large")
     if tight_layout:
         if title:
-            pylab.tight_layout(rect=[0, 0.03, 1, 0.95])
+            plt.tight_layout(rect=[0, 0.03, 1, 0.95])
         else:
-            pylab.tight_layout()
+            plt.tight_layout()
     if hardcopy:
-        pylab.savefig(hardcopy)
+        plt.savefig(hardcopy)
     if show:
-        pylab.show()
+        plt.show()
     if return_extra:
         return im, grid, fgrid, ngrid, rgrid
     else:
@@ -914,7 +914,7 @@ def healpix_heatmap(self, healpix_expression="source_id/34359738368", healpix_ma
     """
     # plot_level = healpix_level #healpix_max_level-reduce_level
     import healpy as hp
-    import pylab as plt
+    import matplotlib.pyplot as plt
     if grid is None:
         reduce_level = healpix_max_level - healpix_level
         NSIDE = 2**healpix_level

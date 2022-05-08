@@ -1,7 +1,7 @@
 import re
 import vaex
 import numpy as np
-import pylab as plt
+import matplotlib.pyplot as plt
 
 def plot2d_contour(self, x=None, y=None, what="count(*)", limits=None, shape=256,
                    selection=None, f="identity", figsize=None,
@@ -21,14 +21,14 @@ def plot2d_contour(self, x=None, y=None, what="count(*)", limits=None, shape=256
     :param shape: {shape}
     :param selection: {selection}
     :param f: transform values by: 'identity' does nothing 'log' or 'log10' will show the log of the value
-    :param figsize: (x, y) tuple passed to pylab.figure for setting the figure size
+    :param figsize: (x, y) tuple passed to plt.figure for setting the figure size
     :param xlabel: label of the x-axis (defaults to param x)
     :param ylabel: label of the y-axis (defaults to param y)
     :param aspect: the aspect ratio of the figure
-    :param levels: the contour levels to be passed on pylab.contour or pylab.contourf
+    :param levels: the contour levels to be passed on plt.contour or plt.contourf
     :param colorbar: plot a colorbar or not
     :param colorbar_label: the label of the colourbar (defaults to param what)
-    :param colormap: matplotlib colormap to pass on to pylab.contour or pylab.contourf
+    :param colormap: matplotlib colormap to pass on to plt.contour or plt.contourf
     :param colors: the colours of the contours
     :param linewidths: the widths of the contours
     :param linestyles: the style of the contour lines

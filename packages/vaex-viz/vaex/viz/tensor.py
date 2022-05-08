@@ -4,7 +4,7 @@ import numpy as np
 
 def plot2d_tensor(self, x, y, vx, vy, shape=16, limits=None, delay=None, show=False, normalize=False, selection=None,
                   facecolor='green', alpha=0.5, edgecolor='black', scale=1., min_count=0):
-    import matplotlib.pylab as plt
+    import matplotlib.pyplot as plt
     shape = vaex.dataset._expand_shape(shape, 2)
 
     @vaex.delayed

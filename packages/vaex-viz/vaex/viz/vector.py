@@ -4,7 +4,7 @@ import numpy as np
 
 def plot2d_vector(self, x, y, vx, vy, shape=16, limits=None, delay=None, show=False, normalize=False,
                   selection=None, min_count=0, **kwargs):
-    import matplotlib.pylab as plt
+    import matplotlib.pyplot as plt
     shape = vaex.dataset._expand_shape(shape, 2)
 
     @vaex.delayed
