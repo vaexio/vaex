@@ -8,7 +8,7 @@ import shutil
 import numpy as np
 import PIL.Image
 import PIL.ImageChops
-import pylab as plt
+import matplotlib.pyplot as plt
 
 import vaex as vx
 import vaex.utils

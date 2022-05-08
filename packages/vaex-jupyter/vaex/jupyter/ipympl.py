@@ -3,7 +3,7 @@ import vaex.image
 from .plot import BackendBase
 import copy
 from .utils import debounced
-import pylab as plt
+import matplotlib.pyplot as plt
 import matplotlib.widgets
 import ipywidgets as widgets
 

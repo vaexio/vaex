@@ -175,12 +175,12 @@ class Zeldovich(DatasetArrays):
 		k_max = np.pi
 		F *= np.where(np.sqrt(k) > k_max, 0, np.sqrt(k**n) * np.exp(-k*4.0))
 		F.flat[0] = 0
-		#pylab.imshow(np.where(sqrt(k) > k_max, 0, np.sqrt(k**-2)), interpolation='nearest')
+		#plt.imshow(np.where(sqrt(k) > k_max, 0, np.sqrt(k**-2)), interpolation='nearest')
 		grf = np.fft.ifftn(F).real
 		Q = np.indices(shape) / float(N-1) - 0.5
 		s = np.array(np.gradient(grf)) / float(N)
-		#pylab.imshow(s[1], interpolation='nearest')
-		#pylab.show()
+		#plt.imshow(s[1], interpolation='nearest')
+		#plt.show()
 		s /= s.max() * 100.
 		#X = np.zeros((4, 3, N, N, N))
 		#for i in range(4):

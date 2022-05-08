@@ -638,7 +638,7 @@ class LayerTable(object):
         rgb = self._to_rgb(I, color=self.color)
         axes_list[0].rgb_images.append(rgb)
         # print "SCHL" * 1000
-        # pylab.imshow(np.log(schlegel_map[pix].T))
+        # plt.imshow(np.log(schlegel_map[pix].T))
 
     def plot(self, axes_list, stack_image):
         if self._can_plot:

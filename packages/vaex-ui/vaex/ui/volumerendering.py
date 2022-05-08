@@ -1076,9 +1076,9 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
         glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, self.texture_size, self.texture_size)
 
         glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, self.render_buffer)
-        # from matplotlib import pylab
-        # pylab.imshow(np.log((self.data3d.astype(np.float32)).sum(axis=0)+1), cmap='PaulT_plusmin', origin="lower")
-        # pylab.show()
+        # from matplotlib import pyplot as plt
+        # plt.imshow(np.log((self.data3d.astype(np.float32)).sum(axis=0)+1), cmap='PaulT_plusmin', origin="lower")
+        # plt.show()
 
         # print(self.texture_size)
         # print(glCheckFramebufferStatus())
@@ -1320,16 +1320,16 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
             glBindTexture(GL_TEXTURE_3D, 0)
 
         if 0:
-            import pylab
-            pylab.subplot(221)
-            pylab.imshow(np.log10(grids_2d[0] + 1))
-            pylab.subplot(222)
-            pylab.imshow(np.log10(grids_2d[1] + 1))
-            pylab.subplot(223)
-            pylab.imshow(np.log10(grids_2d[2] + 1))
-            pylab.subplot(224)
-            pylab.imshow(np.log10(self.grid[128] + 1))
-            pylab.show()
+            from matplotlib import pyplot as plt
+            plt.subplot(221)
+            plt.imshow(np.log10(grids_2d[0] + 1))
+            plt.subplot(222)
+            plt.imshow(np.log10(grids_2d[1] + 1))
+            plt.subplot(223)
+            plt.imshow(np.log10(grids_2d[2] + 1))
+            plt.subplot(224)
+            plt.imshow(np.log10(self.grid[128] + 1))
+            plt.show()
         self.update()
 
         # glTexParameteri(GL_TEXTURE_2D, GL_GENERATE_MIPMAP, GL_TRUE)

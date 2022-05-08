@@ -57,7 +57,7 @@ Example:
 .. code-block:: python
 
     import vaex as vx
-    import pylab as plt
+    import matplotlib.pyplot as plt
     ds = vx.example()
     ds.select("x > -2")
     values = ds.to_dict(selection=True)
