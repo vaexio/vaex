@@ -139,7 +139,7 @@ class SubspaceGridded(object):
         self.subspace_bounded.subspace.plot(np.log1p(self.grid), limits=self.subspace_bounded.bounds, axes=axes, **kwargs)
 
     def mean_line(self, axis=0, **kwargs):
-        from matplotlib import pylab
+        import matplotlib.pyplot as plt
         assert axis in [0, 1]
         other_axis = 0 if axis == 1 else 1
         xmin, xmax = self.subspace_bounded.bounds[axis]
@@ -154,16 +154,16 @@ class SubspaceGridded(object):
             counts = np.sum(self.grid, axis=axis)
             means = np.sum(self.grid * y[:, np.newaxis].T, axis=axis) / counts
         if axis == 0:
-            result = pylab.plot(x, means, **kwargs)
+            result = plt.plot(x, means, **kwargs)
         else:
-            result = pylab.plot(means, x, **kwargs)
+            result = plt.plot(means, x, **kwargs)
 
         self.subspace_bounded.lim()
         return result, x, means
 
     def _repr_png_(self):
-        from matplotlib import pylab
-        fig, ax = pylab.subplots()
+        from matplotlib import pyplot as plt
+        fig, ax = plt.subplots()
         self.plot(axes=ax, f=np.log1p)
         import vaex.utils
         if all([k is not None for k in [self.vx, self.vy, self.vcounts]]):
@@ -189,12 +189,12 @@ class SubspaceGridded(object):
         ax.title.set_text(r"$\log(1+counts)$")
         ax.set_xlabel(self.subspace_bounded.subspace.expressions[0])
         ax.set_ylabel(self.subspace_bounded.subspace.expressions[1])
-        # pylab.savefig
+        # plt.savefig
         # from .io import StringIO
         from six import StringIO
         file_object = StringIO()
         fig.canvas.print_png(file_object)
-        pylab.close(fig)
+        plt.close(fig)
         return file_object.getvalue()
 
     def cube_png(self, f=np.log1p, colormap="afmhot", file="cube.png"):
@@ -258,11 +258,11 @@ class SubspaceBounded(object):
         return SubspaceGridded(self, grid)
 
     def lim(self):
-        from matplotlib import pylab
+        from matplotlib import pyplot as plt
         xmin, xmax = self.bounds[0]
         ymin, ymax = self.bounds[1]
-        pylab.xlim(xmin, xmax)
-        pylab.ylim(ymin, ymax)
+        plt.xlim(xmin, xmax)
+        plt.ylim(ymin, ymax)
 
 
 class Subspaces(object):
@@ -637,7 +637,7 @@ class Subspace(object):
         return rgba8
 
     def plot_vectors(self, expression_x, expression_y, limits, wx=None, wy=None, counts=None, size=32, axes=None, **kwargs):
-        import pylab
+        import matplotlib.pyplot as plt
         # refactor: should go to bin_means_xy
         if counts is None:
             counts = self.histogram(size=size, limits=limits)
@@ -657,7 +657,7 @@ class Subspace(object):
         # vy = self.vy.grid / self.vcounts.grid
         x2d, y2d = np.meshgrid(positions[0], positions[1])
         if axes is None:
-            axes = pylab.gca()
+            axes = plt.gca()
         axes.quiver(x2d[mask], y2d[mask], vx[mask], vy[mask], **kwargs)
 
     def plot(self, grid=None, size=256, limits=None, square=False, center=None, weight=None, weight_stat="mean", figsize=None,
@@ -673,7 +673,7 @@ class Subspace(object):
         :param limits: Limits for the subspace in the form [[xmin, xmax], [ymin, ymax]], if None it will be calculated using Subspace.limits_sigma
         :param square: argument passed to Subspace.limits_sigma
         :param Executor executor: responsible for executing the tasks
-        :param figsize: (x, y) tuple passed to pylab.figure for setting the figure size
+        :param figsize: (x, y) tuple passed to plt.figure for setting the figure size
         :param aspect: Passed to matplotlib's axes.set_aspect
         :param xlabel: String for label on x axis (may contain latex)
         :param ylabel: Same for y axis
@@ -681,7 +681,7 @@ class Subspace(object):
         :return: matplotlib.image.AxesImage
 
          """
-        import pylab
+        import matplotlib.pyplot as plt
         f = _parse_f(f)
         limits = self.limits(limits)
         if limits is None:
@@ -691,14 +691,14 @@ class Subspace(object):
             group_limits = tuple(self.df(group_by).minmax()[0]) + (group_count,)
         # grid = self.histogram(limits=limits, size=size, weight=weight, group_limits=group_limits, group_by=group_by)
         if figsize is not None:
-            pylab.figure(num=None, figsize=figsize, dpi=80, facecolor='w', edgecolor='k')
+            plt.figure(num=None, figsize=figsize, dpi=80, facecolor='w', edgecolor='k')
         if axes is None:
-            axes = pylab.gca()
-        fig = pylab.gcf()
+            axes = plt.gca()
+        fig = plt.gcf()
         # if xlabel:
-        pylab.xlabel(xlabel or self.expressions[0])
+        plt.xlabel(xlabel or self.expressions[0])
         # if ylabel:
-        pylab.ylabel(ylabel or self.expressions[1])
+        plt.ylabel(ylabel or self.expressions[1])
         # axes.set_aspect(aspect)
         rgba8 = self.image_rgba(grid=grid, size=size, limits=limits, square=square, center=center, weight=weight, weight_stat=weight_stat,
                                 f=f, axes=axes,
@@ -745,13 +745,13 @@ class Subspace(object):
         :param grid: A 2d numpy array with the counts, if None it will be calculated using limits provided and Subspace.histogram
         :param size: Passed to Subspace.histogram
         :param limits: Limits for the subspace in the form [[xmin, xmax], [ymin, ymax]], if None it will be calculated using Subspace.limits_sigma
-        :param figsize: (x, y) tuple passed to pylab.figure for setting the figure size
+        :param figsize: (x, y) tuple passed to plt.figure for setting the figure size
         :param xlabel: String for label on x axis (may contain latex)
         :param ylabel: Same for y axis
         :param kwargs: extra argument passed to ...,
 
          """
-        import pylab
+        import matplotlib.pyplot as plt
         f = _parse_f(f)
         limits = self.limits(limits)
         assert self.dimension == 1, "can only plot 1d, not %s" % self.dimension
@@ -760,19 +760,19 @@ class Subspace(object):
         if grid is None:
             grid = self.histogram(limits=limits, size=size, weight=weight)
         if figsize is not None:
-            pylab.figure(num=None, figsize=figsize, dpi=80, facecolor='w', edgecolor='k')
+            plt.figure(num=None, figsize=figsize, dpi=80, facecolor='w', edgecolor='k')
         if axes is None:
-            axes = pylab.gca()
+            axes = plt.gca()
         # if xlabel:
-        pylab.xlabel(xlabel or self.expressions[0])
+        plt.xlabel(xlabel or self.expressions[0])
         # if ylabel:
-        # pylab.ylabel(ylabel or self.expressions[1])
-        pylab.ylabel("counts" or ylabel)
+        # plt.ylabel(ylabel or self.expressions[1])
+        plt.ylabel("counts" or ylabel)
         # axes.set_aspect(aspect)
         N = len(grid)
         xmin, xmax = limits[0]
-        return pylab.plot(np.arange(N) / (N - 1.0) * (xmax - xmin) + xmin, f(grid,), drawstyle="steps", **kwargs)
-        # pylab.ylim(-1, 6)
+        return plt.plot(np.arange(N) / (N - 1.0) * (xmax - xmin) + xmin, f(grid,), drawstyle="steps", **kwargs)
+        # plt.ylim(-1, 6)
 
     def plot_histogram_bq(self, f="identity", size=64, limits=None, color="red", bq_cleanup=True):
         import vaex.ext.bqplot
@@ -963,8 +963,8 @@ class Subspace(object):
         return widgets.VBox([fig, progress, tools])
 
     def figlarge(self, size=(10, 10)):
-        import pylab
-        pylab.figure(num=None, figsize=size, dpi=80, facecolor='w', edgecolor='k')
+        import matplotlib.pyplot as plt
+        plt.figure(num=None, figsize=size, dpi=80, facecolor='w', edgecolor='k')
 
     # def bounded(self):
     # return self.bounded_by_minmax()

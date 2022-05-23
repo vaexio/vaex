@@ -1,7 +1,7 @@
 __author__ = 'maartenbreddels'
 
 
-matplotlib = """import pylab
+matplotlib = """import matplotlib.pyplot as plt
 import numpy as np
 import os
 import json
@@ -24,10 +24,10 @@ xmin, xmax, ymin, ymax = meta["extent"]
 
 if has_selection:
     grid_selection = np.load(filename_grid_selection)
-    pylab.imshow(grid, extent=meta["extent"], origin="lower", cmap="binary")
-    pylab.imshow(grid_selection, alpha=0.4, extent=meta["extent"], origin="lower")
+    plt.imshow(grid, extent=meta["extent"], origin="lower", cmap="binary")
+    plt.imshow(grid_selection, alpha=0.4, extent=meta["extent"], origin="lower")
 else:
-    pylab.imshow(grid, extent=meta["extent"], origin="lower")
+    plt.imshow(grid, extent=meta["extent"], origin="lower")
 
 if has_vectors:
     vx, vy, vz = np.load(filename_grid_vector)
@@ -37,8 +37,8 @@ if has_vectors:
     x = np.linspace(xmin+dx/2, xmax-dx/2, N)
     y = np.linspace(ymin+dy/2, ymax-dy/2, N)
     x2d, y2d = np.meshgrid(x, y)
-    pylab.quiver(x2d, y2d, vx, vy, color="white")
+    plt.quiver(x2d, y2d, vx, vy, color="white")
 
-pylab.show()
+plt.show()
 
 """

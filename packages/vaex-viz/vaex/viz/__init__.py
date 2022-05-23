@@ -36,15 +36,15 @@ class ExpressionAccessorViz:
             :param grid: If the binning is done before by yourself, you can pass it
             :param facet: Expression to produce facetted plots ( facet='x:0,1,12' will produce 12 plots with x in a range between 0 and 1)
             :param limits: list of [xmin, xmax], or a description such as 'minmax', '99%'
-            :param figsize: (x, y) tuple passed to pylab.figure for setting the figure size
+            :param figsize: (x, y) tuple passed to plt.figure for setting the figure size
             :param f: transform values by: 'identity' does nothing 'log' or 'log10' will show the log of the value
             :param n: normalization function, currently only 'normalize' is supported, or None for no normalization
             :param normalize_axis: which axes to normalize on, None means normalize by the global maximum.
             :param normalize_axis:
             :param xlabel: String for label on x axis (may contain latex)
             :param ylabel: Same for y axis
-            :param: tight_layout: call pylab.tight_layout or not
-            :param kwargs: extra argument passed to pylab.plot
+            :param: tight_layout: call plt.tight_layout or not
+            :param kwargs: extra argument passed to plt.plot
             :return:
             """
             return self.df.viz.histogram(self.expression, what=what, grid=grid, shape=shape, facet=facet, limits=limits, figsize=figsize, f=f, n=n, normalize_axis=normalize_axis,
