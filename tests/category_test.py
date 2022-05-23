@@ -144,3 +144,17 @@ def test_ordinal_with_offset():
     df = df.ordinal_encode('x')
     df = df._future()
     assert df.x.index_values().tolist() == [0, 1, 2, 0]
+
+
+def test_ordinal_encode_with_extra_values():
+    from random import choices, choice
+    import vaex
+
+    values = ["apple", "banana", "orange", "kiwi", "grape", "strawberry"]
+    values_but_banana = [values[0]] + values[2:]
+    df = vaex.from_arrays(
+        id=list(range(100)), fruit=[choice(values_but_banana) for i in range(100)]
+    )
+    df["str_fruit"] = df["fruit"]
+    df = df.ordinal_encode("fruit", values)
+    assert df[df["str_fruit"]=="strawberry"]
