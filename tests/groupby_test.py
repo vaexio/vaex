@@ -412,7 +412,7 @@ def test_groupby_int_binner_with_null(df_factory):
 
 def test_groupby_int_binner_with_offset_combine(df_factory):
     offset = 2**16
-    df = df_factory(x=np.array([0, 1, 1, 2]) + offset, y=np.array([0, 0, 0, 1]))
+    df = df_factory(x=np.array([0, 1, 1, 2], dtype='int32') + offset, y=np.array([0, 0, 0, 1], dtype='int32'))
 
     binner_x = vaex.groupby.BinnerInteger(df.x, min_value=offset, max_value=offset+2, sort=True, ascending=True)
     binner_y = vaex.groupby.BinnerInteger(df.y, min_value=0, max_value=1, sort=True, ascending=True)
