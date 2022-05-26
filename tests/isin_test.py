@@ -44,3 +44,21 @@ def test_isin_diff_dtypes(use_hashmap):
 
     assert df.x.isin([1], use_hashmap=use_hashmap).tolist() == [False, False, False]
     assert df.x.isin([1.01], use_hashmap=use_hashmap).tolist() == [True, False, False]
+
+
+@pytest.mark.parametrize("use_hashmap", [False, True])
+@pytest.mark.parametrize("encoded", [False, True])
+def test_isin_test_non_existing(use_hashmap, encoded):
+    df = vaex.from_arrays(s=['dog', 'cat', 'mouse'])
+    if encoded:
+        df = df.ordinal_encode('s')._future()
+    assert df.s.isin(['ape'], use_hashmap=use_hashmap).tolist() == [False, False, False]
+
+
+@pytest.mark.parametrize("use_hashmap", [False, True])
+@pytest.mark.parametrize("encoded", [False, True])
+def test_isin_test_empty(use_hashmap, encoded):
+    df = vaex.from_arrays(s=['dog', 'cat', 'mouse'])
+    if encoded:
+        df = df.ordinal_encode('s')._future()
+    assert df.s.isin([], use_hashmap=use_hashmap).tolist() == [False, False, False]
