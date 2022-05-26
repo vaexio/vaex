@@ -30,6 +30,8 @@ class Writer:
         self._layout_called = False
 
     def close(self):
+        # make sure we don't have references to the numpy arrays any more
+        self.column_writers = {}
         if self.mmap is not None:
             self.mmap.close()
             self.file.close()
