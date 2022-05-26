@@ -1,5 +1,6 @@
 import numpy as np
 import vaex
+import pyarrow as pa
 
 
 def test_set_active_range_and_trim(df_factory):
@@ -63,3 +64,18 @@ def test_filter_by_boolean_column():
 #     dfs = df[1:2]
 #     assert dfs._cached_filtered_length == 1
 #     assert dfs.x.sum() == 2
+
+
+def test_filter_after_dropna(df_factory):
+    x = pa.array([10, 20, 30, None, None])
+    y = pa.array([1, 2, 3, None, None])
+    z = pa.array(['1', '2', '3', None, None])
+    df = df_factory(x=x, y=y, z=z)
+
+    # First filter
+    df = df['x', 'y'].dropna()
+
+    # Second filter
+    dd = df[df.x > 10]
+    assert dd.x.tolist() == [20, 30]
+    assert dd.y.tolist() == [2, 3]

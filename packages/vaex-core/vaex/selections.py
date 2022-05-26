@@ -134,7 +134,7 @@ class SelectionExpression(Selection):
             N = i2 - i1
             current_mask = np.full(N, result)
         else:
-            current_mask = result #.astype(np.bool)
+            current_mask = vaex.array_types.to_numpy(result)
         if previous_mask is None:
             logger.debug("setting mask")
             mask = current_mask
