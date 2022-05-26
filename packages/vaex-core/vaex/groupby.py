@@ -259,13 +259,16 @@ class Grouper(BinnerBase):
             @vaex.delayed
             def process(hashmap_unique: vaex.hash.HashMapUnique):
                 self.bin_values = hashmap_unique.keys()
+                print("bin_values", self.bin_values)
                 if self.allow_simplify and dtype == int and len(self.bin_values):
+                    print("simplify")
                     vmin = self.bin_values.min()
                     vmax = self.bin_values.max()
                     int_range = vmax - vmin + 1
                     # we allow for 25% unused 'slots'
                     bins = len(self.bin_values)
                     if int_range <= (bins * 4 / 3):
+                        print("yes!")
                         dense = bins == int_range
                         self.simpler = BinnerInteger(self.expression, min_value=vmin, max_value=vmax, dropmissing=not hashmap_unique.has_null, dense=dense, sort=sort, ascending=ascending)
                         return
@@ -276,8 +279,11 @@ class Grouper(BinnerBase):
                 logger.debug('Constructed grouper for expression %s with %i values', str(expression), len(self.bin_values))
 
                 if self.sort:
+                    print("sort")
                     if pre_sort:
+                        print("presort 1", self.bin_values)
                         hashmap_unique, self.bin_values = hashmap_unique.sorted(keys=self.bin_values, ascending=ascending, return_keys=True)
+                        print("presort 2", self.bin_values)
                         self.sort_indices = None
                     else:
                         indices = pa.compute.sort_indices(self.bin_values, sort_keys=[("x", "ascending" if ascending else "descending")])
@@ -285,6 +291,7 @@ class Grouper(BinnerBase):
                         # the bin_values will still be pre sorted, maybe that is confusing (implementation detail)
                         self.bin_values = pa.compute.take(self.bin_values, self.sort_indices)
                 else:
+                    print("no sort")
                     self.sort_indices = None
                 self.hashmap_unique = hashmap_unique
 
@@ -334,6 +341,7 @@ class GrouperCombined(Grouper):
 
         Used in the sparse/combined group by.
         '''
+        print("call super")
         super().__init__(expression, df, sort=sort, row_limit=row_limit, progress=progress, allow_simplify=False)
         assert len(multipliers) == len(parents)
         self.parents = parents
@@ -559,9 +567,9 @@ def _combine(df, groupers, sort, row_limit=None, progress=None):
     for i in range(0, len(combine_expressions)):
         combine_expression = combine_expressions[i]
         dtype = vaex.utils.required_dtype_for_max(cumulative_counts[i])
-        combine_expression = combine_expression.astype(str(dtype))
         if isinstance(combine_now[i], (GrouperCategory, BinnerInteger)) and combine_now[i].min_value != 0:
             combine_expression -= combine_now[i].min_value
+        combine_expression = combine_expression.astype(str(dtype))
         if cumulative_counts[i + 1] != 1:
             combine_expression = combine_expression * cumulative_counts[i + 1]
         combine_expressions[i] = combine_expression
