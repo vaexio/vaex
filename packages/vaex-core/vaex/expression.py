@@ -1289,22 +1289,24 @@ def f({0}):
             indices = []
             for value in values:
                 if value not in labels:
-                    raise ValueError(f'Value {value} not present in {labels}')
-                indices.append(labels.index(value))
+                    pass
+                else:
+                    indices.append(labels.index(value))
+            indices = np.array(indices, dtype=self.index_values().dtype.numpy)
             return self.index_values().isin(indices, use_hashmap=use_hashmap)
 
+        if self.is_string():
+            values = pa.array(values, type=pa.large_string())
+        else:
+             # ensure that values are the same dtype as the expression (otherwise the set downcasts at the C++ level during execution)
+            values = np.array(values, dtype=self.dtype.numpy)
         if use_hashmap:
             # easiest way to create a set is using the vaex dataframe
-            values = np.array(values, dtype=self.dtype.numpy)  # ensure that values are the same dtype as the expression (otherwise the set downcasts at the C++ level during execution)
             df_values = vaex.from_arrays(x=values)
             ordered_set = df_values._set(df_values.x)
             var = self.df.add_variable('var_isin_ordered_set', ordered_set, unique=True)
             return self.df['isin_set(%s, %s)' % (self, var)]
         else:
-            if self.is_string():
-                values = pa.array(values)
-            else:
-                values = np.array(values, dtype=self.dtype.numpy)
             var = self.df.add_variable('isin_values', values, unique=True)
             return self.df['isin(%s, %s)' % (self, var)]
 
