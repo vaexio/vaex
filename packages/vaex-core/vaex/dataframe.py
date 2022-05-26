@@ -5854,7 +5854,7 @@ class DataFrameLocal(DataFrame):
         df_unfiltered._length_unfiltered = df._length_original
         df_unfiltered.set_active_range(0, df._length_original)
         expression = df_unfiltered[column]
-        if lazy:
+        if lazy or values is not None:
             if values is None:
                 found_values = df_unfiltered.unique(column, array_type='numpy-arrow')
                 minimal_type = vaex.utils.required_dtype_for_max(len(found_values), signed=True)
@@ -5871,52 +5871,39 @@ class DataFrameLocal(DataFrame):
             fp = f'hash-map-unique-{expression.fingerprint()}'
             hash_map_unique_name = fp.replace('-', '_')
             hash_map_unique = vaex.hash.HashMapUnique.from_keys(values, fingerprint=fp)
-            df.add_variable(hash_map_unique_name, hash_map_unique)
-            expr = df._expr('hashmap_apply({}, {}, check_missing=True)'.format(column, hash_map_unique_name))
-            df[column] = expr
-            df._categories[column] = dict(labels=values, N=len(values), min_value=0)
-            return df  # no else but return to avoid large diff
-        # codes point to the index of found_values
-        # meaning: found_values[codes[0]] == ds[column].values[0]
-        found_values, codes = df_unfiltered.unique(column, return_inverse=True, array_type='numpy-arrow')
+            if lazy:
+                df.add_variable(hash_map_unique_name, hash_map_unique)
+                expr = df._expr('hashmap_apply({}, {}, check_missing=True)'.format(column, hash_map_unique_name))
+                df[column] = expr
+                df._categories[column] = dict(labels=values, N=len(values), min_value=0)
+                return df  # no else but return to avoid large diff
+            else:
+                dfc = df.copy()
+                dfc.add_variable(hash_map_unique_name, hash_map_unique)
+                expr = dfc._expr('hashmap_apply({}, {}, check_missing=True)'.format(column, hash_map_unique_name))
+                codes = dfc.evaluate(expr)
+        else:
+            found_values, codes = df_unfiltered.unique(column, return_inverse=True, array_type='numpy-arrow')
+            if isinstance(found_values, array_types.supported_arrow_array_types):
+                # elements of arrow arrays are not in arrow arrays, e.g. ar[0] in ar is False
+                # see tests/arrow/assumptions_test.py::test_in_pylist
+                found_values = found_values.to_pylist()
+            values = found_values
         max_code = codes.max()
         minimal_type = vaex.utils.required_dtype_for_max(max_code, signed=True)
         codes = codes.astype(minimal_type)
-        dtype = vaex.dtype_of(found_values)
+        if isinstance(values, (list, tuple)):
+            values = pa.array(values)
+        dtype = vaex.dtype_of(values)
         if dtype == int:
-            min_value = found_values.min()
-            max_value = found_values.max()
-            if (max_value - min_value +1) == len(found_values):
+            min_value = values.min()
+            max_value = values.max()
+            if (max_value - min_value +1) == len(values):
                 warnings.warn(f'It seems your column {column} is already ordinal encoded (values between {min_value} and {max_value}), automatically switching to use df.categorize')
                 return df.categorize(column, min_value=min_value, max_value=max_value, inplace=inplace)
-        if isinstance(found_values, array_types.supported_arrow_array_types):
-            # elements of arrow arrays are not in arrow arrays, e.g. ar[0] in ar is False
-            # see tests/arrow/assumptions_test.py::test_in_pylist
-            found_values = found_values.to_pylist()
-        if values is None:
-            values = found_values
-        else:
-            # we have specified which values we should support, anything
-            # not found will be masked
-            translation = np.zeros(len(found_values), dtype=np.uint64)
-            # mark values that are in the column, but not in values with a special value
-            missing_value = len(found_values)
-            for i, found_value in enumerate(found_values):
-                try:
-                    found_value = found_value.decode('ascii')
-                except:
-                    pass
-                if found_value not in values:  # not present, we need a missing value
-                    translation[i] = missing_value
-                else:
-                    translation[i] = values.index(found_value)
-            codes = translation[codes]
-            if missing_value in translation:
-                # all special values will be marked as missing
-                codes = np.ma.masked_array(codes, codes==missing_value)
-
-        original_column = df.rename(column, '__original_' + column, unique=True)
+        df.rename(column, '__original_' + column, unique=True)
         df.add_column(column, codes)
+        values = vaex.array_types.tolist(values)
         df._categories[column] = dict(labels=values, N=len(values), min_value=0)
         return df
 
