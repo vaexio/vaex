@@ -13,7 +13,7 @@ Via environmental variables:
 $ VAEX_NUM_THREADS=10 VAEX_DISPLAY_MAX_COLUMNS=50 python myservice.py
 ```
 
-Otherwise, values are obtained from a `.env` [file using dotenv](https://saurabh-kumar.com/python-dotenv/#usages) from the current workding directory.
+Otherwise, values are obtained from a `.env` [file using dotenv](https://saurabh-kumar.com/python-dotenv/#usages) from the current working directory.
 ```
 VAEX_NUM_THREADS=22
 VAEX_CHUNK_SIZE_MIN=2048

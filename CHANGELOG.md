@@ -96,7 +96,7 @@
 
 ## vaex-hdf5 0.11.1
    * Features
-      * do not track times to have determinstic output (useful for lineage/hash output) [#1772](https://github.com/vaexio/vaex/pull/1772)
+      * do not track times to have deterministic output (useful for lineage/hash output) [#1772](https://github.com/vaexio/vaex/pull/1772)
 
 ## vaex-ml 0.16
 Requires vaex-core 4.7 for uniform settings
@@ -272,7 +272,7 @@ Requires vaex-core 4.6
       * Arrow is now a core dependency, vaex-arrow is deprecated. All methods that return string, will return Arrow arrays [#517](https://github.com/vaexio/vaex/pull/517)
       * Opening an .arrow file will expose the arrays as Apache Arrow arrays, not numpy arrays. [#984](https://github.com/vaexio/vaex/pull/984)
       * Columns (e.g. df.column['x']) may now return a ColumnProxy, instead of the original data, slice it [:] to get the underlying data (or call .to_numpy()/to_arrow() or try converting it with np.array(..) or pa.array(..)). [#993](https://github.com/vaexio/vaex/pull/993)
-      * All plot methods went into the df.viz accesssor [#923](https://github.com/vaexio/vaex/pull/923)
+      * All plot methods went into the df.viz accessor [#923](https://github.com/vaexio/vaex/pull/923)
 
 ## vaex-arrow (DEPRECATED)
    This is now part of vaex-core.
@@ -413,7 +413,7 @@ Requires vaex-core 4.6
       * Column name rewriting for invalid identifiers also works on virtual columns. [#617](https://github.com/vaexio/vaex/pull/617)
       * Fix the links to the example datasets. [#609](https://github.com/vaexio/vaex/pull/609)
       * Expression.isin supports dtype=object [#669](https://github.com/vaexio/vaex/pull/669)
-      * Fix `colum_count`, now only counts hidden columns if expicitly specified [#593](https://github.com/vaexio/vaex/pull/593)
+      * Fix `colum_count`, now only counts hidden columns if explicitly specified [#593](https://github.com/vaexio/vaex/pull/593)
       * df.values respects masked arrays [#640](https://github.com/vaexio/vaex/pull/640)
       * Rewriting a virtual column and doing a state transfer does not lead to `ValueError: list.remove(x): x not in list` [#592](https://github.com/vaexio/vaex/pull/592)
       * `df.<stat>(limits=...)` will now respect the selection [#651](https://github.com/vaexio/vaex/pull/651)
@@ -464,7 +464,7 @@ Requires vaex-core 4.6
 
 # vaex-core 1.5.0
    * Features
-      * df.evalute_iterator for efficient parallel chunked evaluation [#515](https://github.com/vaexio/vaex/pull/515)
+      * df.evaluate_iterator for efficient parallel chunked evaluation [#515](https://github.com/vaexio/vaex/pull/515)
       * Widget progress bar has time estimation [#545](https://github.com/vaexio/vaex/pull/545)
    * Fixes
      * Slicing arrow string arrays with masked arrays is respected/working [#530](https://github.com/vaexio/vaex/pull/530)]

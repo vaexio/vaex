@@ -4,7 +4,7 @@ The idea behind this package is to encourage and empower the community to more f
 
 We acknowledge that that contributions to the "official" packages of Vaex might be a bit complicated especially for beginners, as Vaex has grown to be a rather sophisticated library. In this package, users and contributors are encouraged to add any pieces of code that might be difficult for the core team to support long term, additions that require many or complicated to install dependencies, and all sorts of other contributions that are not likely to be part of the established Vaex packages.
 
-While such contributaions can of course live in separate repositories, we are thinking that a common place of sharing ideas \& code might be beneficial to the community.
+While such contributions can of course live in separate repositories, we are thinking that a common place of sharing ideas \& code might be beneficial to the community.
 
 ## Disclaimer
 
