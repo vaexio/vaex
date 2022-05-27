@@ -42,7 +42,7 @@ This means you can use almost all features of a normal (local) Vaex dataframe, w
 
 ## REST API
 
-When the client is non-Python, or when you want to avoid the `vaex` dependecy, the REST API can be used.
+When the client is non-Python, or when you want to avoid the `vaex` dependency, the REST API can be used.
 
 A Vaex server is running at `dataframe.vaex.io` and it's API documentation can be browsed at [https://dataframe.vaex.io/docs](https://dataframe.vaex.io/docs)
 
