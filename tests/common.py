@@ -98,7 +98,7 @@ else:
 
 
 @pytest.fixture(scope='session', params=webservers)
-def webserver(request, webserver_fastapi, webserver_tornado, df_server, df_server_huge):
+def webserver(request, webserver_fastapi, df_server, df_server_huge):
     webserver = locals()[request.param]
     df_example = vaex.example()
     df = df_server.copy()

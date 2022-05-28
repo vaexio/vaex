@@ -11,22 +11,25 @@ import contextlib
 import json
 
 
-from fastapi import FastAPI, Query, Path, Depends, Request, WebSocket, APIRouter, HTTPException
-from fastapi.security import OAuth2PasswordBearer
+from fastapi import FastAPI, Path, Depends, Request, WebSocket, APIRouter, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from fastapi.openapi.docs import get_swagger_ui_html
+from pydantic.fields import Field
 import requests
 
 
-from pydantic import BaseModel, BaseSettings
+from pydantic import BaseModel
 from starlette.responses import HTMLResponse, PlainTextResponse
 
 
 import vaex
+import vaex.cache
 import vaex.server
 import vaex.settings
 import vaex.server.websocket
+from .responses import dataframe_response, OutputType
+
 
 logger = logging.getLogger("vaex.server")
 VAEX_FAVICON = 'https://vaex.io/img/logos/vaex_alt.png'
@@ -86,6 +89,20 @@ class HeatmapOutput(BaseModel):
     values: Union[List[List[float]], List[List[int]]]  # counts
 
 
+class QuerySql(BaseModel):
+    query: str
+    output: OutputType = OutputType.arrow
+
+
+class QueryDownload(BaseModel):
+    dataset_id: str
+    query: str = ""
+    limit: int = Field(0, help="limit the amount of rows, or no limit when set to 0")
+    offset: int = Field(0, help="start at this row")
+    output: OutputType = OutputType.arrow
+    state: str = Field(None, help="serialized state")
+
+
 datasets = {}
 
 openapi_tags = [
@@ -121,12 +138,12 @@ async def root():
     return content
 
 
-@router.get("/dataset", summary="Lists all dataset names")
+@router.get("/dataset", summary="Lists all dataset names", tags=["datasets"])
 async def dataset():
     return list(datasets.keys())
 
 
-@router.get("/dataset/{dataset_id}", summary="Meta information about a dataset (schema etc)")
+@router.get("/dataset/{dataset_id}", summary="Meta information about a dataset (schema etc)", tags=["datasets"])
 async def dataset(dataset_id: str = path_dataset):
     with get_df(dataset_id) as df:
         schema = {k: str(v) for k, v in df.schema().items()}
@@ -245,6 +262,50 @@ async def heatmap_plot(input: HeatmapInput = Depends(HeatmapInput), f: str ="ide
         return ImageResponse(content=f.getvalue())
 
 
+router_download = APIRouter()
+
+
+@router_download.head("/{dataset_id}", response_class=ImageResponse, tags=["download"], summary="Download data using Vaex' expression system")
+@router_download.get("/{dataset_id}", response_class=ImageResponse, tags=["download"], summary="Download data using Vaex' expression system")
+@router_download.post("/{dataset_id}", response_class=ImageResponse, tags=["download"], summary="Download data using Vaex' expression system")
+async def download_sync(request: Request, input: QueryDownload = Depends(QueryDownload)):
+    with get_df(input.dataset_id) as df:
+        df_input = df
+        if input.query:
+            df = df.filter(input.query)
+        if input.limit:
+            if input.offset:
+                df = df[input.offset : input.offset + input.limit]
+            else:
+                df = df[: input.limit]
+        else:
+            if input.offset:
+                df = df[input.limit]
+        if input.state:
+            state = json.loads(input.state)
+            df.state_set(state)
+        fingerprint = vaex.cache.fingerprint(df_input.fingerprint(), input.query, input.limit, input.offset, input.state, input.output)
+        return dataframe_response(df, request, input.output, fingerprint=fingerprint)
+
+
+router_sql = APIRouter()
+
+
+@router_sql.head("/select", response_class=ImageResponse, tags=["sql"], summary="Query data using the SQL select statement")
+@router_sql.get("/select", response_class=ImageResponse, tags=["sql"], summary="Query data using the SQL select statement")
+@router_sql.post("/select", response_class=ImageResponse, tags=["sql"], summary="Query data using the SQL select statement")
+async def sql_simple(request: Request, input: QuerySql = Depends(QuerySql)):
+    from vaex.enterprise.sql.parse import parse
+
+    logger.info("SQL query: %r", input.query)
+    dataframes = {name: vaex.from_dataset(dataset) for name, dataset in datasets.items()}
+    parser = parse(input.query, dataframes=dataframes)
+    df_input = parser.df
+    df = parser.result
+    fingerprint = vaex.cache.fingerprint(df_input.fingerprint(), input.query, input.output)
+    return dataframe_response(df, request, input.output, fingerprint)
+
+
 @router.websocket("/websocket")
 async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
@@ -270,6 +331,10 @@ app = FastAPI(
 async def task_check_exception_handler(request, exc):
     return PlainTextResponse(str(exc), status_code=413)
 
+
+router.include_router(router_download, prefix="/download", tags=["download"])
+if vaex.settings.main.server.sql:
+    router.include_router(router_sql, prefix="/sql", tags=["sql"])
 
 app.include_router(router)
 app.add_middleware(
@@ -315,6 +380,7 @@ class Server(threading.Thread):
     def set_datasets(self, dfs):
         global datasets
         dfs = {df.name: df for df in dfs}
+        datasets = {name: df.dataset for name, df in dfs.items()}
         update_service(dfs)
 
     def run(self):
@@ -389,7 +455,20 @@ def ensure_example():
     if 'example' not in datasets:
         datasets['example'] = vaex.example().dataset
 
-ensure_example()
+def ensure_examples():
+    import vaex.datasets
+    ensure_example()
+    if 'iris' not in datasets:
+        datasets['iris'] = vaex.datasets.iris().dataset
+    if 'taxi' not in datasets:
+        datasets['taxi'] = vaex.datasets.taxi().dataset
+    if 'titanic' not in datasets:
+        datasets['titanic'] = vaex.datasets.titanic().dataset
+
+if vaex.settings.server.add_example:
+    ensure_example()
+if vaex.settings.server.add_examples:
+    ensure_examples()
 
 
 def update_service(dfs=None):
@@ -410,6 +489,7 @@ def main(argv=sys.argv):
     parser = argparse.ArgumentParser(argv[0])
     parser.add_argument("filename", help="filename for dataset", nargs='*')
     parser.add_argument('--add-example', default=False, action='store_true', help="add the example dataset")
+    parser.add_argument('--add-examples', default=False, action='store_true', help="add the example dataset")
     parser.add_argument("--host", help="address to bind the server to (default: %(default)s)", default="0.0.0.0")
     parser.add_argument("--base-url", help="External base url (default is <host>:port)", default=None)
     parser.add_argument("--port", help="port to listen on (default: %(default)s)", type=int, default=8081)
@@ -436,6 +516,9 @@ def main(argv=sys.argv):
         datasets['example'] = vaex.example().dataset
     if config.add_example:
         ensure_example()
+    if config.add_examples:
+        ensure_examples()
+
     use_graphql = config.graphql
     if use_graphql:
         add_graphql()

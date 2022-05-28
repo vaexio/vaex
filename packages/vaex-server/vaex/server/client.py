@@ -12,8 +12,7 @@ def create_df(name, info, executor):
     df = DataFrameRemote(name=name,
                          length_original=info['length_original'],
                          column_names=info['column_names'],
-                         dtypes=_dtypes)
-    df.executor = executor
+                         dtypes=_dtypes, executor=executor)
     df.state_set(info['state'])
     return df
 

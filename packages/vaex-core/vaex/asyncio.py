@@ -42,6 +42,7 @@ def just_run(coro):
         had_loop = False
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
+        asyncio._set_running_loop(None)
     try:
         if had_loop:
             check_ipython()
@@ -52,3 +53,4 @@ def just_run(coro):
     finally:
         if not had_loop:  # remove loop if we did not have one
             asyncio.set_event_loop(None)
+            asyncio._set_running_loop(None)

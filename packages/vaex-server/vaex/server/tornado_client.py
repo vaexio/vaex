@@ -19,6 +19,7 @@ class Client(client.Client):
                  secure=False,
                  token_trusted=None):
         super().__init__(secure=secure)
+        self.secure = secure
         self.hostname = hostname
         self.port = port or (443 if secure else 80)
         self.base_path = base_path if base_path.endswith("/") else (base_path + "/")

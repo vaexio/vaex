@@ -11,10 +11,16 @@ def buffer(i, n=1):
     yield from values
 
 
-def pmap(f, i, pool):
+def pmap(f, i, pool, apply=True):
+    if isinstance(pool, int):
+        import concurrent.futures
+        pool = concurrent.futures.ThreadPoolExecutor(pool)
     for item in i:
         def call(args):
-            return f(*args)
+            if apply:
+                return f(*args)
+            else:
+                return f(args)
         yield pool.submit(call, item)
 
 

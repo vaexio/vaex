@@ -1,22 +1,15 @@
+import base64
 import concurrent.futures
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from starlette import responses
 
 import pytest
-from fastapi.testclient import TestClient
 from myst_parser.main import to_tokens
-import aiohttp
+import numpy as np
 
-import vaex.server.fastapi
-
-
-@pytest.fixture(scope='session')
-def request_client(webserver):
-    client = TestClient(vaex.server.fastapi.app, raise_server_exceptions=True)
-    return client
-
-
-vaex.server.fastapi.ensure_example()
+import vaex
+import vaex.server.download
 
 
 def test_list(request_client):
@@ -104,8 +97,6 @@ def test_heatmap(request_client, df_example_original):
     assert json['values'] == values.tolist()
 
 
-
-
 def test_heatmap_plot(request_client, df_example_original):
     df = df_example_original
     # GET
@@ -117,6 +108,128 @@ def test_heatmap_plot(request_client, df_example_original):
     limits = (min_x, max_x), (min_y, max_y)
     response = request_client.get(f"/heatmap.plot/example/x/y?min_x={min_x}&max_x={max_x}&min_y={min_y}&max_y={max_y}&shape_x={shape_x}&shape_y={shape_y}")
     assert response.status_code == 200
+
+
+def test_download_vaex(request_client, df_example_original, tmpdir):
+    response = request_client.get(f"/download/example", params={"limit": 4, "offset": 1, "query": "x > 0"})
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "application/vnd.apache.arrow.stream"
+    filename = tmpdir / "test.arrow"
+    with open(filename, "wb") as f:
+        f.write(response.content)
+    df = vaex.open(filename)
+    dfo = df_example_original
+    dff = dfo[df.x > 0][1:5]
+    assert df["x"].tolist() == dff["x"].tolist()
+
+
+@pytest.mark.skipif(not vaex.settings.main.server.sql, reason="sql not enabled")
+def test_query_digest(request_client):
+    response1 = request_client.get(
+        f"/sql/select",
+        params={
+            "query": "SELECT * from example LIMIT 10",
+        },
+        headers={"Want-Digest": "sha-256"},
+    )
+    assert response1.status_code == 200
+    response2 = request_client.post(
+        f"/sql/select",
+        params={
+            "query": "SELECT * from example LIMIT 10",
+        },
+        headers={"Want-Digest": "sha-256"},
+    )
+    assert response2.status_code == 200
+    assert "Digest" not in response1.headers
+    assert "Digest" in response2.headers
+    import hashlib
+
+    hash_expected = hashlib.sha256(response1.content).digest()
+    algo, encoded = response2.headers["Digest"].split("=", 1)
+    hash_result = base64.decodebytes(encoded.encode("ascii"))
+    assert algo == "sha-256"
+    assert hash_expected == hash_result
+
+
+@pytest.mark.skipif(not vaex.settings.main.server.sql, reason="sql not enabled")
+def test_query_sql_resume(request_client):
+    response1 = request_client.get(
+        f"/sql/select",
+        params={
+            "query": "SELECT * from example LIMIT 10",
+        },
+    )
+    response2 = request_client.get(
+        f"/sql/select",
+        params={
+            "query": "SELECT * from example LIMIT 10",
+        },
+        headers={"Range": "bytes=10-"},
+    )
+    assert len(response2.content) == len(response1.content) - 10
+    assert response2.content == response1.content[10:]
+
+
+@pytest.mark.skipif(not vaex.settings.main.server.sql, reason="sql not enabled")
+def test_query_sql_query(request_client, df_example_original, tmpdir):
+    # post
+    response = request_client.post(
+        f"/sql/select",
+        params={
+            "query": "SELECT * from example LIMIT 10",
+        },
+    )
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "application/vnd.apache.arrow.stream"
+
+    # get
+    response = request_client.get(
+        f"/sql/select",
+        params={
+            "query": "SELECT * from example LIMIT 10",
+        },
+    )
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "application/vnd.apache.arrow.stream"
+    filename = tmpdir / "test.arrow"
+    with open(filename, "wb") as f:
+        f.write(response.content)
+    df = vaex.open(filename)
+    assert df["x"].tolist() == df_example_original[:10]["x"].tolist()
+
+    response = request_client.get(
+        f"/sql/select",
+        params={
+            "query": "SELECT * from example LIMIT 10",
+            "output": "parquet",
+        },
+    )
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "application/octet-stream"
+    filename = tmpdir / "test.parquet"
+    with open(filename, "wb") as f:
+        f.write(response.content)
+    df = vaex.open(filename)
+    assert df["x"].tolist() == df_example_original[:10]["x"].tolist()
+
+    response = request_client.get(f"/sql/select", params={"query": "SELECT x, y from example LIMIT 10", "output": "json"})
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "application/json"
+    filename = tmpdir / "test.json"
+    with open(filename, "wb") as f:
+        f.write(response.content)
+    df = vaex.from_json(filename)
+    np.testing.assert_array_almost_equal(df["x"].tolist(), df_example_original[:10]["x"].tolist(), decimal=3)
+
+
+@pytest.mark.skipif(not vaex.settings.main.server.sql, reason="sql not enabled")
+def test_download(request_client, tmpdir):
+    path = vaex.server.download.download("/sql/select", sql_query="select * from example limit 10", directory=tmpdir, client=request_client)
+    f = tmpdir / "test1.parquet"
+    vaex.server.download.download("/sql/select", sql_query="select * from example limit 10", f=f, client=request_client)
+    with open(tmpdir / "test2.parquet", "wb+") as f:
+        vaex.server.download.download("/sql/select", sql_query="select * from example limit 10", f=f, client=request_client)
 
 
 # TODO: we can't use this using threads, need to use asyncio
