@@ -44,3 +44,4 @@ dependencies:
 - uvicorn<0.16
 - xarray
 - myst-parser
+- vowpalwabbit
