@@ -5036,7 +5036,7 @@ class DataFrame(object):
     def dropmissing(self, column_names=None):
         """Create a shallow copy of a DataFrame, with filtering set using ismissing.
 
-        :param column_names: The columns to consider, default: all (real, non-virtual) columns
+        :param column_names: The columns to consider, default: all (real, virtual) columns
         :rtype: DataFrame
         """
         return self._filter_all(self.func.ismissing, column_names)
@@ -5044,7 +5044,7 @@ class DataFrame(object):
     def dropnan(self, column_names=None):
         """Create a shallow copy of a DataFrame, with filtering set using isnan.
 
-        :param column_names: The columns to consider, default: all (real, non-virtual) columns
+        :param column_names: The columns to consider, default: all (real, virtual) columns
         :rtype: DataFrame
         """
         return self._filter_all(self.func.isnan, column_names)
@@ -5052,20 +5052,20 @@ class DataFrame(object):
     def dropna(self, column_names=None):
         """Create a shallow copy of a DataFrame, with filtering set using isna.
 
-        :param column_names: The columns to consider, default: all (real, non-virtual) columns
+        :param column_names: The columns to consider, default: all (real, virtual) columns
         :rtype: DataFrame
         """
         return self._filter_all(self.func.isna, column_names)
 
     def dropinf(self, column_names=None):
         """ Create a shallow copy of a DataFrame, with filtering set using isinf.
-        :param column_names: The columns to consider, default: all (real, non-virtual) columns
+        :param column_names: The columns to consider, default: all (real, virtual) columns
         :rtype: DataFrame
         """
         return self._filter_all(self.func.isinf, column_names)
 
     def _filter_all(self, f, column_names=None):
-        column_names = column_names or self.get_column_names(virtual=False)
+        column_names = column_names or self.get_column_names()
         expression = f(self[column_names[0]])
         for column in column_names[1:]:
             expression = expression | f(self[column])
