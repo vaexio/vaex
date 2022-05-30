@@ -410,6 +410,19 @@ def test_groupby_int_binner_with_null(df_factory):
     assert dfg["sum"].tolist() == [99, 5, 4, 3, 6]
 
 
+def test_groupby_int_binner_with_offset_combine(df_factory):
+    offset = 2**16
+    df = df_factory(x=np.array([0, 1, 1, 2], dtype='int32') + offset, y=np.array([0, 0, 0, 1], dtype='int32'))
+
+    binner_x = vaex.groupby.BinnerInteger(df.x, min_value=offset, max_value=offset+2, sort=True, ascending=True)
+    binner_y = vaex.groupby.BinnerInteger(df.y, min_value=0, max_value=1, sort=True, ascending=True)
+    dfg = df.groupby([binner_x, binner_y], agg={"sum": vaex.agg.sum("x")}, assume_sparse=True, sort=True)
+    assert dfg["x"].tolist() == [offset+0, offset+1, offset+2]
+    assert dfg["y"].tolist() == [0,     0,   1]
+    assert dfg["sum"].tolist() ==[offset, (offset+1)*2, offset+2]
+
+
+
 def test_groupby_simplify_to_int_binner():
     x = np.arange(1024)
     x[:200] = 0  # <20% the same
