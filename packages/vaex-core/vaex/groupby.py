@@ -559,9 +559,9 @@ def _combine(df, groupers, sort, row_limit=None, progress=None):
     for i in range(0, len(combine_expressions)):
         combine_expression = combine_expressions[i]
         dtype = vaex.utils.required_dtype_for_max(cumulative_counts[i])
-        combine_expression = combine_expression.astype(str(dtype))
         if isinstance(combine_now[i], (GrouperCategory, BinnerInteger)) and combine_now[i].min_value != 0:
             combine_expression -= combine_now[i].min_value
+        combine_expression = combine_expression.astype(str(dtype))
         if cumulative_counts[i + 1] != 1:
             combine_expression = combine_expression * cumulative_counts[i + 1]
         combine_expressions[i] = combine_expression
