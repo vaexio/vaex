@@ -1,3 +1,22 @@
+# vaex 4.9.2
+
+# vaex-core 4.9.2
+   * Fix
+      * Write to cached filesystem when metadata argument is needed [#1993](https://github.com/vaexio/vaex/pull/1993)
+      * Multi-d sparse groupby would fail for arrow data (e.g. list agg) [#2031](https://github.com/vaexio/vaex/pull/2031)
+      * Exporting arrow with large_string would result in schema conflict [#2030](https://github.com/vaexio/vaex/pull/2030)
+      * expression engine did not roundtrip dict correctly, missing ", " [#2039](https://github.com/vaexio/vaex/pull/2039)
+      * Changed deprecated numpy.float to numpy.float64 [#2023](https://github.com/vaexio/vaex/pull/2023)
+      * Replace pylab with pyplot [#2047](https://github.com/vaexio/vaex/pull/2047)
+      * isin should accept empty array or non-existing values [#2064](https://github.com/vaexio/vaex/pull/2064)
+      * Ordinal_encode with values which extra entries gave wrong results [#2059](https://github.com/vaexio/vaex/pull/2059)
+      * Combining filters with arrow arrays failed converting (gave TypeError) [#2038](https://github.com/vaexio/vaex/issues/2038)
+      * Wrong order of casting and subtracting offset cause overflow [#2065](https://github.com/vaexio/vaex/pull/2065)
+
+# vaex-hdf5 0.12.2
+   * Fix
+      * Do not keep a reference to numpy arrays on closing an hdf5 file [2066](https://github.com/vaexio/vaex/pull/2066)
+
 # vaex 4.9.1
 
 # vaex-core 4.9.1
