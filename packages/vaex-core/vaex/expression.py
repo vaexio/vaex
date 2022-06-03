@@ -493,7 +493,7 @@ class Expression(with_metaclass(Meta)):
         return self.df.data_type(self)
 
     # TODO: remove this method?
-    def data_type(self, array_type=None, axis=0):
+    def data_type(self, array_type=None, axis=0) -> DataType:
         return self.df.data_type(self, axis=axis)
 
     @property
