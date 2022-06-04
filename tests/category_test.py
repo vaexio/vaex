@@ -157,4 +157,4 @@ def test_ordinal_encode_with_extra_values():
     )
     df["str_fruit"] = df["fruit"]
     df = df.ordinal_encode("fruit", values)
-    assert df[df["str_fruit"]=="strawberry"]
+    assert not df[df["str_fruit"]=="strawberry"].fruit.ismissing().values.any()
