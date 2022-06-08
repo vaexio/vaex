@@ -361,7 +361,7 @@ class DataType:
         return self.is_arrow and (pa.types.is_list(self.internal) or pa.types.is_large_list(self.internal))
 
     @property
-    def is_struct(self):
+    def is_struct(self) -> bool:
         '''Test if an (arrow) struct
 
         >>> DataType(pa.struct([pa.field('a', pa.utf8())])) == dict

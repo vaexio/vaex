@@ -257,3 +257,26 @@ def test_struct_correct_expression_dtype_duplicated(df_duplicated):
     """Ensure that `dtype` works correctly on vaex expression containing a struct."""
 
     assert df_duplicated.array.dtype.is_struct
+
+
+def test_struct_flatten(df):
+    assert df.get_column_names() == ['array', 'integer']
+    df_flat = df.struct.flatten()
+    assert df_flat.get_column_names() == ['array_col1', 'array_col2', 'array_col3', 'integer']
+
+    assert df.get_column_names() == ['array', 'integer']
+    df_flat = df.struct.flatten('integer')
+    assert df_flat.get_column_names() == ['array', 'integer']
+    df_flat = df.struct.flatten(['integer'])
+    assert df_flat.get_column_names() == ['array', 'integer']
+
+
+def test_struct_flatten_recursive(df):
+    ar = df.array.values
+    array = pa.StructArray.from_arrays(arrays=[ar, ar], names=['copy1', 'copy2'])
+    df = vaex.from_arrays(array=array, integer=[8, 9, 10])
+    df_flat = df.struct.flatten()
+    assert df_flat.get_column_names() == ['array_copy1_col1', 'array_copy1_col2', 'array_copy1_col3', 'array_copy2_col1', 'array_copy2_col2', 'array_copy2_col3', 'integer']
+
+    df_flat = df.struct.flatten(recursive=False)
+    assert df_flat.get_column_names() == ['array_copy1', 'array_copy2', 'integer']

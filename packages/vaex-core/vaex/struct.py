@@ -2,6 +2,11 @@
 
 """
 
+from typing import List
+
+from vaex.utils import _ensure_list
+from .expression import Expression
+from .dataframe import DataFrame
 import functools
 import json
 
@@ -9,6 +14,52 @@ import pyarrow as pa
 import vaex
 from vaex import register_function
 
+
+
+class DataFrameAccessorStruct:
+    def __init__(self, df):
+        self.df : DataFrame = df
+
+
+    def flatten(self, column=None, recursive=True, join_char='_') -> DataFrame:
+        """Returns a DataFrame where each struct column is turned into individual columns.
+
+        Example:
+        >>> import vaex
+        >>> import pyarrow as pa
+        >>> array = pa.StructArray.from_arrays(arrays=[[1,2], ["a", "b"], [3, 4]], names=["col1", "col2", "col3"])
+        >>> df = vaex.from_arrays(array=array)
+        >>> df
+          #  array
+          0  {'col1': 1, 'col2': 'a', 'col3': 3}
+          1  {'col1': 2, 'col2': 'b', 'col3': 4}
+        >>> df.struct.flatten()
+          #    array_col1  array_col2      array_col3
+          0             1  a                        3
+          1             2  b                        4
+
+        :param str or list[str] column: Column or list of columns to use (default is all).
+        :param bool recursive: Keep expanding already expanded columns or not.
+        """
+        df : DataFrame = self.df.copy()
+        filter_columns =  set(self.df.get_column_names() if column is None else _ensure_list(column))
+        queue : List[str] = self.df.get_column_names()
+        column_names = []  # re-order afterwards
+        while queue:
+            column = queue.pop(0)
+            expression : Expression = df[column]
+            if column in filter_columns and expression.data_type().is_struct:
+                df._hide_column(column)
+                # loop in reverse, so the first items ends up at the start of the queue
+                for name, projected_expression in reversed(expression.struct.items()):
+                    projected_name = f'{column}{join_char}{name}'
+                    df[projected_name] = projected_expression
+                    queue.insert(0, projected_name)
+                    if recursive:
+                        filter_columns.add(projected_name)
+            else:
+                column_names.append(column)
+        return df[column_names]
 
 def assert_struct_dtype(struct):
     """Helper function to ensure that struct operations are only applied to struct arrays."""
@@ -136,9 +187,9 @@ def struct_get(x, field):
     >>> array = pa.StructArray.from_arrays(arrays=[[1,2], ["a", "b"]], names=["col1", "col2"])
     >>> df = vaex.from_arrays(array=array)
     >>> df
-    # 	array
-    0	{'col1': 1, 'col2': 'a'}
-    1	{'col1': 2, 'col2': 'b'}
+      #  array
+      0  {'col1': 1, 'col2': 'a'}
+      1  {'col1': 2, 'col2': 'b'}
 
     >>> df.array.struct.get("col1")
     Expression = struct_get(array, 'col1')
@@ -183,9 +234,9 @@ def struct_project(x, fields):
     >>> array = pa.StructArray.from_arrays(arrays=[[1,2], ["a", "b"], [3, 4]], names=["col1", "col2", "col3"])
     >>> df = vaex.from_arrays(array=array)
     >>> df
-    # 	array
-    0	{'col1': 1, 'col2': 'a', 'col3': 3}
-    1	{'col1': 2, 'col2': 'b', 'col3': 4}
+      #  array
+      0  {'col1': 1, 'col2': 'a', 'col3': 3}
+      1  {'col1': 2, 'col2': 'b', 'col3': 4}
 
     >>> df.array.struct.project(["col3", "col1"])
     Expression = struct_project(array, ['col3', 'col1'])
