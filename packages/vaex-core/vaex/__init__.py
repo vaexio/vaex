@@ -219,6 +219,8 @@ def open(path, convert=False, progress=None, shuffle=False, fs_options={}, fs=No
             _, ext, _ = vaex.file.split_ext(path)
             if ext == '.csv':  # special case for csv
                 return vaex.from_csv(path, fs_options=fs_options, fs=fs, convert=convert, progress=progress, **kwargs)
+            if ext == ".json":  # special case for csv
+                return vaex.from_json(path, **kwargs)
             if convert:
                 path_output = convert if isinstance(convert, str) else filename_hdf5
                 vaex.convert.convert(

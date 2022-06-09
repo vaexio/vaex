@@ -158,3 +158,11 @@ def _cleanup_generated_files():
         os.remove(hdf5_file)
     for hdf5_file in glob.glob(os.path.join(path, '..', 'smæll2*')):
         os.remove(hdf5_file)
+
+
+def test_open_json():
+    df = vaex.open(csv2)
+    df.export("test2.json")
+    df_json = vaex.open("test2.json")
+    assert len(df) == len(df_json)
+    _cleanup_generated_files()
