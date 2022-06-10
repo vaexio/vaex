@@ -1,11 +1,8 @@
-import concurrent.futures
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
-from myst_parser.main import to_tokens
-import aiohttp
 
 import vaex.server.fastapi
 
@@ -121,13 +118,11 @@ def test_heatmap_plot(request_client, df_example_original):
 
 # TODO: we can't use this using threads, need to use asyncio
 # def test_parallel():
-#     tpe = ThreadPoolExecutor(4)    
+#     tpe = ThreadPoolExecutor(4)
 #     def request():
 #         min, max = 0, 10
 #         shape = 5
 #         response = request_client.get(f"/histogram/example/x?min={min}&max={max}&shape={shape}")
-#         assert response.status_code == 200, f"Unexpected response: {response.text}"
-#         return 42
 #     N = 10
 #     futures = []
 #     for i in range(N):
