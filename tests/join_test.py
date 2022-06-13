@@ -1,7 +1,7 @@
 import pytest
 import vaex
 import numpy as np
-import numpy.ma
+import pyarrow as pa
 from common import small_buffer
 
 df_a = vaex.from_arrays(a=np.array(['A', 'B', 'C']),
@@ -392,3 +392,41 @@ def test_join_no_right_columns_left():
     df2 = vaex.from_arrays(a=[1, 10])
     df = df1.join(df2, on="a", how="inner")
     assert df["a"].tolist() == [1]
+
+
+def test_join_on_nan_primitive():
+    df1 = vaex.from_arrays(id=[0., 1., np.nan], x=[1,2,3])
+    df2 = vaex.from_arrays(id=[0., 1., 2.], y=[2,3,4])
+    df3 = df1.join(df2, on="id")
+    assert df3.id.tolist()[:2] == [0, 1]
+    assert np.isnan(df3.id.tolist()[2])
+    assert df3.x.tolist() == [1, 2, 3]
+    assert df3.y.tolist() == [2, 3, None]
+
+
+def test_join_on_null_primitive(array_factory):
+    df1 = vaex.from_arrays(id=array_factory([0., 1., None]), x=[1,2,3])
+    df2 = vaex.from_arrays(id=[0., 1., 2.], y=[2, 3, 4])
+    df3 = df1.join(df2, on="id")
+    assert df3.id.tolist() == [0, 1, None]
+    assert df3.x.tolist() == [1, 2, 3]
+    assert df3.y.tolist() == [2, 3, None]
+
+
+def test_join_on_null_and_nan_primitive(array_factory):
+    df1 = vaex.from_arrays(id=array_factory([np.nan, 1., None]), x=[1,2,3])
+    df2 = vaex.from_arrays(id=[0., 1., 2.], y=[2,3,4])
+    df3 = df1.join(df2, on="id")
+    assert df3.id.tolist()[1:] == [1, None]
+    assert np.isnan(df3.id.tolist()[0])
+    assert df3.x.tolist() == [1, 2, 3]
+    assert df3.y.tolist() == [None, 3, None]
+
+
+def test_join_on_null_string():
+    df1 = vaex.from_arrays(id=pa.array(["0", "1", None]), x=[1,2,3])
+    df2 = vaex.from_arrays(id=pa.array(["0", "1", "2"]), y=[2,3,4])
+    df3 = df1.join(df2, on="id")
+    assert df3.id.tolist() == ["0", "1", None]
+    assert df3.x.tolist() == [1, 2, 3]
+    assert df3.y.tolist() == [2, 3, None]
