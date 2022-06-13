@@ -726,7 +726,7 @@ class index_hash : public hash_base<index_hash<T2, Hashmap2>, T2, Hashmap2> {
 
     // TODO: might be better to use a node based hasmap, we don't want to move large vectors
     typedef hashmap<key_type, std::vector<int64_t>> overflow_type;
-    index_hash(int nmaps = 1) : Base(nmaps), overflows(nmaps), has_duplicates(false) {}
+    index_hash(int nmaps = 1) : Base(nmaps), overflows(nmaps), has_duplicates(false), null_value(-1), nan_value(-1) {}
 
     int64_t length() const {
         int64_t c = this->count();
@@ -792,6 +792,9 @@ class index_hash : public hash_base<index_hash<T2, Hashmap2>, T2, Hashmap2> {
             if (custom_isnan(key)) {
                 output(i) = nan_value;
                 assert(this->nan_count > 0);
+                if(nan_value == -1) {
+                    encountered_unknown = true;
+                }
             } else {
                 std::size_t hash = hasher_map_choice()(key);
                 size_t map_index = (hash % nmaps);
@@ -829,9 +832,15 @@ class index_hash : public hash_base<index_hash<T2, Hashmap2>, T2, Hashmap2> {
             if (custom_isnan(key)) {
                 output(i) = nan_value;
                 assert(this->nan_count > 0);
+                if(nan_value == -1) {
+                    encountered_unknown = true;
+                }
             } else if (input_mask(i) == 1) {
                 output(i) = null_value;
                 assert(this->null_count > 0);
+                if(null_value == -1) {
+                    encountered_unknown = true;
+                }
             } else {
                 std::size_t hash = hasher_map_choice()(key);
                 size_t map_index = (hash % nmaps);

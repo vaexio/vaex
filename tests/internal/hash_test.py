@@ -346,6 +346,30 @@ def test_index():
     index.update(ar2, 3)
     assert index.map_index(ar).tolist() == [0, 1, 2, 3, 4, 5]
 
+
+def test_index_non_existing_primitive():
+    ar1 = np.arange(3, dtype="f8")
+    ar2 = np.arange(1, 4, dtype="f8")
+    index = index_hash_float64(1)
+    index.update(ar1, 0)
+    assert index.map_index(ar1).tolist() == [0, 1, 2]
+    assert index.map_index(ar2).tolist() == [1, 2, -1]
+
+    # test when nan is not missing (which triggers a special case comparison)
+    ar2[-1] = np.nan
+    assert not index.has_nan
+    assert index.map_index(ar2).tolist() == [1, 2, -1]
+
+
+def test_index_non_existing_string():
+    ar1 = vaex.strings.array(["aap", "noot", "mies"])
+    index = index_hash_string(1)
+    ar2 = vaex.strings.array(["noot", "mies", None])
+    index.update(ar1, 0)
+    assert index.map_index(ar1).tolist() == [0, 1, 2]
+    assert index.map_index(ar2).tolist() == [1, 2, -1]
+
+
 @pytest.mark.parametrize("nmaps", [1, 2, 3])
 def test_index_multi(nmaps):
     strings = vaex.strings.array(['aap', 'noot', 'mies'])
