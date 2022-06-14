@@ -43,4 +43,5 @@ dependencies:
 - tornado
 - uvicorn<0.16
 - xarray
-- myst-parser<0.18  # 0.18 breaks our test, missing main
+# currently not using this, since the test that requires this is flakey
+# - myst-parser<0.18  # 0.18 breaks our test, missing main
