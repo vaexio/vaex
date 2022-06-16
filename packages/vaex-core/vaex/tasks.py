@@ -204,6 +204,43 @@ class TaskHashmapUniqueCreate(Task):
     def decode(cls, encoding, spec, df):
         return cls(df, expression=spec['expression'])
 
+
+class TaskValueCounts(Task):
+    snake_name = "value_counts"
+
+    def __init__(self, df, expression, dropnan=False, dropmissing=False, ascending=False, axis=None):
+        super().__init__(df=df, expressions=[expression], pre_filter=df.filtered, name=self.snake_name)
+        self.flatten = axis is None
+        self.dtype = self.df.data_type(expression)
+        self.dtype_item = self.df.data_type(expression, axis=-1 if axis is None else 0)
+        self.selection = None
+        self.selections = [self.selection]
+        self.dropnan = dropnan
+        self.dropmissing = dropmissing
+        self.ascending = ascending
+
+    def get_bin_count(self):
+        return 0
+
+    def __repr__(self):
+        return f"task-{self.snake_name}: expression={self.expressions[0]!r}"
+
+    def encode(self, encoding):
+        return {
+            "expression": self.expressions[0],
+            "dtype": encoding.encode("dtype", self.dtype),
+            "dtype_item": encoding.encode("dtype", self.dtype_item),
+            "flatten": self.flatten,
+            "dropnan": self.dropnan,
+            "dropmissing": self.dropmissing,
+            "ascending": self.ascending,
+        }
+
+    @classmethod
+    def decode(cls, encoding, spec, df):
+        return cls(df, expression=spec["expression"])
+
+
 @register
 class TaskMapReduce(Task):
     snake_name = "map_reduce"
