@@ -388,7 +388,10 @@ def fingerprint(*args, **kwargs):
     try:
         original = uuid.uuid4
         uuid.uuid4 = _ThreadLocalCallablePatch(original, _explain)
-        return dask.base.tokenize(*args, **kwargs)
+        try:
+            return dask.base.tokenize(*args, **kwargs)
+        except TypeError as e:
+            raise TypeError(f"Could not calculate fingerprint for {args}/{kwargs}") from e
     finally:
         uuid.uuid4 = original
 
