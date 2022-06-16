@@ -335,3 +335,17 @@ def test_memoize_with_delay():
         assert value.get() == 3
         assert vaex.cache._cache_miss == 3
         assert vaex.cache._cache_hit == 2
+
+
+def test_value_counts():
+    df = vaex.from_arrays(x=[0, 1, 2, 2])
+    with vaex.cache.memory_infinite(clear=True):
+        vaex.cache._cache_hit = 0
+        vaex.cache._cache_miss = 0
+        df.x.value_counts()
+        # twice in the exector (once for testing)
+        assert vaex.cache._cache_miss == 2
+        assert vaex.cache._cache_hit == 0
+        df.x.value_counts()
+        assert vaex.cache._cache_miss == 2
+        assert vaex.cache._cache_hit == 1

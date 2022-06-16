@@ -19,6 +19,7 @@ import tabulate
 import pyarrow as pa
 
 import vaex.hash
+import vaex.tasks
 import vaex.serialize
 from vaex.utils import _ensure_strings_from_expressions, _ensure_string_from_expression
 from vaex.column import ColumnString, _to_string_sequence
@@ -982,7 +983,7 @@ class Expression(with_metaclass(Meta)):
         return self.ds.is_masked(self.expression)
 
     @docsubst
-    def value_counts(self, dropna=False, dropnan=False, dropmissing=False, ascending=False, progress=False, axis=None):
+    def value_counts(self, dropna=False, dropnan=False, dropmissing=False, ascending=False, progress=False, axis=None, delay=False):
         """Computes counts of unique values.
 
          WARNING:
@@ -995,6 +996,7 @@ class Expression(with_metaclass(Meta)):
         :param ascending: when False (default) it will report the most frequent occuring item first
         :param progress: {progress}
         :param bool axis: Axis over which to determine the unique elements (None will flatten arrays or lists)
+        :param bool delay: {delay}
         :returns: Pandas series containing the counts
         """
         from pandas import Series
@@ -1004,108 +1006,12 @@ class Expression(with_metaclass(Meta)):
             dropnan = True
             dropmissing = True
 
-        data_type = self.data_type()
-        data_type_item = self.data_type(axis=-1)
+        progressbar = vaex.utils.progressbars(progress)
+        task = vaex.tasks.TaskValueCounts(self.df, self.expression, dropnan=dropnan, dropmissing=dropmissing, ascending=ascending, axis=axis)
+        self.df.executor.schedule(task)
+        progressbar.add_task(task, "value counts")
+        return self.df._delay(delay, task)
 
-        transient = self.transient or self.ds.filtered or self.ds.is_masked(self.expression)
-        if self.is_string() and not transient:
-            # string is a special case, only ColumnString are not transient
-            ar = self.ds.columns[self.expression]
-            if not isinstance(ar, ColumnString):
-                transient = True
-
-        counter_type = counter_type_from_dtype(data_type_item, transient)
-        counters = [None] * self.ds.executor.thread_pool.nthreads
-        def map(thread_index, i1, i2, selection_masks, blocks):
-            ar = blocks[0]
-            if len(ar) == 0:
-                return 0
-            if counters[thread_index] is None:
-                counters[thread_index] = counter_type(1)
-            if data_type.is_list and axis is None:
-                try:
-                    ar = ar.values
-                except AttributeError:  # pyarrow ChunkedArray
-                    ar = ar.combine_chunks().values
-            if data_type_item.is_string:
-                ar = _to_string_sequence(ar)
-            else:
-                ar = vaex.array_types.to_numpy(ar)
-            if np.ma.isMaskedArray(ar):
-                mask = np.ma.getmaskarray(ar)
-                counters[thread_index].update(ar, mask)
-            else:
-                counters[thread_index].update(ar)
-            return 0
-        def reduce(a, b):
-            return a+b
-        progressbar = vaex.utils.progressbars(progress, title="value counts")
-        self.ds.map_reduce(map, reduce, [self.expression], delay=False, progress=progressbar, name='value_counts', info=True, to_numpy=False)
-        counters = [k for k in counters if k is not None]
-        counter = counters[0]
-        for other in counters[1:]:
-            counter.merge(other)
-        if data_type_item.is_object:
-            # for dtype=object we use the old interface
-            # since we don't care about multithreading (cannot release the GIL)
-            key_values = counter.extract()
-            keys = list(key_values.keys())
-            counts = list(key_values.values())
-            if counter.has_nan and not dropnan:
-                keys = [np.nan] + keys
-                counts = [counter.nan_count] + counts
-            if counter.has_null and not dropmissing:
-                keys = [None] + keys
-                counts = [counter.null_count] + counts
-            if dropmissing and None in keys:
-                # we still can have a None in the values
-                index = keys.index(None)
-                keys.pop(index)
-                counts.pop(index)
-            counts = np.array(counts)
-            keys = np.array(keys)
-        else:
-            keys = counter.key_array()
-            counts = counter.counts()
-            if isinstance(keys, (vaex.strings.StringList32, vaex.strings.StringList64)):
-                keys = vaex.strings.to_arrow(keys)
-
-            deletes = []
-            if counter.has_nan:
-                null_offset = 1
-            else:
-                null_offset = 0
-            if dropmissing and counter.has_null:
-                deletes.append(counter.null_index)
-            if dropnan and counter.has_nan:
-                deletes.append(counter.nan_index)
-            if vaex.array_types.is_arrow_array(keys):
-                indices = np.delete(np.arange(len(keys)), deletes)
-                keys = keys.take(indices)
-            else:
-                keys = np.delete(keys, deletes)
-                if not dropmissing and counter.has_null:
-                    mask = np.zeros(len(keys), dtype=np.uint8)
-                    mask[null_offset] = 1
-                    keys = np.ma.array(keys, mask=mask)
-            counts = np.delete(counts, deletes)
-
-        order = np.argsort(counts)
-        if not ascending:
-            order = order[::-1]
-        counts = counts[order]
-        keys = keys.take(order)
-
-        keys = keys.tolist()
-        if None in keys:
-            index = keys.index(None)
-            keys.pop(index)
-            keys = ["missing"] + keys
-            counts = counts.tolist()
-            count_null = counts.pop(index)
-            counts = [count_null] + counts
-
-        return Series(counts, index=keys)
 
     @docsubst
     def unique(self, dropna=False, dropnan=False, dropmissing=False, selection=None, axis=None, limit=None, limit_raise=True, array_type='list', progress=None, delay=False):

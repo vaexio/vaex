@@ -4,12 +4,14 @@ from functools import reduce
 import logging
 import operator
 import sys
+from typing import List
 
 import numpy as np
 import pyarrow as pa
 
 import vaex
 import vaex.encoding
+from vaex.hash import counter_type_from_dtype
 from .utils import as_flat_float, as_flat_array, _issequence, _ensure_list
 from .array_types import filter
 
@@ -134,6 +136,150 @@ class TaskPartFilterFill(TaskPart):
         assert spec == {}
         return cls()
 
+
+@register
+class TaskPartValueCounts(TaskPart):
+    snake_name = "value_counts"
+
+    def __init__(self, df, expression, dtype, dtype_item, dropnan, dropmissing, ascending, flatten, nthreads):
+        super().__init__(df=df, expressions=[expression], pre_filter=df.filtered, name=self.snake_name)
+        self.flatten = flatten
+        self.dtype = dtype
+        self.dtype_item = dtype_item
+        self.data_type = vaex.dtype(self.dtype)
+        self.data_type_item = vaex.dtype(self.dtype_item)
+        self.selection = None
+        self.selections = [self.selection]
+        self.dropnan = dropnan
+        self.dropmissing = dropmissing
+        self.ascending = ascending
+        transient = False
+        # TODO: in the future we might want to explore this again
+        # transient = self.transient or self.ds.filtered or self.ds.is_masked(self.expression)
+        # if self.is_string() and not transient:
+        #     # string is a special case, only ColumnString are not transient
+        #     ar = self.ds.columns[self.expression]
+        #     from vaex.column import ColumnString
+        #     if not isinstance(ar, ColumnString):
+        #         transient = True
+        self.counter_type = counter_type_from_dtype(self.data_type_item, transient)
+        self.counters = [None] * nthreads
+        self.result = None
+
+    @classmethod
+    def decode(cls, encoding, spec, df, nthreads):
+        return cls(
+            df,
+            spec["expression"],
+            encoding.decode("dtype", spec["dtype"]),
+            encoding.decode("dtype", spec["dtype_item"]),
+            dropnan=spec["dropnan"],
+            dropmissing=spec["dropmissing"],
+            ascending=spec["ascending"],
+            flatten=spec["flatten"],
+            nthreads=nthreads,
+        )
+
+    def memory_usage(self):
+        return sum((sys.getsizeof(k) for k in self.counters if k is not None), 0)
+
+    def process(self, thread_index, i1, i2, filter_mask, selection_masks, blocks):
+        ar = blocks[0]
+        if len(ar) == 0:
+            return 0
+        if self.counters[thread_index] is None:
+            self.counters[thread_index] = self.counter_type(1)
+        if self.data_type.is_list and self.flatten:
+            try:
+                ar = ar.values
+            except AttributeError:  # pyarrow ChunkedArray
+                ar = ar.combine_chunks().values
+        if self.data_type_item.is_string:
+            from vaex.column import _to_string_sequence
+
+            ar = _to_string_sequence(ar)
+        else:
+            ar = vaex.array_types.to_numpy(ar)
+        if np.ma.isMaskedArray(ar):
+            mask = np.ma.getmaskarray(ar)
+            self.counters[thread_index].update(ar, mask)
+        else:
+            self.counters[thread_index].update(ar)
+        return 0
+
+    def reduce(self, others: List["TaskPartValueCounts"]):
+        counters = []
+        for other in [self, *others]:
+            counters.extend([k for k in other.counters if k is not None])
+        counter = counters[0]
+        for other in counters[1:]:
+            counter.merge(other)
+        if self.data_type_item.is_object:
+            # for dtype=object we use the old interface
+            # since we don't care about multithreading (cannot release the GIL)
+            key_values = counter.extract()
+            keys = list(key_values.keys())
+            counts = list(key_values.values())
+            if counter.has_nan and not self.dropnan:
+                keys = [np.nan] + keys
+                counts = [counter.nan_count] + counts
+            if counter.has_null and not self.dropmissing:
+                keys = [None] + keys
+                counts = [counter.null_count] + counts
+            if self.dropmissing and None in keys:
+                # we still can have a None in the values
+                index = keys.index(None)
+                keys.pop(index)
+                counts.pop(index)
+            counts = np.array(counts)
+            keys = np.array(keys)
+        else:
+            keys = counter.key_array()
+            counts = counter.counts()
+            if isinstance(keys, (vaex.strings.StringList32, vaex.strings.StringList64)):
+                keys = vaex.strings.to_arrow(keys)
+
+            deletes = []
+            if counter.has_nan:
+                null_offset = 1
+            else:
+                null_offset = 0
+            if self.dropmissing and counter.has_null:
+                deletes.append(counter.null_index)
+            if self.dropnan and counter.has_nan:
+                deletes.append(counter.nan_index)
+            if vaex.array_types.is_arrow_array(keys):
+                indices = np.delete(np.arange(len(keys)), deletes)
+                keys = keys.take(indices)
+            else:
+                keys = np.delete(keys, deletes)
+                if not self.dropmissing and counter.has_null:
+                    mask = np.zeros(len(keys), dtype=np.uint8)
+                    mask[null_offset] = 1
+                    keys = np.ma.array(keys, mask=mask)
+            counts = np.delete(counts, deletes)
+
+        order = np.argsort(counts)
+        if not self.ascending:
+            order = order[::-1]
+        counts = counts[order]
+        keys = keys.take(order)
+
+        keys = keys.tolist()
+        if None in keys:
+            index = keys.index(None)
+            keys.pop(index)
+            keys = ["missing"] + keys
+            counts = counts.tolist()
+            count_null = counts.pop(index)
+            counts = [count_null] + counts
+
+        from pandas import Series
+
+        self.result = Series(counts, index=keys)
+
+    def get_result(self):
+        return self.result
 
 @register
 class TaskPartHashmapUniqueCreate(TaskPart):
