@@ -18,6 +18,7 @@ import pandas as pd
 import tabulate
 import pyarrow as pa
 
+import vaex.cache
 import vaex.hash
 import vaex.tasks
 import vaex.serialize
@@ -1206,15 +1207,26 @@ def f({0}):
         else:
              # ensure that values are the same dtype as the expression (otherwise the set downcasts at the C++ level during execution)
             values = np.array(values, dtype=self.dtype.numpy)
+
+        fp_args = vaex.cache.fingerprint(values, use_hashmap)
+        fp = f"{self.fingerprint()}_{fp_args}".replace("-", "_")
         if use_hashmap:
-            # easiest way to create a set is using the vaex dataframe
-            df_values = vaex.from_arrays(x=values)
-            ordered_set = df_values._set(df_values.x)
-            var = self.df.add_variable('var_isin_ordered_set', ordered_set, unique=True)
-            return self.df['isin_set(%s, %s)' % (self, var)]
+            varname = f"var_isin_ordered_set_{fp}"
+            if varname not in self.df.variables:
+                with self.df._state_lock:
+                    if varname not in self.df.variables:
+                        # easiest way to create a set is using the vaex dataframe
+                        df_values = vaex.from_arrays(x=values)
+                        ordered_set = df_values._set(df_values.x)
+                        self.df.add_variable(varname, ordered_set)
+            return self.df["isin_set(%s, %s)" % (self, varname)]
         else:
-            var = self.df.add_variable('isin_values', values, unique=True)
-            return self.df['isin(%s, %s)' % (self, var)]
+            varname = f"var_isin_values_{fp}"
+            if varname not in self.df.variables:
+                with self.df._state_lock:
+                    if varname not in self.df.variables:
+                        self.df.add_variable(varname, values)
+            return self.df["isin(%s, %s)" % (self, varname)]
 
     def apply(self, f, vectorize=False, multiprocessing=True):
         """Apply a function along all values of an Expression.
