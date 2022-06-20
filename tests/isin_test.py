@@ -62,3 +62,18 @@ def test_isin_test_empty(use_hashmap, encoded):
     if encoded:
         df = df.ordinal_encode('s')._future()
     assert df.s.isin([], use_hashmap=use_hashmap).tolist() == [False, False, False]
+
+
+@pytest.mark.parametrize("use_hashmap", [False, True])
+def test_isin_fingerprint(use_hashmap):
+    df = vaex.from_arrays(s=["dog", "cat", "mouse"])
+    df0 = df
+    fp1 = df.fingerprint()
+    assert df.s.isin(["cat"], use_hashmap=use_hashmap).tolist() == [False, True, False]
+    fp2 = df.fingerprint()
+    assert df.s.isin(["cat"], use_hashmap=use_hashmap).tolist() == [False, True, False]
+    fp3 = df.fingerprint()
+    # we needed to add a variable
+    assert fp1 != fp2
+    # we reuse a variable
+    assert fp2 == fp3

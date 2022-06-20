@@ -222,6 +222,9 @@ class DataFrame(object):
         # like the ExecutorLocal.local.executing, this needs to be thread local
         self.local._aggregator_nest_count = 0
 
+        # a per dataframe lock for thread safe changing the state
+        self._state_lock = threading.Lock()
+
     def fingerprint(self, dependencies=None, treeshake=False):
         '''Id that uniquely identifies a dataframe (cross runtime).
 
