@@ -11,6 +11,7 @@ Guides
     example_async.ipynb
     example_caching.ipynb
     example_dask.ipynb
+    example_data_types.ipynb
     example_graphql.ipynb
     example_io.ipynb
     example_ml_iris.ipynb
