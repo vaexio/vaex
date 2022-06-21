@@ -1,6 +1,25 @@
+# vaex 4.10
+
+## vaex-core 4.10.0
+
+   * Fix
+      * Join issue with missing values or nans [#2077](https://github.com/vaexio/vaex/issues/2077)
+   * Feature
+      * vaex.agg.describe aggregator, and descripe on groupby [#2004](https://github.com/vaexio/vaex/pull/2004)
+      * df.struct.flatten to turn arrow structs into multiple columns [#2072](https://github.com/vaexio/vaex/pull/2072)
+      * Reuse hashmap for isin (df fingerprint is stable, better for cache) [#2089](https://github.com/vaexio/vaex/pull/2089)
+   * Performance
+      * Value_counts uses a task to get caching support [#2085](https://github.com/vaexio/vaex/pull/2085).
+
+
+## vaex-ml 0.18.0
+
+   * Features
+      * Enable selections in metrics [#2073](https://github.com/vaexio/vaex/pull/2073)
+
 # vaex 4.9.2
 
-# vaex-core 4.9.2
+## vaex-core 4.9.2
    * Fix
       * Write to cached filesystem when metadata argument is needed [#1993](https://github.com/vaexio/vaex/pull/1993)
       * Multi-d sparse groupby would fail for arrow data (e.g. list agg) [#2031](https://github.com/vaexio/vaex/pull/2031)
@@ -13,20 +32,20 @@
       * Combining filters with arrow arrays failed converting (gave TypeError) [#2038](https://github.com/vaexio/vaex/issues/2038)
       * Wrong order of casting and subtracting offset cause overflow [#2065](https://github.com/vaexio/vaex/pull/2065)
 
-# vaex-hdf5 0.12.2
+## vaex-hdf5 0.12.2
    * Fix
       * Do not keep a reference to numpy arrays on closing an hdf5 file [2066](https://github.com/vaexio/vaex/pull/2066)
 
 # vaex 4.9.1
 
-# vaex-core 4.9.1
+## vaex-core 4.9.1
    * Fix
       * When aggregation leads to arrow data, non-dense binners failed (e.g. vaex.agg.list) [#2017](https://github.com/vaexio/vaex/pull/2017)
       * Filtering by boolean column would miss the column as dependency [#2016](https://github.com/vaexio/vaex/pull/2016)
 
 # vaex 4.9.0
 
-# vaex-core 4.9.0
+## vaex-core 4.9.0
    * Features
       * Progress bar for percentile_approx and median_approx [#1889](https://github.com/vaexio/vaex/pull/1889)
       * Better casting of strings to datetime [#1920](https://github.com/vaexio/vaex/pull/1920)
