@@ -104,3 +104,25 @@ def test_where_array_array(x, s):
     df['s2'] = (df.x==1).where(df.s, df.s + df.s)
     assert df.s2.tolist() == ['aa', 'b', None, None]
     assert df.s2.dtype.is_string
+
+
+def test_where_primitive_masked_argument(array_factory1, array_factory2):
+    x = array_factory1([1, 2, 3, 4])
+    m = array_factory2([1, 2, None, 4])
+    df = vaex.from_arrays(x=x, m=m)
+    df['m2'] = df.func.where(df.x > 2, -10, df.m)
+    assert df.m2.tolist() == [1, 2, -10, -10]
+
+    df['m3'] = df.func.where(df.x > 2, df.m, -10)
+    assert df.m3.tolist() == [-10, -10, None, 4]
+
+
+def test_where_primitive_masked_condition(array_factory1, array_factory2):
+    x = array_factory1([10, None, 30, 40])
+    m = array_factory2([1, 2, None, 4])
+    df = vaex.from_arrays(x=x, m=m)
+    df['m2'] = df.func.where(df.x > 20, -10, df.m)
+    assert df.m2.tolist() == [1, None, -10, -10]
+
+    df['m3'] = df.func.where(df.x > 20, df.m, -10)
+    assert df.m3.tolist() == [-10, None, None, 4]
