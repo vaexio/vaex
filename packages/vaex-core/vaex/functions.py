@@ -2664,13 +2664,13 @@ def where(condition, x, y, dtype=None):
     2    2    2
     3    3    3
     '''
-    # special where support for strings
+    # Conditions for better overview of how we are covering different cases
     if (type(x) == str) or (type(y) == str):
-        return pa.compute.if_else(condition, x, y)
+        return pa.compute.if_else(condition, x, y) if dtype is None else pa.compute.if_else(condition, x, y).cast(dtype)
     elif (vaex.column.is_column_like(x) and vaex.dtype_of(x).is_string) or (vaex.column.is_column_like(y) and vaex.dtype_of(y).is_string):
-        return pa.compute.if_else(condition, x, y)
+        return pa.compute.if_else(condition, x, y) if dtype is None else pa.compute.if_else(condition, x, y).cast(dtype)
     elif (vaex.array_types.is_scalar(x) or vaex.array_types.is_arrow_array(x)) and (vaex.array_types.is_scalar(y) or vaex.array_types.is_arrow_array(y)):
-        return pa.compute.if_else(condition, x, y)
+        return pa.compute.if_else(condition, x, y) if dtype is None else pa.compute.if_else(condition, x, y).cast(dtype)
     else:
         # cast x and y
         if dtype is not None:
