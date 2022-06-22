@@ -126,3 +126,16 @@ def test_where_primitive_masked_condition(array_factory1, array_factory2):
 
     df['m3'] = df.func.where(df.x > 20, df.m, -10)
     assert df.m3.tolist() == [-10, None, None, 4]
+
+
+def test_where_with_none(array_factory1, array_factory2):
+    x = array_factory1([1, None, 3, 4])
+    y = array_factory2([10, 20, 30, 40])
+    df = vaex.from_arrays(x=x, y=y)
+    df['y2'] = df.func.where(df.y > 20, None, df.x)
+    assert df.y2.dtype == df.x.dtype
+    assert df.y2.tolist() == [1, None, None, None]
+
+    df['y3'] = df.func.where(df.y > 20, df.x, None)
+    assert df.y3.dtype == df.x.dtype
+    assert df.y3.tolist() == [None, None, 3, 4]

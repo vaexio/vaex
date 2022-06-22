@@ -2670,7 +2670,6 @@ def where(condition, x, y, dtype=None):
     elif (vaex.column.is_column_like(x) and vaex.dtype_of(x).is_string) or (vaex.column.is_column_like(y) and vaex.dtype_of(y).is_string):
         return pa.compute.if_else(condition, x, y)
     elif (vaex.array_types.is_scalar(x) or vaex.array_types.is_arrow_array(x)) and (vaex.array_types.is_scalar(y) or vaex.array_types.is_arrow_array(y)):
-        print('aaa')
         return pa.compute.if_else(condition, x, y)
     else:
         # cast x and y
@@ -2685,6 +2684,10 @@ def where(condition, x, y, dtype=None):
         # default callback is on numpy
         # where() respects the dtypes of x and y; ex: if x and y are 'uint8', the resulting array will also be 'uint8'
         condition = vaex.array_types.to_numpy(condition)
+        if x is None:
+            x = np.ma.masked
+        if y is None:
+            y = np.ma.masked
         return np.ma.where(condition, x, y)
 
 
