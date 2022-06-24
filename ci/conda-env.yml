@@ -28,7 +28,7 @@ dependencies:
 - pip==20.3.4
 - plotly
 - python-annoy
-# - pyarrow>=5.0.0
+- pyarrow>=5.0.0
 - pyqt
 - pytest
 - pytest-asyncio<0.14
@@ -43,7 +43,5 @@ dependencies:
 - tornado
 - uvicorn<0.16
 - xarray
-- pip:
-  - pyarrow>6.0.0
 # currently not using this, since the test that requires this is flakey
 # - myst-parser<0.18  # 0.18 breaks our test, missing main

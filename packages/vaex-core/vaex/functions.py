@@ -14,6 +14,7 @@ import functools
 import six
 
 
+_pyarrow_major = int(pa.__version__.split(".")[0])
 # @vaex.serialize.register_function
 # class Function(FunctionSerializable):
 
@@ -2635,6 +2636,16 @@ def add_geo_json(ds, json_or_file, column_name, longitude_expression, latitude_e
 
 import vaex.arrow.numpy_dispatch
 
+def _common_string_type_for_arrow_5(a, b):
+    if _pyarrow_major <= 5:
+        a_type = a.type
+        b_type = b.type
+        if a_type == pa.large_string() and b_type == pa.string():
+            return a, b.cast(pa.large_string())
+        elif a_type == pa.string() and b_type == pa.large_string():
+            return a.cast(pa.large_string()), b
+    return a, b
+
 @register_function()
 def where(condition, x, y, dtype=None):
     ''' Return the values row-wise chosen from `x` or `y` depending on the `condition`.
@@ -2668,8 +2679,10 @@ def where(condition, x, y, dtype=None):
     if (type(x) == str) or (type(y) == str):
         return pa.compute.if_else(condition, x, y) if dtype is None else pa.compute.if_else(condition, x, y).cast(dtype)
     elif (vaex.column.is_column_like(x) and vaex.dtype_of(x).is_string) or (vaex.column.is_column_like(y) and vaex.dtype_of(y).is_string):
+        x, y = _common_string_type_for_arrow_5(x, y)
         return pa.compute.if_else(condition, x, y) if dtype is None else pa.compute.if_else(condition, x, y).cast(dtype)
     elif (vaex.array_types.is_scalar(x) or vaex.array_types.is_arrow_array(x)) and (vaex.array_types.is_scalar(y) or vaex.array_types.is_arrow_array(y)):
+        x, y = _common_string_type_for_arrow_5(x, y)
         return pa.compute.if_else(condition, x, y) if dtype is None else pa.compute.if_else(condition, x, y).cast(dtype)
     else:
         # cast x and y
