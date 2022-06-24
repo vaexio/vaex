@@ -112,16 +112,26 @@ def test_dropna():
     assert (df.s.dropna().tolist() == ["aap", "noot", "mies"])
     assert (df.o.dropna().tolist() == ["aap", "noot"])
 
-
-def test_dropna_all_columns():
-    x = [1, 2, 3, 4, 5]
-    y = ['dog', 'dog', None, 'cat', None]
+@pytest.fixture
+def df_with_missings():
+    x = [1.1, np.nan, np.nan, 4.4, 5.5]
+    y = ["dog", "dog", None, "cat", None]
     df = vaex.from_arrays(x=x, y=y)
+    return df
 
-    df_dropped = df.dropna()
-    assert df_dropped.x.tolist() == [1, 2, 4]
-    assert df_dropped.y.tolist() == ['dog', 'dog', 'cat']
+def test_dropna_all_columns(df_with_missings):
+    df = df_with_missings
+    # These two should be equivalent
+    for df_dropped in (df.dropna(), df.dropna(how="any")):
+        assert df_dropped.x.tolist() == [1.1, 4.4]
+        assert df_dropped.y.tolist() == ["dog", "cat"]
 
+    df_dropped = df.dropna(how="all")
+    assert df_dropped.x.fillna(99).tolist() == [1.1, 99, 4.4, 5.5]
+    assert df_dropped.y.tolist() == ["dog", "dog", "cat", None]
+
+    with pytest.raises(ValueError):
+        df_dropped = df.dropna(how="invalid")
 
 def test_dropna_string_columns():
     data_dict = {'10': [1, 2, np.nan],
