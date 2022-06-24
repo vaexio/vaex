@@ -25,7 +25,7 @@ Opening/reading in your data.
     vaex.from_records
 
 Visualizations.
-~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~
 
 .. autosummary::
 
@@ -191,7 +191,7 @@ vaex.jupyter.view
     :show-inheritance:
 
 vaex.jupyter.widgets
-~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~
 
 .. automodule:: vaex.jupyter.widgets
     :members:
@@ -206,7 +206,7 @@ See the `ML tutorial <tutorial_ml.ipynb>`_ an introduction, and the `ML examples
 
 
 Transformers & Encoders
-~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~
 
 .. autosummary::
 
