@@ -396,8 +396,8 @@ autodoc_default_options = {
 intersphinx_mapping = {
     'python': ('https://docs.python.org/3', None),
     's3fs': ('https://s3fs.readthedocs.io/en/latest', None),
-    'numpy': ('http://docs.scipy.org/doc/numpy/', None),
-    'dask': ('http://docs.dask.org/en/latest/', None),
+    'numpy': ('https://numpy.org/doc/stable', None),
+    'dask': ('https://docs.dask.org/en/latest/', None),
     'gcsfs': ('https://gcsfs.readthedocs.io/en/latest/', None),
     's3fs': ('https://s3fs.readthedocs.io/en/latest/', None),
     'pyarrow': ('https://arrow.readthedocs.io/en/stable/', None)
