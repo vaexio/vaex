@@ -125,7 +125,7 @@ class DataFrameAccessorWidget(object):
     def expression(self, value=None, label='Custom expression'):
         '''Create a widget to edit a vaex expression.
 
-        If value is an :py:`vaex.jupyter.model.Axis` object, its expression will be (bi-directionally) linked to the widget.
+        If value is an :class:`vaex.jupyter.model.Axis` object, its expression will be (bi-directionally) linked to the widget.
 
         :param value: Valid expression (string or Expression object), or Axis
         '''
