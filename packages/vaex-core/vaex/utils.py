@@ -247,11 +247,13 @@ class Timer(object):
 def get_vaex_home():
     '''Get vaex home directory, defaults to $HOME/.vaex.
 
-    The $VAEX_PATH_HOME environment variable can be set to override this default.
+    The $VAEX_HOME environment variable can be set to override this default.
 
-    If both $VAEX_PATH_HOME and $HOME are not define, the current working directory is used.
+    If both $VAEX_HOME and $HOME are not define, the current working directory is used.
     '''
-    if 'VAEX_PATH_HOME' in os.environ:
+    if 'VAEX_HOME' in os.environ:
+        return os.environ['VAEX_HOME']
+    if 'VAEX_PATH_HOME' in os.environ:  # for backwards compatibility
         return os.environ['VAEX_PATH_HOME']
     elif 'HOME' in os.environ:
         return os.path.join(os.environ['HOME'], ".vaex")
