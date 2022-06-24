@@ -5068,7 +5068,8 @@ class DataFrame(object):
         return self._filter_all(self.func.isinf, column_names)
 
     def _filter_all(self, f, column_names=None):
-        column_names = column_names or self.get_column_names(virtual=False)
+        if column_names is None:
+            column_names = self.get_column_names(virtual=False)
         expression = f(self[column_names[0]])
         for column in column_names[1:]:
             expression = expression | f(self[column])
