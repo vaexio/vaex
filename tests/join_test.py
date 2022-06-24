@@ -44,7 +44,11 @@ df_dt1 = vaex.from_arrays(date=[np.datetime64('2009-10-12T03:00:00'),
                           value=[1, 2, 3, 4])
 
 
-df_f = vaex.from_arrays(f=np.array(["B", "C", None]), w1=np.array(["dog", "cat", "mouse"]), w2=np.array([True, False, True]))
+df_f = vaex.from_arrays(
+    f=np.array(["B", "C", None]),
+    w1=np.array(["dog", "cat", "mouse"]),
+    w2=np.array([True, False, True]),
+)
 
 
 df_dt2 = vaex.from_arrays(date=[np.datetime64('2009-10-12T03:00:00'),
@@ -460,8 +464,8 @@ def test_join_f_c_inner_none():
 
 def test_join_f_c_left_none_fillna():
     df_f_copy = df_f.copy()
-    df_f_copy['f'] = df_f_copy.f.fillna(value='missing')
-    df = df_f_copy.join(df_c, left_on='f', right_on='c', how='left')
+    df_f_copy["f"] = df_f_copy.f.fillna(value="missing")
+    df = df_f_copy.join(df_c, left_on="f", right_on="c", how="left")
     assert df.shape == (2, 6)
     assert df.f.tolist() == ['B', 'C']
     assert df.c.tolist() == ['B', 'C']
