@@ -464,8 +464,21 @@ def test_join_f_c_inner_none():
 
 def test_join_f_c_left_none_fillna():
     df_f_copy = df_f.copy()
-    df_f_copy["f"] = df_f_copy.f.fillna(value="missing")
-    df = df_f_copy.join(df_c, left_on="f", right_on="c", how="left")
+    df_f_copy['f'] = df_f_copy.f.fillna(value='missing')
+    df = df_f_copy.join(df_c, left_on='f', right_on='c', how='left')
+    assert df.shape == (3, 6)
+    assert df.f.tolist() == ['B', 'C', 'missing']
+    assert df.c.tolist() == ['B', 'C', None]
+    assert df.w1.tolist() == ['dog', 'cat', 'mouse']
+    assert df.w2.tolist() == [True, False, True]
+    assert df.z1.tolist() == [-1.0, -2.0, None]
+    assert df.z2.tolist() == [True, False, None]
+
+
+def test_join_f_c_inner_none_fillna():
+    df_f_copy = df_f.copy()
+    df_f_copy['f'] = df_f_copy.f.fillna(value='missing')
+    df = df_f_copy.join(df_c, left_on='f', right_on='c', how='inner')
     assert df.shape == (2, 6)
     assert df.f.tolist() == ['B', 'C']
     assert df.c.tolist() == ['B', 'C']
@@ -473,16 +486,3 @@ def test_join_f_c_left_none_fillna():
     assert df.w2.tolist() == [True, False]
     assert df.z1.tolist() == [-1.0, -2.0]
     assert df.z2.tolist() == [True, False]
-
-
-def test_join_f_c_inner_none_fillna():
-    df_f_copy = df_f.copy()
-    df_f_copy['f'] = df_f_copy.f.fillna(value='missing')
-    df = df_f_copy.join(df_c, left_on='f', right_on='c', how='inner')
-    assert df.shape == (3, 6)
-    assert df.f.tolist() == ['B', 'C', None]
-    assert df.c.tolist() == ['B', 'C', None]
-    assert df.w1.tolist() == ['dog', 'cat', 'mouse']
-    assert df.w2.tolist() == [True, False, True]
-    assert df.z1.tolist() == [-1.0, -2.0, None]
-    assert df.z2.tolist() == [True, False, None]
