@@ -109,7 +109,7 @@ def open(path, convert=False, progress=None, shuffle=False, fs_options={}, fs=No
     :param str or list path: local or absolute path to file, or glob string, or list of paths
     :param convert: Uses `dataframe.export` when convert is a path. If True, ``convert=path+'.hdf5'``
                     The conversion is skipped if the input file or conversion argument did not change.
-    :param progress: (_Only applies when convert is not False_) {progress}
+    :param progress: (*Only applies when convert is not False*) {progress}
     :param bool shuffle: shuffle converted DataFrame or not
     :param dict fs_options: Extra arguments passed to an optional file system if needed:
         * Amazon AWS S3
@@ -550,7 +550,7 @@ def from_csv(filename_or_buffer, copy_index=False, chunk_size=None, convert=Fals
         be saved as a separate hdf5 file, then all of them will be combined into one hdf5 file. So for a big CSV file
         you will need at least double of extra space on the disk. Default chunk_size for converting is 5 million rows,
         which corresponds to around 1Gb memory on an example of NYC Taxi dataset.
-    :param progress: (_Only applies when convert is not False_) {progress}
+    :param progress: (*Only applies when convert is not False*) {progress}
     :param kwargs: extra keyword arguments, currently passed to Pandas read_csv function, but the implementation might
         change in future versions.
     :returns: DataFrame
