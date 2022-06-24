@@ -244,7 +244,7 @@ function addZoomHandler(elementId, heatmapInput) {
 
 ```
 
-```{include} data/rest/sky.html
+```{include} ../data/rest/sky.html
 ```
 
 
@@ -361,7 +361,7 @@ async () => {
 
 ```
 
-```{include} data/rest/cmd.html
+```{include} ../data/rest/cmd.html
 ```
 
 
