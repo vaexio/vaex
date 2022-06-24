@@ -29,7 +29,7 @@ url = 'https://www.github.com/maartenbreddels/vaex'
 install_requires_core = ["numpy>=1.16", "aplus", "tabulate>=0.8.3",
                          "future>=0.15.2", "pyyaml", "progressbar2",
                          "requests", "six", "cloudpickle", "pandas", "dask!=2022.4.0",
-                         "nest-asyncio>=1.3.3", "pyarrow>=3.0", "frozendict!=2.2.0",
+                         "nest-asyncio>=1.3.3", "pyarrow>=5.0.0", "frozendict!=2.2.0",
                          "blake3", "filelock", "pydantic>=1.8.0", "rich",
                         ]
 if sys.version_info[0] == 2:

@@ -14,6 +14,7 @@ import functools
 import six
 
 
+_pyarrow_major = int(pa.__version__.split(".")[0])
 # @vaex.serialize.register_function
 # class Function(FunctionSerializable):
 
@@ -2635,6 +2636,16 @@ def add_geo_json(ds, json_or_file, column_name, longitude_expression, latitude_e
 
 import vaex.arrow.numpy_dispatch
 
+def _common_string_type_for_arrow_5(a, b):
+    if _pyarrow_major <= 5:
+        a_type = a.type
+        b_type = b.type
+        if a_type == pa.large_string() and b_type == pa.string():
+            return a, b.cast(pa.large_string())
+        elif a_type == pa.string() and b_type == pa.large_string():
+            return a.cast(pa.large_string()), b
+    return a, b
+
 @register_function()
 def where(condition, x, y, dtype=None):
     ''' Return the values row-wise chosen from `x` or `y` depending on the `condition`.
@@ -2664,70 +2675,33 @@ def where(condition, x, y, dtype=None):
     2    2    2
     3    3    3
     '''
-    # special where support for strings
-    # TODO: this should be replaced by an arrow compute function in the future
-    if type(x) == str:
-        if type(y) == str:
-            condition = vaex.array_types.to_arrow(condition).cast(pa.int8())
-            choices = pa.array([y, x])
-            values = choices.take(condition)
-            return values
-        else:
-            condition = vaex.array_types.to_arrow(condition)
-            indices = np.arange(len(y), dtype=np.int64)
-            # point to the last value
-            indices[vaex.array_types.to_numpy(condition)] = len(y)
-            indices = vaex.array_types.to_arrow(indices)
+    # Conditions for better overview of how we are covering different cases
+    if (type(x) == str) or (type(y) == str):
+        return pa.compute.if_else(condition, x, y) if dtype is None else pa.compute.if_else(condition, x, y).cast(dtype)
+    elif (vaex.column.is_column_like(x) and vaex.dtype_of(x).is_string) or (vaex.column.is_column_like(y) and vaex.dtype_of(y).is_string):
+        x, y = _common_string_type_for_arrow_5(x, y)
+        return pa.compute.if_else(condition, x, y) if dtype is None else pa.compute.if_else(condition, x, y).cast(dtype)
+    elif (vaex.array_types.is_scalar(x) or vaex.array_types.is_arrow_array(x)) and (vaex.array_types.is_scalar(y) or vaex.array_types.is_arrow_array(y)):
+        x, y = _common_string_type_for_arrow_5(x, y)
+        return pa.compute.if_else(condition, x, y) if dtype is None else pa.compute.if_else(condition, x, y).cast(dtype)
+    else:
+        # cast x and y
+        if dtype is not None:
+            if np.can_cast(x, dtype):
+                dtype_scalar = np.dtype(dtype)
+                x = dtype_scalar.type(x)
+            if np.can_cast(y, dtype):
+                dtype_scalar = np.dtype(dtype)
+                y = dtype_scalar.type(y)
 
-            indices = vaex.arrow.numpy_dispatch.combine_missing(indices, condition)
-            y = vaex.array_types.to_arrow(y)
-            choices = vaex.array_types.concat([y, pa.array([x], type=y.type)])
-            values = choices.take(indices)
-            return values
-    elif type(y) == str:
-        condition = vaex.array_types.to_arrow(condition)
-        indices = np.arange(len(x), dtype=np.int64)
-        # point to the last value
-        indices[~vaex.array_types.to_numpy(condition)] = len(x)
-        indices = vaex.array_types.to_arrow(indices)
-
-        indices = vaex.arrow.numpy_dispatch.combine_missing(indices, condition)
-        x = vaex.array_types.to_arrow(x)
-        choices = vaex.array_types.concat([x, pa.array([y], type=x.type)])
-        values = choices.take(indices)
-        return values
-    elif vaex.column.is_column_like(x) and vaex.dtype_of(x).is_string:
-        assert vaex.dtype_of(y).is_string
-        condition = vaex.array_types.to_arrow(condition)
-        assert len(x) == len(y) == len(condition)
-        N = len(x)
-        indices = np.arange(N, dtype=np.int64)
-        mask = vaex.array_types.to_numpy(condition)
-        indices[~mask] += len(x)
-        indices = vaex.array_types.to_arrow(indices)
-
-        indices = vaex.arrow.numpy_dispatch.combine_missing(indices, condition)
-        x = vaex.array_types.to_arrow(x)
-        y = vaex.array_types.to_arrow(y)
-        x, y = vaex.arrow.convert.same_type(x, y)
-        choices = vaex.array_types.concat([x, y])
-        values = choices.take(indices)
-        return values
-
-    # cast x and y
-    if dtype is not None:
-        if np.can_cast(x, dtype):
-            dtype_scalar = np.dtype(dtype)
-            x = dtype_scalar.type(x)
-        if np.can_cast(y, dtype):
-            dtype_scalar = np.dtype(dtype)
-            y = dtype_scalar.type(y)
-
-    # default callback is on numpy
-    # where() respects the dtypes of x and y; ex: if x and y are 'uint8', the resulting array will also be 'uint8'
-    ar = np.where(condition, x, y)
-
-    return ar
+        # default callback is on numpy
+        # where() respects the dtypes of x and y; ex: if x and y are 'uint8', the resulting array will also be 'uint8'
+        condition = vaex.array_types.to_numpy(condition)
+        if x is None:
+            x = np.ma.masked
+        if y is None:
+            y = np.ma.masked
+        return np.ma.where(condition, x, y)
 
 
 @register_function()
