@@ -5041,8 +5041,8 @@ class DataFrame(object):
 
         :param column_names: The columns to consider, default: all (real, non-virtual) columns
         :param str how: One of ("any", "all").
-            If "any", then drop rows where any of the columns is missing.
-            If "all", then drop rows where all of the columns is missing.
+            If "any", then drop rows where any of the columns are missing.
+            If "all", then drop rows where all of the columns are missing.
         :rtype: DataFrame
         """
         return self._filter_all(self.func.ismissing, column_names, how=how)
@@ -5052,8 +5052,8 @@ class DataFrame(object):
 
         :param column_names: The columns to consider, default: all (real, non-virtual) columns
         :param str how: One of ("any", "all").
-            If "any", then drop rows where any of the columns is nan.
-            If "all", then drop rows where all of the columns is nan.
+            If "any", then drop rows where any of the columns are nan.
+            If "all", then drop rows where all of the columns are nan.
         :rtype: DataFrame
         """
         return self._filter_all(self.func.isnan, column_names, how=how)
@@ -5063,8 +5063,8 @@ class DataFrame(object):
 
         :param column_names: The columns to consider, default: all (real, non-virtual) columns
         :param str how: One of ("any", "all").
-            If "any", then drop rows where any of the columns is na.
-            If "all", then drop rows where all of the columns is na.
+            If "any", then drop rows where any of the columns are na.
+            If "all", then drop rows where all of the columns are na.
         :rtype: DataFrame
         """
         return self._filter_all(self.func.isna, column_names, how=how)
@@ -5074,8 +5074,8 @@ class DataFrame(object):
         
         :param column_names: The columns to consider, default: all (real, non-virtual) columns
         :param str how: One of ("any", "all").
-            If "any", then drop rows where any of the columns is inf.
-            If "all", then drop rows where all of the columns is inf.
+            If "any", then drop rows where any of the columns are inf.
+            If "all", then drop rows where all of the columns are inf.
         :rtype: DataFrame
         """
         return self._filter_all(self.func.isinf, column_names, how=how)
