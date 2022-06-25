@@ -114,21 +114,21 @@ def test_dropna():
 
 @pytest.fixture
 def df_with_missings():
-    x = [1.1, np.nan, np.nan, 4.4, 5.5]
-    y = ["dog", "dog", None, "cat", None]
-    df = vaex.from_arrays(x=x, y=y)
+    nan = [1.1, np.nan, np.nan, 4.4, 5.5]
+    na = ['dog', 'dog', None, 'cat', None]
+    df = vaex.from_arrays(nan=nan, na=na)
     return df
 
 def test_dropna_all_columns(df_with_missings):
     df = df_with_missings
     # These two should be equivalent
     for df_dropped in (df.dropna(), df.dropna(how="any")):
-        assert df_dropped.x.tolist() == [1.1, 4.4]
-        assert df_dropped.y.tolist() == ["dog", "cat"]
+        assert df_dropped.nan.tolist() == [1.1, 4.4]
+        assert df_dropped.na.tolist() == ['dog', 'cat']
 
     df_dropped = df.dropna(how="all")
-    assert df_dropped.x.fillna(99).tolist() == [1.1, 99, 4.4, 5.5]
-    assert df_dropped.y.tolist() == ["dog", "dog", "cat", None]
+    assert df_dropped.nan.fillna(99).tolist() == [1.1, 99, 4.4, 5.5]
+    assert df_dropped.na.tolist() == ['dog', 'dog', 'cat', None]
 
     with pytest.raises(ValueError):
         df_dropped = df.dropna(how="invalid")
