@@ -113,9 +113,11 @@ def test_dropna():
     assert (df.o.dropna().tolist() == ["aap", "noot"])
 
 @pytest.fixture
-def df_with_missings():
-    nan = [1.1, np.nan, np.nan, 4.4, 5.5]
-    na = ['dog', 'dog', None, 'cat', None]
+def df_with_missings(array_factory1, array_factory2):
+    # Create arrays separately so that the DF might have a mix of
+    # numpy and arrow arrays.
+    nan = array_factory1([1.1, np.nan, np.nan, 4.4, 5.5])
+    na = array_factory2(['dog', 'dog', None, 'cat', None])
     df = vaex.from_arrays(nan=nan, na=na)
     return df
 
