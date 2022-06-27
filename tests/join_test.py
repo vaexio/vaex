@@ -43,6 +43,14 @@ df_dt1 = vaex.from_arrays(date=[np.datetime64('2009-10-12T03:00:00'),
                                 np.datetime64('2009-12-12T03:00:00')],
                           value=[1, 2, 3, 4])
 
+
+df_f = vaex.from_arrays(
+    f=np.array(["B", "C", None]),
+    w1=np.array(["dog", "cat", "mouse"]),
+    w2=np.array([True, False, True]),
+)
+
+
 df_dt2 = vaex.from_arrays(date=[np.datetime64('2009-10-12T03:00:00'),
                                 np.datetime64('2009-10-12T11:00:00'),
                                 np.datetime64('2009-12-12T03:00:00')],
@@ -430,3 +438,51 @@ def test_join_on_null_string():
     assert df3.id.tolist() == ["0", "1", None]
     assert df3.x.tolist() == [1, 2, 3]
     assert df3.y.tolist() == [2, 3, None]
+
+
+def test_join_f_c_left_none():
+    df = df_f.join(df_c, left_on="f", right_on="c", how="left")
+    assert df.shape == (3, 6)
+    assert df.f.tolist() == ["B", "C", None]
+    assert df.c.tolist() == ["B", "C", None]
+    assert df.w1.tolist() == ["dog", "cat", "mouse"]
+    assert df.w2.tolist() == [True, False, True]
+    assert df.z1.tolist() == [-1.0, -2.0, None]
+    assert df.z2.tolist() == [True, False, None]
+
+
+def test_join_f_c_inner_none():
+    df = df_f.join(df_c, left_on="f", right_on="c", how="inner")
+    assert df.shape == (2, 6)
+    assert df.f.tolist() == ["B", "C"]
+    assert df.c.tolist() == ["B", "C"]
+    assert df.w1.tolist() == ["dog", "cat"]
+    assert df.w2.tolist() == [True, False]
+    assert df.z1.tolist() == [-1.0, -2.0]
+    assert df.z2.tolist() == [True, False]
+
+
+def test_join_f_c_left_none_fillna():
+    df_f_copy = df_f.copy()
+    df_f_copy['f'] = df_f_copy.f.fillna(value='missing')
+    df = df_f_copy.join(df_c, left_on='f', right_on='c', how='left')
+    assert df.shape == (3, 6)
+    assert df.f.tolist() == ['B', 'C', 'missing']
+    assert df.c.tolist() == ['B', 'C', None]
+    assert df.w1.tolist() == ['dog', 'cat', 'mouse']
+    assert df.w2.tolist() == [True, False, True]
+    assert df.z1.tolist() == [-1.0, -2.0, None]
+    assert df.z2.tolist() == [True, False, None]
+
+
+def test_join_f_c_inner_none_fillna():
+    df_f_copy = df_f.copy()
+    df_f_copy['f'] = df_f_copy.f.fillna(value='missing')
+    df = df_f_copy.join(df_c, left_on='f', right_on='c', how='inner')
+    assert df.shape == (2, 6)
+    assert df.f.tolist() == ['B', 'C']
+    assert df.c.tolist() == ['B', 'C']
+    assert df.w1.tolist() == ['dog', 'cat']
+    assert df.w2.tolist() == [True, False]
+    assert df.z1.tolist() == [-1.0, -2.0]
+    assert df.z2.tolist() == [True, False]
