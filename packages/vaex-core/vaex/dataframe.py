@@ -5036,42 +5036,61 @@ class DataFrame(object):
             return selections.SelectionDropNa(drop_nan, drop_masked, column_names, current, mode)
         self._selection(create, name)
 
-    def dropmissing(self, column_names=None):
+    def dropmissing(self, column_names=None, how="any"):
         """Create a shallow copy of a DataFrame, with filtering set using ismissing.
 
         :param column_names: The columns to consider, default: all (real, non-virtual) columns
+        :param str how: One of ("any", "all").
+            If "any", then drop rows where any of the columns are missing.
+            If "all", then drop rows where all of the columns are missing.
         :rtype: DataFrame
         """
-        return self._filter_all(self.func.ismissing, column_names)
+        return self._filter_all(self.func.ismissing, column_names, how=how)
 
-    def dropnan(self, column_names=None):
+    def dropnan(self, column_names=None, how="any"):
         """Create a shallow copy of a DataFrame, with filtering set using isnan.
 
         :param column_names: The columns to consider, default: all (real, non-virtual) columns
+        :param str how: One of ("any", "all").
+            If "any", then drop rows where any of the columns are nan.
+            If "all", then drop rows where all of the columns are nan.
         :rtype: DataFrame
         """
-        return self._filter_all(self.func.isnan, column_names)
+        return self._filter_all(self.func.isnan, column_names, how=how)
 
-    def dropna(self, column_names=None):
+    def dropna(self, column_names=None, how="any"):
         """Create a shallow copy of a DataFrame, with filtering set using isna.
 
         :param column_names: The columns to consider, default: all (real, non-virtual) columns
+        :param str how: One of ("any", "all").
+            If "any", then drop rows where any of the columns are na.
+            If "all", then drop rows where all of the columns are na.
         :rtype: DataFrame
         """
-        return self._filter_all(self.func.isna, column_names)
+        return self._filter_all(self.func.isna, column_names, how=how)
 
-    def dropinf(self, column_names=None):
+    def dropinf(self, column_names=None, how="any"):
         """ Create a shallow copy of a DataFrame, with filtering set using isinf.
+        
         :param column_names: The columns to consider, default: all (real, non-virtual) columns
+        :param str how: One of ("any", "all").
+            If "any", then drop rows where any of the columns are inf.
+            If "all", then drop rows where all of the columns are inf.
         :rtype: DataFrame
         """
-        return self._filter_all(self.func.isinf, column_names)
+        return self._filter_all(self.func.isinf, column_names, how=how)
 
-    def _filter_all(self, f, column_names=None):
-        column_names = column_names or self.get_column_names(virtual=False)
+    def _filter_all(self, f, column_names=None, how="any"):
+        if column_names is None:
+            column_names = self.get_column_names(virtual=False)
+        if how not in ("any", "all"):
+            raise ValueError("`how` must be either 'any' or 'all'")
         expression = f(self[column_names[0]])
         for column in column_names[1:]:
-            expression = expression | f(self[column])
+            if how == "any":
+                expression = expression | f(self[column])
+            else:
+                expression = expression & f(self[column])
         return self.filter(~expression, mode='and')
 
     def select_nothing(self, name="default"):
