@@ -6,6 +6,7 @@ import vaex
 import numpy as np
 import pyarrow as pa
 import pytest
+from common import small_buffer
 
 
 @pytest.mark.skipif(vaex.utils.osname == 'windows',
@@ -236,6 +237,23 @@ def test_string_index(dfs, sub, start, end):
 @pytest.mark.parametrize("pattern", [None, ' '])
 def test_string_join(dfs, pattern):
     assert dfs.s.str.split(pattern).str.join('-').tolist() == dfs.s.str.split(pattern).str.join('-').tolist()
+
+
+@pytest.mark.parametrize("chunk_size", [3, 13])
+def test_string_join_large_list_large_string(chunk_size):
+    def generate_sample(n_elements=1):
+        return [f'sentence {i+1}, score: {round(np.random.normal(), 4) }' for i in range(n_elements)]
+
+    x = np.arange(11)
+    s = pa.array([generate_sample() for i in range(11)], type=pa.large_list(pa.large_string()))
+    df = vaex.from_arrays(x=x, s=s)
+    with small_buffer(df, size=chunk_size):
+
+        df['joined_s'] = df.s.str.join(",")
+        # Do the joining outside of vaex
+        expected_result = [','.join(i) for i in df.s.tolist()]
+        assert df.joined_s.tolist() == expected_result
+
 
 def test_string_len(dfs):
     assert dfs.s.str.len().astype('i4').tolist() == [len(k) for k in string_list]
