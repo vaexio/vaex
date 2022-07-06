@@ -280,7 +280,7 @@ class ColumnArrowDictionaryEncoded(Column):
         return type(self)(self.indices[i1:i2], self.dictionary)
 
     def __getitem__(self, slice):
-        return pa.DictionaryArray.from_arrays(self.indices[slice], self.dictionary)
+        return pa.DictionaryArray.from_arrays(self.indices[slice], self.dictionary, safe=False)
 
 
 class ColumnIndexed(Column):

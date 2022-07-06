@@ -332,7 +332,7 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
                     if isinstance(values, vaex.column.Column):
                         encoded = vaex.column.ColumnArrowDictionaryEncoded(index, values)
                     else:
-                        encoded = pa.DictionaryArray.from_arrays(index, values)
+                        encoded = pa.DictionaryArray.from_arrays(index, values, safe=False)
                     self.add_column(group_name, encoded)
                 else:
                     raise TypeError(f'Unexpected type {type!r} in {group_name}')
