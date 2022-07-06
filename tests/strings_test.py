@@ -241,18 +241,16 @@ def test_string_join(dfs, pattern):
 
 @pytest.mark.parametrize("chunk_size", [3, 13])
 def test_string_join_large_list_large_string(chunk_size):
-    def generate_sample(n_elements=1):
-        return [f'sentence {i+1}, score: {round(np.random.normal(), 4) }' for i in range(n_elements)]
-
     x = np.arange(11)
-    s = pa.array([generate_sample() for i in range(11)], type=pa.large_list(pa.large_string()))
+    s = pa.array([[f'{i:02}'] for i in range(11)], type=pa.large_list(pa.large_string()))
     df = vaex.from_arrays(x=x, s=s)
     with small_buffer(df, size=chunk_size):
 
         df['joined_s'] = df.s.str.join(",")
         # Do the joining outside of vaex
         expected_result = [','.join(i) for i in df.s.tolist()]
-        assert df.joined_s.tolist() == expected_result
+        result = df.joined_s.tolist()
+        assert result == expected_result
 
 
 def test_string_len(dfs):
