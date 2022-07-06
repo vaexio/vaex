@@ -1418,7 +1418,7 @@ def str_join(x, sep):
     values = x.values
     offsets = vaex.array_types.to_numpy(x.offsets)
     ss = _to_string_sequence(values)
-    x_joined_ss = vaex.strings.join(sep, offsets, ss, x.offset)
+    x_joined_ss = vaex.strings.join(sep, offsets, ss, 0)
     # TODO: we require a copy here, because the x_column and the string_seqence will be
     # garbage collected, this is not idea, but once https://github.com/apache/arrow/pull/8990 is
     # released, we can rely on that
