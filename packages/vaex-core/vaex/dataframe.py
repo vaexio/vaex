@@ -3120,14 +3120,14 @@ class DataFrame(object):
         if not prefetch:
             # this is the simple implementation
             for l1, l2, i1, i2 in self._unfiltered_chunk_slices(chunk_size):
-                yield l1, l2, self._evaluate_implementation(expression, i1=i1, i2=i2, out=out, selection=selection, filtered=filtered, array_type=array_type, parallel=parallel, raw=True)
+                yield l1, l2, self._evaluate_implementation(expression, i1=i1, i2=i2, out=out, selection=selection, filtered=filtered, array_type=array_type, parallel=parallel, raw=True, progress=progress)
                 progressbar(l2/len(self))
         # But this implementation is faster if the main thread work is single threaded
         else:
             with concurrent.futures.ThreadPoolExecutor(1) as executor:
                 iter = self._unfiltered_chunk_slices(chunk_size)
                 def f(i1, i2):
-                    return self._evaluate_implementation(expression, i1=i1, i2=i2, out=out, selection=selection, filtered=filtered, array_type=array_type, parallel=parallel, raw=True)
+                    return self._evaluate_implementation(expression, i1=i1, i2=i2, out=out, selection=selection, filtered=filtered, array_type=array_type, parallel=parallel, raw=True, progress=progress)
                 try:
                     previous_l1, previous_l2, previous_i1, previous_i2 = next(iter)
                 except StopIteration:
