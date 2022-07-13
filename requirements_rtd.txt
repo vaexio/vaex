@@ -1,6 +1,7 @@
 sphinx-book-theme==0.0.39b1
 sphinx-sitemap
 sphinxcontrib-googleanalytics
+sphinxext-rediraffe
 future
 pyyaml
 astropy

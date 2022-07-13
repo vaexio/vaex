@@ -36,6 +36,7 @@ extensions = [
     'sphinx.ext.ifconfig',
     'sphinx.ext.viewcode',
     'sphinx.ext.autosummary',
+    'sphinxext.rediraffe',
     'IPython.sphinxext.ipython_console_highlighting',
     'nbsphinx',
     'sphinx.ext.intersphinx',
@@ -408,3 +409,8 @@ nbsphinx_thumbnails = {
     'example_jupyter_plotly': 'screenshot/example_jupyter_plotly.png',
 }
 exclude_patterns = ['**.ipynb_checkpoints']
+
+# Options for redirects per https://github.com/wpilibsuite/sphinxext-rediraffe
+rediraffe_branch = "master"
+rediraffe_redirects = "redirects.txt"
+rediraffe_auto_redirect_perc = 97
