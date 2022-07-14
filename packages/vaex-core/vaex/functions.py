@@ -934,16 +934,17 @@ def td_total_seconds(x):
     :return: an expression containing the total number of seconds in a timedelta sample.
 
     Example:
+    
     >>> import vaex
     >>> import numpy as np
     >>> delta = np.array([17658720110,   11047049384039, 40712636304958, -18161254954], dtype='timedelta64[s]')
     >>> df = vaex.from_arrays(delta=delta)
     >>> df
-      #  delta
-      0  204 days +9:12:00
-      1  1 days +6:41:10
-      2  471 days +5:03:56
-      3  -22 days +23:31:15
+    #  delta
+    0  204 days +9:12:00
+    1  1 days +6:41:10
+    2  471 days +5:03:56
+    3  -22 days +23:31:15
 
     >>> df.delta.td.total_seconds()
     Expression = td_total_seconds(delta)

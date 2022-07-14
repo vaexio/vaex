@@ -109,19 +109,9 @@ def open(path, convert=False, progress=None, shuffle=False, fs_options={}, fs=No
     :param str or list path: local or absolute path to file, or glob string, or list of paths
     :param convert: Uses `dataframe.export` when convert is a path. If True, ``convert=path+'.hdf5'``
                     The conversion is skipped if the input file or conversion argument did not change.
-    :param progress: (_Only applies when convert is not False_) {progress}
+    :param progress: (*Only applies when convert is not False*) {progress}
     :param bool shuffle: shuffle converted DataFrame or not
-    :param dict fs_options: Extra arguments passed to an optional file system if needed:
-        * Amazon AWS S3
-            * `anonymous` - access file without authentication (public files)
-            * `access_key` - AWS access key, if not provided will use the standard env vars, or the `~/.aws/credentials` file
-            * `secret_key` - AWS secret key, similar to `access_key`
-            * `profile` - If multiple profiles are present in `~/.aws/credentials`, pick this one instead of 'default', see https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-files.html
-            * `region` - AWS Region, e.g. 'us-east-1`, will be determined automatically if not provided.
-            * `endpoint_override` - URL/ip to connect to, instead of AWS, e.g. 'localhost:9000' for minio
-        * Google Cloud Storage
-            * :py:class:`gcsfs.core.GCSFileSystem`
-        In addition you can pass the boolean "cache" option.
+    :param dict fs_options: Extra arguments passed to an optional file system if needed. See below
     :param group: (optional) Specify the group to be read from and HDF5 file. By default this is set to "/table".
     :param fs: Apache Arrow FileSystem object, or FSSpec FileSystem object, if specified, fs_options should be empty.
     :param args: extra arguments for file readers that need it
@@ -135,10 +125,18 @@ def open(path, convert=False, progress=None, shuffle=False, fs_options={}, fs=No
     Files are by default cached in $HOME/.vaex/file-cache/(s3|gs) such that successive access
     is as fast as native disk access.
 
+    Amazon AWS S3 options:
+
     The following common fs_options are used for S3 access:
 
-     * anon: Use anonymous access or not (false by default). (Allowed values are: true,True,1,false,False,0)
-     * cache: Use the disk cache or not, only set to false if the data should be accessed once. (Allowed values are: true,True,1,false,False,0)
+     * `anon`: Use anonymous access or not (false by default). (Allowed values are: true,True,1,false,False,0)
+     * `anonymous` - Alias for `anon`
+     * `cache`: Use the disk cache or not, only set to false if the data should be accessed once. (Allowed values are: true,True,1,false,False,0)
+     * `access_key` - AWS access key, if not provided will use the standard env vars, or the `~/.aws/credentials` file
+     * `secret_key` - AWS secret key, similar to `access_key`
+     * `profile` - If multiple profiles are present in `~/.aws/credentials`, pick this one instead of 'default', see https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-files.html
+     * `region` - AWS Region, e.g. 'us-east-1`, will be determined automatically if not provided.
+     * `endpoint_override` - URL/ip to connect to, instead of AWS, e.g. 'localhost:9000' for minio
 
     All fs_options can also be encoded in the file path as a query string.
 
@@ -150,7 +148,7 @@ def open(path, convert=False, progress=None, shuffle=False, fs_options={}, fs=No
     >>> df = vaex.open(f's3://mybucket/path/to/file.hdf5?access_key={{my_key}}&secret_key={{my_secret_key}}')
     >>> df = vaex.open('s3://mybucket/path/to/file.hdf5?profile=myproject')
 
-    Google Cloud Storage support:
+    Google Cloud Storage options:
 
     The following fs_options are used for GCP access:
 
@@ -482,13 +480,13 @@ def from_json(path_or_buffer, orient=None, precise_float=False, lines=False, cop
     """ A method to read a JSON file using pandas, and convert to a DataFrame directly.
 
     :param str path_or_buffer: a valid JSON string or file-like, default: None
-    The string could be a URL. Valid URL schemes include http, ftp, s3,
-    gcs, and file. For file URLs, a host is expected. For instance, a local
-    file could be ``file://localhost/path/to/table.json``
+        The string could be a URL. Valid URL schemes include http, ftp, s3,
+        gcs, and file. For file URLs, a host is expected. For instance, a local
+        file could be ``file://localhost/path/to/table.json``
     :param str orient: Indication of expected JSON string format. Allowed values are
-    ``split``, ``records``, ``index``, ``columns``, and ``values``.
+        ``split``, ``records``, ``index``, ``columns``, and ``values``.
     :param bool precise_float: Set to enable usage of higher precision (strtod) function when
-    decoding string to double values. Default (False) is to use fast but less precise builtin functionality
+        decoding string to double values. Default (False) is to use fast but less precise builtin functionality
     :param bool lines: Read the file as a json object per line.
 
     :rtype: DataFrame
@@ -550,7 +548,7 @@ def from_csv(filename_or_buffer, copy_index=False, chunk_size=None, convert=Fals
         be saved as a separate hdf5 file, then all of them will be combined into one hdf5 file. So for a big CSV file
         you will need at least double of extra space on the disk. Default chunk_size for converting is 5 million rows,
         which corresponds to around 1Gb memory on an example of NYC Taxi dataset.
-    :param progress: (_Only applies when convert is not False_) {progress}
+    :param progress: (*Only applies when convert is not False*) {progress}
     :param kwargs: extra keyword arguments, currently passed to Pandas read_csv function, but the implementation might
         change in future versions.
     :returns: DataFrame

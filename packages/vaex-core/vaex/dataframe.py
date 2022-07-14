@@ -2322,7 +2322,7 @@ class DataFrame(object):
 
     @docsubst
     def schema_arrow(self, reduce_large=False):
-        '''Similar to :method:`schema`, but returns an arrow schema
+        '''Similar to :meth:`~vaex.dataframe.DataFrame.schema`, but returns an arrow schema
 
         :param bool reduce_large: change large_string to normal string
         '''
@@ -6778,7 +6778,6 @@ class DataFrameLocal(DataFrame):
         """Exports the DataFrame to a parquet file.
 
         Note: This may require that all of the data fits into memory (memory mapped data is an exception).
-            Use :py:`DataFrame.export_chunks` to write to multiple files in parallel.
 
         :param str path: path for file
         :param progress: {progress}
@@ -6786,7 +6785,7 @@ class DataFrameLocal(DataFrame):
         :param bool parallel: {evaluate_parallel}
         :param dict fs_options: {fs_options}
         :param fs: {fs}
-        :param **kwargs: Extra keyword arguments to be passed on to py:data:`pyarrow.parquet.ParquetWriter`.
+        :param kwargs: Extra keyword arguments to be passed on to py:data:`pyarrow.parquet.ParquetWriter`.
         :return:
         """
         import pyarrow.parquet as pq
@@ -6945,7 +6944,7 @@ class DataFrameLocal(DataFrame):
         :param progress: {progress}
         :param int chunk_size: {chunk_size_export}
         :param parallel: {evaluate_parallel}
-        :param **kwargs: Extra keyword arguments to be passed on pandas.DataFrame.to_csv()
+        :param kwargs: Extra keyword arguments to be passed on pandas.DataFrame.to_csv()
         :return:
         """
         import pandas as pd
@@ -7094,7 +7093,7 @@ class DataFrameLocal(DataFrame):
             If 'auto', let vaex decide (e.g. a groupby with 10_000 rows but only 4*3=12 combinations does not matter much to compress into say 8 existing
             combinations, and will save another pass over the data)
         :param int row_limit: Limits the resulting dataframe to the number of rows (default is not to check, only works when assume_sparse is True).
-            Throws a :py:`vaex.RowLimitException` when the condition is not met.
+            Throws a :exc:`vaex.RowLimitException` when the condition is not met.
         :param bool copy: Copy the dataframe (shallow, does not cost memory) so that the fingerprint of the original dataframe is not modified.
         :param bool delay: {delay}
         :param progress: {progress}

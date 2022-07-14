@@ -336,31 +336,31 @@ def heatmap(self, x=None, y=None, z=None, what="count(*)", vwhat=None, reduce=["
     This methods creates a 6 dimensional 'grid', where each dimension can map the a visual dimension.
     The grid dimensions are:
 
-     * x: shape determined by shape, content by x argument or the first dimension of each space
-     * y:   ,,
-     * z:  related to the z argument
-     * selection: shape equals length of selection argument
-     * what: shape equals length of what argument
-     * space: shape equals length of x argument if multiple values are given
+    * x: shape determined by shape, content by x argument or the first dimension of each space
+    * y:   ,,
+    * z:  related to the z argument
+    * selection: shape equals length of selection argument
+    * what: shape equals length of what argument
+    * space: shape equals length of x argument if multiple values are given
 
      By default, this its shape is (1, 1, 1, 1, shape, shape) (where x is the last dimension)
 
     The visual dimensions are
 
-     * x: x coordinate on a plot / image (default maps to grid's x)
-     * y: y   ,,                         (default maps to grid's y)
-     * layer: each image in this dimension is blended togeher to one image (default maps to z)
-     * fade: each image is shown faded after the next image (default mapt to selection)
-     * row: rows of subplots (default maps to space)
-     * columns: columns of subplot (default maps to what)
+    * x: x coordinate on a plot / image (default maps to grid's x)
+    * y: y   ,,                         (default maps to grid's y)
+    * layer: each image in this dimension is blended togeher to one image (default maps to z)
+    * fade: each image is shown faded after the next image (default mapt to selection)
+    * row: rows of subplots (default maps to space)
+    * columns: columns of subplot (default maps to what)
 
     All these mappings can be changes by the visual argument, some examples:
 
-    >>> df.plot('x', 'y', what=['mean(x)', 'correlation(vx, vy)'])
+    >>> df.viz.heatmap('x', 'y', what=['mean(x)', 'correlation(vx, vy)'])
 
     Will plot each 'what' as a column.
 
-    >>> df.plot('x', 'y', selection=['FeH < -3', '(FeH >= -3) & (FeH < -2)'], visual=dict(column='selection'))
+    >>> df.viz.heatmap('x', 'y', selection=['FeH < -3', '(FeH >= -3) & (FeH < -2)'], visual=dict(column='selection'))
 
     Will plot each selection as a column, instead of a faded on top of each other.
 

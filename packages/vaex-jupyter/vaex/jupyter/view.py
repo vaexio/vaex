@@ -101,7 +101,7 @@ class DataArray(ViewBase):
     clear_output = traitlets.Bool(True, help="Clear output each time the data changes")
     display_function = traitlets.Any(display)
     matplotlib_autoshow = traitlets.Bool(True, help="Will call plt.show() inside output context if open figure handles exist")
-    numpy_errstate = traitlets.Dict({'all': 'ignore'}, help="Default numpy errstate during display to avoid showing error messsages, see :py:data:`numpy.errstate`_ ")
+    numpy_errstate = traitlets.Dict({'all': 'ignore'}, help="Default numpy errstate during display to avoid showing error messsages, see :class:`numpy.errstate`")
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)

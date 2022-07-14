@@ -1,0 +1,15 @@
+# Run `sphinx-build -b rediraffewritediff source build/rediraffe` (while CWD=docs/)
+# to autogenerate any new additions to this file, based on git renamed files
+# See https://github.com/wpilibsuite/sphinxext-rediraffe for more info
+"example_advanced_plotting.ipynb" "guides/advanced_plotting.ipynb"
+"example_arrow.ipynb" "guides/arrow.ipynb"
+"example_async.ipynb" "guides/async.ipynb"
+"example_caching.ipynb" "guides/caching.ipynb"
+"example_dask.ipynb" "guides/dask.ipynb"
+"example_data_types.ipynb" "guides/data_types.ipynb"
+"example_graphql.ipynb" "guides/graphql.ipynb"
+"example_io.ipynb" "guides/io.ipynb"
+"example_ml_iris.ipynb" "guides/ml_iris.ipynb"
+"example_ml_titanic.ipynb" "guides/ml_titanic.ipynb"
+"example_progressbars.ipynb" "guides/progressbars.ipynb"
+"server.md" "guides/server.md"

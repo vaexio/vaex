@@ -866,6 +866,7 @@ class CycleTransformer(Transformer):
     Suitable for a variaty of machine learning tasks.
     It preserves the cyclical continuity of the feature.
     Inspired by: http://blog.davidkaleko.com/feature-engineering-cyclical-features.html
+
     >>> df = vaex.from_arrays(days=[0, 1, 2, 3, 4, 5, 6])
     >>> cyctrans = vaex.ml.CycleTransformer(n=7, features=['days'])
     >>> cyctrans.fit_transform(df)
