@@ -3512,9 +3512,8 @@ class DataFrame(object):
             raise ValueError('only scipy.sparse.csr_matrix is supported')
 
     def _save_assign_expression(self, name, expression=None):
-        obj = getattr(self, name, None)
         # it's ok to set it if it does not exist, or we overwrite an older expression
-        if obj is None or isinstance(obj, Expression):
+        if not hasattr(self, name) or isinstance(getattr(self, name), Expression):
             if expression is None:
                 expression = name
             if isinstance(expression, str):
@@ -6032,7 +6031,7 @@ class DataFrameLocal(DataFrame):
             dataset_columns = list(dataset_columns)
             dataset_columns.sort()
             dataset = self.dataset.project(*dataset_columns)
-            df = vaex.from_dataset(dataset)
+            df : DataFrame = vaex.from_dataset(dataset)
 
             # and reconstruct the rest (virtual columns and variables)
             other = {k for k in required if k not in self.dataset}

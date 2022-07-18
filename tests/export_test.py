@@ -271,3 +271,17 @@ def test_export_large_string(tmpdir):
     s = pa.array(["Hi", "there"], type=pa.large_string())
     df = vaex.from_arrays(s=s)
     df.export_arrow(tmpdir / "test.arrow")
+
+
+def test_export_csv_badnames(tmpdir):
+    data_path = os.path.join(os.path.dirname(__file__), "data/badname.csv")
+    df = vaex.open(data_path)
+
+    df = df.as_arrow()
+
+    output_path = str(tmpdir.join('test.csv'))
+    df.export_csv(output_path)
+
+    df2 = vaex.open(output_path)
+    assert df.get_column_names() == df2.get_column_names()
+    assert df.shape == df2.shape
