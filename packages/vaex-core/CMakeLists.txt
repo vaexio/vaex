@@ -9,6 +9,10 @@ find_package(NumPy REQUIRED)
 
 
 
+if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+    SET(CMAKE_CXX_FLAGS --std=c++11)
+endif()
+
 IF(CMAKE_COMPILER_IS_GNUCC)
     SET(CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} -fdiagnostics-color -fmax-errors=4 -std=c++11 -Werror=return-type -Wno-unused-parameter -O3 -funroll-loops")
     set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -O0")
