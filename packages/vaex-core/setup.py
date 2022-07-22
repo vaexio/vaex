@@ -119,7 +119,6 @@ extension_strings = Extension("vaex.superstrings", [
         os.path.join(dirname, 'vendor', 'pcre', 'Library', 'lib'), # windows pcre from conda-forge
     ],
     extra_compile_args=extra_compile_args,
-    extra_link_args=['-static'] if platform.system().lower() != 'windows' else [],
     libraries=['pcre', 'pcrecpp']
 )
 extension_superutils = Extension("vaex.superutils", [
