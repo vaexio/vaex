@@ -35,13 +35,11 @@ execute_process(
 )
 message(WARNING "Found numpy: ${NumPy_INCLUDE_DIRS}")
 
+include_directories(/usr/local/include)
 # string module
 add_library("superstrings" MODULE
     "src/strings.cpp"
     "src/string_utils.cpp"
-)
-include_directories(
-    "/usr/local/include"
 )
 target_include_directories("superstrings" PUBLIC
     ${NumPy_INCLUDE_DIRS}
