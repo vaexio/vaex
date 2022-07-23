@@ -45,8 +45,8 @@ target_include_directories("superstrings" PUBLIC
     "vendor/string-view-lite/include"
     "vendor/pybind11/include"
     "vendor/boost"
+    "/usr/local/include"
     "${PYTHON_PREFIX}/include"
-    "/usr/local/include"  # pcre
 )
 
 
