@@ -35,6 +35,9 @@ execute_process(
 )
 message(WARNING "Found numpy: ${NumPy_INCLUDE_DIRS}")
 
+unset(CMAKE_C_IMPLICIT_INCLUDE_DIRECTORIES)
+unset(CMAKE_CXX_IMPLICIT_INCLUDE_DIRECTORIES)
+
 include_directories(/usr/local/include)
 # string module
 add_library("superstrings" MODULE
