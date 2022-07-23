@@ -40,12 +40,14 @@ add_library("superstrings" MODULE
     "src/strings.cpp"
     "src/string_utils.cpp"
 )
+include_directories(
+    "/usr/local/include"
+)
 target_include_directories("superstrings" PUBLIC
     ${NumPy_INCLUDE_DIRS}
     "vendor/string-view-lite/include"
     "vendor/pybind11/include"
     "vendor/boost"
-    "/usr/local/include"
     "${PYTHON_PREFIX}/include"
 )
 
