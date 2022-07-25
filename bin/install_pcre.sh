@@ -70,7 +70,7 @@ function build_simple {
     local archive=${name_version}.${ext}
     local extra_flags=""
     if [ "$ARCHFLAGS" = "-arch arm64" ]; then
-         extra_flags="CFLAGS=-target arm64-apple-macos --host=aarch64-apple-darwin";
+         extra_flags="--target arm64-apple-macos --host=aarch64-apple-darwin";
     fi
     echo "Custom extra_flags: ${extra_flags}"
     fetch_unpack $url/$archive
