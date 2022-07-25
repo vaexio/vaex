@@ -68,15 +68,21 @@ function build_simple {
     # fi
     local name_version="${name}-${version}"
     local archive=${name_version}.${ext}
+    local extra_flags=""
+    if [ "$ARCHFLAGS" = "-arch arm64" ]; then
+         extra_flags="CFLAGS=-target arm64-apple-macos --host=aarch64-apple-darwin";
+    fi
+    echo "Custom extra_flags: ${extra_flags}"
     fetch_unpack $url/$archive
     (cd $name_version \
-        && ./configure --prefix=$BUILD_PREFIX $configure_args \
+        && ./configure --prefix=$BUILD_PREFIX $configure_args $extra_flags\
         && make -j4 \
         && make install)
     # touch "${name}-stamp"
 }
 function build_pcre {
-    echo "Buld"
+    echo "Build"
+    echo $ARCHFLAGS
     build_simple pcre $PCRE_VERSION http://ftp.exim.org/pub/pcre/
 }
 echo Build pcre
