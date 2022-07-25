@@ -68,14 +68,14 @@ function build_simple {
     # fi
     local name_version="${name}-${version}"
     local archive=${name_version}.${ext}
-    local extra_flags=""
+    local cflags=""
     if [ "$ARCHFLAGS" = "-arch arm64" ]; then
-         extra_flags="--target arm64-apple-macos --host=aarch64-apple-darwin";
+         cflags="-arch arm64";
     fi
     echo "Custom extra_flags: ${extra_flags}"
     fetch_unpack $url/$archive
     (cd $name_version \
-        && ./configure --prefix=$BUILD_PREFIX $configure_args $extra_flags\
+        && ./configure --prefix=$BUILD_PREFIX $configure_args CFLAGS="$cflags"\
         && make -j4 \
         && make install)
     # touch "${name}-stamp"
