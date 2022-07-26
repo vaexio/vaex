@@ -68,7 +68,6 @@ function build_simple {
     # fi
     local name_version="${name}-${version}"
     local archive=${name_version}.${ext}
-    ls /usr/local/lib/libpcre*
     local cflags=""
     fetch_unpack $url/$archive
     if [ "$ARCHFLAGS" = "-arch arm64" ]; then

@@ -1,3 +1,27 @@
+# vaex 4.11
+
+## vaex-core 4.10.1
+
+   * Fix
+      * df.func.where relies more on pyarrow 5's if_else [#2096](https://github.com/vaexio/vaex/issues/2096)
+      * correct $VAEX_PATH_HOME -> $VAEX_PATH [#2101](https://github.com/vaexio/vaex/issues/2101)
+      * Various join fixed when the missing values were present [#808](https://github.com/vaexio/vaex/issues/808)
+      * Various join fixed when the missing values were present [#808](https://github.com/vaexio/vaex/issues/808)
+      * string join on large_list with large_strings. [#2112](https://github.com/vaexio/vaex/issues/2112)
+      * Working arm wheel for osx (#) [#2124](https://github.com/vaexio/vaex/issues/2124)
+   * Performance
+      * Do not let arrow validate the dict encoded data. [d6242090a1f480abae669bc5281e803fe06c5d36](https://github.com/vaexio/vaex/commit/d6242090a1f480abae669bc5281e803fe06c5d36)
+   * Feature
+      * Add how to dropna, dropinf etc [#2104](https://github.com/vaexio/vaex/issues/2104)
+
+
+## vaex-hdf5 0.12.3
+
+   * Performance
+      * Do not let arrow validate the dict encoded data. [d6242090a1f480abae669bc5281e803fe06c5d36](https://github.com/vaexio/vaex/commit/d6242090a1f480abae669bc5281e803fe06c5d36)
+
+
+
 # vaex 4.10
 
 ## vaex-core 4.10.0
