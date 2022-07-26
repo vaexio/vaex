@@ -1,6 +1,16 @@
-# vaex 4.11
+# vaex 4.11.1
 
-## vaex-core 4.11
+## vaex-core 4.11.1
+
+   * Fix
+      * Slicing of empty dataframe [#2129](https://github.com/vaexio/vaex/issues/2129)
+      * Dataframe interchange protocol: Better support for numpy backed categoricals [#2133](https://github.com/vaexio/vaex/issues/2133)
+      * Dataframe interchange protocol: Column.null_count returns NA count to comply with spec [#2132](https://github.com/vaexio/vaex/issues/2132)
+      * Export csv with 'protected' column name [#2117](https://github.com/vaexio/vaex/issues/2117)
+
+# vaex 4.11.0
+
+## vaex-core 4.11.0
 
    * Fix
       * df.func.where relies more on pyarrow 5's if_else [#2096](https://github.com/vaexio/vaex/issues/2096)
