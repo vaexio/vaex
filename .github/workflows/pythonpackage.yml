@@ -1,15 +1,15 @@
 name: Python package
 
-# on:
-#   push:
-#     branches:
-#       - master
-#   pull_request:
-#     branches:
-#     - master
-#     - docs
-#   schedule:
-#   - cron: "0 2 * * 1-5"
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+    - master
+    - docs
+  schedule:
+  - cron: "0 2 * * 1-5"
 
 # to make bash use ~/.bashrc, see https://github.com/marketplace/actions/setup-miniconda#example-5-custom-installer
 defaults:
