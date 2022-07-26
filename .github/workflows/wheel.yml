@@ -60,11 +60,9 @@ jobs:
     - name: Build vaex-core (linux, osx)
       if: (matrix.os != 'windows-latest')
       env:
-        VAEX_BUILD_SKBUILD: 1
         CIBW_BEFORE_BUILD: bin/install_pcre.sh
         CIBW_BUILD: "cp${{ matrix.python-version }}*64 cp${{ matrix.python-version }}-macosx-*"
         CIBW_ENVIRONMENT_LINUX: "CFLAGS='-Wl,-strip-all' CXXFLAGS='-Wl,-strip-all'"
-        CIBW_REPAIR_WHEEL_COMMAND_MACOS: ""
         CIBW_BUILD_VERBOSITY: 2
         # needed for m1 builds
         CIBW_ENVIRONMENT_MACOS: "CFLAGS='-I/usr/local/include -L/usr/local/lib' CXXFLAGS='-I/usr/local/include -L/usr/local/lib' LDFLAGS='-L/usr/local/lib'"
