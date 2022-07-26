@@ -359,3 +359,13 @@ def test_null_count(df_factory, x):
     interchange_col = interchange_df.get_column_by_name("x")
     assert isinstance(interchange_col.null_count, int)
     assert interchange_col.null_count == 1
+
+
+def test_smoke_get_buffers_on_categorical_columns(df_factory):
+    # See https://github.com/vaexio/vaex/issues/2134#issuecomment-1195731379
+    x = np.array([3, 1, 1, 2, 0])
+    df = df_factory(x=x)
+    df = df.categorize('x')
+    interchange_df = df.__dataframe__()
+    interchange_col = interchange_df.get_column_by_name('x')
+    interchange_col.get_buffers()
