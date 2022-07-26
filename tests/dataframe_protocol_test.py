@@ -344,3 +344,18 @@ def test_smoke_get_buffers_for_numpy_column_with_duplicate_categorical_values():
     interchange_col = interchange_df.get_column_by_name("x")
     buffers = interchange_col.get_buffers()
     assert buffers['data'][0]._x.tolist() == [0, 0]
+
+
+@pytest.mark.parametrize(
+    "x",
+    [
+        np.array([float("nan")]),
+        np.ma.MaskedArray(data=np.array([42]), mask=np.array([1])),
+    ]
+)
+def test_null_count(df_factory, x):
+    df = df_factory(x=x)
+    interchange_df = df.__dataframe__()
+    interchange_col = interchange_df.get_column_by_name("x")
+    assert isinstance(interchange_col.null_count, int)
+    assert interchange_col.null_count == 1
