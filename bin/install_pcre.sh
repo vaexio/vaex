@@ -70,16 +70,20 @@ function build_simple {
     local archive=${name_version}.${ext}
     ls /usr/local/lib/libpcre*
     local cflags=""
-    if [ "$ARCHFLAGS" = "-arch arm64" ]; then
-         cflags="--target arm64-apple-macos --host aarch64-apple-darwin --build=x86_64-apple-darwin13.0.0";
-    fi
-    echo "Custom extra_flags: ${extra_flags}"
     fetch_unpack $url/$archive
-    (cd $name_version \
-        && ./configure --prefix=$BUILD_PREFIX $configure_args $cflags\
-        && make uninstall \
-        && make -j4 \
-        && make install)
+    if [ "$ARCHFLAGS" = "-arch arm64" ]; then
+        (cd $name_version \
+            && CPPFLAGS="-arch arm64" CFLAGS="-arch arm64" LDFLAGS="-arch arm64"  ./configure --prefix=$BUILD_PREFIX $configure_args $ --host=arm-apple-darwin --build=x86_64-apple-darwin11.0.0 \
+            && make uninstall \
+            && make -j4 \
+            && make install)
+    else
+        (cd $name_version \
+            && ./configure --prefix=$BUILD_PREFIX $configure_args $cflags\
+            && make uninstall \
+            && make -j4 \
+            && make install)
+    fi
     # touch "${name}-stamp"
 }
 function build_pcre {
