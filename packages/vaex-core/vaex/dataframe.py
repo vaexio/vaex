@@ -4392,7 +4392,7 @@ class DataFrame(object):
             # we're gonna copy the mask from our parent
             parent_mask = self._selection_masks[FILTER_SELECTION_NAME].view(self._index_start, self._index_end)
             mask = df._selection_masks[FILTER_SELECTION_NAME]
-            np.copyto(np.asarray(mask), np.asarray(parent_mask))
+            np.copyto(np.asarray(mask)[df._index_start : df._index_end], np.asarray(parent_mask))
             selection = df.get_selection(FILTER_SELECTION_NAME)
             if not mask.is_dirty():
                 df._cached_filtered_length = mask.count()
@@ -5395,6 +5395,10 @@ class DataFrame(object):
             if stop < 0:
                 stop = len(self)+stop
             stop = min(stop, len(self))
+            if start >= stop:  # empty slice
+                df = self.trim()
+                df.set_active_range(start, max(start, stop))
+                return df.trim()
             assert step in [None, 1]
             if self.filtered:
                 self._fill_filter_mask()

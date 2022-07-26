@@ -87,3 +87,14 @@ def test_getitem():
     assert df.x[1:,0].tolist() == [2, 3]
     assert df.x[:2,1].tolist() == [7, 8]
     assert df.x[1:-1,-1].tolist() == [8,]
+
+
+def test_slice_empty_df():
+    x = np.array([1, 2, 3, 4, 5])
+    df = vaex.from_arrays(x=x)
+    dff = df[df.x > 100]
+    assert len(dff) == 0
+    dfs1 = dff[:3]
+    assert len(dfs1) == 0
+    dfs2 = dff[3:]
+    assert len(dfs2) == 0
