@@ -42,6 +42,6 @@ dependencies:
 - scipy
 - tornado
 - uvicorn<0.16
-- xarray
+- xarray<2022.6.0
 # currently not using this, since the test that requires this is flakey
 # - myst-parser<0.18  # 0.18 breaks our test, missing main
