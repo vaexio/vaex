@@ -837,6 +837,18 @@ def required_dtype_for_max(N, signed=True):
         raise ValueError(f"Cannot store a max value of {N} inside an uint64/int64")
 
 
+def required_dtype_for_range(vmin, vmax, signed=True):
+    if signed:
+        dtypes = [np.int8, np.int16, np.int32, np.int64]
+    else:
+        dtypes = [np.uint8, np.uint16, np.uint32, np.uint64]
+    for dtype in dtypes:
+        if (vmin >= np.iinfo(dtype).min) and (vmax <= np.iinfo(dtype).max):
+            return np.dtype(dtype)
+    else:
+        raise ValueError(f"Cannot store the range {vmin}-{vmax} inside an uint64/int64")
+
+
 def required_dtype_for_int(value, signed=True):
     if signed or value < 0:
         dtypes = [np.int8, np.int16, np.int32, np.int64]
