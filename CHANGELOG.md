@@ -1,6 +1,6 @@
 # vaex 4.11
 
-## vaex-core 4.10.1
+## vaex-core 4.11
 
    * Fix
       * df.func.where relies more on pyarrow 5's if_else [#2096](https://github.com/vaexio/vaex/issues/2096)
