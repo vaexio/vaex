@@ -336,11 +336,11 @@ def assert_dataframe_equal(dfo: DataFrameObject, df: vaex.dataframe.DataFrame):
         assert_column_equal(dfo.get_column_by_name(col), df[col])
 
 
-@pytest.mark.xfail()
 def test_smoke_get_buffers_for_numpy_column_with_duplicate_categorical_values():
     # See https://github.com/vaexio/vaex/issues/2122
     df = vaex.from_items(("x", np.array([1, 1])))
     df = df.categorize("x")
     interchange_df = df.__dataframe__()
     interchange_col = interchange_df.get_column_by_name("x")
-    interchange_col.get_buffers()
+    buffers = interchange_col.get_buffers()
+    assert buffers['data'][0]._x.tolist() == [0, 0]
