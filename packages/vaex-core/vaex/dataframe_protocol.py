@@ -497,7 +497,11 @@ class _VaexColumn:
         """
         Number of null elements. Should always be known.
         """
-        return self._col.countmissing()
+        # Whilst vaex-proper does not treat all NA values as null (i.e. NaNs),
+        # the interchange protocol does, meaning we have to break away from vaex
+        # semantics here and return a count of all NA values.
+        # See https://github.com/vaexio/vaex/issues/2120
+        return self._col.countna()
 
     @property
     def metadata(self) -> Dict[str, Any]:
