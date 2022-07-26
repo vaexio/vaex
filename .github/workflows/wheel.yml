@@ -4,6 +4,7 @@ on:
   push:
     tags:
       - core-*
+
 jobs:
   build_wheels:
     name: Build wheel on ${{ matrix.os }}
@@ -30,7 +31,7 @@ jobs:
 
     - name: Install cibuildwheel
       run: |
-        python -m pip install cibuildwheel==1.10.0
+        python -m pip install cibuildwheel==2.8.1
 
     - name: Install twine/wheel
       run: |
@@ -57,9 +58,10 @@ jobs:
         CIBW_BEFORE_BUILD: bin/install_pcre.sh
         CIBW_BUILD: "cp${{ matrix.python-version }}*64 cp${{ matrix.python-version }}-macosx-*"
         CIBW_ENVIRONMENT_LINUX: "CFLAGS='-Wl,-strip-all' CXXFLAGS='-Wl,-strip-all'"
+        CIBW_BUILD_VERBOSITY: 2
         # needed for m1 builds
         CIBW_ENVIRONMENT_MACOS: "CFLAGS='-I/usr/local/include -L/usr/local/lib' CXXFLAGS='-I/usr/local/include -L/usr/local/lib' LDFLAGS='-L/usr/local/lib'"
-        CIBW_ARCHS_MACOS: "universal2 x86_64 arm64"
+        CIBW_ARCHS_MACOS: "x86_64 arm64"
       run: |
         python -m cibuildwheel --output-dir dist packages/vaex-core
 
