@@ -15,8 +15,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-18.04, macOS-latest, windows-latest]
-        python-version: [36, 37, 38, 39]
+        # os: [ubuntu-18.04, macOS-latest, windows-latest]
+        # python-version: [36, 37, 38, 39]
+        os: [macOS-latest]
+        python-version: [39]
 
     steps:
     - uses: actions/checkout@v1
@@ -66,7 +68,7 @@ jobs:
         CIBW_BUILD_VERBOSITY: 2
         # needed for m1 builds
         CIBW_ENVIRONMENT_MACOS: "CFLAGS='-I/usr/local/include -L/usr/local/lib' CXXFLAGS='-I/usr/local/include -L/usr/local/lib' LDFLAGS='-L/usr/local/lib'"
-        CIBW_ARCHS_MACOS: "universal2 x86_64 arm64"
+        CIBW_ARCHS_MACOS: "arm64"
       run: |
         python -m cibuildwheel --output-dir dist packages/vaex-core
 
