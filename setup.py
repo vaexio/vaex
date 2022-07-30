@@ -28,7 +28,7 @@ class DevelopCmd(develop):
         relative = os.path.abspath(os.path.join('packages', 'vaex-core', 'vaex'))
         for package in packages:
             with cwd(os.path.join('packages', package)):
-                err = os.system('python -m pip install -e .')
+                err = os.system(f'{sys.executable} -m pip install -e .')
                 if err:
                     raise RuntimeError(f'Oops, failed to install {package}')
             # we need to make symbolic links from vaex-core/vaex/<name> to vaex-<name>/vaex/<name>
@@ -54,10 +54,10 @@ class InstallCmd(install):
     def run(self):
         for package in packages:
             with cwd(os.path.join('packages', package)):
-                os.system('python -m pip install --no-deps .')
+                os.system(f'{sys.executable} -m pip install --no-deps .')
         for package in packages:
             with cwd(os.path.join('packages', package)):
-                os.system('python -m pip install --upgrade .')
+                os.system(f'{sys.executable} -m pip install --upgrade .')
 
 
 setup(
