@@ -3,16 +3,16 @@ import functools
 import numpy as np
 import logging
 from vaex.dataframe import DataFrame, _hidden
-from vaex.utils import _parse_n, _parse_f, _ensure_string_from_expression, \
-    _ensure_strings_from_expressions, _ensure_list,\
-    _expand_limits, _expand_shape, _expand, _parse_reduction, _issequence
-import vaex.utils
+from vaex.docstrings import docsubst
+from vaex.utils import (_parse_n, _parse_f,
+    _ensure_strings_from_expressions, _ensure_list,
+    _expand_limits, _expand_shape, _expand, _parse_reduction, _issequence,
+    listify)
 import vaex.image
 from .vector import plot2d_vector
 from .tensor import plot2d_tensor
 from .contour import plot2d_contour
 import warnings
-
 logger = logging.getLogger("vaex.viz")
 
 
@@ -46,8 +46,8 @@ def plot1d(self, *args, **kwargs):
     warnings.warn('`plot1d` is deprecated and it will be removed in version 5.x. Please use `df.viz.histogram` instead.')
     self.viz.histogram(*args, **kwargs)
 
-
 @viz_method
+@docsubst
 def histogram(self, x=None, what="count(*)", grid=None, shape=64, facet=None, limits=None, figsize=None, f="identity", n=None, normalize_axis=None,
               xlabel=None, ylabel=None, label=None,
               selection=None, show=False, tight_layout=True, hardcopy=None,
@@ -67,16 +67,17 @@ def histogram(self, x=None, what="count(*)", grid=None, shape=64, facet=None, li
     >>> counts = df.mean(df.y, binby=df.x, limits=[0, 100], shape=100)/100.
     >>> df.histogram(df.x, limits=[0, 100], shape=100, grid=means, label='mean(y)/100')
 
-    :param x: Expression to bin in the x direction
+    :param x: {expression_one}
     :param what: What to plot, count(*) will show a N-d histogram, mean('x'), the mean of the x column, sum('x') the sum
-    :param grid: If the binning is done before by yourself, you can pass it
+    :param grid: {grid}
+    :param shape: {shape}
     :param facet: Expression to produce facetted plots ( facet='x:0,1,12' will produce 12 plots with x in a range between 0 and 1)
-    :param limits: list of [xmin, xmax], or a description such as 'minmax', '99%'
+    :param limits: {limits}
     :param figsize: (x, y) tuple passed to plt.figure for setting the figure size
     :param f: transform values by: 'identity' does nothing 'log' or 'log10' will show the log of the value
     :param n: normalization function, currently only 'normalize' is supported, or None for no normalization
     :param normalize_axis: which axes to normalize on, None means normalize by the global maximum.
-    :param normalize_axis:
+    :param selection: {selection}
     :param xlabel: String for label on x axis (may contain latex)
     :param ylabel: Same for y axis
     :param: tight_layout: call plt.tight_layout or not
@@ -140,6 +141,8 @@ def histogram(self, x=None, what="count(*)", grid=None, shape=64, facet=None, li
                     raise ValueError("Could not understand 'what' argument %r, expected something in form: 'count(*)', 'mean(x)'" % what)
         else:
             grid = self.histogram(binby, size=shape, limits=limits, selection=selection)
+    if (len(grid.shape) > 1) and (_issequence(selection)):
+        grid = grid.T
     fgrid = f(grid)
     if n is not None:
         # ngrid = n(fgrid, axis=normalize_axis)
@@ -207,18 +210,19 @@ def scatter(self, *args, **kwargs):
 
 
 @viz_method
+@docsubst
 def scatter(self, x, y, xerr=None, yerr=None, cov=None, corr=None, s_expr=None, c_expr=None, labels=None, selection=None, length_limit=50000,
     length_check=True, label=None, xlabel=None, ylabel=None, errorbar_kwargs={}, ellipse_kwargs={}, **kwargs):
     """Viz (small amounts) of data in 2d using a scatter plot
 
     Convenience wrapper around plt.scatter when for working with small DataFrames or selections
 
-    :param x: Expression for x axis
-    :param y: Idem for y
+    :param x: {expression_one}
+    :param y: {expression_one}
     :param s_expr: When given, use if for the s (size) argument of plt.scatter
     :param c_expr: When given, use if for the c (color) argument of plt.scatter
     :param labels: Annotate the points with these text values
-    :param selection: Single selection expression, or None
+    :param selection: {selection1}
     :param length_limit: maximum number of rows it will plot
     :param length_check: should we do the maximum row check or not?
     :param label: label for the legend
@@ -313,6 +317,7 @@ def plot(self, *args, **kwargs):
 
 
 @viz_method
+@docsubst
 def heatmap(self, x=None, y=None, z=None, what="count(*)", vwhat=None, reduce=["colormap"], f=None,
             normalize="normalize", normalize_axis="what",
             vmin=None, vmax=None,
@@ -378,9 +383,9 @@ def heatmap(self, x=None, y=None, z=None, what="count(*)", vwhat=None, reduce=["
     :param normalize_axis: which axes to normalize on, None means normalize by the global maximum.
     :param vmin: instead of automatic normalization, (using normalize and normalization_axis) scale the data between vmin and vmax to [0, 1]
     :param vmax: see vmin
-    :param shape: shape/size of the n-D histogram grid
-    :param limits: list of [[xmin, xmax], [ymin, ymax]], or a description such as 'minmax', '99%'
-    :param grid: if the binning is done before by yourself, you can pass it
+    :param shape: {shape}
+    :param limits: {limits}
+    :param grid: {grid}
     :param colormap: matplotlib colormap to use
     :param figsize: (x, y) tuple passed to plt.figure for setting the figure size
     :param xlabel:
@@ -388,6 +393,7 @@ def heatmap(self, x=None, y=None, z=None, what="count(*)", vwhat=None, reduce=["
     :param aspect:
     :param tight_layout: call plt.tight_layout or not
     :param colorbar: plot a colorbar or not
+    :param selection: {selection1}
     :param interpolation: interpolation for imshow, possible options are: 'nearest', 'bilinear', 'bicubic', see matplotlib for more
     :param return_extra:
     :return:
@@ -414,9 +420,9 @@ def heatmap(self, x=None, y=None, z=None, what="count(*)", vwhat=None, reduce=["
     selections = _ensure_strings_from_expressions(selections)
 
     if y is None:
-        waslist, [x, ] = vaex.utils.listify(x)
+        waslist, [x, ] = listify(x)
     else:
-        waslist, [x, y] = vaex.utils.listify(x, y)
+        waslist, [x, y] = listify(x, y)
         x = list(zip(x, y))
         limits = [limits]
 
