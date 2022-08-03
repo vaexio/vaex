@@ -371,3 +371,17 @@ def test_smoke_get_buffers_on_categorical_columns(df_factory):
     interchange_df = df.__dataframe__()
     interchange_col = interchange_df.get_column_by_name('x')
     interchange_col.get_buffers()
+
+
+@pytest.mark.xfail()
+def test_string_buffers():
+    import pandas as pd
+    data = ["foo", "bar"]
+    try:
+        from pandas.api.interchange import from_dataframe
+    except ImportError:
+        pytest.skip(f"pandas.api.interchange not found ({pd.__version__=})")
+    pd_df = pd.DataFrame({"x": pd.Series(data, dtype=pd.StringDtype())})
+    pd_interchange_df = pd_df.__dataframe__()
+    vaex_df = _from_dataframe_to_vaex(pd_interchange_df)
+    assert vaex_df["x"].tolist() == data
