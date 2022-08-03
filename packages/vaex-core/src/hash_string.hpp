@@ -264,12 +264,12 @@ class counter : public hash_base<counter<T, A>, T, A, V>, public counter_mixin<T
     }
     int64_t value_null() { return this->null_count; }
     int64_t value_nan() { return this->nan_count; }
-    value_type add_new(int16_t map_index, string_view key, int64_t index) {
+    value_type add_new(int16_t map_index, string_view key, int64_t index, int64_t value=1) {
         auto &map = this->maps[map_index];
         auto &string_array = this->string_arrays[map_index];
         string_array->push(key);
         string_ref persistent_value(string_array->length - 1);
-        map.emplace(persistent_value, 1);
+        map.emplace(persistent_value, value);
         return 1;
     }
     template <class Bucket>
@@ -316,7 +316,7 @@ class counter : public hash_base<counter<T, A>, T, A, V>, public counter_mixin<T
                 auto search = this->maps[i].find(key);
                 auto end = this->maps[i].end();
                 if (search == end) {
-                    this->add_new(i, key, 0);
+                    this->add_new(i, key, 0, elem.second);
                 } else {
                     set_second(search, search->second + elem.second);
                 }
