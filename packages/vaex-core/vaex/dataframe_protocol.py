@@ -155,7 +155,7 @@ def buffer_to_ndarray(_buffer, _dtype) -> np.ndarray:
     return x
 
 
-def convert_categorical_column(col: ColumnObject) -> pa.DictionaryArray:
+def convert_categorical_column(col: ColumnObject) -> Tuple[pa.DictionaryArray, Any]:
     """
     Convert a categorical column to an arrow dictionary
     """
@@ -185,13 +185,17 @@ def convert_categorical_column(col: ColumnObject) -> pa.DictionaryArray:
         indices = pa.array(codes)
 
     labels_buffer, labels_dtype = catinfo["categories"].get_buffers()["data"]
-    labels = buffer_to_ndarray(labels_buffer, labels_dtype)
+    if labels_dtype[0]  == _DtypeKind.STRING:
+        labels, _ = convert_string_column(catinfo["categories"])
+    else:
+        labels = buffer_to_ndarray(labels_buffer, labels_dtype)
+
     values = pa.DictionaryArray.from_arrays(indices, labels)
 
     return values, codes_buffer
 
 
-def convert_string_column(col: ColumnObject) -> pa.Array:
+def convert_string_column(col: ColumnObject) -> Tuple[pa.Array, list]:
     """
     Convert a string column to a Arrow array.
     """
