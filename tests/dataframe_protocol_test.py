@@ -126,15 +126,24 @@ def test_categorical():
 
     # Some detailed testing for correctness of dtype and null handling:
     col = df.__dataframe__().get_column_by_name("year")
-    assert col.dtype[0] == _DtypeKind.CATEGORICAL
-    assert col.describe_categorical == (False, True, {0: 2012, 1: 2013, 2: 2014, 3: 2015, 4: 2016, 5: 2017, 6: 2018, 7: 2019})
+    assert col.dtype == (_DtypeKind.CATEGORICAL, 64, "u", "=")
+    catinfo = col.describe_categorical
+    assert not catinfo["is_ordered"]
+    assert catinfo["is_dictionary"]
+    assert catinfo["categories"]._col.tolist() == [
+        2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019
+    ]
     assert col.describe_null == (0, None)
-    assert col.dtype == (23, 64, "u", "=")
+
     col2 = df.__dataframe__().get_column_by_name("weekday")
-    assert col2.dtype[0] == _DtypeKind.CATEGORICAL
-    assert col2.describe_categorical == (False, True, {0: "Mon", 1: "Tue", 2: "Wed", 3: "Thu", 4: "Fri", 5: "Sat", 6: "Sun"})
+    catinfo2 = col2.describe_categorical
+    assert not catinfo2["is_ordered"]
+    assert catinfo2["is_dictionary"]
+    assert catinfo2["categories"]._col.tolist() == [
+        "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"
+    ]
+    assert col2.dtype == (_DtypeKind.CATEGORICAL, 64, "u", "=")
     assert col2.describe_null == (0, None)
-    assert col2.dtype == (23, 64, "u", "=")
 
     df2 = _from_dataframe_to_vaex(df.__dataframe__())
     assert df2["year"].tolist() == [2012, 2013, 2015, 2019]
@@ -363,6 +372,16 @@ def test_null_count(df_factory, x):
     assert interchange_col.null_count == 1
 
 
+def test_size(df_factory):
+    # See https://github.com/vaexio/vaex/issues/2093
+    x = np.arange(5)
+    df = df_factory(x=x)
+    interchange_df = df.__dataframe__()
+    interchange_col = interchange_df.get_column_by_name('x')
+    assert isinstance(interchange_col.size, int)
+    assert interchange_col.size == 5
+
+
 def test_smoke_get_buffers_on_categorical_columns(df_factory):
     # See https://github.com/vaexio/vaex/issues/2134#issuecomment-1195731379
     x = np.array([3, 1, 1, 2, 0])
@@ -374,7 +393,7 @@ def test_smoke_get_buffers_on_categorical_columns(df_factory):
 
 
 @pytest.mark.xfail()
-def test_string_buffers():
+def test_interchange_pandas_string_column():
     import pandas as pd
     data = ["foo", "bar"]
     try:
@@ -387,11 +406,48 @@ def test_string_buffers():
     assert vaex_df["x"].tolist() == data
 
 
-def test_size(df_factory):
-    # See https://github.com/vaexio/vaex/issues/2093
-    x = np.arange(5)
+def test_string_buffers(df_factory):
+    data = ["foo", "bar"]
+    x = np.array(data, dtype="U8")
     df = df_factory(x=x)
+    if isinstance(df["x"].values, pa.lib.ChunkedArray):
+        pytest.xfail()
+    interchange_df = df.__dataframe__()
+    roundtrip_df = _from_dataframe_to_vaex(interchange_df)
+    assert roundtrip_df["x"].tolist() == data
+
+
+@pytest.mark.parametrize(
+    "labels", [[10, 11, 12, 13], ["foo", "bar", "baz", "qux"]]
+)
+def test_describe_categorical(df_factory, labels):
+    # See https://github.com/vaexio/vaex/issues/2113
+    data = [3, 1, 1, 2, 0]
+    x = np.array(data)
+    df = df_factory(x=x)
+    df = df.categorize('x', labels=labels)
     interchange_df = df.__dataframe__()
     interchange_col = interchange_df.get_column_by_name('x')
-    assert isinstance(interchange_col.size, int)
-    assert interchange_col.size == 5
+    catinfo = interchange_col.describe_categorical
+    assert isinstance(catinfo, dict)
+    assert isinstance(catinfo["is_ordered"], bool)
+    assert isinstance(catinfo["is_dictionary"], bool)
+    assert catinfo["is_dictionary"]
+    assert isinstance(catinfo["categories"], _VaexColumn)
+    assert catinfo["categories"]._col.tolist() == labels
+
+
+@pytest.mark.xfail()
+@pytest.mark.parametrize(
+    "labels", [[10, 11, 12, 13], ["foo", "bar", "baz", "qux"]]
+)
+def test_interchange_categorical_column(df_factory, labels):
+    data = [3, 1, 1, 2, 0]
+    x = np.array(data)
+    df = df_factory(x=x)
+    df = df.categorize('x', labels=labels)
+    interchange_df = df.__dataframe__()
+    interchange_col = interchange_df.get_column_by_name('x')
+    roundtrip_df = _from_dataframe_to_vaex(interchange_df)
+    assert roundtrip_df["x"].values.tolist() == data
+    assert roundtrip_df.category_labels("x") == labels

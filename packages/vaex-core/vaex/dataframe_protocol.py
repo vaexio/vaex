@@ -159,14 +159,17 @@ def convert_categorical_column(col: ColumnObject) -> pa.DictionaryArray:
     """
     Convert a categorical column to an arrow dictionary
     """
-    ordered, is_dict, mapping = col.describe_categorical
-    if not is_dict:
+    catinfo = col.describe_categorical
+    if not catinfo["is_dictionary"]:
         raise NotImplementedError("Non-dictionary categoricals not supported yet")
+    assert catinfo["categories"] is not None  # sanity check
 
     if not col.describe_null[0] in (0, 2, 3, 4):
-        raise NotImplementedError("Only categorical columns with sentinel " "value and masks supported at the moment")
+        raise NotImplementedError(
+            "Only categorical columns with sentinel "
+            "value and masks supported at the moment"
+        )
 
-    categories = np.asarray(list(mapping.values()))
     codes_buffer, codes_dtype = col.get_buffers()["data"]
     codes = buffer_to_ndarray(codes_buffer, codes_dtype)
 
@@ -181,8 +184,9 @@ def convert_categorical_column(col: ColumnObject) -> pa.DictionaryArray:
     else:
         indices = pa.array(codes)
 
-    dictionary = pa.array(categories)
-    values = pa.DictionaryArray.from_arrays(indices, dictionary)
+    labels_buffer, labels_dtype = catinfo["categories"].get_buffers()["data"]
+    labels = buffer_to_ndarray(labels_buffer, labels_dtype)
+    values = pa.DictionaryArray.from_arrays(indices, labels)
 
     return values, codes_buffer
 
@@ -415,32 +419,35 @@ class _VaexColumn:
     def describe_categorical(self) -> Dict[str, Any]:
         """
         If the dtype is categorical, there are two options:
-
         - There are only values in the data buffer.
-        - There is a separate dictionary-style encoding for categorical values.
+        - There is a separate non-categorical Column encoding categorical values.
 
-        Raises RuntimeError if the dtype is not categorical
+        Raises TypeError if the dtype is not categorical
 
-        Content of returned dict:
-
+        Returns the dictionary with description on how to interpret the data buffer:
             - "is_ordered" : bool, whether the ordering of dictionary indices is
                              semantically meaningful.
-            - "is_dictionary" : bool, whether a dictionary-style mapping of
+            - "is_dictionary" : bool, whether a mapping of
                                 categorical values to other objects exists
-            - "mapping" : dict, Python-level only (e.g. ``{int: str}``).
-                          None if not a dictionary-style categorical.
+            - "categories" : Column representing the (implicit) mapping of indices to
+                             category values (e.g. an array of cat1, cat2, ...).
+                             None if not a dictionary-style categorical.
+
+        TBD: are there any other in-memory representations that are needed?
         """
         if not self.dtype[0] == _DtypeKind.CATEGORICAL:
-            raise TypeError("`describe_categorical only works on a column with " "categorical dtype!")
-
-        ordered = False
-        is_dictionary = True
-        if not isinstance(self._col.values, np.ndarray) and isinstance(self._col.values.type, pa.DictionaryType):
-            categories = self._col.values.dictionary.tolist()
-        else:
-            categories = self._col.df.category_labels(self._col)
-        mapping = {ix: val for ix, val in enumerate(categories)}
-        return ordered, is_dictionary, mapping
+            raise TypeError(
+                "describe_categorical only works on a column with "
+                "categorical dtype!"
+            )
+        df = vaex.from_dict({"labels": self._col.df.category_labels(self._col)})
+        labels = df["labels"]
+        categories = _VaexColumn(labels)
+        return {
+            "is_ordered": False,
+            "is_dictionary": True,
+            "categories": categories,
+        }
 
     @property
     def describe_null(self) -> Tuple[int, Any]:
