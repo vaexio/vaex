@@ -23,6 +23,13 @@ def test_count_2d():
     assert list(binned_values.shape) == [32, 32]
 
 
+@pytest.mark.parametrize('limits', [None, 'minmax', '95%', [-3, 3]])
+def test_count_multiple_selections(limits):
+    df = vaex.example()
+    binned_values = df.count(binby=[df.x, df.y], shape=32, limits=limits, selection=['x > 0', 'y > 0'])
+    assert list(binned_values.shape) == [2, 32, 32]
+
+
 @pytest.mark.parametrize('limits', ['minmax', '68.2%', '99.7%', '100%'])
 def test_count_1d_verify_against_numpy(ds_local, limits):
     df = ds_local
