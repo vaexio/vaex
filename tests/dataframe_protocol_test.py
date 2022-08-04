@@ -161,7 +161,10 @@ def test_arrow_dictionary():
     # Some detailed testing for correctness of dtype and null handling:
     col = df.__dataframe__().get_column_by_name("x")
     assert col.dtype[0] == _DtypeKind.CATEGORICAL
-    assert col.describe_categorical == (False, True, {0: "foo", 1: "bar", 2: "baz"})
+    catinfo = col.describe_categorical
+    assert not catinfo["is_ordered"]
+    assert catinfo["is_dictionary"]
+    assert catinfo["categories"]._col.tolist() == ["foo", "bar", "baz"]
     if df['x'].dtype.is_arrow:
         assert col.describe_null == (3, 0)
     else:
@@ -184,7 +187,10 @@ def test_arrow_dictionary_missing():
     # Some detailed testing for correctness of dtype and null handling:
     col = df.__dataframe__().get_column_by_name("x")
     assert col.dtype[0] == _DtypeKind.CATEGORICAL
-    assert col.describe_categorical == (False, True, {0: "aap", 1: "noot", 2: "mies"})
+    catinfo = col.describe_categorical
+    assert not catinfo["is_ordered"]
+    assert catinfo["is_dictionary"]
+    assert catinfo["categories"]._col.tolist() == ["aap", "noot", "mies"]
 
     df2 = _from_dataframe_to_vaex(df.__dataframe__())
     assert df2.x.tolist() == df.x.tolist()
