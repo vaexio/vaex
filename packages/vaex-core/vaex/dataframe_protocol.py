@@ -320,7 +320,7 @@ class _VaexColumn:
         """
         Size of the column, in elements.
         """
-        return self._col.df.count("*")
+        return int(self._col.df.count("*"))
 
     @property
     def offset(self) -> int:

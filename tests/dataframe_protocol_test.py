@@ -385,3 +385,13 @@ def test_string_buffers():
     pd_interchange_df = pd_df.__dataframe__()
     vaex_df = _from_dataframe_to_vaex(pd_interchange_df)
     assert vaex_df["x"].tolist() == data
+
+
+def test_size(df_factory):
+    # See https://github.com/vaexio/vaex/issues/2093
+    x = np.arange(5)
+    df = df_factory(x=x)
+    interchange_df = df.__dataframe__()
+    interchange_col = interchange_df.get_column_by_name('x')
+    assert isinstance(interchange_col.size, int)
+    assert interchange_col.size == 5
