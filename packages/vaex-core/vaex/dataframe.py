@@ -4260,7 +4260,7 @@ class DataFrame(object):
             [k for k in self.variables.keys() if not hidden or not k.startswith('__')] +\
             [k for k in self.functions.keys() if not hidden or not k.startswith('__')]
 
-    def get_column_names(self, virtual=True, strings=True, hidden=False, regex=None):
+    def get_column_names(self, virtual=True, strings=True, hidden=False, regex=None, dtype=None):
         """Return a list of column names
 
         Example:
@@ -4274,14 +4274,22 @@ class DataFrame(object):
         ['x', 'x2', 'y', 's']
         >>> df.get_column_names(regex='x.*')
         ['x', 'x2']
+        >>> df.get_column_names(dtype='string')
+        ['s']
 
         :param virtual: If False, skip virtual columns
         :param hidden: If False, skip hidden columns
         :param strings: If False, skip string columns
         :param regex: Only return column names matching the (optional) regular expression
-        :param alias: Return the alias (True) or internal name (False).
+        :param dtype: Only return column names with the given dtype. Can be a single or a list of dtypes.
         :rtype: list of str
         """
+
+        if dtype is None:
+            dtype = []
+        else:
+            dtype = vaex.utils._ensure_list(dtype)
+
         def column_filter(name):
             '''Return True if column with specified name should be returned'''
             if regex and not re.match(regex, name):
@@ -4292,11 +4300,16 @@ class DataFrame(object):
                 return False
             if not hidden and name.startswith('__'):
                 return False
+            if dtype and (vaex.expression.Expression(self, name).dtype not in dtype):
+                return False
             return True
-        if hidden and virtual and regex is None and strings is True:
+
+        if hidden and virtual and regex is None and len(dtype) == 0 and strings is True:
             return list(self.column_names)  # quick path
-        if not hidden and virtual and regex is None and strings is True:
+
+        if not hidden and virtual and regex is None and len(dtype) == 0 and strings is True:
             return [k for k in self.column_names if not k.startswith('__')]  # also a quick path
+
         return [name for name in self.column_names if column_filter(name)]
 
     def __bool__(self):
@@ -5070,7 +5083,7 @@ class DataFrame(object):
 
     def dropinf(self, column_names=None, how="any"):
         """ Create a shallow copy of a DataFrame, with filtering set using isinf.
-        
+
         :param column_names: The columns to consider, default: all (real, non-virtual) columns
         :param str how: One of ("any", "all").
             If "any", then drop rows where any of the columns are inf.
