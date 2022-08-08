@@ -5373,6 +5373,7 @@ class DataFrame(object):
         """
         if isinstance(item, int):
             names = self.get_column_names()
+            item = item % len(self)
             return [self.evaluate(name, item, item+1, array_type='python')[0] for name in names]
         elif isinstance(item, six.string_types):
             if hasattr(self, item) and isinstance(getattr(self, item), Expression):
