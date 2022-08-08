@@ -323,10 +323,15 @@ class _VaexColumn:
         self._col = column
         self._allow_copy = allow_copy
 
-    @property
     def size(self) -> int:
         """
         Size of the column, in elements.
+
+        Corresponds to DataFrame.num_rows() if column is a single chunk;
+        equal to size of this current chunk otherwise.
+
+        Is a method rather than a property because it may cause a (potentially
+        expensive) computation for some dataframe implementations.
         """
         return int(self._col.df.count("*"))
 

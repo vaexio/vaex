@@ -48,7 +48,7 @@ def test_mixed_intfloatbool(df_factory):
 
     # Additionl tests for _VaexColumn
     assert df2.__dataframe__().get_column_by_name("x")._allow_copy == True
-    assert df2.__dataframe__().get_column_by_name("x").size == 3
+    assert df2.__dataframe__().get_column_by_name("x").size() == 3
     assert df2.__dataframe__().get_column_by_name("x").offset == 0
 
     assert df2.__dataframe__().get_column_by_name("z").dtype[0] == 2  # 2: float64
@@ -205,7 +205,7 @@ def test_string():
     col = df.__dataframe__().get_column_by_name("A")
 
     assert col._col.tolist() == df.A.tolist()
-    assert col.size == 5
+    assert col.size() == 5
     assert col.null_count == 1
     assert col.dtype[0] == _DtypeKind.STRING
     assert col.describe_null == (3,0)
@@ -218,7 +218,7 @@ def test_string():
 
     df_sliced = df[1:]
     col = df_sliced.__dataframe__().get_column_by_name("A")
-    assert col.size == 4
+    assert col.size() == 4
     assert col.null_count == 1
     assert col.dtype[0] == _DtypeKind.STRING
     assert col.describe_null == (3,0)
@@ -261,7 +261,7 @@ def test_object():
     col = df.__dataframe__().get_column_by_name("x")
 
     assert col._col.tolist() == df.x.tolist()
-    assert col.size == 3
+    assert col.size() == 3
 
     with pytest.raises(ValueError):
         assert col.dtype
@@ -339,7 +339,7 @@ def assert_buffer_equal(buffer_dtype: Tuple[_VaexBuffer, Any], vaexcol: vaex.exp
 
 
 def assert_column_equal(col: _VaexColumn, vaexcol: vaex.expression.Expression):
-    assert col.size == vaexcol.df.count("*")
+    assert col.size() == vaexcol.df.count("*")
     assert col.offset == 0
     assert col.null_count == vaexcol.countmissing()
     assert_buffer_equal(col._get_data_buffer(), vaexcol)
@@ -384,8 +384,9 @@ def test_size(df_factory):
     df = df_factory(x=x)
     interchange_df = df.__dataframe__()
     interchange_col = interchange_df.get_column_by_name('x')
-    assert isinstance(interchange_col.size, int)
-    assert interchange_col.size == 5
+    size = interchange_col.size()
+    assert isinstance(size, int)
+    assert size == 5
 
 
 def test_smoke_get_buffers_on_categorical_columns(df_factory):
