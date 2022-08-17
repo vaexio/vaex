@@ -141,3 +141,11 @@ def test_value_counts_chunked_array():
     df["text"] = pa.chunked_array([x[:100], x[100:500], x[500:]])
     res = df.text.str.split(" ").value_counts()
     assert list(res.items())[0] == ('text', 3000)
+
+@pytest.mark.parametrize("high", [100, 1000, 10_000, 100_000])
+def test_value_counts_high_cardinality(high):
+        x = np.random.randint(low=0, high=high, size=100_000)
+        s = [str(i) for i in x]
+        df = vaex.from_arrays(x=x, s=s)
+        assert df.x.value_counts().sum() == 100_000
+        assert df.s.value_counts().sum() == 100_000
