@@ -20,6 +20,17 @@ def test_column_names(df_arrow):
     assert '__x' in ds.get_column_names(regex='__x', hidden=True)
 
 
+def test_column_names_dtype():
+    df = vaex.datasets.titanic()
+    assert df.get_column_names(dtype=np.float64) == ['age', 'fare', 'body']
+    assert df.get_column_names(dtype=str) == ['name', 'sex', 'ticket', 'cabin', 'embarked', 'boat', 'home_dest']
+    assert df.get_column_names(dtype=[int, float]) == ['pclass', 'age', 'sibsp', 'parch', 'fare', 'body']
+    assert df.get_column_names(dtype=str, regex='^b') == ['boat']
+
+    df['pclass_string'] = df.pclass.astype('string')
+    assert df.get_column_names(dtype=str) == ['name', 'sex', 'ticket', 'cabin', 'embarked', 'boat', 'home_dest', 'pclass_string']
+
+
 def test_column_name_and_function_name(tmpdir):
     df = vaex.from_scalars(foo=1, x=1)
     df.add_function('foo', lambda x: x+1)
