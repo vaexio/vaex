@@ -100,8 +100,12 @@ def test_debounced_non_reentrant_hammer():
 
     async def run():
         for i in range(10000):
-            execute()
+            future = execute()
             await asyncio.sleep(0.001/4)
+        try:
+            await future
+        except:
+            pass
 
     asyncio.run(run())
 
