@@ -772,3 +772,42 @@ def test_groupby_empty(df_factory):
     assert dfg["count"].tolist() == [6]
     assert dfg["first_x"].tolist() == [1]
     assert dfg["s"].tolist() == [df.s.tolist()]
+
+
+def test_groupby_multi_key_datetime():
+    date = [np.datetime64('2022-01-01'),
+            np.datetime64('2022-01-01'),
+            np.datetime64('2022-01-02'),
+            np.datetime64('2022-01-01'),
+            np.datetime64('2022-01-02')]
+    color = ['red', 'green', 'yellow', 'red', 'yellow']
+    value = [1, 2, 3, 4, 5]
+
+    df = vaex.from_arrays(date=date, color=color, value=value)
+
+    dfg = df.groupby(['date', 'color'], agg={"value": "count"})
+
+    assert dfg.shape == (3, 3)
+    assert set(dfg.date.tolist()) == {datetime.date(2022, 1, 1), datetime.date(2022, 1, 2)}
+    assert set(dfg.color.tolist()) == {'green', 'red', 'yellow'}
+    assert set(dfg.value.tolist()) == {1, 2}
+
+@pytest.mark.parametrize("resolution", ['D', 'M'])
+def test_groupby_multi_key_binner_time(resolution):
+    date = [np.datetime64('2022-01-01'),
+            np.datetime64('2022-01-01'),
+            np.datetime64('2022-01-02'),
+            np.datetime64('2022-01-01'),
+            np.datetime64('2022-01-02')]
+    color = ['red', 'green', 'yellow', 'red', 'yellow']
+    value = [1, 2, 3, 4, 5]
+
+    df = vaex.from_arrays(date=date, color=color, value=value)
+
+    dfg = df.groupby(by=[vaex.BinnerTime(df.date, resolution=resolution), 'color'], agg={"value": "count"})
+
+    if resolution == 'D':
+        assert dfg.shape == (3, 3)
+
+    if resolution == 'M':
+        assert dfg.shape == (3, 3)
