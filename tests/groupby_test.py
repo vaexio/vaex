@@ -772,3 +772,10 @@ def test_groupby_empty(df_factory):
     assert dfg["count"].tolist() == [6]
     assert dfg["first_x"].tolist() == [1]
     assert dfg["s"].tolist() == [df.s.tolist()]
+
+
+def test_groupby_int_overflow():
+    x = np.array([-129,-120,15,30,40])
+    df = vaex.from_arrays(x=x)
+    gdf = df.groupby(['x'], assume_sparse=True, agg={'cnt': 'count'})
+    assert set(gdf.x.tolist()) == set(x)

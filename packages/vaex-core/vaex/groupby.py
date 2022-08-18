@@ -14,7 +14,7 @@ from vaex.delayed import delayed_args, delayed_dict, delayed_list
 from vaex.utils import _ensure_list, _ensure_string_from_expression
 import vaex
 import vaex.hash
-
+import vaex.utils
 
 try:
     collections_abc = collections.abc
@@ -272,8 +272,8 @@ class Grouper(BinnerBase):
                         return
 
                 if vaex.dtype_of(self.bin_values) == int and len(self.bin_values):
-                    max_value = self.bin_values.max()
-                    self.bin_values = self.bin_values.astype(vaex.utils.required_dtype_for_max(max_value))
+                    min_value, max_value = self.bin_values.min(), self.bin_values.max()
+                    self.bin_values = self.bin_values.astype(vaex.utils.required_dtype_for_range(min_value, max_value))
                 logger.debug('Constructed grouper for expression %s with %i values', str(expression), len(self.bin_values))
 
                 if self.sort:
