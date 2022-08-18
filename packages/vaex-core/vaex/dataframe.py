@@ -33,6 +33,7 @@ import vaex.multithreading
 import vaex.promise
 import vaex.execution
 import vaex.expresso
+import vaex.tasks
 import logging
 import vaex.kld
 from . import selections, tasks, scopes
@@ -497,8 +498,9 @@ class DataFrame(object):
         return self.map_reduce(map, reduce, expressions, delay=delay, progress=progress, name='nop', to_numpy=False)
 
     def _hash_map_unique(self, expression, progress=False, selection=None, flatten=True, delay=False, limit=None, limit_raise=True, return_inverse=False):
-        if selection is not None:
-            selection = str(selection)
+        # TODO: selections in aggregation take the same code path as these two statements, maybe refactor this in the future to follow a common code path
+        selection = vaex.utils._normalize_selection(selection)
+        selection = str(selection) if isinstance(selection, Expression) else selection
         expression = _ensure_string_from_expression(expression)
         task = vaex.tasks.TaskHashmapUniqueCreate(self, expression, flatten, limit=limit, selection=selection, return_inverse=return_inverse, limit_raise=limit_raise)
         task = self.executor.schedule(task)

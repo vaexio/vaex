@@ -163,3 +163,15 @@ def test_unique_limit_string():
         df.x.nunique(limit=11)
     assert df.x.nunique(limit=11, limit_raise=False) == 11
     df.x.nunique(limit=100)
+
+@pytest.mark.parametrize("selection", [True, 'default', 'custom_name'])
+def test_unique_selection(df_factory, selection):
+    x = ['a', 'a', 'c', 'd', 'e', 'f']
+    y = np.array([10, 10, 30, 40, 50, 60])
+    df = df_factory(x=x, y=y)
+
+    if selection == 'custom_name':
+        df.select(df.y == 10, name=selection)
+    else:
+        df.select(df.y == 10)
+    assert df.x.unique(selection=selection) == ['a']
