@@ -24,7 +24,6 @@ from .hash import counter_type_from_dtype
 import vaex.serialize
 from . import expresso
 
-
 try:
     from StringIO import StringIO
 except ImportError:
@@ -35,7 +34,6 @@ try:
 except AttributeError:
     collectionsAbc = collections
 
-
 # TODO: repeated from dataframe.py
 default_shape = 128
 PRINT_MAX_COUNT = 10
@@ -43,10 +41,8 @@ PRINT_MAX_COUNT = 10
 expression_namespace = {}
 expression_namespace['nan'] = np.nan
 
-
 expression_namespace = {}
 expression_namespace['nan'] = np.nan
-
 
 _binary_ops = [
     dict(code="+", name='add', op=operator.add),
@@ -100,7 +96,8 @@ class Meta(type):
                     # print(op, a, b)
                     if isinstance(b, str) and self.dtype.is_datetime:
                         b = np.datetime64(b)
-                    if self.df.is_category(self.expression) and self.df._future_behaviour and not isinstance(b, Expression):
+                    if self.df.is_category(self.expression) and self.df._future_behaviour and not isinstance(b,
+                                                                                                             Expression):
                         labels = self.df.category_labels(self.expression)
                         if b not in labels:
                             raise ValueError(f'Value {b} not present in {labels}')
@@ -137,6 +134,7 @@ class Meta(type):
                             b = f'scalar_datetime("{b}")'
                         expression = '({0} {1} {2})'.format(a.expression, op['code'], b)
                     return Expression(self.ds, expression=expression)
+
                 attrs['__%s__' % op['name']] = f
                 if op['name'] in reversable:
                     def f(a, b):
@@ -153,6 +151,7 @@ class Meta(type):
                                 b = b.expression
                             expression = '({2} {1} {0})'.format(a.expression, op['code'], b)
                             return Expression(self.ds, expression=expression)
+
                     attrs['__r%s__' % op['name']] = f
 
             wrap(op)
@@ -162,7 +161,9 @@ class Meta(type):
                     self = a
                     expression = '{0}({1})'.format(op['code'], a.expression)
                     return Expression(self.ds, expression=expression)
+
                 attrs['__%s__' % op['name']] = f
+
             wrap(op)
         return type(future_class_name, future_class_parents, attrs)
 
@@ -172,6 +173,7 @@ class DateTime(object):
 
     Usually accessed using e.g. `df.birthday.dt.dayofweek`
     """
+
     def __init__(self, expression):
         self.expression = expression
 
@@ -181,6 +183,17 @@ class TimeDelta(object):
 
     Usually accessed using e.g. `df.delay.td.days`
     """
+
+    def __init__(self, expression):
+        self.expression = expression
+
+
+class Image(object):
+    """Image operations
+
+    Operations for images based on PIL/Pillow
+    """
+
     def __init__(self, expression):
         self.expression = expression
 
@@ -190,12 +203,14 @@ class StringOperations(object):
 
     Usually accessed using e.g. `df.name.str.lower()`
     """
+
     def __init__(self, expression):
         self.expression = expression
 
 
 class StringOperationsPandas(object):
     """String operations using Pandas Series (much slower)"""
+
     def __init__(self, expression):
         self.expression = expression
 
@@ -366,6 +381,7 @@ class StructOperations(collections.abc.Mapping):
 
 class Expression(with_metaclass(Meta)):
     """Expression class"""
+
     def __init__(self, ds, expression, ast=None, _selection=False):
         self.ds = ds
         assert not isinstance(ds, Expression)
@@ -471,7 +487,6 @@ class Expression(with_metaclass(Meta)):
             return expresso.node_to_string(self.ast.left) != expresso.node_to_string(self.ast.comparators[0])
         return True
 
-
     @property
     def df(self):
         # lets gradually move to using .df
@@ -513,12 +528,14 @@ class Expression(with_metaclass(Meta)):
         dtype = self.dtype
         chunks = da.core.normalize_chunks(chunks, shape=self.shape, dtype=dtype.numpy)
         name = 'vaex-expression-%s' % str(uuid.uuid1())
+
         def getitem(df, item):
             assert len(item) == 1
             item = item[0]
             start, stop, step = item.start, item.stop, item.step
             assert step in [None, 1]
             return self.evaluate(start, stop, parallel=False)
+
         dsk = da.core.getem(name, chunks, getitem=getitem, shape=self.shape, dtype=dtype.numpy)
         dsk[name] = self
         return da.Array(dsk, name, chunks, dtype=dtype.numpy)
@@ -591,7 +608,7 @@ class Expression(with_metaclass(Meta)):
             indices, fields = slicer
         else:
             raise NotImplementedError
-        
+
         if indices != slice(None):
             expr = self.df[indices][self.expression]
         else:
@@ -617,6 +634,11 @@ class Expression(with_metaclass(Meta)):
     def __abs__(self):
         """Returns the absolute value of the expression"""
         return self.abs()
+
+    @property
+    def vision(self):
+        """Gives access to image operations via :py:class:`Image`"""
+        return Image(self)
 
     @property
     def dt(self):
@@ -663,9 +685,11 @@ class Expression(with_metaclass(Meta)):
 
         """
         stop = _ensure_strings_from_expressions(stop)
+
         def translate(id):
             if id in self.ds.virtual_columns and id not in stop:
                 return self.ds.virtual_columns[id]
+
         expr = expresso.translate(self.ast, translate)
         return Expression(self.ds, expr)
 
@@ -684,6 +708,7 @@ class Expression(with_metaclass(Meta)):
         {'x', 'y'}
         """
         variables = set()
+
         def record(varname):
             # always do this for selection
             if self._selection and self.df.has_selection(varname):
@@ -694,7 +719,8 @@ class Expression(with_metaclass(Meta)):
                 if (include_virtual and (varname != self.expression)) or (varname == self.expression and ourself):
                     variables.add(varname)
                 if expand_virtual:
-                    variables.update(self.df[self.df.virtual_columns[varname]].variables(ourself=include_virtual, include_virtual=include_virtual))
+                    variables.update(self.df[self.df.virtual_columns[varname]].variables(ourself=include_virtual,
+                                                                                         include_virtual=include_virtual))
             # we usually don't want to record ourself
             elif varname != self.expression or ourself:
                 variables.add(varname)
@@ -705,11 +731,13 @@ class Expression(with_metaclass(Meta)):
         variables -= {'df'}
         for varname in self._ast_slices:
             if varname in self.df.virtual_columns and varname not in variables:
-                if (include_virtual and (f"df['{varname}']" != self.expression)) or (f"df['{varname}']" == self.expression and ourself):
+                if (include_virtual and (f"df['{varname}']" != self.expression)) or (
+                        f"df['{varname}']" == self.expression and ourself):
                     variables.add(varname)
                 if expand_virtual:
                     if varname in self.df.virtual_columns:
-                        variables |= self.df[self.df.virtual_columns[varname]].variables(ourself=include_virtual, include_virtual=include_virtual)
+                        variables |= self.df[self.df.virtual_columns[varname]].variables(ourself=include_virtual,
+                                                                                         include_virtual=include_virtual)
             elif f"df['{varname}']" != self.expression or ourself:
                 variables.add(varname)
 
@@ -741,6 +769,7 @@ class Expression(with_metaclass(Meta)):
                 if isinstance(obj, FunctionSerializablePickle):
                     obj = obj.f
                 return [node_repr, fname, obj, deps]
+
         return walk(expresso._graph(expression))
 
     def _graphviz(self, dot=None):
@@ -748,6 +777,7 @@ class Expression(with_metaclass(Meta)):
         from graphviz import Graph, Digraph
         node = self._graph()
         dot = dot or Digraph(comment=self.expression)
+
         def walk(node):
             if isinstance(node, six.string_types):
                 dot.node(node, node)
@@ -760,6 +790,7 @@ class Expression(with_metaclass(Meta)):
                     dep_id, dep = walk(dep)
                     dot.edge(node_id, dep_id)
                 return node_id, node
+
         walk(node)
         return dot
 
@@ -786,30 +817,43 @@ class Expression(with_metaclass(Meta)):
         def __repr__(self):
             return self._repr_plain_()
 
-    def _repr_plain_(self):
+    def _repr_mimebundle_(self, include=None, exclude=None, **kwargs):
+        # TODO: optimize, since we use the same data in both versions
+        # TODO: include latex version
+        return {"html": self._repr_html_(), 'text/plain': self._repr_plain_()}
+
+
+    def _repr_values(self, value_format='plain'):
         from .formatting import _format_value
-        def format(values):
+
+        def format_values(values):
             for i in range(len(values)):
                 value = values[i]
-                yield _format_value(value)
+                yield _format_value(value, value_format=value_format)
+
         colalign = ("right",) * 2
         try:
             N = len(self.ds)
             if N <= PRINT_MAX_COUNT:
-                values = format(self.evaluate(0, N))
-                values = tabulate.tabulate([[i, k] for i, k in enumerate(values)], tablefmt='plain', colalign=colalign)
+                values = format_values(self.evaluate(0, N))
+                values = [[i, k] for i, k in enumerate(values)]
+                values = tabulate.tabulate(values, tablefmt='plain', colalign=colalign)
             else:
-                values_head = format(self.evaluate(0, PRINT_MAX_COUNT//2))
-                values_tail = format(self.evaluate(N - PRINT_MAX_COUNT//2, N))
-                values_head = list(zip(range(PRINT_MAX_COUNT//2), values_head)) +\
-                              list(zip(range(N - PRINT_MAX_COUNT//2, N), values_tail))
-                values = tabulate.tabulate([k for k in values_head], tablefmt='plain', colalign=colalign)
+                values_head = format_values(self.evaluate(0, PRINT_MAX_COUNT // 2))
+                values_tail = format_values(self.evaluate(N - PRINT_MAX_COUNT // 2, N))
+                values = list(zip(range(PRINT_MAX_COUNT // 2), values_head)) + \
+                              list(zip(range(N - PRINT_MAX_COUNT // 2, N), values_tail))
+                values = tabulate.tabulate([k for k in values], tablefmt='plain', colalign=colalign)
                 values = values.split('\n')
                 width = max(map(len, values))
                 separator = '\n' + '...'.center(width, ' ') + '\n'
-                values = "\n".join(values[:PRINT_MAX_COUNT//2]) + separator + "\n".join(values[PRINT_MAX_COUNT//2:]) + '\n'
+                values = "\n".join(values[:PRINT_MAX_COUNT // 2]) + separator + "\n".join(
+                    values[PRINT_MAX_COUNT // 2:]) + '\n'
         except Exception as e:
             values = 'Error evaluating: %r' % e
+        return values
+
+    def _repr_info(self):
         expression = self.expression
         if len(expression) > 60:
             expression = expression[:57] + '...'
@@ -823,11 +867,26 @@ class Expression(with_metaclass(Meta)):
             state = "expression"
         line = 'Length: {:,} dtype: {} ({})\n'.format(len(self.ds), dtype, state)
         info += line
-        info += '-' * (len(line)-1) + '\n'
-        info += values
+        info += '-' * (len(line) - 1) + '\n'
         return info
 
-    def count(self, binby=[], limits=None, shape=default_shape, selection=False, delay=False, edges=False, progress=None):
+    def _repr_html_(self):
+        info = self._repr_info()
+        if self.is_image():
+            # TODO set up as plain like other expression
+            info = info.replace("dtype: object", "dtype: image")
+            info += self.ds[[self.expression]]._repr_html_()
+        else:
+            info += self._repr_values(value_format='html')
+        return f"<pre>{info}</pre>"
+
+    def _repr_plain_(self):
+        info = self._repr_info()
+        info += self._repr_values()
+        return info
+
+    def count(self, binby=[], limits=None, shape=default_shape, selection=False, delay=False, edges=False,
+              progress=None):
         '''Shortcut for ds.count(expression, ...), see `Dataset.count`'''
         kwargs = dict(locals())
         del kwargs['self']
@@ -985,6 +1044,7 @@ class Expression(with_metaclass(Meta)):
 
         counter_type = counter_type_from_dtype(data_type_item, transient)
         counters = [None] * self.ds.executor.thread_pool.nthreads
+
         def map(thread_index, i1, i2, selection_masks, blocks):
             ar = blocks[0]
             if counters[thread_index] is None:
@@ -1001,10 +1061,13 @@ class Expression(with_metaclass(Meta)):
             else:
                 counters[thread_index].update(ar)
             return 0
+
         def reduce(a, b):
-            return a+b
+            return a + b
+
         progressbar = vaex.utils.progressbars(progress, title="value counts")
-        self.ds.map_reduce(map, reduce, [self.expression], delay=False, progress=progressbar, name='value_counts', info=True, to_numpy=False)
+        self.ds.map_reduce(map, reduce, [self.expression], delay=False, progress=progressbar, name='value_counts',
+                           info=True, to_numpy=False)
         counters = [k for k in counters if k is not None]
         counter = counters[0]
         for other in counters[1:]:
@@ -1072,7 +1135,8 @@ class Expression(with_metaclass(Meta)):
         return Series(counts, index=keys)
 
     @docsubst
-    def unique(self, dropna=False, dropnan=False, dropmissing=False, selection=None, axis=None, array_type='list', progress=None, delay=False):
+    def unique(self, dropna=False, dropnan=False, dropmissing=False, selection=None, axis=None, array_type='list',
+               progress=None, delay=False):
         """Returns all unique values.
 
         :param dropmissing: do not count missing values
@@ -1082,9 +1146,11 @@ class Expression(with_metaclass(Meta)):
         :param progress: {progress}
         :param bool array_type: {array_type}
         """
-        return self.ds.unique(self, dropna=dropna, dropnan=dropnan, dropmissing=dropmissing, selection=selection, array_type=array_type, axis=axis, progress=progress, delay=delay)
+        return self.ds.unique(self, dropna=dropna, dropnan=dropnan, dropmissing=dropmissing, selection=selection,
+                              array_type=array_type, axis=axis, progress=progress, delay=delay)
 
-    def nunique(self, dropna=False, dropnan=False, dropmissing=False, selection=None, axis=None, progress=None, delay=False):
+    def nunique(self, dropna=False, dropnan=False, dropmissing=False, selection=None, axis=None, progress=None,
+                delay=False):
         """Counts number of unique values, i.e. `len(df.x.unique()) == df.x.nunique()`.
 
         :param dropmissing: do not count missing values
@@ -1092,16 +1158,20 @@ class Expression(with_metaclass(Meta)):
         :param dropna: short for any of the above, (see :func:`Expression.isna`)
         :param bool axis: Axis over which to determine the unique elements (None will flatten arrays or lists)
         """
+
         def key_function():
             fp = vaex.cache.fingerprint(self.fingerprint(), dropna, dropnan, dropmissing, selection, axis)
             return f'nunique-{fp}'
+
         @vaex.cache._memoize(key_function=key_function, delay=delay)
         def f():
-            value = self.unique(dropna=dropna, dropnan=dropnan, dropmissing=dropmissing, selection=selection, axis=axis, array_type=None, progress=progress, delay=delay)
+            value = self.unique(dropna=dropna, dropnan=dropnan, dropmissing=dropmissing, selection=selection, axis=axis,
+                                array_type=None, progress=progress, delay=delay)
             if delay:
                 return value.then(len)
             else:
                 return len(value)
+
         return f()
 
     def countna(self):
@@ -1162,7 +1232,8 @@ class Expression(with_metaclass(Meta)):
             expression = self.expression
             if expression in self.ds.virtual_columns:
                 expression = self.ds.virtual_columns[self.expression]
-            all_vars = self.ds.get_column_names(virtual=True, strings=True, hidden=True) + list(self.ds.variables.keys())
+            all_vars = self.ds.get_column_names(virtual=True, strings=True, hidden=True) + list(
+                self.ds.variables.keys())
             vaex.expresso.validate_expression(expression, all_vars, funcs, names)
             names = list(set(names))
             types = ", ".join(str(self.ds.data_type(name)) + "[]" for name in names)
@@ -1179,7 +1250,9 @@ def f({0}):
             m.update(code.encode('utf-8'))
             module_name = "pythranized_" + m.hexdigest()
             # print(m.hexdigest())
-            module_path = pythran.compile_pythrancode(module_name, code, extra_compile_args=["-DBOOST_SIMD", "-march=native"] + [] if verbose else ["-w"])
+            module_path = pythran.compile_pythrancode(module_name, code, extra_compile_args=["-DBOOST_SIMD",
+                                                                                             "-march=native"] + [] if verbose else [
+                "-w"])
 
             module = imp.load_dynamic(module_name, module_path)
             function_name = "f_" + m.hexdigest()
@@ -1187,7 +1260,7 @@ def f({0}):
 
             return Expression(self.ds, "{0}({1})".format(function.name, argstring))
         finally:
-                logger.setLevel(log_level)
+            logger.setLevel(log_level)
 
     def _rename(self, old, new, inplace=False):
         expression = self if inplace else self.copy()
@@ -1220,7 +1293,8 @@ def f({0}):
         """
         if use_hashmap:
             # easiest way to create a set is using the vaex dataframe
-            values = np.array(values, dtype=self.dtype.numpy)  # ensure that values are the same dtype as the expression (otherwise the set downcasts at the C++ level during execution)
+            values = np.array(values,
+                              dtype=self.dtype.numpy)  # ensure that values are the same dtype as the expression (otherwise the set downcasts at the C++ level during execution)
             df_values = vaex.from_arrays(x=values)
             ordered_set = df_values._set(df_values.x)
             var = self.df.add_variable('var_isin_ordered_set', ordered_set, unique=True)
@@ -1359,6 +1433,7 @@ def f({0}):
                     return np.isnan(x)
                 except:
                     return False
+
             mapper_nan_key_mask = np.array([try_nan(k) for k in mapper_keys])
         mapper_has_nan = mapper_nan_key_mask.sum() > 0
         if mapper_nan_key_mask.sum() > 1:
@@ -1391,7 +1466,8 @@ def f({0}):
             if allow_missing:
                 if default_value is not None:
                     value0 = list(mapper.values())[0]
-                    assert np.issubdtype(type(default_value), np.array(value0).dtype), "default value has to be of similar type"
+                    assert np.issubdtype(type(default_value),
+                                         np.array(value0).dtype), "default value has to be of similar type"
             else:
                 if only_has_nan:
                     pass  # we're good, the hash mapper deals with nan
@@ -1428,7 +1504,8 @@ def f({0}):
         key_set_name = df.add_variable('map_key_set', ordered_set, unique=True)
         choices_name = df.add_variable('map_choices', choices, unique=True)
         if allow_missing:
-            expr = '_map({}, {}, {}, use_missing={!r}, axis={!r})'.format(self, key_set_name, choices_name, use_masked_array, axis)
+            expr = '_map({}, {}, {}, use_missing={!r}, axis={!r})'.format(self, key_set_name, choices_name,
+                                                                          use_masked_array, axis)
         else:
             expr = '_map({}, {}, {}, axis={!r})'.format(self, key_set_name, choices_name, axis)
         return Expression(df, expr)
@@ -1439,6 +1516,9 @@ def f({0}):
 
     def is_string(self):
         return self.df.is_string(self.expression)
+
+    def is_image(self):
+        return self.df.is_image(self.expression)
 
 
 class FunctionSerializable(object):
@@ -1511,6 +1591,7 @@ class FunctionSerializableJit(FunctionSerializable):
         else:
             def placeholder(*args, **kwargs):
                 raise Exception('You chose not to compile this function (locally), but did invoke it')
+
             self.f = placeholder
 
     def state_get(self):
@@ -1594,18 +1675,20 @@ import cupy
 @fuse()
 def f({0}):
     return {1}
-'''.format(argstring, self.expression)#, ";".join(conversions))
+'''.format(argstring, self.expression)  # , ";".join(conversions))
         if self.verbose:
             print("generated code")
             print(code)
-        scope = dict()#cupy=cupy)
+        scope = dict()  # cupy=cupy)
         exec(code, scope)
         func = scope['f']
+
         def wrapper(*args):
             args = [vaex.array_types.to_numpy(k) for k in args]
             args = [vaex.utils.to_native_array(arg) if isinstance(arg, np.ndarray) else arg for arg in args]
             args = [cupy.asarray(arg) if isinstance(arg, np.ndarray) else arg for arg in args]
             return cupy.asnumpy(func(*args))
+
         return wrapper
 
 
@@ -1620,6 +1703,7 @@ class FunctionToScalar(FunctionSerializablePickle):
     def _apply(self, *args, **kwargs):
         length = len(args[0])
         result = []
+
         def fix_type(v):
             # TODO: only when column is str type?
             if isinstance(v, np.str_):
@@ -1628,6 +1712,7 @@ class FunctionToScalar(FunctionSerializablePickle):
                 return v.decode('utf8')
             else:
                 return v
+
         args = [vaex.array_types.tolist(k) for k in args]
         for i in range(length):
             scalar_result = self.f(*[fix_type(k[i]) for k in args], **{key: value[i] for key, value in kwargs.items()})
@@ -1642,14 +1727,16 @@ class Function(object):
         self.dataset = dataset
         self.name = name
 
-        if not vaex.serialize.can_serialize(f): # if not serializable, assume we can use pickle
+        if not vaex.serialize.can_serialize(f):  # if not serializable, assume we can use pickle
             f = FunctionSerializablePickle(f)
         self.f = f
 
     def __call__(self, *args, **kwargs):
-        arg_string = ", ".join([str(k) for k in args] + ['{}={:r}'.format(name, value) for name, value in kwargs.items()])
+        arg_string = ", ".join(
+            [str(k) for k in args] + ['{}={:r}'.format(name, value) for name, value in kwargs.items()])
         expression = "{}({})".format(self.name, arg_string)
         return Expression(self.dataset, expression)
+
 
 class FunctionBuiltin(object):
 
@@ -1660,6 +1747,7 @@ class FunctionBuiltin(object):
 
     def __call__(self, *args, **kwargs):
         kwargs = dict(kwargs, **self.kwargs)
-        arg_string = ", ".join([str(k) for k in args] + ['{}={:r}'.format(name, value) for name, value in kwargs.items()])
+        arg_string = ", ".join(
+            [str(k) for k in args] + ['{}={:r}'.format(name, value) for name, value in kwargs.items()])
         expression = "{}({})".format(self.name, arg_string)
         return Expression(self.dataset, expression)

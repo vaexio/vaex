@@ -127,6 +127,9 @@ def validate_expression(expr, variable_set, function_set=[], names=None):
         validate_expression(expr.value, variable_set, function_set, names)
     elif isinstance(expr, ast_Constant):
         pass  # like True and False
+    elif isinstance(expr, _ast.Tuple):
+        for el in expr.elts:
+            validate_expression(el, variable_set, function_set, names)
     elif isinstance(expr, _ast.List):
         for el in expr.elts:
             validate_expression(el, variable_set, function_set, names)
@@ -380,6 +383,9 @@ class ExpressionString(ast.NodeVisitor):
 
     def visit_List(self, node):
         return "[{}]".format(", ".join([self.visit(k) for k in node.elts]))
+
+    def visit_Tuple(self, node):
+        return "({})".format(" ".join([self.visit(k) + "," for k in node.elts]))
 
     def pow(self, left, right):
         return "({left} ** {right})".format(left=left, right=right)

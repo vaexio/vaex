@@ -332,6 +332,16 @@ class DataFrame(object):
     def is_string(self, expression):
         return vaex.array_types.is_string_type(self.data_type(expression))
 
+    def is_image(self, expression):
+        try:
+            import PIL
+        except ModuleNotFoundError:
+            raise RuntimeError("Please install pillow for image support")
+        if self.data_type(expression) != object:
+            return False
+        value = self.dropna(column_names=[expression]).head(1)[expression].values[0]
+        return hasattr(value, '_repr_png_')
+
     def is_category(self, column):
         """Returns true if column is a category."""
         column = _ensure_string_from_expression(column)
@@ -3988,7 +3998,7 @@ class DataFrame(object):
                     if columns_sliced is not None and j >= columns_sliced:
                         column_index += 1  # skip over the slice/ellipsis
                     value = values[name][i]
-                    value = _format_value(value)
+                    value = _format_value(value, value_format=format)
                     values_list[column_index+1][1].append(value)
                 # parts += ["</tr>"]
             # return values_list
@@ -4011,7 +4021,10 @@ class DataFrame(object):
         values_list = dict(values_list)
         # print(values_list)
         import tabulate
-        table_text = str(tabulate.tabulate(values_list, headers="keys", tablefmt=format))
+        tablefmt = format
+        if tablefmt == "html":
+            tablefmt = "unsafehtml"
+        table_text = str(tabulate.tabulate(values_list, headers="keys", tablefmt=tablefmt))
         # Tabulate 0.8.7+ escapes html :()
         table_text = table_text.replace('&lt;i style=&#x27;opacity: 0.6&#x27;&gt;', "<i style='opacity: 0.6'>")
         table_text = table_text.replace('&lt;/i&gt;', "</i>")
@@ -4052,7 +4065,7 @@ class DataFrame(object):
                 parts += ["<td><i style='opacity: 0.6'>{:,}</i></td>".format(i + k1)]
                 for name in column_names:
                     value = data_parts[name][i]
-                    value = _format_value(value)
+                    value = _format_value(value, value_format=format)
                     parts += ["<td>%r</td>" % value]
                 parts += ["</tr>"]
             return parts
@@ -4084,7 +4097,7 @@ class DataFrame(object):
     def _repr_mimebundle_(self, include=None, exclude=None, **kwargs):
         # TODO: optimize, since we use the same data in both versions
         # TODO: include latex version
-        return {'text/html':self._head_and_tail_table(format='html'), 'text/plain': self._head_and_tail_table(format='plain')}
+        return {'html': self._head_and_tail_table(format='html'), 'text/plain': self._head_and_tail_table(format='plain')}
 
     def _repr_html_(self):
         """Representation for Jupyter."""

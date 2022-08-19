@@ -11,7 +11,8 @@ scopes = {
     'str_pandas': vaex.expression.StringOperationsPandas,
     'dt': vaex.expression.DateTime,
     'td': vaex.expression.TimeDelta,
-    'struct': vaex.expression.StructOperations
+    'struct': vaex.expression.StructOperations,
+    'vision': vaex.expression.Image
 }
 
 
