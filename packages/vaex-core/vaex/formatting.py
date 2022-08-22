@@ -20,16 +20,20 @@ def _trim_string(value):
 
 
 def _format_value(value, value_format='plain'):
-    if value_format == "html" and hasattr(value, '_repr_png_'):
-        data = value._repr_png_()
-        base64_data = b64encode(data)
-        data_encoded = base64_data.decode('ascii')
-        url_data = f"data:image/png;base64,{data_encoded}"
-        plain = f'<img src="{url_data}" width="{IMAGE_WIDTH}" height="{IMAGE_HEIGHT}"></img>'
-        return plain
+    if value_format == "html":
+        if hasattr(value, '_repr_png_'):
+            data = value._repr_png_()
+            base64_data = b64encode(data)
+            data_encoded = base64_data.decode('ascii')
+            url_data = f"data:image/png;base64,{data_encoded}"
+            plain = f'<img src="{url_data}" width="{IMAGE_WIDTH}" height="{IMAGE_HEIGHT}"></img>'
+            return plain
+        elif hasattr(value, 'shape') and len(value.shape) > 1:
+            return _trim_string(str(value).replace('\n', '<br>'))
+
 
     # print("value = ", value, type(value), isinstance(value, numbers.Number))
-    elif isinstance(value, pa.lib.Scalar):
+    if isinstance(value, pa.lib.Scalar):
         if datatype.DataType(value.type).is_struct:
             value = struct.format_struct_item_vaex_style(value)
         else:
@@ -68,6 +72,7 @@ def _format_value(value, value_format='plain'):
         return value
     elif isinstance(value, numbers.Number):
         value = str(value)
+
     else:
         value = repr(value)
         value = _trim_string(value)
