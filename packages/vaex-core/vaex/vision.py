@@ -58,7 +58,7 @@ def _infer(item):
         decode = bytes_2_pil
     elif isinstance(item, str):
         if os.path.isfile(item):
-            decode = PIL.Image.open()
+            decode = PIL.Image.open
         else:
             decode = base64_2_pil
     return _safe_apply(decode, item)
@@ -70,10 +70,13 @@ def infer(images):
 
 
 @vaex.register_function(scope='vision')
-def open(path, suffix=None):
+def open(path, suffix=None, lazy=False):
     files = get_paths(path=path, suffix=suffix)
-    df = vaex.from_arrays(path=files)
-    df['image'] = df['path'].vision.from_path()
+    if lazy:
+        df = vaex.from_arrays(path=files)
+        df['image'] = df['path'].vision.from_path()
+    else:
+        df = vaex.from_arrays(path=files, image=from_path(files))
     return df
 
 
@@ -85,8 +88,8 @@ def resize(images, size, resample=3):
 
 @vaex.register_function(scope='vision')
 def to_numpy(images):
-    images = [np.array(image.convert('RGB')).astype(object) for image in images]
-    return np.array(images, dtype="O")
+    images = [pil_2_numpy(image) for image in images]
+    return np.array(images, dtype="O").reshape(-1)
 
 
 @vaex.register_function(scope='vision')
@@ -134,7 +137,13 @@ def rgba_2_pil(rgba):
 
 
 def numpy_2_pil(array):
-    return Image.fromarray(array)
+    return Image.fromarray(np.uint8(array))
+
+
+def pil_2_numpy(im):
+    if im:
+        return np.array(im).astype(object)
+    return None
 
 
 def pil_2_bytes(im, format="png"):
