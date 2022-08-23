@@ -4481,9 +4481,12 @@ class DataFrame(object):
         :rtype: DataFrame
         '''
         df = self.trim()
-        if df.filtered:
-            df._push_down_filter()
-            df._invalidate_caches()
+        with self._state_lock:
+            # df.filtered gets changed in push_down_filter so use a lock
+            # to make it thread safe
+            if df.filtered:
+                df._push_down_filter()
+                df._invalidate_caches()
         return df
 
     def _push_down_filter(self):

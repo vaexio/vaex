@@ -1,3 +1,6 @@
+from concurrent.futures import ThreadPoolExecutor
+from threading import Barrier
+import time
 from common import *
 
 def test_extract(ds_local, ds_trimmed):
@@ -16,3 +19,17 @@ def test_extract(ds_local, ds_trimmed):
     assert ds_extracted2.length_original() == 5
     assert ds_extracted2.length_unfiltered() == 5
     assert ds_extracted2.filtered is False
+
+
+
+def test_thread_safe():
+    df = vaex.from_arrays(x=np.arange(int(1e5)))
+    dff = df[df.x < 100]
+
+    barrier = Barrier(100)
+    def run(_ignore):
+        barrier.wait()
+        # now we all do the extract at the same time
+        dff.extract()
+    pool = ThreadPoolExecutor(max_workers=100)
+    _values = list(pool.map(run, range(100)))
