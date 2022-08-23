@@ -1,6 +1,11 @@
+from concurrent.futures import ThreadPoolExecutor
+from random import random
+import uuid
 import vaex
 import numpy as np
 import pyarrow as pa
+import dask.base
+import time
 
 
 def test_dataframe(df_factory):
@@ -162,3 +167,25 @@ def test_set():
     df4 = vaex.from_arrays(x=x)
     df4['y'] = df.x+1
     assert df._set('x').fingerprint == df4._set('x').fingerprint
+
+
+class SlowNormalize:
+    def __init__(self, value):
+        self.value = value
+
+@dask.base.normalize_token.register(SlowNormalize)
+def _normalize(value):
+    time.sleep(0.001)
+    return value.value
+
+def test_patch_dask():
+    import vaex.cache
+    def run(_ignore):
+        if random() < 0.5:
+            # the slow normalize makes it less more likely to hit the
+            # "You have passed in an object for which we cannot determine a fingerprint" error
+            return vaex.cache.fingerprint({"test": "test", "slow": SlowNormalize(1)})
+        else:
+            return uuid.uuid4()
+    pool = ThreadPoolExecutor()
+    _values = list(pool.map(run, range(1000)))

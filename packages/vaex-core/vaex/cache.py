@@ -387,6 +387,8 @@ def _explain(*args):
 def fingerprint(*args, **kwargs):
     try:
         original = uuid.uuid4
+        if isinstance(original, _ThreadLocalCallablePatch):
+            original = original.original
         uuid.uuid4 = _ThreadLocalCallablePatch(original, _explain)
         try:
             return dask.base.tokenize(*args, **kwargs)
