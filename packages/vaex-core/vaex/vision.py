@@ -4,9 +4,7 @@ import glob
 import os
 import pathlib
 import functools
-import collections
 import numpy as np
-import matplotlib.colors
 import warnings
 import io
 import vaex
@@ -15,7 +13,6 @@ import vaex.utils
 try:
     import PIL
     import base64
-
 except:
     PIL = vaex.utils.optional_import("PIL.Image", modules="pillow")
 
@@ -80,6 +77,12 @@ def open(path, suffix=None):
     df = vaex.from_arrays(path=files)
     df['image'] = df['path'].vision.infer()
     return df
+
+
+@vaex.register_function(scope='vision')
+def filename(images):
+    images = [image.filename if hasattr(image, 'filename') else None for image in images]
+    return np.array(images, dtype="O")
 
 
 @vaex.register_function(scope='vision')
