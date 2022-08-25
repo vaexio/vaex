@@ -12,7 +12,7 @@
       * value_counts for strings was sometimes off [#2147](https://github.com/vaexio/vaex/pull/2147)
       * better arrow support for interchanging categorical columns  [#2135](https://github.com/vaexio/vaex/pull/2135)
 
-## vaex-viz 0.5.2
+## vaex-viz 0.5.3
   * Fixes
       * Improve selection behaviour for histogram and update docstrings [#2143](https://github.com/vaexio/vaex/pull/2143)
 
