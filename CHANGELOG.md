@@ -1,3 +1,21 @@
+# vaex 4.12.0
+
+## vaex-core 4.12.0
+
+   * Features
+      * get_column_names accepts a dtypes argument [#2160](https://github.com/vaexio/vaex/pull/2160)
+   * Fixes
+      * df.extract() was not thread safe [#2182](https://github.com/vaexio/vaex/pull/2182)
+      * uuid4 function was not always restored properly [#2181](https://github.com/vaexio/vaex/pull/2181)
+      * groupby could overflow due to wrong downcasting [#2137](https://github.com/vaexio/vaex/pull/2137)
+      * support unique with selection=True [#2164](https://github.com/vaexio/vaex/pull/2164)
+      * value_counts for strings was sometimes off [#2147](https://github.com/vaexio/vaex/pull/2147)
+      * better arrow support for interchanging categorical columns  [#2135](https://github.com/vaexio/vaex/pull/2135)
+
+## vaex-viz 0.5.2
+  * Fixes
+      * Improve selection behaviour for histogram and update docstrings [#2143](https://github.com/vaexio/vaex/pull/2143)
+
 # vaex 4.11.1
 
 ## vaex-core 4.11.1
