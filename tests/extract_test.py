@@ -42,7 +42,7 @@ def test_extract_pre_filtered_and_not_pre_filtered(ds_local) -> None:
         def add(a, b):
             return a + b
 
-        df = vaex.example()#ds_local.copy()
+        df = ds_local.copy()
         print("orig is filtered", df.filtered)
         df2 = df[df.y >= 41]
         print("new is filtered", df2.filtered)
