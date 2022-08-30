@@ -71,6 +71,15 @@ def test_astype_numeric_fails(nullable_ints, dtype):
         nullable_ints.x.astype(dtype).tolist()
 
 
+def test_astype_uint_string(df_factory_arrow, df_factory_arrow_chunked, df_factory_numpy):
+    # The string "uint" works for numpy but not arrow
+    x = [1, 2, None]
+    df_factory_numpy(x=x).x.astype("uint").tolist()
+    with pytest.raises(ValueError):
+        df_factory_arrow(x=x).x.astype("uint").tolist()
+    with pytest.raises(ValueError):
+        df_factory_arrow_chunked(x=x).x.astype("uint").tolist()
+
 
 def test_astype_dtype():
     df = vaex.from_arrays(x=[0, 1])
