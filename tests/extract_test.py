@@ -1,3 +1,4 @@
+import threading
 from concurrent.futures import ThreadPoolExecutor
 from threading import Barrier
 import time
@@ -33,3 +34,25 @@ def test_thread_safe():
         dff.extract()
     pool = ThreadPoolExecutor(max_workers=100)
     _values = list(pool.map(run, range(100)))
+
+
+def test_extract_pre_filtered_and_not_pre_filtered(ds_local) -> None:
+    with vaex.cache.off():
+        @vaex.delayed
+        def add(a, b):
+            return a + b
+
+        df = vaex.example()#ds_local.copy()
+        print("orig is filtered", df.filtered)
+        df2 = df[df.y >= 41]
+        print("new is filtered", df2.filtered)
+        total_promise = add(
+            df.sum(df.x, delay=True),
+            df2.sum(df2.y + 45, delay=True)
+        )
+        print("promise is fulfilled", total_promise.isFulfilled)
+        print("task 0 is pre_filtered", df.executor.tasks[0].pre_filter)
+        print("task 1 is pre_filtered", df.executor.tasks[1].pre_filter)
+        df = df.extract()  # has 1 pre_filter task and 1 non_pre_filter task
+        df.execute()
+        print(total_promise.get())
