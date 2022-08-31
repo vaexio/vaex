@@ -373,6 +373,27 @@ async def test_auto_execute():
 
 
 
+
+def test_mixed_pre_filtered() -> None:
+    df = vaex.from_arrays(x=np.arange(10))
+    df['y'] = df.x**2
+    with vaex.cache.off():
+        @vaex.delayed
+        def add(a, b):
+            return a + b
+
+        df2 = df[df.x > 2]
+        p1 = df2.sum(df.x, delay=True)
+        p2 = df2.nop(df.y, delay=True)
+        passes = df.executor.passes
+        tasks = df.executor.tasks.copy()
+        assert len(df.executor.tasks) == 2
+        df.execute()
+        assert df.executor.passes == passes + 1
+        # make sure we don't leave exceptions
+        p1.get()
+        p2.get()
+
 # def test_add_and_cancel_tasks(df_executor):
 #     df = df_executor
 
