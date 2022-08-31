@@ -56,6 +56,9 @@ from .groupby import *
 from . import agg
 import vaex.datasets
 
+# Re-export these so users can type hint with eg vaex.DataFrame
+from vaex.dataframe import DataFrame as DataFrame
+from vaex.expression import Expression as Expression
 
 
 
