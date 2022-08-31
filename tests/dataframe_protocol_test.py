@@ -406,7 +406,7 @@ def test_interchange_pandas_string_column():
     try:
         from pandas.api.interchange import from_dataframe
     except ImportError:
-        pytest.skip(f"pandas.api.interchange not found ({pd.__version__=})")
+        pytest.skip(f"pandas.api.interchange not found ({pd.__version__})")
     pd_df = pd.DataFrame({"x": pd.Series(data, dtype=pd.StringDtype())})
     pd_interchange_df = pd_df.__dataframe__()
     vaex_df = _from_dataframe_to_vaex(pd_interchange_df)
