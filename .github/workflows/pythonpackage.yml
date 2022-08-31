@@ -242,16 +242,19 @@ jobs:
         vaex settings md
 
     - name: Test server
+      if: matrix.os != 'windows-latest'
       run: |
         vaex server --add-example --port 9999&
 
     - name: Wait for Vaex server
+      if: matrix.os != 'windows-latest'
       uses: ifaxity/wait-on-action@v1
       with:
         resource: http-get://localhost:9999/hello
         timeout: 5000
 
     - name: Use the Vaex server
+      if: matrix.os != 'windows-latest'
       run: |
         python -c "import vaex; df = vaex.open('ws://localhost:9999/example'); df.x.sum()"
         curl -i http://localhost:9999/histogram/example/x
