@@ -376,7 +376,7 @@ def from_arrow_table(table) -> vaex.dataframe.DataFrame:
 
 
 def from_arrow_dataset(arrow_dataset) -> vaex.dataframe.DataFrame:
-    '''Create a DataFrame from an Apache Arrow dataset'''
+    '''Create a DataFrame from an Apache Arrow dataset.'''
     import vaex.arrow.dataset
     return from_dataset(vaex.arrow.dataset.DatasetArrow(arrow_dataset))
 
