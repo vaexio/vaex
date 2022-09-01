@@ -723,3 +723,27 @@ def test_agg_arrow():
     assert dfg.s.tolist() == ['aap', 'aap', 'kees', 'mies', 'mies', 'noot', None]
     assert dfg.x.tolist() == [0, 2, 1, 0, 1, 0, 0]
     assert set(dfg.l.tolist()[0]) == {1}
+
+
+def test_agg_nunique_selections(df_factory):
+    x_int = [1, 2, 3, 4, 5]
+    x_str = ['1', '2', '3', '4', '5']
+    x_float = [1.0, 2.0, 3.0, 4.0, 5.0]
+    cond = [True, True, False, False, False]
+    constant_index = [1, 1, 1, 1, 1]
+
+    df = df_factory(x_int=x_int, x_str=x_str, x_float=x_float, cond=cond, constant_index=constant_index)
+
+    dfg = df.groupby('constant_index').agg({
+        'result_int': vaex.agg.nunique('x_int', selection='cond==True'),
+        'result_str': vaex.agg.nunique('x_str', selection='cond==True'),
+        'result_float': vaex.agg.nunique('x_float', selection='cond==True')
+    })
+
+    assert dfg.result_int.tolist() == [2]
+    assert dfg.result_str.tolist() == [2]
+    assert dfg.result_float.tolist() == [2]
+
+    assert dfg.result_int.tolist()[0] == df.x_int.nunique(selection='cond==True')
+    assert dfg.result_str.tolist()[0] == df.x_str.nunique(selection='cond==True')
+    assert dfg.result_float.tolist()[0] == df.x_float.nunique(selection='cond==True')
