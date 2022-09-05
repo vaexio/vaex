@@ -333,7 +333,7 @@ class _VaexColumn:
         Is a method rather than a property because it may cause a (potentially
         expensive) computation for some dataframe implementations.
         """
-        return int(self._col.df.count("*"))
+        return int(len(self._col.df))
 
     @property
     def offset(self) -> int:
