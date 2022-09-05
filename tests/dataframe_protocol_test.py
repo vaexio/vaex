@@ -458,5 +458,5 @@ def test_interchange_categorical_column(df_factory, labels):
     interchange_col = interchange_df.get_column_by_name('x')
     roundtrip_df = _from_dataframe_to_vaex(interchange_df)
     data_as_labels = [labels[i] for i in data]
-    assert roundtrip_df["x"].values.tolist() in [data_as_labels]
+    assert roundtrip_df["x"].values.tolist() == data_as_labels
     assert roundtrip_df.category_labels("x") == labels
