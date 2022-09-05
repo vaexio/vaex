@@ -542,7 +542,7 @@ class _VaexColumn:
         See `DataFrame.get_chunks` for details on ``n_chunks``.
         """
         if n_chunks == None:
-            size = self.size
+            size = self.size()
             n_chunks = self.num_chunks()
             i = self._col.df.evaluate_iterator(self._col, chunk_size=size // n_chunks)
             iterator = []
@@ -550,7 +550,7 @@ class _VaexColumn:
                 iterator.append(_VaexColumn(self._col[i1:i2]))
             return iterator
         elif self.num_chunks == 1:
-            size = self.size
+            size = self.size()
             i = self._col.df.evaluate_iterator(self._col, chunk_size=size // n_chunks)
             iterator = []
             for i1, i2, chunk in i:

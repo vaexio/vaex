@@ -460,3 +460,15 @@ def test_interchange_categorical_column(df_factory, labels):
     data_as_labels = [labels[i] for i in data]
     assert roundtrip_df["x"].values.tolist() == data_as_labels
     assert roundtrip_df.category_labels("x") == labels
+
+
+@pytest.mark.parametrize("n_chunks", [None, 1])
+def test_smoke_get_chunks(df_factory, n_chunks):
+    if n_chunks is not None:
+        pytest.xfail("get_chunks(n_chunks=...) doesn't work on already chunked columns")
+    df = df_factory(x=[0])
+    interchange_df = df.__dataframe__()
+    interchange_col = interchange_df.get_column_by_name('x')
+    if isinstance(df["x"].values, pa.lib.ChunkedArray):
+        pytest.skip("get_chunks() is slow/halts with chunked arrow arrays")
+    interchange_col.get_chunks(n_chunks=n_chunks)
