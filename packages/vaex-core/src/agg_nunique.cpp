@@ -67,7 +67,7 @@ class AggNUniquePrimitive : public AggregatorPrimitive<DataType, counter<DataTyp
         }
         for (size_t j = 0; j < length; j++) {
             bool masked = false;
-            if (selection_mask_ptr && data_mask_ptr[j + offset] == 0)
+            if (selection_mask_ptr && selection_mask_ptr[j + offset] == 0)
                 continue; // if value is not in selection/filter, don't even consider it
             if (data_mask_ptr && data_mask_ptr[j + offset] == 0)
                 masked = true;
@@ -230,7 +230,9 @@ void add_agg_nunique_primitive(py::module &m, const py::class_<Aggregator> &base
     class_name += type_name<T>::value;
     class_name += FlipEndian ? "_non_native" : "";
     using Class = AggNUniquePrimitive<T, default_index_type, FlipEndian>;
-    py::class_<Class>(m, class_name.c_str(), base).def(py::init<Grid<> *, int, int, bool, bool>(), py::keep_alive<1, 2>());
+    py::class_<Class>(m, class_name.c_str(), base).def(py::init<Grid<> *, int, int, bool, bool>(), py::keep_alive<1, 2>())
+    .def("set_selection_mask", &Class::set_selection_mask)
+    .def("clear_selection_mask", &Class::clear_selection_mask);
 }
 
 #define create(type)                                                                                                                                                                                   \
