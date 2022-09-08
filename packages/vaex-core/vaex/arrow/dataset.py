@@ -250,6 +250,39 @@ class DatasetParquet(DatasetArrowBase):
         return state
 
 
+
+class DatasetArrow(DatasetArrowBase):
+    snake_name = "arrow-dataset"
+    def __init__(self, ds, max_rows_read=1024**2*10):
+        self._arrow_ds = ds
+        super().__init__(max_rows_read=max_rows_read)
+
+    @property
+    def _fingerprint(self):
+        return self._id
+
+    def hashed(self):
+        raise NotImplementedError
+
+    def _create_columns(self):
+        super()._create_columns()
+        # self._ids = frozendict({name: vaex.cache.fingerprint(self._fingerprint, name) for name in self._columns})
+        self._ids = frozendict()
+
+    def _create_dataset(self):
+        self._partitions = defaultdict(list) # path -> list (which will be an arrow array later on)
+        self._partition_keys = defaultdict(dict)  # path -> key -> int/index
+
+        for fragment in self._arrow_ds.get_fragments():
+            keys = pa.dataset._get_partition_keys(fragment.partition_expression)
+            for name, value in keys.items():
+                if value not in self._partitions[name]:
+                    self._partitions[name].append(value)
+                self._partition_keys[fragment.path][name] = self._partitions[name].index(value)
+        self._partitions = {name: pa.array(values) for name, values in self._partitions.items()}
+
+
+
 class DatasetArrowFileBase(vaex.dataset.Dataset):
     def __init__(self, path, fs_options, fs=None):
         super().__init__()

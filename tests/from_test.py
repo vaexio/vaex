@@ -1,4 +1,9 @@
+import pytest
 import vaex
+from pathlib import Path
+
+HERE = Path(__file__).parent
+
 
 def test_from_records():
     df = vaex.from_records([
@@ -26,3 +31,12 @@ def test_from_records():
     ], array_type="numpy")
     assert df.a.tolist() == [[1, 1], [11, 12], [13, 14]]
     assert df.a.shape == (3, 2)
+
+
+def test_from_arrow_dataset():
+    import pyarrow.dataset
+    path = HERE / 'data' / 'sample_arrow_dict.parquet'
+    ds = pyarrow.dataset.dataset(path)
+    df = vaex.from_arrow_dataset(ds)
+    assert df.col1.sum() == 45
+    assert df.fingerprint() == df.fingerprint()
