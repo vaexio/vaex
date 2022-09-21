@@ -113,6 +113,12 @@ class DatasetCsvLazy(DatasetFile):
     snake_name = "arrow-csv-lazy"
     def __init__(self, path, chunk_size=10*MB, newline_readahead=1*MB, row_count=None, read_options=None, parse_options=None, convert_options=None, fs=None, fs_options={}):
         super().__init__(path, fs=fs, fs_options=fs_options)
+        try:
+            codec = pa.Codec.detect(self.path)
+        except Exception:
+            codec = None
+        if codec:
+            raise NotImplementedError("We don't support compressed csv files for lazy reading, cannot read file: %s" % self.path)
         self._given_row_count = row_count
         self._row_count = None
         self.chunk_size = parse_bytes(chunk_size)
@@ -338,6 +344,12 @@ class DatasetCsv(DatasetFile):
         import pyarrow.csv
 
         with vaex.file.open(self.path, fs=self.fs, fs_options=self.fs_options, for_arrow=True) as f:
+            try:
+                codec = pa.Codec.detect(self.path)
+            except Exception:
+                codec = None
+            if codec:
+                f = pa.CompressedInputStream(f, codec.name)
             self._arrow_table = pyarrow.csv.read_csv(f, read_options=self.read_options, parse_options=self.parse_options, convert_options=self.convert_options)
         self._columns = dict(zip(self._arrow_table.schema.names, self._arrow_table.columns))
         self._set_row_count()

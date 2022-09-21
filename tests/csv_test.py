@@ -124,3 +124,17 @@ def test_chunk_iterator(l1, l2):
     ds_dropped = ds.dropped('x')
     assert 'x' not in ds_dropped
 
+
+def test_gz():
+    import vaex
+
+    df = vaex.from_csv_arrow(HERE / "data" / "small2.csv.gz")
+    assert df.x.tolist() == [1, 3]
+
+    df = vaex.from_csv(HERE / "data" / "small2.csv.gz")
+    assert df.x.tolist() == [1, 3]
+
+
+    with pytest.raises(NotImplementedError):
+        df = vaex.from_csv_arrow(HERE / "data" / "small2.csv.gz", lazy=True)
+        assert df.x.tolist() == [1, 3]
