@@ -747,7 +747,7 @@ def heatmap(self, x=None, y=None, z=None, what="count(*)", vwhat=None, reduce=["
                     ax = plt.subplot(gs[0, j])
                     colorbar = fig.colorbar(sm, cax=ax, orientation="horizontal")
                 else:
-                    colorbar = fig.colorbar(sm)
+                    colorbar = fig.colorbar(sm, ax=plt.gca())
                 if "what" in labels:
                     label = labels["what"][j]
                     if facets > 1:
@@ -763,7 +763,7 @@ def heatmap(self, x=None, y=None, z=None, what="count(*)", vwhat=None, reduce=["
                     ax = plt.subplot(gs[i, -1])
                     colorbar = fig.colorbar(sm, cax=ax)
                 else:
-                    colorbar = fig.colorbar(sm)
+                    colorbar = fig.colorbar(sm, ax=plt.gca())
                 label = labels["what"][i]
                 colorbar.ax.set_ylabel(colorbar_label or label)
 
@@ -802,7 +802,7 @@ def heatmap(self, x=None, y=None, z=None, what="count(*)", vwhat=None, reduce=["
                     ax = plt.subplot(gs[row, column])
                     colorbar = fig.colorbar(sm, ax=ax)
                 else:
-                    colorbar = fig.colorbar(sm)
+                    colorbar = fig.colorbar(sm, ax=plt.gca())
                 label = labels["what"][what_index]
                 colorbar.ax.set_ylabel(colorbar_label or label)
 
