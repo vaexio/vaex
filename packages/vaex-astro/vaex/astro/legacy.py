@@ -24,7 +24,7 @@ def add_virtual_columns_eq2ecl(self, long_in="ra", lat_in="dec", long_out="lambd
 def add_virtual_columns_eq2gal(self, long_in="ra", lat_in="dec", long_out="l", lat_out="b", name_prefix="__celestial_eq2gal", radians=False):
     kwargs = dict(**locals())
     kwargs.pop('self')
-    return self.astro.eq2ecl(inplace=True, **kwargs)
+    return self.astro.eq2gal(inplace=True, **kwargs)
 
 
 @patch
