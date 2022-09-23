@@ -10,7 +10,7 @@ from_dataframe : construct a vaex.dataframe.DataFrame from an input data frame w
 For a background and spec, see:
    * https://data-apis.org/blog/dataframe_protocol_rfc/
    * https://data-apis.org/dataframe-protocol/latest/index.html
-                 
+
 Notes
 -----
 - Interpreting a raw pointer (as in ``Buffer.ptr``) is annoying and unsafe to
@@ -700,6 +700,9 @@ class _VaexDataFrame:
         # dtypes is added, this value should be propagated to columns.
         self._nan_as_null = nan_as_null
         self._allow_copy = allow_copy
+
+    def __dataframe__(self, nan_as_null : bool = False, allow_copy : bool = True) -> "_VaexDataFrame":
+        return _VaexDataFrame(self._df, nan_as_null=nan_as_null, allow_copy=allow_copy)
 
     @property
     def metadata(self) -> Dict[str, Any]:

@@ -294,6 +294,8 @@ def test_VaexDataFrame():
     assert df2.select_columns((0, 2))._df[:, 0].tolist() == df2.select_columns_by_name(("x", "z"))._df[:, 0].tolist()
     assert df2.select_columns((0, 2))._df[:, 1].tolist() == df2.select_columns_by_name(("x", "z"))._df[:, 1].tolist()
 
+    assert_dataframe_equal(df2.__dataframe__(), df)
+
 
 def test_chunks(df_factory):
     x = np.arange(10)
