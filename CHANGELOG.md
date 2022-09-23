@@ -1,3 +1,37 @@
+# vaex 4.13.0
+
+## vaex-core 4.13.0
+
+   * Features
+      * Out of core (lazy) and normal CSV support using Apache Arrow CSV reader  [#1028](https://github.com/vaexio/vaex/pull/1028)
+      * Support compressed csv reading for pandas and arrow  [#1028](https://github.com/vaexio/vaex/pull/1028)
+      * Expose vaex.DataFrame and vaex.Expression for typing [#2186](https://github.com/vaexio/vaex/pull/2186)
+
+   * Fixes
+      * Negative indexing of a filtered dataframe [#2163](https://github.com/vaexio/vaex/pull/2163)
+      * nunique aggregator for numeric with selection gave wrong results [#2199](https://github.com/vaexio/vaex/pull/2199)
+      * vaex.from_arrow_dataset had no working implementation [#2195](https://github.com/vaexio/vaex/pull/2195)
+
+
+## vaex-hdf5 0.13.0
+
+   Requires vaex-core 4.13.0 for refactor of dataset
+
+
+## vaex-viz 0.5.4
+
+   * Fixes
+      *  correctly place the colorbar for matplotlib 3.6.0 [#2215](https://github.com/vaexio/vaex/pull/2215)
+
+
+## vaex-astro 0.9.2
+
+   * Fixes
+      * Typo in eq2gal [#2206](https://github.com/vaexio/vaex/pull/2206)
+
+
+
+
 # vaex 4.12.0
 
 ## vaex-core 4.12.0
