@@ -1,3 +1,4 @@
+import threading
 from concurrent.futures import ThreadPoolExecutor
 from threading import Barrier
 import time
@@ -33,3 +34,4 @@ def test_thread_safe():
         dff.extract()
     pool = ThreadPoolExecutor(max_workers=100)
     _values = list(pool.map(run, range(100)))
+
