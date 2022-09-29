@@ -56,6 +56,19 @@ def test_export_many(df_local, tmpdir):
     assert df_copy.x.tolist() == df.x.tolist()
 
 
+@pytest.mark.parametrize("backend", ["arrow", "pandas"])
+def test_export_many_csv(df_local, tmpdir, backend):
+    df = df_local
+    df = df.drop('datetime')
+    if 'timedelta' in df:
+        df = df.drop('timedelta')
+    if 'obj' in df:
+        df = df.drop(['obj'])
+    df.export_many(tmpdir / 'chunk_{i:05}.csv', chunk_size=3, backend=backend)
+    df_copy = vaex.open(str(tmpdir / 'chunk_*.csv'))
+    assert df_copy.x.tolist() == df.x.tolist()
+
+
 def test_export_basic(ds_local, tmpdir):
     ds = ds_local
     # TODO: we eventually want to support dtype=object, but not for hdf5
