@@ -6705,7 +6705,7 @@ class DataFrameLocal(DataFrame):
         return vaex.join.join(**kwargs)
 
     @docsubst
-    def export(self, path, progress=None, chunk_size=default_chunk_size, parallel=True, fs_options=None, fs=None):
+    def export(self, path, progress=None, chunk_size=default_chunk_size, parallel=True, fs_options=None, fs=None, **kwargs):
         """Exports the DataFrame to a file depending on the file extension.
 
         E.g if the filename ends on .hdf5, `df.export_hdf5` is called.
@@ -6730,11 +6730,11 @@ class DataFrameLocal(DataFrame):
         elif naked_path.endswith('.parquet'):
             self.export_parquet(path, progress=progress, parallel=parallel, chunk_size=chunk_size, fs_options=fs_options, fs=fs)
         elif naked_path.endswith('.csv'):
-            self.export_csv(path, progress=progress, parallel=parallel, chunk_size=chunk_size)
+            self.export_csv(path, progress=progress, parallel=parallel, chunk_size=chunk_size, **kwargs)
         elif naked_path.endswith('.json'):
             self.export_json(path, progress=progress, chunk_size=chunk_size, parallel=parallel, fs_options=fs_options, fs=fs)
         else:
-            raise ValueError('''Unrecognized file extension. Please use .arrow, .hdf5, .parquet, .fits, or .csv to export to the particular file format.''')
+            raise ValueError('''Unrecognized file extension. Please use .arrow, .hdf5, .parquet, .feather, .fits, or .csv to export to the particular file format.''')
 
     @docsubst
     def export_arrow(self, to, progress=None, chunk_size=default_chunk_size, parallel=True, reduce_large=True, fs_options=None, fs=None, as_stream=True):
@@ -6868,7 +6868,7 @@ class DataFrameLocal(DataFrame):
         progressbar(1)
 
     @docsubst
-    def export_many(self, path, progress=None, chunk_size=default_chunk_size, parallel=True, max_workers=None, fs_options=None, fs=None):
+    def export_many(self, path, progress=None, chunk_size=default_chunk_size, parallel=True, max_workers=None, fs_options=None, fs=None, **export_kwargs):
         """Export the DataFrame to multiple files of the same type in parallel.
 
         The path will be formatted using the i parameter (which is the chunk index).
@@ -6901,13 +6901,12 @@ class DataFrameLocal(DataFrame):
         if path1 == path2:
             name, ext = os.path.splitext(path)
             path = f'{name}-{{i:05}}{ext}'
-        input = self.to_dict(chunk_size=chunk_size, parallel=True)
-        column_names = self.get_column_names()
+        input = self.to_dict(chunk_size=chunk_size, parallel=parallel)
         def write(i, item):
             i1, i2, chunks = item
             p = str(path).format(i=i, i1=i2, i2=i2)
             df = vaex.from_dict(chunks)
-            df.export(p, chunk_size=None, parallel=False, fs_options=fs_options, fs=fs)
+            df.export(p, chunk_size=chunk_size, parallel=parallel, fs_options=fs_options, fs=fs, **export_kwargs)
             return i2
         progressbar = vaex.utils.progressbars(progress, title="export(many)")
         progressbar(0)
