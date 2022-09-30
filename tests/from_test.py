@@ -40,3 +40,18 @@ def test_from_arrow_dataset():
     df = vaex.from_arrow_dataset(ds)
     assert df.col1.sum() == 45
     assert df.fingerprint() == df.fingerprint()
+
+
+
+def test_from_arrow_dataset(tmpdir):
+    import numpy as np
+    x = np.arange(10)
+    df = vaex.from_arrays(x=x)
+    import pyarrow.dataset
+    path1 = tmpdir / 'sample1.feather'
+    path2 = tmpdir / 'sample2.feather'
+    df[:5].export(path1)
+    df[5:].export(path2)
+    ds = pyarrow.dataset.dataset(tmpdir, format='feather')
+    df = vaex.from_arrow_dataset(ds)
+    assert df.x.sum() == 45

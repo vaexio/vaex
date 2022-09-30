@@ -32,8 +32,11 @@ class DatasetArrowBase(vaex.dataset.Dataset):
         for fragment in self._arrow_ds.get_fragments():
             if hasattr(fragment, "ensure_complete_metadata"):
                 fragment.ensure_complete_metadata()
-            for rg in fragment.row_groups:
-                row_count += rg.num_rows
+            if hasattr(fragment, "count_rows"):
+                row_count += fragment.count_rows()
+            else:
+                for rg in fragment.row_groups:
+                    row_count += rg.num_rows
         self._row_count = row_count
         self._columns = {name: vaex.dataset.ColumnProxy(self, name, type) for name, type in
                           zip(self._arrow_ds.schema.names, self._arrow_ds.schema.types)}
@@ -82,13 +85,20 @@ class DatasetArrowBase(vaex.dataset.Dataset):
         columns_partition = tuple(columns_partition)
 
         for fragment_large in self._arrow_ds.get_fragments():
-            fragment_large_rows = sum([rg.num_rows for rg in fragment_large.row_groups])
-            fragments = [fragment_large]
-            # when do we want to split up? File size? max chunk size?
-            if fragment_large_rows > self.max_rows_read:
-                fragments = fragment_large.split_by_row_group()
+            if hasattr(fragment_large, "count_rows"):
+                fragment_large_rows = fragment_large.count_rows()
+                fragments = [fragment_large]
+            else:
+                fragment_large_rows = sum([rg.num_rows for rg in fragment_large.row_groups])
+                fragments = [fragment_large]
+                # when do we want to split up? File size? max chunk size?
+                if fragment_large_rows > self.max_rows_read:
+                    fragments = fragment_large.split_by_row_group()
             for fragment in fragments:
-                rows = sum([rg.num_rows for rg in fragment.row_groups])
+                if hasattr(fragment_large, "count_rows"):
+                    rows = fragment_large.count_rows()
+                else:
+                    rows = sum([rg.num_rows for rg in fragment.row_groups])
                 chunk_start = offset
                 chunk_end = offset + rows
 
