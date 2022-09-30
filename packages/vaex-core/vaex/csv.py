@@ -102,9 +102,10 @@ def _copy_or_create(cls, obj, **kwargs):
         # take default from obj, buy kwargs have precendence
         kwargs = kwargs.copy()
         for name in dir(obj):
-            if not name.startswith('__'):
+            value = getattr(obj, name)
+            if not name.startswith('__') and not callable(value):
                 if name not in kwargs:
-                    kwargs[name] = getattr(obj, name)
+                    kwargs[name] = value
     return cls(**kwargs)
 
 

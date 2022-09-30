@@ -138,3 +138,12 @@ def test_gz():
     with pytest.raises(NotImplementedError):
         df = vaex.from_csv_arrow(HERE / "data" / "small2.csv.gz", lazy=True)
         assert df.x.tolist() == [1, 3]
+
+
+def test_convert_options():
+    import vaex
+    import pyarrow.csv
+
+    df = vaex.from_csv_arrow(HERE / "data" / "small2.csv", convert_options=pyarrow.csv.ConvertOptions(column_types={'x': pyarrow.float64()}), lazy=True)
+    assert df.x.dtype == float
+    assert df.x.tolist() == [1, 3]
