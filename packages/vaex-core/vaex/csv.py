@@ -9,7 +9,7 @@ from frozendict import frozendict
 
 import vaex.dataset
 import vaex.file
-from vaex.dataset import Dataset, DatasetFile
+from vaex.dataset import DatasetFile
 from .itertools import pmap, pwait, buffer, consume, filter_none
 from .multithreading import thread_count_default_io, get_main_io_pool
 
@@ -25,7 +25,7 @@ def file_chunks(file, chunk_size, newline_readahead):
         file_size = file.tell()
         file.seek(0)
         begin_offset = 0
-    
+
         done = False
         while not done:
             # find the next newline boundary
@@ -50,7 +50,7 @@ def file_chunks(file, chunk_size, newline_readahead):
 
 def file_chunks_mmap(file, chunk_size, newline_readahead):
     """Bytes chunks, split by chunk_size bytes, on newline boundaries
-    
+
     Using memory mapping (which avoids a memcpy)
     """
     offset = 0
@@ -67,7 +67,7 @@ def file_chunks_mmap(file, chunk_size, newline_readahead):
 
         file_map = mmap.mmap(file.fileno(), file_size, **kwargs)
         data = memoryview(file_map)
-    
+
         done = False
         while not done:
             # find the next newline boundary
@@ -218,7 +218,7 @@ class DatasetCsvLazy(DatasetFile):
 
     def _chunk_producer(self, columns, chunk_size=None, reverse=False, start=0, end=None):
         pool = get_main_io_pool()
-        
+
         first = True
         previous = None
         for i, reader in enumerate(file_chunks_mmap(self.path, self.chunk_size, self.newline_readahead)):
@@ -287,7 +287,7 @@ class DatasetCsvLazy(DatasetFile):
                         # we only need to cut off a piece of the end
                         length = end - row_start
                         table = table.slice(0, length)
-                
+
                 # table = table.combine_chunks()
                 assert len(table)
                 chunks = dict(zip(table.column_names, table.columns))

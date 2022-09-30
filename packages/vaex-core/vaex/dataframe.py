@@ -7027,7 +7027,7 @@ class DataFrameLocal(DataFrame):
         return
 
     @docsubst
-    def export_json(self, to, progress=None, chunk_size=default_chunk_size, parallel=True, fs_options=None, fs=None):
+    def export_json(self, to, progress=None, chunk_size=default_chunk_size, parallel=True, fs_options=None, fs=None, backend='pandas', lines=False):
         """ Exports the DataFrame to a CSV file.
 
         :param to: filename or file object
@@ -7036,36 +7036,47 @@ class DataFrameLocal(DataFrame):
         :param parallel: {evaluate_parallel}
         :param fs_options: {fs_options}
         :param fs: {fs}
+        :param backend: Which backend to use for writting the JSON file. Can be "pandas" or "json".
+        :param lines: If True, each row is written as a separate JSON record. If False, dataframe is written as a list of JSON records.
         :return:
         """
+
         json = None  # we may want to pass the module as parameter to use a faster library
         import json as json_std
         json = json or json_std
 
-        # not sure if we want to use pandas, it will treat datetime for us, but will convert null to nan
-        use_pandas = True
-
         # we take on the '[' and ']' from each chunk, and insert it back ourselves
         # and we also need to but ',' between each chunk
         with vaex.progress.tree(progress, title="export(json)"), vaex.file.open(path=to, mode='wb', fs_options=fs_options, fs=fs) as f:
-            f.write(b"[")
+            if not lines:
+                f.write(b"[")
             first = True
-            if use_pandas:
+            if backend == 'pandas':
                 for _i1, _i2, df in self.to_pandas_df(chunk_size=chunk_size, parallel=parallel):
-                    if not first:
+                    if (not first) and (not lines):
                         f.write(b", ")
                     first = False
                     f_temp = io.StringIO()
-                    df.to_json(f_temp, orient='records')
-                    f.write(f_temp.getvalue()[1:-1].encode('utf8'))
-            else:
+                    df.to_json(f_temp, orient='records', lines=lines)
+                    if lines:
+                        f.write(f_temp.getvalue().encode('utf8'))
+                    else:
+                        f.write(f_temp.getvalue()[1:-1].encode('utf8'))
+            elif backend == 'json':
                 for _i1, _i2, records in self.to_records(chunk_size=chunk_size, parallel=parallel):
-                    if not first:
+                    if (not first) and (not lines):
                         f.write(b", ")
                     first = False
                     raw = json.dumps(records)[1:-1]
+                    if (not first) and (lines):
+                        raw = raw.replace('},', '}\n')
                     f.write(raw.encode("utf8"))
-            f.write(b"]")
+                    f.write('\n'.encode('utf8'))
+            else:
+                raise ValueError(f"Unknown backend {backend}, should be 'pandas' or 'json'.")
+            if not lines:
+                f.write(b"]")
+
 
     def _needs_copy(self, column_name):
         import vaex.file.other

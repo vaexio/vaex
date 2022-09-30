@@ -507,6 +507,22 @@ def from_json(path_or_buffer, orient=None, precise_float=False, lines=False, cop
                        copy_index=copy_index)
 
 
+def from_json_arrow(file, read_options=None, parse_options=None):
+    """Create a DataFrame from a JSON file using Apache Arrow.
+
+    This is a much faster alternative to `pandas.read_json(file, lines=True)`.
+    The JSON file is read eagerly, and the resulting DataFrame is stored in memory.
+
+    :param str file: Path to the JSON file.
+    :param read_options: PyArrow JSON read options, see https://arrow.apache.org/docs/python/generated/pyarrow.json.ReadOptions.html
+    :param parse_options: PyArrow JSON parse options, see https://arrow.apache.org/docs/python/generated/pyarrow.json.ParseOptions.html
+    :return: DataFrame
+    """
+    import vaex.json
+    ds = vaex.json.DatasetJSON(file, read_options=read_options, parse_options=parse_options)
+    return vaex.from_dataset(ds)
+
+
 @docsubst
 def from_records(records : List[Dict], array_type="arrow", defaults={}) -> vaex.dataframe.DataFrame:
     '''Create a dataframe from a list of dict.

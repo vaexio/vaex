@@ -1,12 +1,10 @@
 # -*- coding: utf-8 -*-
 from __future__ import absolute_import
 import ast
-import collections
 import concurrent.futures
 import contextlib
 import functools
 import json
-import math
 import os
 import platform
 import re
@@ -27,7 +25,6 @@ import pyarrow as pa
 import six
 import yaml
 
-from .json import VaexJsonEncoder, VaexJsonDecoder
 import vaex.file
 
 
@@ -296,6 +293,7 @@ def yaml_load(f):
 
 
 def write_json_or_yaml(file, data, fs_options={}, fs=None, old_style=True):
+    import vaex.json
     file, path = vaex.file.file_and_path(file, mode='w', fs_options=fs_options, fs=fs)
     try:
         if path:
@@ -303,7 +301,7 @@ def write_json_or_yaml(file, data, fs_options={}, fs=None, old_style=True):
         else:
             ext = '.json'  # default
         if ext == ".json":
-            json.dump(data, file, indent=2, cls=VaexJsonEncoder if old_style else None)
+            json.dump(data, file, indent=2, cls=vaex.json.VaexJsonEncoder if old_style else None)
         elif ext == ".yaml":
             yaml_dump(file, data)
         else:
@@ -313,6 +311,7 @@ def write_json_or_yaml(file, data, fs_options={}, fs=None, old_style=True):
 
 
 def read_json_or_yaml(file, fs_options={}, fs=None, old_style=True):
+    import vaex.json
     file, path = vaex.file.file_and_path(file, fs_options=fs_options, fs=fs)
     try:
         if path:
@@ -320,7 +319,7 @@ def read_json_or_yaml(file, fs_options={}, fs=None, old_style=True):
         else:
             ext = '.json'  # default
         if ext == ".json":
-            return json.load(file, cls=VaexJsonDecoder if old_style else None) or {}
+            return json.load(file, cls=vaex.json.VaexJsonDecoder if old_style else None) or {}
         elif ext == ".yaml":
             return yaml_load(file) or {}
         else:

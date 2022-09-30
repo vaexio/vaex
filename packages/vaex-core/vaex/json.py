@@ -4,8 +4,11 @@ import re
 import numpy as np
 import pyarrow as pa
 
+from frozendict import frozendict
+
 import vaex
-from vaex.encoding import Encoding
+import vaex.dataset
+import vaex.encoding
 
 
 serializers = []
@@ -208,9 +211,58 @@ class VaexJsonEncoder(json.JSONEncoder):
 class VaexJsonDecoder(json.JSONDecoder):
     def __init__(self, *args, **kwargs):
         json.JSONDecoder.__init__(self, object_hook=self.object_hook, *args, **kwargs)
-    
+
     def object_hook(self, dct):
         for serializer in serializers:
             if serializer.can_decode(dct):
                 return serializer.decode(dct)
         return dct
+
+
+@vaex.dataset.register
+class DatasetJSON(vaex.dataset.DatasetFile):
+    snake_name = "arrow-json"
+
+    def __init__(self, path, read_options=None, parse_options=None, fs=None, fs_options={}):
+        super(DatasetJSON, self).__init__(path, fs=fs, fs_options=fs_options)
+        self.read_options = read_options
+        self.parse_options = parse_options
+        self._read_file()
+
+    @property
+    def _fingerprint(self):
+        fp = vaex.file.fingerprint(self.path, fs_options=self.fs_options, fs=self.fs)
+        return f"dataset-{self.snake_name}-{fp}"
+
+    def _read_file(self):
+        import pyarrow.json
+
+        with vaex.file.open(self.path, fs=self.fs, fs_options=self.fs_options, for_arrow=True) as f:
+            try:
+                codec = pa.Codec.detect(self.path)
+            except Exception:
+                codec = None
+            if codec:
+                f = pa.CompressedInputStream(f, codec.name)
+            self._arrow_table = pyarrow.json.read_json(f, read_options=self.read_options, parse_options=self.parse_options)
+        self._columns = dict(zip(self._arrow_table.schema.names, self._arrow_table.columns))
+        self._set_row_count()
+        self._ids = frozendict({name: vaex.cache.fingerprint(self._fingerprint, name) for name in self._columns})
+
+    def _encode(self, encoding):
+        spec = super()._encode(encoding)
+        del spec["write"]
+        return spec
+
+    def __getstate__(self):
+        state = super().__getstate__()
+        state["read_options"] = self.read_options
+        state["parse_options"] = self.parse_options
+        return state
+
+    def __setstate__(self, state):
+        super().__setstate__(state)
+        self._read_file()
+
+    def close(self):
+        pass

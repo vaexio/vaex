@@ -8,6 +8,7 @@ import numpy as np
 import pyarrow as pa
 
 import vaex
+import vaex.encoding
 import vaex.utils
 import vaex.cache
 from .array_types import supported_array_types, supported_arrow_array_types, string_types, is_string_type
