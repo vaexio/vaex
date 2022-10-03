@@ -6966,7 +6966,7 @@ class DataFrameLocal(DataFrame):
         :param int chunk_size: {chunk_size_export}
         :param bool parallel: {evaluate_parallel}
         :param str backend: Which backend to use, either 'pandas' or 'arrow'. Arrow is considerably faster, but pandas is more flexible.
-        :param kwargs: additional keyword arguments are passed to the the backends. See `export_csv_pandas` and `export_csv_arrow` for more details.
+        :param kwargs: additional keyword arguments are passed to the the backends. See :func:`DataFrameLocal.export_csv_pandas` and :func:`DataFrameLocal.export_csv_arrow` for more details.
         """
         if backend == "arrow":
             self.export_csv_arrow(path, progress=progress, chunk_size=chunk_size, parallel=parallel, **kwargs)
