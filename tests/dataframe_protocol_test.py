@@ -11,6 +11,14 @@ from common import *
 from vaex.dataframe_protocol import _from_dataframe_to_vaex, _DtypeKind, _VaexBuffer, _VaexColumn, _VaexDataFrame
 
 
+xfail_memory_bug = pytest.mark.xfail(
+    reason=(
+        "Erroneous due to bug where memory is released prematurely - "
+        "see https://github.com/vaexio/vaex/pull/2150#issuecomment-1263336551"
+    )
+)
+
+
 def test_float_only(df_factory):
     df = df_factory(x=[1.5, 2.5, 3.5], y=[9.2, 10.5, 11.8])
     df2 = _from_dataframe_to_vaex(df.__dataframe__())
@@ -119,6 +127,7 @@ def test_missing_from_masked(df_factory_numpy):
     assert_dataframe_equal(df.__dataframe__(), df)
 
 
+@xfail_memory_bug
 def test_categorical():
     df = vaex.from_arrays(year=[2012, 2013, 2015, 2019], weekday=[0, 1, 4, 6])
     df = df.categorize("year", min_value=2012, max_value=2019)
@@ -152,6 +161,7 @@ def test_categorical():
     assert_dataframe_equal(df.__dataframe__(), df)
 
 
+@xfail_memory_bug
 def test_arrow_dictionary():
     indices = pa.array([0, 1, 0, 1, 2, 0, 1, 2])
     dictionary = pa.array(["foo", "bar", "baz"])
@@ -178,6 +188,7 @@ def test_arrow_dictionary():
     assert_dataframe_equal(df.__dataframe__(), df)
 
 
+@xfail_memory_bug
 def test_arrow_dictionary_missing():
     indices = pa.array([0, 1, 2, 0, 1], mask=np.array([0, 1, 1, 0, 0], dtype=bool))
     dictionary = pa.array(["aap", "noot", "mies"])
@@ -444,6 +455,7 @@ def test_describe_categorical(df_factory, labels):
     assert catinfo["categories"]._col.tolist() == labels
 
 
+@xfail_memory_bug
 @pytest.mark.parametrize(
     "labels", [[10, 11, 12, 13], ["foo", "bar", "baz", "qux"]]
 )
