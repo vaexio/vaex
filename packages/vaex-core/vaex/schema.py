@@ -16,7 +16,10 @@ class resolver_flexible:
         else:
             types = [k for k in types if k is not None]  # takes out None
         data_type = reduce(vaex.array_types.type_promote, types)
-        shapes = [k for k in shapes if k is not None]  # take out None
+        if shapes is None:
+            shapes = [None]
+        else:
+            shapes = [k for k in shapes if k is not None]  # take out None
         if shapes and any(shape != shapes[0] for shape in shapes):
             raise ValueError(f'Unequal shapes are not supported yet, please open an issue on https://github.com/vaexio/vaex/issues')
         return data_type, shapes[0]

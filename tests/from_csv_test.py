@@ -100,11 +100,32 @@ def _cleanup_generated_files(*dfs):
 
 
 def test_arrow_lazy_reading():
+    path_to_csv_file = os.path.join(path, 'data', 'difficult_schema.csv')
+    df = vaex.from_csv_arrow(path_to_csv_file, lazy=True, chunk_size="3b", newline_readahead='7b')
+
+    assert df.shape == (3, 4)
+
+    assert df.x.dtype == int
+    assert df.x.sum() == 1+2+3
+
+    assert df.y.dtype == int
+    assert df.y.sum() == 2
+
+    assert df.z.dtype == str
+
+    assert df.q.dtype == int
+    # assert df.shape == (199999, 4)
+    # I do not know what the correct answer is, so the below assertion is just to expose the primary issue
+    # assert df.Tail_Number.count() == 50
+    # assert df.DivReachedDest.count() == 50
+    # assert df.Div1AirportSeqID.count() == 50
+
+def test_arrow_lazy_reading():
     path_to_csv_file = os.path.join(path, 'data', 'big_arrow_sample.csv')
-    df = vaex.from_csv_arrow(path_to_csv_file, lazy=True)
+    df = vaex.from_csv_arrow(path_to_csv_file, lazy=True, schema_infer_fraction=1.)
 
     assert df.shape == (199999, 4)
     # I do not know what the correct answer is, so the below assertion is just to expose the primary issue
-    assert df.Tail_Number.count() == 50
-    assert df.DivReachedDest.count() == 50
-    assert df.Div1AirportSeqID.count() == 50
+    assert df.Tail_Number.count() == len(df)
+    assert df.DivReachedDest.count() == 439
+    assert df.Div1AirportSeqID.count() == len(df)

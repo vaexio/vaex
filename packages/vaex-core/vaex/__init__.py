@@ -531,7 +531,7 @@ def from_records(records : List[Dict], array_type="arrow", defaults={}) -> vaex.
     return vaex.from_dict(arrays)
 
 
-def from_csv_arrow(file, read_options=None, parse_options=None, convert_options=None, lazy=False, chunk_size="10MiB", newline_readahead="64kiB"):
+def from_csv_arrow(file, read_options=None, parse_options=None, convert_options=None, lazy=False, chunk_size="10MiB", newline_readahead="64kiB", schema_infer_fraction=0.001):
     """ Fast CSV reader using Apache Arrow. Support for lazy reading of CSV files (experimental).
 
     :param file: file path or file-like object
@@ -545,7 +545,7 @@ def from_csv_arrow(file, read_options=None, parse_options=None, convert_options=
     """
     import vaex.csv
     if lazy is True:
-        ds = vaex.csv.DatasetCsvLazy(file, chunk_size=chunk_size, read_options=read_options, parse_options=parse_options, convert_options=convert_options, newline_readahead=newline_readahead)
+        ds = vaex.csv.DatasetCsvLazy(file, chunk_size=chunk_size, read_options=read_options, parse_options=parse_options, convert_options=convert_options, newline_readahead=newline_readahead, schema_infer_fraction=schema_infer_fraction)
         return vaex.from_dataset(ds)
     else:
         ds = vaex.csv.DatasetCsv(file, read_options=read_options, parse_options=parse_options, convert_options=convert_options)
