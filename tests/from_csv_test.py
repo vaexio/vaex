@@ -97,3 +97,14 @@ def _cleanup_generated_files(*dfs):
         df.close()
     for hdf5_file in glob.glob(os.path.join(path, 'data', 'small*.hdf5')):
         os.remove(hdf5_file)
+
+
+def test_arrow_lazy_reading():
+    path_to_csv_file = os.path.join(path, 'data', 'big_arrow_sample.csv')
+    df = vaex.from_csv_arrow(path_to_csv_file, lazy=True)
+
+    assert df.shape == (199999, 4)
+    # I do not know what the correct answer is, so the below assertion is just to expose the primary issue
+    assert df.Tail_Number.count() == 50
+    assert df.DivReachedDest.count() == 50
+    assert df.Div1AirportSeqID.count() == 50
