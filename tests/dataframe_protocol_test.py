@@ -11,6 +11,14 @@ from common import *
 from vaex.dataframe_protocol import _from_dataframe_to_vaex, _DtypeKind, _VaexBuffer, _VaexColumn, _VaexDataFrame
 
 
+xfail_memory_bug = pytest.mark.xfail(
+    reason=(
+        "Erroneous due to bug where memory is released prematurely - "
+        "see https://github.com/vaexio/vaex/pull/2150#issuecomment-1263336551"
+    )
+)
+
+
 def test_float_only(df_factory):
     df = df_factory(x=[1.5, 2.5, 3.5], y=[9.2, 10.5, 11.8])
     df2 = _from_dataframe_to_vaex(df.__dataframe__())
@@ -48,7 +56,7 @@ def test_mixed_intfloatbool(df_factory):
 
     # Additionl tests for _VaexColumn
     assert df2.__dataframe__().get_column_by_name("x")._allow_copy == True
-    assert df2.__dataframe__().get_column_by_name("x").size == 3
+    assert df2.__dataframe__().get_column_by_name("x").size() == 3
     assert df2.__dataframe__().get_column_by_name("x").offset == 0
 
     assert df2.__dataframe__().get_column_by_name("z").dtype[0] == 2  # 2: float64
@@ -119,6 +127,7 @@ def test_missing_from_masked(df_factory_numpy):
     assert_dataframe_equal(df.__dataframe__(), df)
 
 
+@xfail_memory_bug
 def test_categorical():
     df = vaex.from_arrays(year=[2012, 2013, 2015, 2019], weekday=[0, 1, 4, 6])
     df = df.categorize("year", min_value=2012, max_value=2019)
@@ -126,15 +135,24 @@ def test_categorical():
 
     # Some detailed testing for correctness of dtype and null handling:
     col = df.__dataframe__().get_column_by_name("year")
-    assert col.dtype[0] == _DtypeKind.CATEGORICAL
-    assert col.describe_categorical == (False, True, {0: 2012, 1: 2013, 2: 2014, 3: 2015, 4: 2016, 5: 2017, 6: 2018, 7: 2019})
+    assert col.dtype == (_DtypeKind.CATEGORICAL, 64, "u", "=")
+    catinfo = col.describe_categorical
+    assert not catinfo["is_ordered"]
+    assert catinfo["is_dictionary"]
+    assert catinfo["categories"]._col.tolist() == [
+        2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019
+    ]
     assert col.describe_null == (0, None)
-    assert col.dtype == (23, 64, "u", "=")
+
     col2 = df.__dataframe__().get_column_by_name("weekday")
-    assert col2.dtype[0] == _DtypeKind.CATEGORICAL
-    assert col2.describe_categorical == (False, True, {0: "Mon", 1: "Tue", 2: "Wed", 3: "Thu", 4: "Fri", 5: "Sat", 6: "Sun"})
+    catinfo2 = col2.describe_categorical
+    assert not catinfo2["is_ordered"]
+    assert catinfo2["is_dictionary"]
+    assert catinfo2["categories"]._col.tolist() == [
+        "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"
+    ]
+    assert col2.dtype == (_DtypeKind.CATEGORICAL, 64, "u", "=")
     assert col2.describe_null == (0, None)
-    assert col2.dtype == (23, 64, "u", "=")
 
     df2 = _from_dataframe_to_vaex(df.__dataframe__())
     assert df2["year"].tolist() == [2012, 2013, 2015, 2019]
@@ -143,6 +161,7 @@ def test_categorical():
     assert_dataframe_equal(df.__dataframe__(), df)
 
 
+@xfail_memory_bug
 def test_arrow_dictionary():
     indices = pa.array([0, 1, 0, 1, 2, 0, 1, 2])
     dictionary = pa.array(["foo", "bar", "baz"])
@@ -152,7 +171,10 @@ def test_arrow_dictionary():
     # Some detailed testing for correctness of dtype and null handling:
     col = df.__dataframe__().get_column_by_name("x")
     assert col.dtype[0] == _DtypeKind.CATEGORICAL
-    assert col.describe_categorical == (False, True, {0: "foo", 1: "bar", 2: "baz"})
+    catinfo = col.describe_categorical
+    assert not catinfo["is_ordered"]
+    assert catinfo["is_dictionary"]
+    assert catinfo["categories"]._col.tolist() == ["foo", "bar", "baz"]
     if df['x'].dtype.is_arrow:
         assert col.describe_null == (3, 0)
     else:
@@ -166,6 +188,7 @@ def test_arrow_dictionary():
     assert_dataframe_equal(df.__dataframe__(), df)
 
 
+@xfail_memory_bug
 def test_arrow_dictionary_missing():
     indices = pa.array([0, 1, 2, 0, 1], mask=np.array([0, 1, 1, 0, 0], dtype=bool))
     dictionary = pa.array(["aap", "noot", "mies"])
@@ -175,7 +198,10 @@ def test_arrow_dictionary_missing():
     # Some detailed testing for correctness of dtype and null handling:
     col = df.__dataframe__().get_column_by_name("x")
     assert col.dtype[0] == _DtypeKind.CATEGORICAL
-    assert col.describe_categorical == (False, True, {0: "aap", 1: "noot", 2: "mies"})
+    catinfo = col.describe_categorical
+    assert not catinfo["is_ordered"]
+    assert catinfo["is_dictionary"]
+    assert catinfo["categories"]._col.tolist() == ["aap", "noot", "mies"]
 
     df2 = _from_dataframe_to_vaex(df.__dataframe__())
     assert df2.x.tolist() == df.x.tolist()
@@ -190,7 +216,7 @@ def test_string():
     col = df.__dataframe__().get_column_by_name("A")
 
     assert col._col.tolist() == df.A.tolist()
-    assert col.size == 5
+    assert col.size() == 5
     assert col.null_count == 1
     assert col.dtype[0] == _DtypeKind.STRING
     assert col.describe_null == (3,0)
@@ -203,7 +229,7 @@ def test_string():
 
     df_sliced = df[1:]
     col = df_sliced.__dataframe__().get_column_by_name("A")
-    assert col.size == 4
+    assert col.size() == 4
     assert col.null_count == 1
     assert col.dtype[0] == _DtypeKind.STRING
     assert col.describe_null == (3,0)
@@ -246,7 +272,7 @@ def test_object():
     col = df.__dataframe__().get_column_by_name("x")
 
     assert col._col.tolist() == df.x.tolist()
-    assert col.size == 3
+    assert col.size() == 3
 
     with pytest.raises(ValueError):
         assert col.dtype
@@ -324,7 +350,7 @@ def assert_buffer_equal(buffer_dtype: Tuple[_VaexBuffer, Any], vaexcol: vaex.exp
 
 
 def assert_column_equal(col: _VaexColumn, vaexcol: vaex.expression.Expression):
-    assert col.size == vaexcol.df.count("*")
+    assert col.size() == vaexcol.df.count("*")
     assert col.offset == 0
     assert col.null_count == vaexcol.countmissing()
     assert_buffer_equal(col._get_data_buffer(), vaexcol)
@@ -363,6 +389,17 @@ def test_null_count(df_factory, x):
     assert interchange_col.null_count == 1
 
 
+def test_size(df_factory):
+    # See https://github.com/vaexio/vaex/issues/2093
+    x = np.arange(5)
+    df = df_factory(x=x)
+    interchange_df = df.__dataframe__()
+    interchange_col = interchange_df.get_column_by_name('x')
+    size = interchange_col.size()
+    assert isinstance(size, int)
+    assert size == 5
+
+
 def test_smoke_get_buffers_on_categorical_columns(df_factory):
     # See https://github.com/vaexio/vaex/issues/2134#issuecomment-1195731379
     x = np.array([3, 1, 1, 2, 0])
@@ -371,3 +408,79 @@ def test_smoke_get_buffers_on_categorical_columns(df_factory):
     interchange_df = df.__dataframe__()
     interchange_col = interchange_df.get_column_by_name('x')
     interchange_col.get_buffers()
+
+
+@pytest.mark.xfail()
+def test_interchange_pandas_string_column():
+    import pandas as pd
+    data = ["foo", "bar"]
+    try:
+        from pandas.api.interchange import from_dataframe
+    except ImportError:
+        pytest.skip(f"pandas.api.interchange not found ({pd.__version__})")
+    pd_df = pd.DataFrame({"x": pd.Series(data, dtype=pd.StringDtype())})
+    pd_interchange_df = pd_df.__dataframe__()
+    vaex_df = _from_dataframe_to_vaex(pd_interchange_df)
+    assert vaex_df["x"].tolist() == data
+
+
+def test_string_buffers(df_factory):
+    data = ["foo", "bar"]
+    x = np.array(data, dtype="U8")
+    df = df_factory(x=x)
+    if isinstance(df["x"].values, pa.lib.ChunkedArray):
+        pytest.xfail()
+    interchange_df = df.__dataframe__()
+    roundtrip_df = _from_dataframe_to_vaex(interchange_df)
+    assert roundtrip_df["x"].tolist() == data
+
+
+@pytest.mark.parametrize(
+    "labels", [[10, 11, 12, 13], ["foo", "bar", "baz", "qux"]]
+)
+def test_describe_categorical(df_factory, labels):
+    # See https://github.com/vaexio/vaex/issues/2113
+    data = [3, 1, 1, 2, 0]
+    x = np.array(data)
+    df = df_factory(x=x)
+    df = df.categorize('x', labels=labels)
+    interchange_df = df.__dataframe__()
+    interchange_col = interchange_df.get_column_by_name('x')
+    catinfo = interchange_col.describe_categorical
+    assert isinstance(catinfo, dict)
+    assert isinstance(catinfo["is_ordered"], bool)
+    assert isinstance(catinfo["is_dictionary"], bool)
+    assert catinfo["is_dictionary"]
+    assert isinstance(catinfo["categories"], _VaexColumn)
+    assert catinfo["categories"]._col.tolist() == labels
+
+
+@xfail_memory_bug
+@pytest.mark.parametrize(
+    "labels", [[10, 11, 12, 13], ["foo", "bar", "baz", "qux"]]
+)
+def test_interchange_categorical_column(df_factory, labels):
+    data = [3, 1, 1, 2, 0]
+    x = np.array(data)
+    df = df_factory(x=x)
+    if isinstance(df["x"].values, pa.lib.ChunkedArray):
+        pytest.xfail()
+    df = df.categorize('x', labels=labels)
+    interchange_df = df.__dataframe__()
+    interchange_col = interchange_df.get_column_by_name('x')
+    roundtrip_df = _from_dataframe_to_vaex(interchange_df)
+    data_as_labels = [labels[i] for i in data]
+    assert roundtrip_df["x"].values.tolist() == data_as_labels
+    assert roundtrip_df.category_labels("x") == labels
+
+
+@pytest.mark.parametrize("n_chunks", [None, 1])
+def test_smoke_get_chunks(df_factory, n_chunks):
+    if n_chunks is not None:
+        pytest.xfail("get_chunks(n_chunks=...) doesn't work on already chunked columns")
+    df = df_factory(x=[0])
+    interchange_df = df.__dataframe__()
+    interchange_col = interchange_df.get_column_by_name('x')
+    if isinstance(df["x"].values, pa.lib.ChunkedArray):
+        pytest.skip("get_chunks() is slow/halts with chunked arrow arrays")
+    interchange_col.get_chunks(n_chunks=n_chunks)

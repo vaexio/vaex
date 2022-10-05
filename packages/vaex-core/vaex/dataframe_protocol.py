@@ -155,18 +155,21 @@ def buffer_to_ndarray(_buffer, _dtype) -> np.ndarray:
     return x
 
 
-def convert_categorical_column(col: ColumnObject) -> pa.DictionaryArray:
+def convert_categorical_column(col: ColumnObject) -> Tuple[pa.DictionaryArray, Any]:
     """
     Convert a categorical column to an arrow dictionary
     """
-    ordered, is_dict, mapping = col.describe_categorical
-    if not is_dict:
+    catinfo = col.describe_categorical
+    if not catinfo["is_dictionary"]:
         raise NotImplementedError("Non-dictionary categoricals not supported yet")
+    assert catinfo["categories"] is not None  # sanity check
 
     if not col.describe_null[0] in (0, 2, 3, 4):
-        raise NotImplementedError("Only categorical columns with sentinel " "value and masks supported at the moment")
+        raise NotImplementedError(
+            "Only categorical columns with sentinel "
+            "value and masks supported at the moment"
+        )
 
-    categories = np.asarray(list(mapping.values()))
     codes_buffer, codes_dtype = col.get_buffers()["data"]
     codes = buffer_to_ndarray(codes_buffer, codes_dtype)
 
@@ -181,13 +184,18 @@ def convert_categorical_column(col: ColumnObject) -> pa.DictionaryArray:
     else:
         indices = pa.array(codes)
 
-    dictionary = pa.array(categories)
-    values = pa.DictionaryArray.from_arrays(indices, dictionary)
+    labels_buffer, labels_dtype = catinfo["categories"].get_buffers()["data"]
+    if labels_dtype[0]  == _DtypeKind.STRING:
+        labels, _ = convert_string_column(catinfo["categories"])
+    else:
+        labels = buffer_to_ndarray(labels_buffer, labels_dtype)
+
+    values = pa.DictionaryArray.from_arrays(indices, labels)
 
     return values, codes_buffer
 
 
-def convert_string_column(col: ColumnObject) -> pa.Array:
+def convert_string_column(col: ColumnObject) -> Tuple[pa.Array, list]:
     """
     Convert a string column to a Arrow array.
     """
@@ -315,12 +323,17 @@ class _VaexColumn:
         self._col = column
         self._allow_copy = allow_copy
 
-    @property
     def size(self) -> int:
         """
         Size of the column, in elements.
+
+        Corresponds to DataFrame.num_rows() if column is a single chunk;
+        equal to size of this current chunk otherwise.
+
+        Is a method rather than a property because it may cause a (potentially
+        expensive) computation for some dataframe implementations.
         """
-        return self._col.df.count("*")
+        return int(len(self._col.df))
 
     @property
     def offset(self) -> int:
@@ -415,32 +428,35 @@ class _VaexColumn:
     def describe_categorical(self) -> Dict[str, Any]:
         """
         If the dtype is categorical, there are two options:
-
         - There are only values in the data buffer.
-        - There is a separate dictionary-style encoding for categorical values.
+        - There is a separate non-categorical Column encoding categorical values.
 
-        Raises RuntimeError if the dtype is not categorical
+        Raises TypeError if the dtype is not categorical
 
-        Content of returned dict:
-
+        Returns the dictionary with description on how to interpret the data buffer:
             - "is_ordered" : bool, whether the ordering of dictionary indices is
                              semantically meaningful.
-            - "is_dictionary" : bool, whether a dictionary-style mapping of
+            - "is_dictionary" : bool, whether a mapping of
                                 categorical values to other objects exists
-            - "mapping" : dict, Python-level only (e.g. ``{int: str}``).
-                          None if not a dictionary-style categorical.
+            - "categories" : Column representing the (implicit) mapping of indices to
+                             category values (e.g. an array of cat1, cat2, ...).
+                             None if not a dictionary-style categorical.
+
+        TBD: are there any other in-memory representations that are needed?
         """
         if not self.dtype[0] == _DtypeKind.CATEGORICAL:
-            raise TypeError("`describe_categorical only works on a column with " "categorical dtype!")
-
-        ordered = False
-        is_dictionary = True
-        if not isinstance(self._col.values, np.ndarray) and isinstance(self._col.values.type, pa.DictionaryType):
-            categories = self._col.values.dictionary.tolist()
-        else:
-            categories = self._col.df.category_labels(self._col)
-        mapping = {ix: val for ix, val in enumerate(categories)}
-        return ordered, is_dictionary, mapping
+            raise TypeError(
+                "describe_categorical only works on a column with "
+                "categorical dtype!"
+            )
+        df = vaex.from_dict({"labels": self._col.df.category_labels(self._col)})
+        labels = df["labels"]
+        categories = _VaexColumn(labels)
+        return {
+            "is_ordered": False,
+            "is_dictionary": True,
+            "categories": categories,
+        }
 
     @property
     def describe_null(self) -> Tuple[int, Any]:
@@ -526,7 +542,7 @@ class _VaexColumn:
         See `DataFrame.get_chunks` for details on ``n_chunks``.
         """
         if n_chunks == None:
-            size = self.size
+            size = self.size()
             n_chunks = self.num_chunks()
             i = self._col.df.evaluate_iterator(self._col, chunk_size=size // n_chunks)
             iterator = []
@@ -534,7 +550,7 @@ class _VaexColumn:
                 iterator.append(_VaexColumn(self._col[i1:i2]))
             return iterator
         elif self.num_chunks == 1:
-            size = self.size
+            size = self.size()
             i = self._col.df.evaluate_iterator(self._col, chunk_size=size // n_chunks)
             iterator = []
             for i1, i2, chunk in i:
