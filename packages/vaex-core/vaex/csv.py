@@ -189,15 +189,20 @@ class DatasetCsvLazy(DatasetFile):
         if first:
             read_options = _copy_or_create(pyarrow.csv.ReadOptions, self.read_options, use_threads=use_threads, block_size=block_size)
         else:
-            read_options = pyarrow.csv.ReadOptions(use_threads=use_threads, column_names=self._column_names, block_size=block_size)
+            read_options = _copy_or_create(pyarrow.csv.ReadOptions, self.read_options, use_threads=use_threads, block_size=block_size, column_names=self._column_names)
 
         if self._arrow_schema is None:
             convert_options = _copy_or_create(pyarrow.csv.ConvertOptions, self.convert_options, include_columns=columns)
         else:
             schema = pa.schema([(name, self._schema[name]) for name in columns])
             convert_options = _copy_or_create(pyarrow.csv.ConvertOptions, self.convert_options, column_types=schema, include_columns=columns)
-
-        table = pyarrow.csv.read_csv(file_like, read_options=read_options, convert_options=convert_options)
+        try:
+            table = pyarrow.csv.read_csv(file_like, read_options=read_options, convert_options=convert_options)
+        except pa.ArrowInvalid as e:
+            import tempfile
+            f = tempfile.NamedTemporaryFile(mode="wb", suffix=".csv")
+            f.write(data)
+            raise ValueError(f"Error reading csv file {self.path}, write offending chunk to: {f.name} (len={len(data)}, first={first}, columns={columns}, schema={schema}, encoding={read_options.encoding}). Consider passing pyarrow.csv.ReadOptions(encoding=\"ISO-8859-1\") or another encoding as argument.") from e
         return table
 
 
