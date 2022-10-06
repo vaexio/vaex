@@ -202,7 +202,14 @@ class DatasetCsvLazy(DatasetFile):
             import tempfile
             f = tempfile.NamedTemporaryFile(mode="wb", suffix=".csv")
             f.write(data)
-            raise ValueError(f"Error reading csv file {self.path}, write offending chunk to: {f.name} (len={len(data)}, first={first}, columns={columns}, schema={schema}, encoding={read_options.encoding}). Consider passing pyarrow.csv.ReadOptions(encoding=\"ISO-8859-1\") or another encoding as argument.") from e
+            raise ValueError(
+                f"Error reading csv file {self.path}, write offending chunk to: {f.name} (len={len(data)}, first={first}, columns={columns}, schema={schema}, encoding={read_options.encoding}, schema_infer_fraction={self.schema_infer_fraction}).\n"
+                "Possible causes:\n"
+                '  * This could be a file encoding error. Consider passing read_options=pyarrow.csv.ReadOptions(encoding="ISO-8859-1") or another encoding as argument.\n'
+                "  * We might have inferred the wrong schema:\n"
+                '     * Consider giving a schema hint by e.g. passing read_options=pyarrow.csv.ConvertOptions(column_types={"SomeId": pyarrow.string()}).\n'
+                "     * Consider increasing schema_infer_fraction (e.g. schema_infer_fraction=1 to parse the whole file to infer the schema).\n"
+            ) from e
         return table
 
 

@@ -541,6 +541,7 @@ def from_csv_arrow(file, read_options=None, parse_options=None, convert_options=
     :param lazy: If True, the CSV file is lazily read, and the DataFrame is not stored in memory.
     :param chunk_size: The CSV is read in chunks of the specified size. Relevant only if lazy=True.
     :param newline_readahead: The size of the readahead buffer for newline detection. Relevant only if lazy=True.
+    :param schema_infer_fraction: The fraction of the CSV file to read to infer the schema. Relevant only if lazy=True.
     :return: DataFrame
     """
     import vaex.csv
