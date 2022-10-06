@@ -29,7 +29,8 @@ def test_open_convert_kwargs():
     assert mtime == os.path.getmtime(csv2 + ".hdf5")
 
     # different argument should result in new conversion
-    df = vaex.open(csv2, convert=True, dtype={'x': 'float64'})
+    import pyarrow.csv
+    df = vaex.open(csv2, convert=True, convert_options=pyarrow.csv.ConvertOptions(column_types={'x': 'float64'}))
     assert mtime != os.path.getmtime(csv2 + ".hdf5")
     assert df.x.dtype == 'float64'
 

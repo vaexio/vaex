@@ -226,7 +226,7 @@ def open(path, convert=False, progress=None, shuffle=False, fs_options={}, fs=No
                     progress=progress,
                     *args, **kwargs
                 )
-                ds = vaex.dataset.open(path_output, fs_options=fs_options, fs=fs, **kwargs)
+                ds = vaex.dataset.open(path_output, fs_options=fs_options, fs=fs)
             else:
                 ds = vaex.dataset.open(path, fs_options=fs_options, fs=fs, **kwargs)
             df = vaex.from_dataset(ds)

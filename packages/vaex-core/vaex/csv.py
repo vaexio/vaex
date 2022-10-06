@@ -451,3 +451,18 @@ class DatasetCsv(DatasetFile):
 
     def close(self):
         pass
+
+
+import dask.base
+
+@dask.base.normalize_token.register(pyarrow.csv.ConvertOptions)
+def _normalize(obj):
+    kwargs = {}
+    if obj is not None:
+        kwargs = kwargs.copy()
+        for name in dir(obj):
+            value = getattr(obj, name)
+            if not name.startswith('__') and not callable(value):
+                if name not in kwargs:
+                    kwargs[name] = value
+    return (pyarrow.csv.ConvertOptions, kwargs)
