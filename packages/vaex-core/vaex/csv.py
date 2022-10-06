@@ -150,6 +150,15 @@ class DatasetCsvLazy(DatasetFile):
         self.schema_infer_fraction = schema_infer_fraction
         self._infer_schema()
 
+    @classmethod
+    def quick_test(cls, path, fs_options={}, fs=None):
+        path, options = vaex.file.split_options(path)
+        return path.endswith('.csv')
+
+    @classmethod
+    def can_open(cls, path, fs_options={}, fs=None, group=None, **kwargs):
+        return cls.quick_test(path, fs_options=fs_options, fs=fs)
+
 
     def _encode(self, encoding):
         spec = super()._encode(encoding)
@@ -165,6 +174,8 @@ class DatasetCsvLazy(DatasetFile):
         state["chunk_size"] = self.chunk_size
         state["newline_readahead"] = self.newline_readahead
         state["_row_count"] = self._row_count
+        state["_schema"] = self._schema
+        state["schema_infer_fraction"] = self.schema_infer_fraction
         return state
 
     def __setstate__(self, state):
@@ -257,9 +268,8 @@ class DatasetCsvLazy(DatasetFile):
                 if pa.types.is_null(type):
                     type = pa.int8()
                 self._schema[name] = type
-            self._arrow_schema = pa.schema([(name, type) for name, type in self._schema.items()])
 
-        self._columns = {name: vaex.dataset.ColumnProxy(self, name, type) for name, type in zip(self._arrow_schema.names, self._arrow_schema.types)}
+        self._columns = {name: vaex.dataset.ColumnProxy(self, name, type) for name, type in self._schema.items()}
 
         self._ids = {}
 
