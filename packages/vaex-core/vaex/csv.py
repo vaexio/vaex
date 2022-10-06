@@ -268,6 +268,7 @@ class DatasetCsvLazy(DatasetFile):
                 if pa.types.is_null(type):
                     type = pa.int8()
                 self._schema[name] = type
+        self._arrow_schema = pa.schema([(name, type) for name, type in self._schema.items()])
 
         self._columns = {name: vaex.dataset.ColumnProxy(self, name, type) for name, type in self._schema.items()}
 
