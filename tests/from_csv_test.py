@@ -116,22 +116,6 @@ def test_arrow_lazy_reading():
     assert df.z.dtype == str
 
     assert df.q.dtype == int
-    # assert df.shape == (199999, 4)
-    # I do not know what the correct answer is, so the below assertion is just to expose the primary issue
-    # assert df.Tail_Number.count() == 50
-    # assert df.DivReachedDest.count() == 50
-    # assert df.Div1AirportSeqID.count() == 50
-
-def test_arrow_lazy_reading():
-    path_to_csv_file = os.path.join(path, 'data', 'big_arrow_sample.csv')
-    df = vaex.from_csv_arrow(path_to_csv_file, lazy=True, schema_infer_fraction=1.)
-
-    assert df.shape == (199999, 4)
-    # I do not know what the correct answer is, so the below assertion is just to expose the primary issue
-    assert df.Tail_Number.count() == len(df)
-    assert df.DivReachedDest.count() == 439
-    assert df.Div1AirportSeqID.count() == len(df)
-
 
 def test_arrow_non_unicode():
     path_to_csv_file = os.path.join(path, "data", "non-unicode.csv")
