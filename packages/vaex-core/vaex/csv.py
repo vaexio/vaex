@@ -1,6 +1,7 @@
+import collections
 import mmap
+from typing import Any, Dict, List
 import numpy as np
-import io
 
 import pyarrow as pa
 import pyarrow.csv
@@ -17,35 +18,38 @@ from .multithreading import thread_count_default_io, get_main_io_pool
 MB = 1024**2
 
 
-def file_chunks(file, chunk_size, newline_readahead):
+def file_chunks(file, chunk_size, newline_readahead, fs=None, fs_options=None):
     """Bytes chunks, split by chunk_size bytes, on newline boundaries"""
     offset = 0
-    with open(file, 'rb') as file:
-        file.seek(0, 2)
-        file_size = file.tell()
-        file.seek(0)
+    # with open(file, 'rb') as file:\
+    file_size = vaex.file.size(file, fs=fs, fs_options=fs_options)
+    leftover = b''
+    leftover_previous = b''
+
+    with vaex.file.open(file, fs=fs, fs_options=fs_options) as file:
         begin_offset = 0
     
         done = False
         while not done:
-            # find the next newline boundary
-            end_offset = min(file_size, begin_offset + chunk_size)
-            done = end_offset == file_size
-            if end_offset < file_size:
-                file.seek(end_offset)
-                sample = file.read(newline_readahead)
+            size_expected = chunk_size + newline_readahead
+            data_extra = file.read(size_expected)
+            if len(data_extra) == size_expected:
+                sample = data_extra[chunk_size:]
                 offset = vaex.superutils.find_byte(sample, ord(b'\n'))
-                if offset != -1:
-                    end_offset += offset + 1 # include the newline
-                else:
-                    raise ValueError('expected newline')
+                if offset == -1:
+                    raise ValueError(f'Expected a newline within {newline_readahead} bytes, but not found, please increase newline_readahead')
+                data, leftover = data_extra[:chunk_size+offset+1], data_extra[chunk_size+offset+1:]
+            else:
+                # read till the end
+                data = data_extra
+                done = True
 
-            def reader(file_offset=begin_offset, length=end_offset - begin_offset):
-                file_threadsafe = vaex.file.dup(file)
-                file_threadsafe.seek(file_offset)
-                return file_threadsafe.read(length)
+            assert len(data) > 0
+            def reader(data=data, leftover_previous=leftover_previous):
+                chunk = leftover_previous + data
+                return memoryview(chunk)
+            leftover_previous = leftover
             yield reader
-            begin_offset = end_offset
 
 
 def file_chunks_mmap(file, chunk_size, newline_readahead):
@@ -72,13 +76,16 @@ def file_chunks_mmap(file, chunk_size, newline_readahead):
         while not done:
             # find the next newline boundary
             end_offset = min(file_size, begin_offset + chunk_size)
-            if end_offset < file_size:
-                sample = data[end_offset:end_offset+newline_readahead]
+            end_offset_readahead = min(file_size, begin_offset + chunk_size + newline_readahead)
+            if end_offset_readahead < file_size:
+                sample = data[end_offset:end_offset_readahead]
                 offset = vaex.superutils.find_byte(sample, ord(b'\n'))
                 if offset != -1:
                     end_offset += offset + 1 # include the newline
                 else:
-                    raise ValueError('expected newline')
+                    raise ValueError(f'Expected a newline within {newline_readahead} bytes, but not found, please increase newline_readahead')
+            else:
+                end_offset = file_size
             done = end_offset == file_size
 
             length = end_offset - begin_offset
@@ -109,10 +116,23 @@ def _copy_or_create(cls, obj, **kwargs):
     return cls(**kwargs)
 
 
+def _get_kwargs(obj):
+    kwargs = {}
+    if obj is not None:
+        # take default from obj, buy kwargs have precendence
+        kwargs = kwargs.copy()
+        for name in dir(obj):
+            value = getattr(obj, name)
+            if not name.startswith('__') and not callable(value):
+                if name not in kwargs:
+                    kwargs[name] = value
+    return kwargs
+
+
 @vaex.dataset.register
 class DatasetCsvLazy(DatasetFile):
     snake_name = "arrow-csv-lazy"
-    def __init__(self, path, chunk_size=10*MB, newline_readahead=1*MB, row_count=None, read_options=None, parse_options=None, convert_options=None, fs=None, fs_options={}):
+    def __init__(self, path, chunk_size=10*MB, newline_readahead=1*MB, row_count=None, schema=None, read_options=None, parse_options=None, convert_options=None, schema_infer_fraction=0.001, fs=None, fs_options={}):
         super().__init__(path, fs=fs, fs_options=fs_options)
         try:
             codec = pa.Codec.detect(self.path)
@@ -122,12 +142,26 @@ class DatasetCsvLazy(DatasetFile):
             raise NotImplementedError("We don't support compressed csv files for lazy reading, cannot read file: %s" % self.path)
         self._given_row_count = row_count
         self._row_count = None
+        self._schema = schema
         self.chunk_size = parse_bytes(chunk_size)
         self.newline_readahead = parse_bytes(newline_readahead)
+
+
         self.read_options = read_options
         self.parse_options = parse_options
         self.convert_options = convert_options
-        self._read_file()
+        self.schema_infer_fraction = schema_infer_fraction
+        self._infer_schema()
+
+    @classmethod
+    def quick_test(cls, path, fs_options={}, fs=None):
+        path, options = vaex.file.split_options(path)
+        return path.endswith('.csv')
+
+    @classmethod
+    def can_open(cls, path, fs_options={}, fs=None, group=None, **kwargs):
+        return cls.quick_test(path, fs_options=fs_options, fs=fs)
+
 
     def _encode(self, encoding):
         spec = super()._encode(encoding)
@@ -143,11 +177,13 @@ class DatasetCsvLazy(DatasetFile):
         state["chunk_size"] = self.chunk_size
         state["newline_readahead"] = self.newline_readahead
         state["_row_count"] = self._row_count
+        state["_schema"] = self._schema
+        state["schema_infer_fraction"] = self.schema_infer_fraction
         return state
 
     def __setstate__(self, state):
         super().__setstate__(state)
-        self._read_file()
+        self._infer_schema()
 
     def leafs(self):
         return [self]
@@ -156,24 +192,74 @@ class DatasetCsvLazy(DatasetFile):
     def _fingerprint(self):
         paths = self.path
         fingerprint_file = vaex.file.fingerprint(self.path, fs_options=self.fs_options, fs=self.fs)
-        # TODOL: not sure if we need to put in th read_options
+        # TODO: not sure if we need to put in the read_options
         fp = vaex.cache.fingerprint(fingerprint_file)
         return f'dataset-{self.snake_name}-{fp}'
 
-    def _read_file(self):
-        reader = pyarrow.csv.open_csv(self.path, read_options=self.read_options, parse_options=self.parse_options, convert_options=self.convert_options)
-        self._arrow_schema = reader.read_next_batch().schema
-        self._schema = dict(zip(self._arrow_schema.names, self._arrow_schema.types))
+    def _read_table(self, data, first, columns : List[str] = None):
+        file_like = pa.input_stream(data)
+        use_threads = True
+        block_size = len(data)
+        if first:
+            read_options = _copy_or_create(pyarrow.csv.ReadOptions, self.read_options, use_threads=use_threads, block_size=block_size)
+        else:
+            read_options = _copy_or_create(pyarrow.csv.ReadOptions, self.read_options, use_threads=use_threads, block_size=block_size, column_names=self._column_names)
 
-        self._columns = {name: vaex.dataset.ColumnProxy(self, name, type) for name, type in
-                          zip(self._arrow_schema.names, self._arrow_schema.types)}
+        if self._arrow_schema is None:
+            convert_options = _copy_or_create(pyarrow.csv.ConvertOptions, self.convert_options, include_columns=columns)
+        else:
+            schema = pa.schema([(name, self._schema[name]) for name in columns])
+            convert_options = _copy_or_create(pyarrow.csv.ConvertOptions, self.convert_options, column_types=schema, include_columns=columns)
+        try:
+            table = pyarrow.csv.read_csv(file_like, read_options=read_options, convert_options=convert_options)
+        except pa.ArrowInvalid as e:
+            import tempfile
+            f = tempfile.NamedTemporaryFile(mode="wb", suffix=".csv")
+            f.write(data)
+            raise ValueError(
+                f"Error reading csv file {self.path}, write offending chunk to: {f.name} (len={len(data)}, first={first}, columns={columns}, schema={schema}, encoding={read_options.encoding}, schema_infer_fraction={self.schema_infer_fraction}).\n"
+                "Possible causes:\n"
+                '  * This could be a file encoding error. Consider passing read_options=pyarrow.csv.ReadOptions(encoding="ISO-8859-1") or another encoding as argument.\n'
+                "  * We might have inferred the wrong schema:\n"
+                '     * Consider giving a schema hint by e.g. passing read_options=pyarrow.csv.ConvertOptions(column_types={"SomeId": pyarrow.string()}).\n'
+                "     * Consider increasing schema_infer_fraction (e.g. schema_infer_fraction=1 to parse the whole file to infer the schema).\n"
+            ) from e
+        return table
+
+
+    def _infer_schema(self):
+        with vaex.file.open(self.path, fs_options=self.fs_options, fs=self.fs) as f:
+            data = bytes(f.read(self.newline_readahead*3))
+            offset = 0
+            offset = data.find(b'\n', offset) + 1
+            if offset == 0:
+                raise ValueError("Cannot find newline in first %d bytes of file: %s" % (self.newline_readahead*3, self.path))
+            offset = data.find(b'\n', offset) + 1
+            if offset == 0:
+                raise ValueError("Cannot find second newline in first %d bytes of file: %s" % (self.newline_readahead*3, self.path))
+            f_first_two_lines = pa.input_stream(memoryview(data[:offset]))
+            reader = pyarrow.csv.open_csv(f_first_two_lines, read_options=self.read_options, parse_options=self.parse_options, convert_options=self.convert_options)
+            self._arrow_schema = reader.read_next_batch().schema
+        self._column_names = list(self._arrow_schema.names)
+
+        self._arrow_schema = None
+
         pool = get_main_io_pool()
         workers = pool._max_workers
         self._fragment_info = {}
-        if self._given_row_count is None and self._row_count is None:
-            chunks = file_chunks_mmap(self.path, self.chunk_size, self.newline_readahead)
+        schemas: Dict[str, List[Any]] = collections.defaultdict(list)
+        if self._schema is None and self._given_row_count is None and self._row_count is None:
+            if self.fs is None and not self.fs_options:
+                chunks = file_chunks_mmap(self.path, self.chunk_size, self.newline_readahead)
+            else:
+                chunks = file_chunks(self.path, self.chunk_size, self.newline_readahead, fs=self.fs, fs_options=self.fs_options)
             def process(i, chunk_reader):
-                row_count = _row_count(chunk_reader())
+                data = chunk_reader()
+                if (i % int(1/self.schema_infer_fraction)) == 0:
+                    table = self._read_table(data, first=i==0, columns=self._column_names)
+                    for name, type in zip(table.schema.names, table.schema.types):
+                        schemas[name].append(type)
+                row_count = _row_count(data)
                 if i == 0:
                     row_count -= 1  # we counted the header (TODO: depends on ReadOptions)
                 self._fragment_info[i] = dict(row_count=row_count)
@@ -189,6 +275,19 @@ class DatasetCsvLazy(DatasetFile):
         else:
             if self._row_count is None:
                 self._row_count = self._given_row_count
+        if self._schema is None:
+            self._schema = {}
+            from .schema import resolver_flexible
+
+            for name, types in schemas.items():
+                type, shape = resolver_flexible.resolve(types)
+                if pa.types.is_null(type):
+                    type = pa.int8()
+                self._schema[name] = type
+        self._arrow_schema = pa.schema([(name, type) for name, type in self._schema.items()])
+
+        self._columns = {name: vaex.dataset.ColumnProxy(self, name, type) for name, type in self._schema.items()}
+
         self._ids = {}
 
     def hashed(self):
@@ -221,7 +320,11 @@ class DatasetCsvLazy(DatasetFile):
         
         first = True
         previous = None
-        for i, reader in enumerate(file_chunks_mmap(self.path, self.chunk_size, self.newline_readahead)):
+        if self.fs is None and not self.fs_options:
+            file_chunks_iterator = file_chunks_mmap(self.path, self.chunk_size, self.newline_readahead)
+        else:
+            file_chunks_iterator = file_chunks(self.path, self.chunk_size, self.newline_readahead, fs=self.fs, fs_options=self.fs_options)
+        for i, reader in enumerate(file_chunks_iterator):
             fragment_info = self._fragment_info.get(i)
             # bail out/continue early
             if fragment_info:
@@ -237,13 +340,7 @@ class DatasetCsvLazy(DatasetFile):
                 file_like = pa.input_stream(bytes)
                 use_threads = True
                 block_size = len(bytes)
-                if i == 0:
-                    read_options = _copy_or_create(pyarrow.csv.ReadOptions, self.read_options, use_threads=use_threads, block_size=block_size)
-                else:
-                    read_options = pyarrow.csv.ReadOptions(use_threads=use_threads, column_names=list(self._schema.keys()), block_size=block_size)
-                convert_options = _copy_or_create(pyarrow.csv.ConvertOptions, self.convert_options, column_types=self._arrow_schema, include_columns=columns)
-                table = pyarrow.csv.read_csv(file_like, read_options=read_options, convert_options=convert_options)
-
+                table = self._read_table(bytes, first=i==0, columns=columns)
 
                 row_count = len(table)
                 row_start = 0
@@ -374,3 +471,21 @@ class DatasetCsv(DatasetFile):
 
     def close(self):
         pass
+
+
+import dask.base
+
+@dask.base.normalize_token.register(pyarrow.csv.ConvertOptions)
+def _normalize(obj):
+    kwargs = _get_kwargs(obj)
+    return (pyarrow.csv.ConvertOptions, kwargs)
+
+@dask.base.normalize_token.register(pyarrow.csv.ParseOptions)
+def _normalize(obj):
+    kwargs = _get_kwargs(obj)
+    return (pyarrow.csv.ParseOptions, kwargs)
+
+@dask.base.normalize_token.register(pyarrow.csv.ReadOptions)
+def _normalize(obj):
+    kwargs = _get_kwargs(obj)
+    return (pyarrow.csv.ReadOptions, kwargs)

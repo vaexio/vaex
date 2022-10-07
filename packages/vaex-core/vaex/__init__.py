@@ -122,6 +122,9 @@ def open(path, convert=False, progress=None, shuffle=False, fs_options={}, fs=No
     :return: return a DataFrame on success, otherwise None
     :rtype: DataFrame
 
+    Note: From version 4.14.0 `vaex.open()` will lazily read CSV files.
+    If you prefer to read the entire CSV file into memory, use `vaex.from_csv()` or `vaex.from_csv_arrow()` instead.
+
     Cloud storage support:
 
     Vaex supports streaming of HDF5 files from Amazon AWS S3 and Google Cloud Storage.
@@ -167,6 +170,7 @@ def open(path, convert=False, progress=None, shuffle=False, fs_options={}, fs=No
     """
     import vaex
     import vaex.convert
+    import vaex.csv  # need to import this to register for dask/fingerprinting
     try:
         if not isinstance(path, (list, tuple)):
             # remote and clusters only support single path, not a list
@@ -218,8 +222,6 @@ def open(path, convert=False, progress=None, shuffle=False, fs_options={}, fs=No
             path = filenames[0]
             # # naked_path, _ = vaex.file.split_options(path, fs_options)
             _, ext, _ = vaex.file.split_ext(path)
-            if ext == '.csv':  # special case for csv
-                return vaex.from_csv(path, fs_options=fs_options, fs=fs, convert=convert, progress=progress, **kwargs)
             if convert:
                 path_output = convert if isinstance(convert, str) else filename_hdf5
                 vaex.convert.convert(
@@ -228,7 +230,7 @@ def open(path, convert=False, progress=None, shuffle=False, fs_options={}, fs=No
                     progress=progress,
                     *args, **kwargs
                 )
-                ds = vaex.dataset.open(path_output, fs_options=fs_options, fs=fs, **kwargs)
+                ds = vaex.dataset.open(path_output, fs_options=fs_options, fs=fs)
             else:
                 ds = vaex.dataset.open(path, fs_options=fs_options, fs=fs, **kwargs)
             df = vaex.from_dataset(ds)
@@ -531,7 +533,8 @@ def from_records(records : List[Dict], array_type="arrow", defaults={}) -> vaex.
     return vaex.from_dict(arrays)
 
 
-def from_csv_arrow(file, read_options=None, parse_options=None, convert_options=None, lazy=False, chunk_size="10MiB", newline_readahead="64kiB"):
+@docsubst
+def from_csv_arrow(file, read_options=None, parse_options=None, convert_options=None, lazy=False, chunk_size="10MiB", newline_readahead="64kiB", schema_infer_fraction=0.01, fs_options={}, fs=None):
     """ Fast CSV reader using Apache Arrow. Support for lazy reading of CSV files (experimental).
 
     :param file: file path or file-like object
@@ -541,14 +544,17 @@ def from_csv_arrow(file, read_options=None, parse_options=None, convert_options=
     :param lazy: If True, the CSV file is lazily read, and the DataFrame is not stored in memory.
     :param chunk_size: The CSV is read in chunks of the specified size. Relevant only if lazy=True.
     :param newline_readahead: The size of the readahead buffer for newline detection. Relevant only if lazy=True.
+    :param schema_infer_fraction: The fraction of the CSV file to read to infer the schema. Relevant only if lazy=True.
+    :param fs_options: {fs_options}
+    :param fs: {fs}
     :return: DataFrame
     """
     import vaex.csv
     if lazy is True:
-        ds = vaex.csv.DatasetCsvLazy(file, chunk_size=chunk_size, read_options=read_options, parse_options=parse_options, convert_options=convert_options, newline_readahead=newline_readahead)
+        ds = vaex.csv.DatasetCsvLazy(file, chunk_size=chunk_size, read_options=read_options, parse_options=parse_options, convert_options=convert_options, newline_readahead=newline_readahead, schema_infer_fraction=schema_infer_fraction, fs=fs, fs_options=fs_options)
         return vaex.from_dataset(ds)
     else:
-        ds = vaex.csv.DatasetCsv(file, read_options=read_options, parse_options=parse_options, convert_options=convert_options)
+        ds = vaex.csv.DatasetCsv(file, read_options=read_options, parse_options=parse_options, convert_options=convert_options, fs=fs, fs_options=fs_options)
         return vaex.from_dataset(ds)
 
 

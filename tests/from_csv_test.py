@@ -4,6 +4,10 @@ from pathlib import Path
 import sys
 import io
 
+import fsspec.implementations.memory
+
+import pyarrow as pa
+import pyarrow.csv
 import pytest
 import vaex
 
@@ -97,3 +101,43 @@ def _cleanup_generated_files(*dfs):
         df.close()
     for hdf5_file in glob.glob(os.path.join(path, 'data', 'small*.hdf5')):
         os.remove(hdf5_file)
+
+
+@pytest.mark.parametrize("use_fs_layer", [True, False])
+def test_arrow_lazy_reading(use_fs_layer):
+    path_to_csv_file = os.path.join(path, "data", "difficult_schema.csv")
+    if use_fs_layer:
+        path_to_csv_file_local = path_to_csv_file
+        path_to_csv_file = "difficult_schema.csv"
+        fs = fsspec.implementations.memory.MemoryFileSystem()
+        fs.upload(path_to_csv_file_local, path_to_csv_file)
+        fs = pyarrow.fs.FSSpecHandler(fs)
+    else:
+        fs = None
+
+    df = vaex.from_csv_arrow(path_to_csv_file, lazy=True, chunk_size="3b", newline_readahead="7b", schema_infer_fraction=1.0, fs=fs)
+
+    assert df.shape == (3, 4)
+
+    assert df.x.dtype == int
+    assert df.x.sum() == 1+2+3
+
+    assert df.y.dtype == int
+    assert df.y.sum() == 2
+    assert df.y.tolist() == [None, 2, None]
+
+    assert df.z.dtype == str
+    assert df.z.tolist() == ['1', 'la', '']
+
+    assert df.q.dtype == int
+    assert df.q.tolist() == [None, None, None]
+
+def test_arrow_non_unicode():
+    path_to_csv_file = os.path.join(path, "data", "non-unicode.csv")
+    read_options = pa.csv.ReadOptions(use_threads=False, encoding="ISO-8859-1")
+    df = vaex.from_csv_arrow(path_to_csv_file, lazy=True, schema_infer_fraction=1.0, read_options=read_options, chunk_size="10b", newline_readahead="15b")
+    df.fingerprint()  # coverage
+
+    assert df.shape == (10, 2)
+    assert df.Tailnr.dtype == str
+    assert df.Tailnr.tolist()[4:6] == ["N331A", "N636Aï¿½"]

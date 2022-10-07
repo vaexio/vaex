@@ -194,6 +194,7 @@ setup(name=name + '-core',
               'struct = vaex.struct:DataFrameAccessorStruct',
           ],
           'vaex.dataset.opener': [
+              'csv = vaex.csv:DatasetCsvLazy',
               'arrow = vaex.arrow.opener:ArrowOpener',
               'parquet = vaex.arrow.opener:ParquetOpener',
               'feather = vaex.arrow.opener:FeatherOpener',
