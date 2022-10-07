@@ -18,35 +18,38 @@ from .multithreading import thread_count_default_io, get_main_io_pool
 MB = 1024**2
 
 
-def file_chunks(file, chunk_size, newline_readahead):
+def file_chunks(file, chunk_size, newline_readahead, fs=None, fs_options=None):
     """Bytes chunks, split by chunk_size bytes, on newline boundaries"""
     offset = 0
-    with open(file, 'rb') as file:
-        file.seek(0, 2)
-        file_size = file.tell()
-        file.seek(0)
+    # with open(file, 'rb') as file:\
+    file_size = vaex.file.size(file, fs=fs, fs_options=fs_options)
+    leftover = b''
+    leftover_previous = b''
+
+    with vaex.file.open(file, fs=fs, fs_options=fs_options) as file:
         begin_offset = 0
     
         done = False
         while not done:
-            # find the next newline boundary
-            end_offset = min(file_size, begin_offset + chunk_size)
-            done = end_offset == file_size
-            if end_offset < file_size:
-                file.seek(end_offset)
-                sample = file.read(newline_readahead)
+            size_expected = chunk_size + newline_readahead
+            data_extra = file.read(size_expected)
+            if len(data_extra) == size_expected:
+                sample = data_extra[chunk_size:]
                 offset = vaex.superutils.find_byte(sample, ord(b'\n'))
-                if offset != -1:
-                    end_offset += offset + 1 # include the newline
-                else:
-                    raise ValueError('expected newline')
+                if offset == -1:
+                    raise ValueError(f'Expected a newline within {newline_readahead} bytes, but not found, please increase newline_readahead')
+                data, leftover = data_extra[:chunk_size+offset+1], data_extra[chunk_size+offset+1:]
+            else:
+                # read till the end
+                data = data_extra
+                done = True
 
-            def reader(file_offset=begin_offset, length=end_offset - begin_offset):
-                file_threadsafe = vaex.file.dup(file)
-                file_threadsafe.seek(file_offset)
-                return file_threadsafe.read(length)
+            assert len(data) > 0
+            def reader(data=data, leftover_previous=leftover_previous):
+                chunk = leftover_previous + data
+                return memoryview(chunk)
+            leftover_previous = leftover
             yield reader
-            begin_offset = end_offset
 
 
 def file_chunks_mmap(file, chunk_size, newline_readahead):
@@ -225,8 +228,18 @@ class DatasetCsvLazy(DatasetFile):
 
 
     def _infer_schema(self):
-        reader = pyarrow.csv.open_csv(self.path, read_options=self.read_options, parse_options=self.parse_options, convert_options=self.convert_options)
-        self._arrow_schema = reader.read_next_batch().schema
+        with vaex.file.open(self.path, fs_options=self.fs_options, fs=self.fs) as f:
+            data = bytes(f.read(self.newline_readahead*3))
+            offset = 0
+            offset = data.find(b'\n', offset) + 1
+            if offset == 0:
+                raise ValueError("Cannot find newline in first %d bytes of file: %s" % (self.newline_readahead*3, self.path))
+            offset = data.find(b'\n', offset) + 1
+            if offset == 0:
+                raise ValueError("Cannot find second newline in first %d bytes of file: %s" % (self.newline_readahead*3, self.path))
+            f_first_two_lines = pa.input_stream(memoryview(data[:offset]))
+            reader = pyarrow.csv.open_csv(f_first_two_lines, read_options=self.read_options, parse_options=self.parse_options, convert_options=self.convert_options)
+            self._arrow_schema = reader.read_next_batch().schema
         self._column_names = list(self._arrow_schema.names)
 
         self._arrow_schema = None
@@ -236,7 +249,10 @@ class DatasetCsvLazy(DatasetFile):
         self._fragment_info = {}
         schemas: Dict[str, List[Any]] = collections.defaultdict(list)
         if self._schema is None and self._given_row_count is None and self._row_count is None:
-            chunks = file_chunks_mmap(self.path, self.chunk_size, self.newline_readahead)
+            if self.fs is None and not self.fs_options:
+                chunks = file_chunks_mmap(self.path, self.chunk_size, self.newline_readahead)
+            else:
+                chunks = file_chunks(self.path, self.chunk_size, self.newline_readahead, fs=self.fs, fs_options=self.fs_options)
             def process(i, chunk_reader):
                 data = chunk_reader()
                 if (i % int(1/self.schema_infer_fraction)) == 0:
@@ -304,7 +320,11 @@ class DatasetCsvLazy(DatasetFile):
         
         first = True
         previous = None
-        for i, reader in enumerate(file_chunks_mmap(self.path, self.chunk_size, self.newline_readahead)):
+        if self.fs is None and not self.fs_options:
+            file_chunks_iterator = file_chunks_mmap(self.path, self.chunk_size, self.newline_readahead)
+        else:
+            file_chunks_iterator = file_chunks(self.path, self.chunk_size, self.newline_readahead, fs=self.fs, fs_options=self.fs_options)
+        for i, reader in enumerate(file_chunks_iterator):
             fragment_info = self._fragment_info.get(i)
             # bail out/continue early
             if fragment_info:

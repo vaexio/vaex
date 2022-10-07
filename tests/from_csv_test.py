@@ -4,6 +4,8 @@ from pathlib import Path
 import sys
 import io
 
+import fsspec.implementations.memory
+
 import pyarrow as pa
 import pyarrow.csv
 import pytest
@@ -101,9 +103,19 @@ def _cleanup_generated_files(*dfs):
         os.remove(hdf5_file)
 
 
-def test_arrow_lazy_reading():
-    path_to_csv_file = os.path.join(path, 'data', 'difficult_schema.csv')
-    df = vaex.from_csv_arrow(path_to_csv_file, lazy=True, chunk_size="3b", newline_readahead='7b', schema_infer_fraction=1.0)
+@pytest.mark.parametrize("use_fs_layer", [True, False])
+def test_arrow_lazy_reading(use_fs_layer):
+    path_to_csv_file = os.path.join(path, "data", "difficult_schema.csv")
+    if use_fs_layer:
+        path_to_csv_file_local = path_to_csv_file
+        path_to_csv_file = "difficult_schema.csv"
+        fs = fsspec.implementations.memory.MemoryFileSystem()
+        fs.upload(path_to_csv_file_local, path_to_csv_file)
+        fs = pyarrow.fs.FSSpecHandler(fs)
+    else:
+        fs = None
+
+    df = vaex.from_csv_arrow(path_to_csv_file, lazy=True, chunk_size="3b", newline_readahead="7b", schema_infer_fraction=1.0, fs=fs)
 
     assert df.shape == (3, 4)
 

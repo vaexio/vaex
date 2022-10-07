@@ -26,7 +26,8 @@ def test_cloud_dataset_masked(base_url, file_format, cache):
     # For now, caching of arrow & parquet is not supported
     kwargs = {}
     if file_format == 'csv':
-        kwargs = dict(dtype={'x': 'Int64', 'y': 'Int64', 's': 'string'})
+        import pyarrow.csv
+        kwargs = {'convert_options': pyarrow.csv.ConvertOptions(column_types={'s': pyarrow.string()}, strings_can_be_null=True)}
     df = vaex.open(f'{base_url}/testing/xys-masked.{file_format}?cache={cache}', fs_options=fs_options, **kwargs)
     assert df.x.tolist() == [1, None]
     assert df.y.tolist() == [None, 4]
