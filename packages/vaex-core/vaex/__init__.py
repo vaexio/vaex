@@ -170,6 +170,7 @@ def open(path, convert=False, progress=None, shuffle=False, fs_options={}, fs=No
     """
     import vaex
     import vaex.convert
+    import vaex.csv  # need to import this to register for dask/fingerprinting
     try:
         if not isinstance(path, (list, tuple)):
             # remote and clusters only support single path, not a list
