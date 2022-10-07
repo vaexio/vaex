@@ -122,6 +122,9 @@ def open(path, convert=False, progress=None, shuffle=False, fs_options={}, fs=No
     :return: return a DataFrame on success, otherwise None
     :rtype: DataFrame
 
+    Note: From version 4.14.0 `vaex.open()` will lazily read CSV files.
+    If you prefer to read the entire CSV file into memory, use `vaex.from_csv()` or `vaex.from_csv_arrow()` instead.
+
     Cloud storage support:
 
     Vaex supports streaming of HDF5 files from Amazon AWS S3 and Google Cloud Storage.
@@ -529,7 +532,8 @@ def from_records(records : List[Dict], array_type="arrow", defaults={}) -> vaex.
     return vaex.from_dict(arrays)
 
 
-def from_csv_arrow(file, read_options=None, parse_options=None, convert_options=None, lazy=False, chunk_size="10MiB", newline_readahead="64kiB", schema_infer_fraction=0.001, fs_options={}, fs=None):
+@docsubst
+def from_csv_arrow(file, read_options=None, parse_options=None, convert_options=None, lazy=False, chunk_size="10MiB", newline_readahead="64kiB", schema_infer_fraction=0.01, fs_options={}, fs=None):
     """ Fast CSV reader using Apache Arrow. Support for lazy reading of CSV files (experimental).
 
     :param file: file path or file-like object
@@ -540,6 +544,8 @@ def from_csv_arrow(file, read_options=None, parse_options=None, convert_options=
     :param chunk_size: The CSV is read in chunks of the specified size. Relevant only if lazy=True.
     :param newline_readahead: The size of the readahead buffer for newline detection. Relevant only if lazy=True.
     :param schema_infer_fraction: The fraction of the CSV file to read to infer the schema. Relevant only if lazy=True.
+    :param fs_options: {fs_options}
+    :param fs: {fs}
     :return: DataFrame
     """
     import vaex.csv
