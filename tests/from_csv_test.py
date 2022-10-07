@@ -136,6 +136,7 @@ def test_arrow_non_unicode():
     path_to_csv_file = os.path.join(path, "data", "non-unicode.csv")
     read_options = pa.csv.ReadOptions(use_threads=False, encoding="ISO-8859-1")
     df = vaex.from_csv_arrow(path_to_csv_file, lazy=True, schema_infer_fraction=1.0, read_options=read_options, chunk_size="10b", newline_readahead="15b")
+    df.fingerprint()  # coverage
 
     assert df.shape == (10, 2)
     assert df.Tailnr.dtype == str

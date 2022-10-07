@@ -477,12 +477,15 @@ import dask.base
 
 @dask.base.normalize_token.register(pyarrow.csv.ConvertOptions)
 def _normalize(obj):
-    kwargs = {}
-    if obj is not None:
-        kwargs = kwargs.copy()
-        for name in dir(obj):
-            value = getattr(obj, name)
-            if not name.startswith('__') and not callable(value):
-                if name not in kwargs:
-                    kwargs[name] = value
+    kwargs = _get_kwargs(obj)
     return (pyarrow.csv.ConvertOptions, kwargs)
+
+@dask.base.normalize_token.register(pyarrow.csv.ParseOptions)
+def _normalize(obj):
+    kwargs = _get_kwargs(obj)
+    return (pyarrow.csv.ParseOptions, kwargs)
+
+@dask.base.normalize_token.register(pyarrow.csv.ReadOptions)
+def _normalize(obj):
+    kwargs = _get_kwargs(obj)
+    return (pyarrow.csv.ReadOptions, kwargs)
