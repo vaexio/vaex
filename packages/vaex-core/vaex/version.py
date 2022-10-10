@@ -4,6 +4,7 @@ packages = ['vaex', 'vaex-core', 'vaex-viz', 'vaex-hdf5', 'vaex-server', 'vaex-a
 
 def get_versions():
     def is_installed(p):
+        #  Concept from https://github.com/geoalchemy/geoalchemy2/pull/392/files#diff-208c493ee84f787a0a966b235a31f86a5d382ff76e1e5533b5b1da712996b7e2
         try:
             import importlib.metadata
         except ImportError:
