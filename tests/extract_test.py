@@ -3,6 +3,7 @@ from threading import Barrier
 import time
 from common import *
 
+
 def test_extract(ds_local, ds_trimmed):
     ds = ds_local
     ds_extracted = ds.extract()
@@ -21,7 +22,6 @@ def test_extract(ds_local, ds_trimmed):
     assert ds_extracted2.filtered is False
 
 
-
 def test_thread_safe():
     df = vaex.from_arrays(x=np.arange(int(1e5)))
     dff = df[df.x < 100]
@@ -33,3 +33,13 @@ def test_thread_safe():
         dff.extract()
     pool = ThreadPoolExecutor(max_workers=100)
     _values = list(pool.map(run, range(100)))
+
+
+def test_extract_after_empty_filter():
+    df = vaex.from_arrays(x=np.arange(5), y=np.arange(5))
+    pandas_df = df[df.x > 20].extract().to_pandas_df()
+    assert len(pandas_df) == 0
+
+    df['z'] = df.x + df.y
+    pandas_df = df[df.z > 20].extract().to_pandas_df()
+    assert len(pandas_df) == 0
