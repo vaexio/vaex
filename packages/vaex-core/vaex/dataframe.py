@@ -4902,6 +4902,7 @@ class DataFrame(object):
             df[name] = df.func.fillna(df[name], value)
         return df
 
+    @docsubst
     def materialize(self, column=None, inplace=False, virtual_column=None):
         '''Turn columns into native CPU format for optimal performance at cost of memory.
 
@@ -4926,8 +4927,8 @@ class DataFrame(object):
         >>> df.x.sum()  # as fast as possible, will use memory
 
         :param column: string or list of strings with column names to materialize, all columns when None
-        :param virtual_column: for backward compatibility
         :param inplace: {inplace}
+        :param virtual_column: for backward compatibility
         '''
         if virtual_column is not None:
             warnings.warn("virtual_column argument is deprecated, please use column")
@@ -4937,6 +4938,7 @@ class DataFrame(object):
             columns = df.get_column_names(hidden=True)
         else:
             columns = _ensure_strings_from_expressions(column)
+            columns = _ensure_list(columns)
         virtual = []
         cache = []
         for column in columns:
