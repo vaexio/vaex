@@ -270,8 +270,8 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
                     null_bitmap = pa.py_buffer(self._map_hdf5_array(mask))
                     ar = pa.Array.from_buffers(array.type, len(array), [null_bitmap] + buffers[1:])
                 else:
-                    ar = vaex.column.ColumnMaskedNumpy(array, mask_array)
                     mask_array = self._map_hdf5_array(mask)
+                    ar = vaex.column.ColumnMaskedNumpy(array, mask_array)
                     if isinstance(array, np.ndarray):
                         ar = np.ma.array(array, mask=mask_array, shrink=False)
                     else:

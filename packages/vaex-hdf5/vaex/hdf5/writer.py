@@ -4,9 +4,11 @@ import concurrent.futures
 
 import h5py
 import numpy as np
+import pyarrow as pa
 from pyarrow.types import is_temporal
 
 import vaex
+import vaex.array_types
 import vaex.utils
 from .utils import h5mmap
 from vaex.column import ColumnStringArrow, _to_string_sequence
@@ -60,13 +62,13 @@ class Writer:
         dtypes = df.schema()
         str_byte_length = {name:df[name].str.byte_length().sum(delay=True, progress=progressbar_strings) for name, dtype in dtypes.items() if dtype.is_string}
         # arrow types can contain nulls even when they don't have a mask
-        arrow_null_count = {name: df.count(df[name], delay=True, progress=progressbar_count) for name, dtype in dtypes.items() if dtype.is_arrow or df.is_string}
+        arrow_null_count = {name: df.count(df[name], delay=True, progress=progressbar_count) for name, dtype in dtypes.items() if dtype.is_arrow or dtype.is_string}
         df.execute()
         progressbar_count(1)
         progressbar_strings(1)
 
         str_byte_length = {k: v.get() for k, v in str_byte_length.items()}
-        has_null = {k: N != v.get() for k, v in arrow_null_count.items()}
+        has_null = {name: name in arrow_null_count and arrow_null_count[name].get() != N for name, dtype in dtypes.items()}
         has_mask = {name: df.is_masked(name) for name, dtype in dtypes.items() if not dtype.is_string}
 
         for i, name in enumerate(list(column_names)):
@@ -206,6 +208,7 @@ class ColumnWriterPrimitive:
             self.array = self.h5group.require_dataset('data', shape=shape, dtype=dtype.numpy.newbyteorder(byteorder), track_times=False)
         self.array[0] = self.array[0]  # make sure the array really exists
 
+        self.null_bitmap_array = None
         if self.has_null:
             null_shape = ((self.count + 7) // 8,)  # TODO: arrow requires padding right?
             self.null_bitmap_array = self.h5group.require_dataset("null_bitmap", shape=null_shape, dtype="u1", track_times=False)
@@ -230,14 +233,23 @@ class ColumnWriterPrimitive:
         if no_values:
             fill_value = np.nan if self.dtype.kind == "f" else None
             target_set_item = slice(self.to_offset, self.to_offset + no_values)
+            if vaex.array_types.is_arrow_array(values):
+                values = vaex.arrow.convert.ensure_not_chunked(values)
             if self.dtype.kind in 'mM':
-                values = values.view(np.int64)
+                if vaex.array_types.is_arrow_array(values):
+                    values = values.view(pa.int64())
+                else:
+                    values = values.view(np.int64)
             if self.has_null:
                 byte_index1 = self.to_offset // 8  # floor it
                 byte_index2 = (self.to_offset + len(values) + 7) // 8  # ceil it
                 if self.to_offset != byte_index1 * 8:
                     raise ValueError("Cannot write to non-byte aligned offset")
-                self.null_bitmap_array[byte_index1:byte_index2] = memoryview(values.buffers()[0])
+                null_buffer = values.buffers()[0]
+                if null_buffer is not None:
+                    self.null_bitmap_array[byte_index1:byte_index2] = memoryview(null_buffer)
+                else:
+                    self.null_bitmap_array[byte_index1:byte_index2] = 0xff
             if np.ma.isMaskedArray(self.to_array) and np.ma.isMaskedArray(values):
                 assert self.has_mask
                 self.to_array.data[target_set_item] = values.filled(fill_value)
