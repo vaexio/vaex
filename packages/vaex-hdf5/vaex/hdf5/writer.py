@@ -146,7 +146,7 @@ class ColumnWriterDictionaryEncoded:
         self.expression = df[name].index_values()
         self.h5group = h5parent.require_group(name)
         self.h5group.attrs["type"] = "dictionary_encoded"
-        self.index_writer = ColumnWriterPrimitive(self.h5group, name="indices", dtype=self.dtype.index_type, shape=shape, has_null=has_null, byteorder=byteorder)
+        self.index_writer = ColumnWriterPrimitive(self.h5group, name="indices", dtype=self.dtype.index_type, shape=shape, has_null=has_null, has_mask=False, byteorder=byteorder)
         self._prepare_values()
 
     def _prepare_values(self):
