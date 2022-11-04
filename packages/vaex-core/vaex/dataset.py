@@ -765,7 +765,9 @@ class DatasetConcatenated(Dataset):
     def is_masked(self, column):
         for dataset in self.datasets:
             if column not in dataset:
-                return True
+                # if the column is not in the dataset, we assume it is not masked
+                # since we ues arrow in that case
+                return False
         return any(k.is_masked(column) for k in self.datasets)
 
     def shape(self, column):

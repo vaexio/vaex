@@ -266,13 +266,16 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
                     array = vaex.column.ColumnArrowLazyCast(array, vaex.dtype_of(array).arrow)
             if mask is not None:
                 if as_arrow:
-                    raise TypeError('Arrow does not support byte masks')
-                mask_array = self._map_hdf5_array(mask)
-                if isinstance(array, np.ndarray):
-                    ar = np.ma.array(array, mask=mask_array, shrink=False)
-                    # assert ar.mask is mask_array, "masked array was copied"
+                    buffers = array.buffers()
+                    null_bitmap = pa.py_buffer(self._map_hdf5_array(mask))
+                    ar = pa.Array.from_buffers(array.type, len(array), [null_bitmap] + buffers[1:])
                 else:
+                    mask_array = self._map_hdf5_array(mask)
                     ar = vaex.column.ColumnMaskedNumpy(array, mask_array)
+                    if isinstance(array, np.ndarray):
+                        ar = np.ma.array(array, mask=mask_array, shrink=False)
+                    else:
+                        ar = vaex.column.ColumnMaskedNumpy(array, mask_array)
                 return ar
             else:
                 return array
@@ -404,7 +407,10 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
             if self._version > 1 and 'mask' in column:
                 return self._map_hdf5_array(data, column['mask'], as_arrow=as_arrow)
             else:
-                return self._map_hdf5_array(data, as_arrow=as_arrow)
+                if 'null_bitmap' in column:
+                    return self._map_hdf5_array(data, column['null_bitmap'], as_arrow=True)
+                else:
+                    return self._map_hdf5_array(data, as_arrow=as_arrow)
 
 
     def close(self):

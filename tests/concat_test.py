@@ -238,8 +238,8 @@ def test_concat_unaligned_schema(arrow):
     df = df1.concat(df2)
     assert df.x.tolist() == [1, 2, None, None]
     assert df.y.tolist() == [None, None, 'd', 'e']
-    assert df.is_masked('x')
-    assert df.is_masked('y')
+    assert not df.is_masked('x')
+    assert not df.is_masked('y')
     # always 'upcast' to Arrow arrays
     # # rationale: Arrow will use use less memory, numpy has no efficient way to represent all missing data
     assert df.x.data_type() == pa.float32()
