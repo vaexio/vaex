@@ -266,6 +266,8 @@ def open(path, convert=False, progress=None, shuffle=False, fs_options={}, fs=No
 def open_many(filenames):
     """Open a list of filenames, and return a DataFrame with all DataFrames concatenated.
 
+    The filenames can be of any format that is supported by :py:func:`vaex.open`, namely hdf5, arrow, parquet, csv, etc.
+
     :param list[str] filenames: list of filenames/paths
     :rtype: DataFrame
     """

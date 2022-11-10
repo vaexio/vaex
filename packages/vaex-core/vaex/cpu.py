@@ -676,10 +676,16 @@ class TaskPartAggregation(TaskPart):
             if vaex.array_types.is_string_type(dtype):
                 x = vaex.column._to_string_sequence(x)
             else:
-                x = vaex.utils.as_contiguous(x)
-                if x.dtype.kind in "mM":
-                    # we pass datetime as int
-                    x = x.view('uint64')
+                if vaex.array_types.is_arrow_array(x):
+                    x = vaex.arrow.convert.ensure_not_chunked(x)
+                    if vaex.dtype_of(x).is_encoded:
+                        x = x.indices
+                    x = vaex.array_types.to_numpy(x)
+                else:
+                    x = vaex.utils.as_contiguous(x)
+                    if x.dtype.kind in "mM":
+                        # we pass datetime as int
+                        x = x.view('uint64')
             return x
 
         N = i2 - i1

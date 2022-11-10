@@ -298,3 +298,16 @@ def test_export_csv_badnames(tmpdir):
     df2 = vaex.open(output_path)
     assert df.get_column_names() == df2.get_column_names()
     assert df.shape == df2.shape
+
+
+def test_export_hdf5_missing_values(tmpdir):
+    df = vaex.from_dict({'x': pa.array([1, None, 5, None, 10]),
+                          'y': pa.array([1.1, None, 5.5, None, 10.10]),
+                          'z': ['Yes', None, 'No', None, 'Maybe']})
+    export_path = str(tmpdir.join('tmp.hdf5'))
+    df.export_hdf5(export_path)
+    df2 = vaex.open(export_path)
+    assert df2.shape == (5, 3)
+    assert df2.x.tolist() == [1, None, 5, None, 10]
+    assert df2.y.tolist() == [1.1, None, 5.5, None, 10.10]
+    assert df2.z.tolist() == ['Yes', None, 'No', None, 'Maybe']
