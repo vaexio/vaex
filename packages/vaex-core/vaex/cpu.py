@@ -11,6 +11,7 @@ import pyarrow as pa
 
 import vaex
 import vaex.encoding
+import vaex.array_types
 from vaex.hash import counter_type_from_dtype
 from .utils import as_flat_float, as_flat_array, _issequence, _ensure_list
 from .array_types import filter
@@ -548,6 +549,8 @@ class TaskPartStatistic(TaskPart):
                 selection_mask = selection_masks[i]
                 if selection_mask is None:
                     raise ValueError("performing operation on selection while no selection present")
+                selection_mask = vaex.array_types.to_numpy(selection_mask)
+                selection_mask = vaex.utils.unmask_selection_mask(selection_mask)
                 if mask is not None:
                     selection_mask = selection_mask[~mask]
                 selection_blocks = [block[selection_mask] for block in blocks]
@@ -734,7 +737,12 @@ class TaskPartAggregation(TaskPart):
                     selection_mask = selection_masks[selection_index_global] # self.df.evaluate_selection_mask(selection, i1=i1, i2=i2, cache=True)  # TODO
                     # TODO: we probably want a way to avoid a to numpy conversion?
                     assert selection_mask is not None
-                    selection_mask = np.asarray(selection_mask)
+                    references.append(selection_mask)
+                    selection_mask = vaex.array_types.to_numpy(selection_mask)
+                    selection_mask = vaex.utils.unmask_selection_mask(selection_mask)
+                    if selection_mask.strides != (1,):
+                        selection_mask = selection_mask.copy()
+
                     references.append(selection_mask)
                     # some aggregators make a distiction between missing value and no value
                     # like nunique, they need to know if they should take the value into account or not
