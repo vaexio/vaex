@@ -737,8 +737,11 @@ class TaskPartAggregation(TaskPart):
                     selection_mask = selection_masks[selection_index_global] # self.df.evaluate_selection_mask(selection, i1=i1, i2=i2, cache=True)  # TODO
                     # TODO: we probably want a way to avoid a to numpy conversion?
                     assert selection_mask is not None
+                    references.append(selection_mask)
                     selection_mask = vaex.array_types.to_numpy(selection_mask)
                     selection_mask = vaex.utils.unmask_selection_mask(selection_mask)
+                    if selection_mask.strides != (1,):
+                        selection_mask = selection_mask.copy()
 
                     references.append(selection_mask)
                     # some aggregators make a distiction between missing value and no value
