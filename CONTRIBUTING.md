@@ -14,7 +14,7 @@ Below are the instructions on how to setup a development version of vaex, but co
  
 * Finally, install vaex for development (this might take a long time):
 
-    ``make init`` or ``pip install -e .[dev]``
+    ``make init`` or ``pip install -e ".[dev]"``
 
 ### Common Errors
 
