@@ -1,5 +1,17 @@
-packages = ['vaex', 'vaex-core', 'vaex-viz', 'vaex-hdf5', 'vaex-server', 'vaex-astro',
-            'vaex-ui', 'vaex-jupyter', 'vaex-ml', 'vaex-arrow', 'vaex-graphql', 'vaex-enterprise']
+packages = [
+    "vaex",
+    "vaex-core",
+    "vaex-viz",
+    "vaex-hdf5",
+    "vaex-server",
+    "vaex-astro",
+    "vaex-ui",
+    "vaex-jupyter",
+    "vaex-ml",
+    "vaex-arrow",
+    "vaex-graphql",
+    "vaex-enterprise",
+]
 
 
 # Attempt to use importlib.metadata first because it's much faster
@@ -12,6 +24,7 @@ def get_version(package):
     except ImportError:
         from pkg_resources import DistributionNotFound
         from pkg_resources import get_distribution
+
         try:
             version = get_distribution(package).version
         except DistributionNotFound:  # pragma: no cover
@@ -20,8 +33,8 @@ def get_version(package):
         try:
             version = importlib.metadata.version(package)
         except importlib.metadata.PackageNotFoundError:  # pragma: no cover
-          pass
-  return version
+            pass
+    return version
 
 
 def get_versions():
@@ -29,6 +42,6 @@ def get_versions():
     for p in packages:
         try:
             installed_packages[p] = get_version(p)
-        except:
+        except Exception:
             pass
     return installed_packages
