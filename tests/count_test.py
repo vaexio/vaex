@@ -58,13 +58,13 @@ def test_count_1d_verify_against_numpy(ds_local, limits):
 
 
 def test_count_selection_w_missing_values():
-    x = np.random.normal(size=10_000)
-    fraction_missing = 0.7
-    missing_mask = np.random.binomial(1, fraction_missing, size=x.shape).astype(bool)
+    x = np.arange(10)
+    missing_mask = (x % 3) == 0
 
     x_numpy = np.ma.array(x, mask=missing_mask)
     x_arrow = pa.array(x, mask=missing_mask)
     df = vaex.from_arrays(x_numpy=x_numpy, x_arrow=x_arrow)
 
     assert all(df.count(binby='x_numpy') == df.count(binby='x_arrow'))
-    assert all(df.count(binby='x_numpy', selection='x_numpy > 0') == df.count(binby='x_arrow', selection='x_arrow > 0'))
+    assert all(df.count(binby='x_numpy', shape=2, limits=[0, 10], selection='x_numpy > 0') == df.count(binby='x_arrow', shape=2, limits=[0, 10], selection='x_arrow > 0'))
+    assert all(df.count(binby='x_numpy', shape=2, selection='x_numpy > 0') == df.count(binby='x_arrow', shape=2, selection='x_arrow > 0'))
