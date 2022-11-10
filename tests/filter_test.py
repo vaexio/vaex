@@ -79,3 +79,9 @@ def test_filter_after_dropna(df_factory):
     dd = df[df.x > 10]
     assert dd.x.tolist() == [20, 30]
     assert dd.y.tolist() == [2, 3]
+
+def test_filter_arrow_string_scalar():
+    df = vaex.from_arrays(x=['red', 'green', 'blue'])
+    assert df[df.x == pa.scalar('red')].x.tolist() == ['red']
+    assert df[df.x == pa.scalar('green')].shape == (1, 1)
+    assert df[df.x != pa.scalar('blue')].shape
