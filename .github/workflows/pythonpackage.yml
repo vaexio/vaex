@@ -26,8 +26,8 @@ jobs:
       fail-fast: false
       max-parallel: 12
       matrix:
-        os: [ubuntu-latest, windows-latest, macOS-latest]
-        python-version: [3.6, 3.7, 3.8, 3.9]
+        os: [ubuntu-latest]
+        python-version: [ 3.9]
 
     steps:
     - name: disk space
@@ -122,6 +122,7 @@ jobs:
         (cd packages/vaex-meta && python setup.py bdist_wheel); cp packages/vaex-server/dist/* dist
     - name: Upload builds
       uses: actions/upload-artifact@v2
+      if: ${{ false }}
       with:
         name: dist-${{ github.run_number }}-${{ matrix.python-version }}-${{ matrix.os }}
         path: ./dist
