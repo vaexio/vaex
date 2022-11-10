@@ -21,6 +21,7 @@ import pyarrow as pa
 import vaex.cache
 import vaex.hash
 import vaex.tasks
+import vaex.array_types
 import vaex.serialize
 from vaex.utils import _ensure_strings_from_expressions, _ensure_string_from_expression
 from vaex.column import ColumnString, _to_string_sequence
@@ -101,6 +102,10 @@ class Meta(type):
         for op in _binary_ops:
             def wrap(op=op):
                 def f(a, b):
+                    if isinstance(a, pa.Scalar):
+                        a = a.as_py()
+                    if isinstance(b, pa.Scalar):
+                        b = b.as_py()
                     self = a
                     # print(op, a, b)
                     if isinstance(b, str) and self.dtype.is_datetime:
@@ -152,6 +157,10 @@ class Meta(type):
                 attrs['__%s__' % op['name']] = f
                 if op['name'] in reversable:
                     def f(a, b):
+                        if isinstance(a, pa.Scalar):
+                            a = a.as_py()
+                        if isinstance(b, pa.Scalar):
+                            b = b.as_py()
                         self = a
                         if isinstance(b, str):
                             if op['code'] == '+':
@@ -171,6 +180,8 @@ class Meta(type):
         for op in _unary_ops:
             def wrap(op=op):
                 def f(a):
+                    if isinstance(a, pa.Scalar):
+                        a = a.as_py()
                     self = a
                     expression = '{0}({1})'.format(op['code'], a.expression)
                     return Expression(self.ds, expression=expression)
