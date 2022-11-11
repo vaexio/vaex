@@ -5052,7 +5052,7 @@ class DataFrame(object):
         column_names = column_names or self.get_column_names(virtual=False)
 
         def create(current):
-            return selections.SelectionDropNa(drop_nan, drop_masked, column_names, current, mode)
+            return selections.SelectionDropNa(drop_nan, drop_masked, [str(self[k]) for k in column_names], current, mode)
         self._selection(create, name)
 
     def dropmissing(self, column_names=None, how="any"):

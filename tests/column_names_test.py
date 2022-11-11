@@ -108,3 +108,9 @@ def test_special_names():
 
     df = vaex.from_arrays(col=[1, 2])
     assert df['col'].tolist() == [1, 2]
+
+
+def test_select_na():
+    df = vaex.from_dict({'A-B': [None, 1, 2]})
+    df.select_non_missing()
+    assert df.count(selection=True) == 2
