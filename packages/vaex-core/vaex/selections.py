@@ -59,22 +59,21 @@ class Selection(object):
 
 
 class SelectionDropNa(Selection):
-    def __init__(self, drop_nan, drop_masked, column_names, previous_selection, mode):
+    def __init__(self, drop_nan, drop_masked, expressions, previous_selection, mode):
         super(SelectionDropNa, self).__init__(previous_selection, mode)
         self.drop_nan = drop_nan
         self.drop_masked = drop_masked
-        self.column_names = column_names
-        self.expressions = self.column_names
+        self.expressions = expressions
 
     def to_dict(self):
         previous = None
         if self.previous_selection:
             previous = self.previous_selection.to_dict()
-        return dict(type="dropna", drop_nan=self.drop_nan, drop_masked=self.drop_masked, column_names=self.column_names,
+        return dict(type="dropna", drop_nan=self.drop_nan, drop_masked=self.drop_masked, expressions=self.expressions,
                     mode=self.mode, previous_selection=previous)
 
     def _rename(self, df, old, new):
-        pass  # TODO: do we need to rename the column_names?
+        pass  # TODO: do we need to rename the expressions?
 
     def evaluate(self, df, name, i1, i2, scope):
         if self.previous_selection:
@@ -82,8 +81,8 @@ class SelectionDropNa(Selection):
         else:
             previous_mask = None
         mask = None
-        for name in self.column_names:
-            data = scope.evaluate(name)
+        for expressions in self.expressions:
+            data = scope.evaluate(expressions)
             if mask is None:
                 mask = np.full(len(data), True)
             if self.drop_nan and self.drop_masked:

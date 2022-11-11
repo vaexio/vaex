@@ -110,12 +110,7 @@ def test_special_names():
     assert df['col'].tolist() == [1, 2]
 
 
-def test_names_with_math_symbols():
-    d = {'phigh-10': [2, 3, 4], 'phigh-1n': [5, 6, 7]}
-    df = vaex.from_dict(d)
-    assert df.values.tolist() == [[2, 5], [3, 6], [4, 7]]
-
-    df2 = df[df['phigh-10'] > 2]
-    df2.select_non_missing()
-    assert df2.values.tolist() == [[3, 6], [4, 7]]
-    assert repr(df2) == '  #    phigh-10    phigh-1n\n  0           3           6\n  1           4           7'
+def test_select_na():
+    df = vaex.from_dict({'A-B': [None, 1, 2]})
+    df.select_non_missing()
+    assert df.count(selection=True) == 2
