@@ -9,10 +9,11 @@ from dask.utils import parse_bytes
 from frozendict import frozendict
 
 import vaex.dataset
+import vaex.settings
 import vaex.file
 from vaex.dataset import Dataset, DatasetFile
 from .itertools import pmap, pwait, buffer, consume, filter_none
-from .multithreading import thread_count_default_io, get_main_io_pool
+from .multithreading import get_main_io_pool
 
 
 MB = 1024**2
@@ -406,7 +407,7 @@ class DatasetCsvLazy(DatasetFile):
         for column in columns:
             if column not in self._columns:
                 self._check_existence(column)
-        for c1, c2, chunks in filter_none(pwait(buffer(chunk_generator, thread_count_default_io//2+3))):
+        for c1, c2, chunks in filter_none(pwait(buffer(chunk_generator, vaex.settings.main.thread_count_io//2+3))):
             chunks_ready_list.append(chunks)
             total_row_count = sum([len(list(k.values())[0]) for k in chunks_ready_list])
             if total_row_count > chunk_size:
