@@ -2,24 +2,18 @@
 from __future__ import division, print_function
 import asyncio
 import threading
-import queue
-import math
 import multiprocessing
-import sys
+from warnings import warn
 import vaex.utils
 import logging
-import traceback
-import cProfile
 import concurrent.futures
 import time
-import os
+import vaex.settings
 
 from .itertools import buffer
 
 logger = logging.getLogger("vaex.multithreading")
 
-thread_count_default = vaex.utils.get_env_type(int, 'VAEX_NUM_THREADS', multiprocessing.cpu_count())
-thread_count_default_io = vaex.utils.get_env_type(int, 'VAEX_NUM_THREADS_IO', thread_count_default + 1)
 main_pool = None
 main_io_pool = None
 
@@ -44,7 +38,7 @@ def get_main_pool():
 def get_main_io_pool():
     global main_io_pool
     if main_io_pool is None:
-        main_io_pool = concurrent.futures.ThreadPoolExecutor(max_workers=thread_count_default_io)
+        main_io_pool = concurrent.futures.ThreadPoolExecutor(max_workers=vaex.settings.main.thread_count_io)
     return main_io_pool
 
 
@@ -59,7 +53,7 @@ class ThreadPoolIndex(concurrent.futures.ThreadPoolExecutor):
 
     def __init__(self, max_workers=None, *args, **kwargs):
         if max_workers is None:
-            max_workers = thread_count_default
+            max_workers = vaex.settings.main.thread_count
         super(ThreadPoolIndex, self).__init__(max_workers, *args, **kwargs)
         self.lock = threading.Lock()
         self.thread_indices = iter(range(1000000))  # enough threads until 2100?
