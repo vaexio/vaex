@@ -1,6 +1,6 @@
 from concurrent.futures import ThreadPoolExecutor
 from threading import Barrier
-import time
+import pytest
 from common import *
 
 def test_extract(ds_local, ds_trimmed):
@@ -33,3 +33,17 @@ def test_thread_safe():
         dff.extract()
     pool = ThreadPoolExecutor(max_workers=100)
     _values = list(pool.map(run, range(100)))
+
+
+def test_extract_empty():
+    df = vaex.from_arrays(x=np.arange(10))
+    df = df[df.x < 0]
+    df_extracted = df.extract()
+    assert len(df_extracted) == 0
+    assert df_extracted.length_original() == 0
+    assert df_extracted.length_unfiltered() == 0
+    assert df_extracted.filtered is False
+
+    df['z'] = df.x + 1
+    with pytest.raises(ValueError, match='Cannot extract a DataFrame with.*'):
+        df_extracted = df.extract()
