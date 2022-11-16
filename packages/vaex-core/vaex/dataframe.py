@@ -4482,6 +4482,8 @@ class DataFrame(object):
         '''
         df = self.trim()
         with self._state_lock:
+            if len(df) == 0 and len(self.virtual_columns):
+                raise ValueError("Cannot extract a DataFrame with virtual columns when there are 0 rows. See https://github.com/vaexio/vaex/issues/2232 for more information.\n\tWorkaround suggestion: df = df.extract() if len(df) else df")
             # df.filtered gets changed in push_down_filter so use a lock
             # to make it thread safe
             if df.filtered:
