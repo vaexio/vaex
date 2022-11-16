@@ -16,6 +16,7 @@ dependencies:
 - geopandas
 - graphviz
 - h5py
+- httpx # for testing with starlette/fastapi
 - ipyvolume=0.6.0a6
 - lightgbm
 - matplotlib-base
