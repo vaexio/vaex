@@ -747,3 +747,21 @@ def test_agg_nunique_selections(df_factory):
     assert dfg.result_int.tolist()[0] == df.x_int.nunique(selection='cond==True')
     assert dfg.result_str.tolist()[0] == df.x_str.nunique(selection='cond==True')
     assert dfg.result_float.tolist()[0] == df.x_float.nunique(selection='cond==True')
+
+
+@pytest.mark.parametrize('assume_sparse', [True, False])
+def test_agg_list_on_struct(assume_sparse):
+    struct = pa.StructArray.from_arrays(
+        arrays=[['Amsterdam', 'London', 'Paris', 'Ohrid', 'Edinburgh'],
+                ['Netherlands', 'United Kingdom', 'France', 'Macedonia', 'Scotland']],
+        names=['city', 'country'],
+    )
+
+    data = {
+        'x': [1, 1, 2, 2, 1],
+        'y': struct,
+    }
+
+    df = vaex.from_dict(data)
+    df_grouped = df.groupby('x', assume_sparse=assume_sparse).agg({'y': 'list'})
+    assert df_grouped.shape == (2, 2)
