@@ -1,3 +1,36 @@
+# vaex 4.15.0
+
+## vaex-core 4.15.0
+
+   * Fixes
+      * allow single columns or expressions in materialize [#2249](https://github.com/vaexio/vaex/pull/2249)
+      * arrow data used in selection would ignore null values or fail [#2196](https://github.com/vaexio/vaex/pull/2196)
+      * build expressions / filters with an arrow string scalar [#2244](https://github.com/vaexio/vaex/pull/2244)
+      * selection-dropna did not work with non-identifier expresssion [#2208](https://github.com/vaexio/vaex/pull/2208)
+      * use `vaex.settings` for thread counts [#2231](https://github.com/vaexio/vaex/pull/2231)
+      * raise an informative exception when `extract` can not run [#2232](https://github.com/vaexio/vaex/pull/2232)
+
+   * Performance
+      * Import and version checking improvements [#2226](https://github.com/vaexio/vaex/pull/2226)
+
+## vaex-hdf5 0.14.0
+
+   * Features
+      * store arrow arrays in hdf5 using null bitmasks [#2245](https://github.com/vaexio/vaex/pull/2245)
+
+# vaex 4.14.0
+
+## vaex-core 4.14.0
+
+   * Features
+      * Add support for the arrow export CSV backend in `export_many` [#2220](https://github.com/vaexio/vaex/pull/2220)
+      * Auto detect type when Lazy CSV reading [#2224](https://github.com/vaexio/vaex/pull/2224)
+
+   * Fixes
+      * convert options for lazy `from_csv_arrow` [#2218](https://github.com/vaexio/vaex/pull/2218)
+      * support arrow datasets containing multiple fragments without row groups [#2221](https://github.com/vaexio/vaex/pull/2221)
+      * Interchange protocol fixes and updates [#2150](https://github.com/vaexio/vaex/pull/2150)
+
 # vaex 4.13.0
 
 ## vaex-core 4.13.0
