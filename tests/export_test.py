@@ -311,3 +311,36 @@ def test_export_hdf5_missing_values(tmpdir):
     assert df2.x.tolist() == [1, None, 5, None, 10]
     assert df2.y.tolist() == [1.1, None, 5.5, None, 10.10]
     assert df2.z.tolist() == ['Yes', None, 'No', None, 'Maybe']
+
+@pytest.mark.parametrize("chunk_size", [3, 33])
+def test_export_hdf5_small_chunks_case_1(tmpdir, chunk_size):
+    x = pa.array([1, 2, None, None, 5])
+    y = pa.array([1.1, 2.2, None, None, 5.5])
+    s = pa.array(['dog', 'cat', None, None, 'mouse'])
+    df = vaex.from_arrays(x=x, y=y, s=s)
+
+    export_path = str(tmpdir.join('tmp.hdf5'))
+    df.export_hdf5(export_path, chunk_size=chunk_size)
+
+    df_hdf5 = vaex.open(export_path)
+    assert df_hdf5.shape == (5, 3)
+    assert df_hdf5.x.tolist() == [1, 2, None, None, 5]
+    assert df_hdf5.y.tolist() == [1.1, 2.2, None, None, 5.5]
+    assert df_hdf5.s.tolist() == ['dog', 'cat', None, None, 'mouse']
+
+
+@pytest.mark.parametrize("chunk_size", [3, 33])
+def test_export_hdf5_small_chunks_case_2(tmpdir, chunk_size):
+    x = pa.array([1, 2, None, None, None, None, None, None, 5])
+    y = pa.array([1.1, 2.2, None, None, None, None, None, None, 5.5])
+    s = pa.array(['dog', 'cat', None, None, None, None, None, None, 'mouse'])
+    df = vaex.from_arrays(x=x, y=y, s=s)
+
+    export_path = str(tmpdir.join('tmp.hdf5'))
+    df.export_hdf5(export_path, chunk_size=chunk_size)
+
+    df_hdf5 = vaex.open(export_path)
+    assert df_hdf5.shape == (9, 3)
+    assert df_hdf5.x.tolist() == [1, 2, None, None, None, None, None, None, 5]
+    assert df_hdf5.y.tolist() == [1.1, 2.2, None, None, None, None, None, None, 5.5]
+    assert df_hdf5.s.tolist() == ['dog', 'cat', None, None, None, None, None, None, 'mouse']
