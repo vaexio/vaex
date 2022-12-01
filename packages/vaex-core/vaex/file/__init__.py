@@ -8,13 +8,22 @@ import re
 import sys
 from urllib.parse import parse_qs
 import warnings
-import pkg_resources
 
 import pyarrow as pa
 import pyarrow.fs
 
 import vaex.file.cache
 
+
+try:
+    from sys import version_info
+    if version_info[:2] >= (3, 10):
+        from importlib.metadata import entry_points
+    else:
+        from importlib_metadata import entry_points
+except ImportError:
+    import pkg_resources
+    entry_points = pkg_resources.iter_entry_points
 
 normal_open = open
 logger = logging.getLogger("vaex.file")
@@ -186,7 +195,7 @@ def exists(path, fs_options={}, fs=None):
 
 def _get_scheme_handler(path):
     scheme, _ = split_scheme(path)
-    for entry in pkg_resources.iter_entry_points(group='vaex.file.scheme'):
+    for entry in entry_points(group='vaex.file.scheme'):
         if entry.name == scheme:
             return entry.load()
     raise ValueError(f'Do not know how to open {path}, no handler for {scheme} is known')

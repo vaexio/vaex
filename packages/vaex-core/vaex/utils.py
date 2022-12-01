@@ -18,7 +18,6 @@ import warnings
 import numbers
 import keyword
 from filelock import FileLock
-import pkg_resources
 
 import blake3
 import dask.utils
@@ -30,6 +29,15 @@ import yaml
 from .json import VaexJsonEncoder, VaexJsonDecoder
 import vaex.file
 
+try:
+    from sys import version_info
+    if version_info[:2] >= (3, 10):
+        from importlib.metadata import entry_points
+    else:
+        from importlib_metadata import entry_points
+except ImportError:
+    import pkg_resources
+    entry_points = pkg_resources.iter_entry_points
 
 is_frozen = getattr(sys, 'frozen', False)
 PY2 = sys.version_info[0] == 2
@@ -68,7 +76,7 @@ class RegistryCallable(MutableMapping):
         with self.lock:
             if name in self.registry:
                 return self.registry[name]
-            for entry in pkg_resources.iter_entry_points(group=self.entry_points):
+            for entry in entry_points(group=self.entry_points):
                 self.registry[entry.name] = entry.load()
 
         if name not in self.registry:
