@@ -4707,24 +4707,32 @@ class DataFrame(object):
         :param str or expression or list of str/expressions by: expression to sort by.
         :param bool or list of bools ascending: ascending (default, True) or descending (False).
         '''
-        self = self.trim()
-        # Ensure "by" is in the proper format
-        by = vaex.utils._ensure_list(by)
-        by = vaex.utils._ensure_strings_from_expressions(by)
+        try:
+            self = self.trim()
+            # Ensure "by" is in the proper format
+            by = vaex.utils._ensure_list(by)
+            by = vaex.utils._ensure_strings_from_expressions(by)
 
-        # Ensure "ascending is in the proper format"
-        if isinstance(ascending, list):
-            assert len(ascending) == len(by), 'If "ascending" is a list, it must have the same number of elements as "by".'
-        else:
-            ascending = vaex.utils._ensure_list(ascending) * len(by)
+            # Ensure "ascending is in the proper format"
+            if isinstance(ascending, list):
+                assert len(ascending) == len(by), 'If "ascending" is a list, it must have the same number of elements as "by".'
+            else:
+                ascending = vaex.utils._ensure_list(ascending) * len(by)
 
-        sort_keys = [(key, 'ascending') if order is True else (key, 'descending') for key, order in zip(by, ascending)]
-        pa_table = self[by].to_arrow_table()
-        indices = pa.compute.sort_indices(pa_table, sort_keys=sort_keys)
+            sort_keys = [(key, 'ascending') if order is True else (key, 'descending') for key, order in zip(by, ascending)]
+            pa_table = self[by].to_arrow_table()
+            indices = pa.compute.sort_indices(pa_table, sort_keys=sort_keys)
 
-        # if we don't cast to int64, we get uint64 scalars, which when adding numbers to will auto case to float (numpy)
-        indices = vaex.array_types.to_numpy(indices).astype('int64')
-        return self.take(indices)
+            # if we don't cast to int64, we get uint64 scalars, which when adding numbers to will auto case to float (numpy)
+            indices = vaex.array_types.to_numpy(indices).astype('int64')
+            return self.take(indices)
+        except ValueError as e:
+            if len(self) == 0:
+                warnings.warn('Cannot sort empty DataFrame, returning empty DataFrame.')
+                return self
+            else:
+                raise e
+
 
     @docsubst
     def diff(self, periods=1, column=None, fill_value=None, trim=False, inplace=False, reverse=False):
