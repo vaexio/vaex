@@ -801,7 +801,11 @@ for entry in entry_points(group='vaex.expression.accessor'):
 
 
 for entry in entry_points(group='vaex.plugin'):
-    if entry.module_name == 'vaex_arrow.opener':
+    try:
+        module_name = entry.module 
+    except AttributeError:
+        module_name = entry.module_name
+    if module_name == 'vaex_arrow.opener':
         # if vaex_arrow package is installed, we ignore it
         continue
     logger.debug('adding vaex plugin: ' + entry.name)
