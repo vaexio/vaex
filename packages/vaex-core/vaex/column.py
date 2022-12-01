@@ -105,21 +105,16 @@ class ColumnVirtualConstant(Column):
 
     def _get_dtype(self, value, dtype):
         if dtype is None:
-            return vaex.datatype.DataType(pa.array([value]).type)
+            return vaex.dtype(pa.array([value]).type)
         else:
+            arrow_type = vaex.dtype(dtype).arrow
             if isinstance(value, list):
-                return vaex.datatype.DataType(pa.list_(vaex.datatype.DataType(dtype).arrow))
-            return vaex.datatype.DataType(dtype)
+                return vaex.dtype(pa.array([value], type=pa.list_(arrow_type)).type)
+            else:
+                return vaex.dtype(pa.array([value], type=arrow_type).type)
 
     def _get_value(self, value):
-        if vaex.utils._issequence(value):
-            return pc.cast(value, self.dtype.arrow.value_type).to_pylist()
-            # if hasattr(self.dtype.arrow, 'value_type'):
-            #     return pc.cast(value, self.dtype.arrow.value_type).to_pylist()
-            # else:
-            #     return pc.cast(value, self.dtype.arrow).to_pylist()
-        else:
-            return pc.cast(value, self.dtype.arrow).as_py()
+        return pa.array([value], type=self.dtype.arrow)[0].as_py()
 
     def trim(self, i1, i2):
         length = i2 - i1
