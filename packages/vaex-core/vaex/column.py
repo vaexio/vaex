@@ -108,13 +108,14 @@ class ColumnVirtualConstant(Column):
             return vaex.dtype(pa.array([value]).type)
         else:
             arrow_type = vaex.dtype(dtype).arrow
+            scalar = pa.array([value])[0]
             if isinstance(value, list):
-                return vaex.dtype(pa.array([value], type=pa.list_(arrow_type)).type)
+                return vaex.dtype(pc.cast(scalar, pa.list_(arrow_type)).type)
             else:
-                return vaex.dtype(pa.array([value], type=arrow_type).type)
+                return vaex.dtype(pc.cast(scalar, arrow_type).type)
 
     def _get_value(self, value):
-        return pa.array([value], type=self.dtype.arrow)[0].as_py()
+        return pc.cast(pa.array([value])[0], self.dtype.arrow).as_py()
 
     def trim(self, i1, i2):
         length = i2 - i1
