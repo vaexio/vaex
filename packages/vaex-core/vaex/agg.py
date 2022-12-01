@@ -520,7 +520,7 @@ class AggregatorDescriptorKurtosis(AggregatorDescriptorMulti):
 
 class AggregatorDescriptorStd(AggregatorDescriptorVar):
     def finish(self, value):
-        return value**0.5
+        return np.abs(value)**0.5
 
 @register
 def count(expression='*', selection=None, edges=False):
