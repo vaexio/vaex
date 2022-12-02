@@ -66,7 +66,9 @@ try:
     if version_info[:2] >= (3, 10):
         from importlib.metadata import entry_points
     else:
-        from importlib_metadata import entry_points
+        from importlib_metadata import entry_points, __version__ as importlib_metadata_version
+        if int(importlib_metadata_version.split(".")[0]) < 4.0:
+            raise ImportError("vaex requires importlib_metadata >= 4.0 when installed")
 except ImportError:
     import pkg_resources
     entry_points = pkg_resources.iter_entry_points
