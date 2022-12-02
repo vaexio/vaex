@@ -52,7 +52,7 @@ def test_fillna_virtual():
     # create a virtual column that will have nans due to the calculations
     df['r'] = np.log(df.x)
     df['r'] = df.r.fillna(value=0xdeadbeef)
-    assert df.r.tolist()[:4] == [0.0, 0.6931471805599453, 1.0986122886681098, 1.6094379124341003]
+    np.testing.assert_almost_equal(df.r.tolist()[:4], [0.0, 0.6931471805599453, 1.0986122886681098, 1.6094379124341003])
     assert df.r.tolist()[4:7] == [0xdeadbeef, 0xdeadbeef, 0xdeadbeef]
 
 def test_fillna_missing():
