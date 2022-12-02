@@ -1,4 +1,3 @@
-
 // unicode helper functions
 // source: https://github.com/ufal/unilib
 #include "string_utils.hpp"

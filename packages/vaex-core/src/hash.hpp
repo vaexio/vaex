@@ -2,6 +2,10 @@
 // #include "unordered_map.hpp"
 // #define VAEX_USE_TSL 1
 // #define VAEX_USE_ABSL 1
+#if defined(_MSC_VER)
+#include <BaseTsd.h>
+typedef SSIZE_T ssize_t;
+#endif
 
 #ifdef VAEX_USE_TSL
 #include "tsl/hopscotch_map.h"

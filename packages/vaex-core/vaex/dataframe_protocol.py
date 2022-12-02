@@ -749,7 +749,7 @@ class _VaexDataFrame:
         return [_VaexColumn(self._df[name], allow_copy=self._allow_copy) for name in self._df.columns]
 
     def select_columns(self, indices: Sequence[int]) -> "_VaexDataFrame":
-        if not isinstance(indices, collections.Sequence):
+        if not isinstance(indices, collections.abc.Sequence):
             raise ValueError("`indices` is not a sequence")
 
         names = []
@@ -759,7 +759,7 @@ class _VaexDataFrame:
         return self.select_columns_by_name(names)
 
     def select_columns_by_name(self, names: Sequence[str]) -> "_VaexDataFrame":
-        if not isinstance(names, collections.Sequence):
+        if not isinstance(names, collections.abc.Sequence):
             raise ValueError("`names` is not a sequence")
 
         return _VaexDataFrame(self._df[names], allow_copy=self._allow_copy)

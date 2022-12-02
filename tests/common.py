@@ -128,7 +128,6 @@ def df_server_huge():
     return df
 
 
-# as in https://github.com/erdewit/nest_asyncio/issues/20
 @pytest.fixture(scope="session")
 def event_loop():
     """Don't close event loop at the end of every function decorated by
@@ -158,7 +157,7 @@ def dummy_client(df_server, df_server_huge):
 
 
 # @pytest.fixture(params=['dummy_client', 'tornado_client'])
-@pytest.fixture(params=['tornado_client'])
+@pytest.fixture(params=['tornado_client'] if sys.version_info <= (3, 10) else [])
 def client(request, dummy_client, tornado_client):
     named = dict(dummy_client=dummy_client, tornado_client=tornado_client)
     return named[request.param]

@@ -86,8 +86,12 @@ class DatasetMemoryMapped(vaex.dataset.DatasetFile):
         return self.mapping_map[path]
 
     def close(self):
+        self._columns = {}
         for name, memmap in self.mapping_map.items():
-            memmap.close()
+            try:
+                memmap.close()
+            except BufferError:
+                logger.warning("could not close memmap for column %s", name)
         for name, file in self.file_map.items():
             file.close()
 
