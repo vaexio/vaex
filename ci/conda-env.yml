@@ -23,7 +23,7 @@ dependencies:
 - nest-asyncio<1.5.2
 - notebook
 - numba
-- numpy
+- numpy<1.21
 - pandas
 - pcre
 - pip==20.3.4
@@ -32,7 +32,7 @@ dependencies:
 - pyarrow>=5.0.0
 - pyqt
 - pytest
-- pytest-asyncio
+- pytest-asyncio<0.14
 - pytest-mpl
 - pytest-timeout
 - python-graphviz
