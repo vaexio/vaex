@@ -4,7 +4,6 @@ import os
 import operator
 from functools import reduce
 import threading
-import pkg_resources
 
 import numpy as np
 
@@ -13,6 +12,16 @@ import vaex.settings
 import vaex.encoding
 from .utils import _expand_shape
 from .datatype import DataType
+
+try:
+    from sys import version_info
+    if version_info[:2] >= (3, 10):
+        from importlib.metadata import entry_points
+    else:
+        from importlib_metadata import entry_points
+except ImportError:
+    import pkg_resources
+    entry_points = pkg_resources.iter_entry_points
 
 
 logger = logging.getLogger('vaex.tasks')
@@ -36,7 +45,7 @@ def create_checkers():
     if not _task_checker_types:
         with _lock:
             if not _task_checker_types:
-                for entry in pkg_resources.iter_entry_points(group="vaex.task.checker"):
+                for entry in entry_points(group="vaex.task.checker"):
                     _task_checker_types[entry.name] = entry.load()
     names = list(_task_checker_types.keys())
     task_checkers_type = vaex.settings.main.task_tracker.type

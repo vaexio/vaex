@@ -4,7 +4,6 @@ import os
 from pathlib import Path
 import collections.abc
 import logging
-import pkg_resources
 import uuid
 from urllib.parse import urlparse
 from typing import Set, List
@@ -22,7 +21,15 @@ from vaex.array_types import data_type
 from .column import Column, ColumnIndexed, supported_column_types
 from . import array_types
 from vaex import encoding
-
+try:
+    from sys import version_info
+    if version_info[:2] >= (3, 10):
+        from importlib.metadata import entry_points
+    else:
+        from importlib_metadata import entry_points
+except ImportError:
+    import pkg_resources
+    entry_points = pkg_resources.iter_entry_points
 
 logger = logging.getLogger('vaex.dataset')
 
@@ -58,7 +65,7 @@ def open(path, fs_options={}, fs=None, *args, **kwargs):
     failures = []
     with lock:  # since we cache, make this thread save
         if not opener_classes:
-            for entry in pkg_resources.iter_entry_points(group='vaex.dataset.opener'):
+            for entry in entry_points(group='vaex.dataset.opener'):
                 logger.debug('trying opener: ' + entry.name)
                 try:
                     opener = entry.load()

@@ -34,7 +34,6 @@ Follow the tutorial at https://docs.vaex.io/en/latest/tutorial.html to learn how
 """  # -*- coding: utf-8 -*-
 import logging as root_logging
 import os
-import pkg_resources
 from typing import Dict, List
 from urllib.parse import urlparse, parse_qs
 
@@ -60,9 +59,19 @@ import vaex.datasets
 from vaex.dataframe import DataFrame as DataFrame
 from vaex.expression import Expression as Expression
 
-
-
 import vaex.progress
+
+try:
+    from sys import version_info
+    if version_info[:2] >= (3, 10):
+        from importlib.metadata import entry_points
+    else:
+        from importlib_metadata import entry_points, __version__ as importlib_metadata_version
+        if int(importlib_metadata_version.split(".")[0]) < 4.0:
+            raise ImportError("vaex requires importlib_metadata >= 4.0 when installed")
+except ImportError:
+    import pkg_resources
+    entry_points = pkg_resources.iter_entry_points
 
 try:
     from . import version
@@ -725,7 +734,7 @@ def register_dataframe_accessor(name, cls=None, override=False):
         return wrapper(cls)
 
 
-for entry in pkg_resources.iter_entry_points(group='vaex.namespace'):
+for entry in entry_points(group='vaex.namespace'):
     logger.warning('(DEPRECATED, use vaex.dataframe.accessor) adding vaex namespace: ' + entry.name)
     try:
         add_namespace = entry.load()
@@ -779,22 +788,26 @@ def _add_lazy_accessor(name, loader, target_class=vaex.dataframe.DataFrame):
         lazy_accessors[scope].append((parts[-1], scope, loader, lazy_accessors))
 
 
-for entry in pkg_resources.iter_entry_points(group='vaex.dataframe.accessor'):
+for entry in entry_points(group='vaex.dataframe.accessor'):
     logger.debug('adding vaex accessor: ' + entry.name)
     def loader(entry=entry):
         return entry.load()
     _add_lazy_accessor(entry.name, loader)
 
 
-for entry in pkg_resources.iter_entry_points(group='vaex.expression.accessor'):
+for entry in entry_points(group='vaex.expression.accessor'):
     logger.debug('adding vaex expression accessor: ' + entry.name)
     def loader(entry=entry):
         return entry.load()
     _add_lazy_accessor(entry.name, loader, vaex.expression.Expression)
 
 
-for entry in pkg_resources.iter_entry_points(group='vaex.plugin'):
-    if entry.module_name == 'vaex_arrow.opener':
+for entry in entry_points(group='vaex.plugin'):
+    try:
+        module_name = entry.module 
+    except AttributeError:
+        module_name = entry.module_name
+    if module_name == 'vaex_arrow.opener':
         # if vaex_arrow package is installed, we ignore it
         continue
     logger.debug('adding vaex plugin: ' + entry.name)
