@@ -18,6 +18,7 @@ logger = logging.getLogger("vaex.astro.fits")
 
 
 class FitsBinTable(DatasetMemoryMapped):
+    snake_name='fits'
     def __init__(self, filename, write=False, fs_options={}, fs=None):
         super(FitsBinTable, self).__init__(filename, write=write)
         self.ucds = {}
