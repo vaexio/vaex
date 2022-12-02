@@ -53,4 +53,4 @@ def test_virtual_columns_equatorial():
     y = df['y'].values[0]
     z = df['z'].values[0]
     assert x**2+y**2+z**2 == 1
-    assert df['r'].values[0] == 1
+    assert abs(df['r'].values[0] - 1) < 1e-7
