@@ -41,6 +41,43 @@ def test_vconstant(value):
     assert df_filter.x[:3].tolist() == [value] * 3
 
 
+def test_vconstant_dtypes():
+    length = 3
+    df = vaex.from_arrays(x=[1, 2, 3])
+    df['floats'] = vaex.vconstant(value=1, length=length, dtype='float')
+    df['ints'] = vaex.vconstant(value=1, length=length, dtype='int')
+    df['strings'] = vaex.vconstant(value='1', length=length, dtype='str')
+    df['bools'] = vaex.vconstant(value='1', length=length, dtype='bool')
+    df['missing_float'] = vaex.vconstant(value=None, length=length, dtype='float')
+    df['missing_int'] = vaex.vconstant(value=None, length=length, dtype='int')
+    df['missing_string'] = vaex.vconstant(value=None, length=length, dtype='str')
+    df['list_floats'] = vaex.vconstant(value=[1, 2, 3], length=length, dtype='float')
+    df['list_ints'] = vaex.vconstant(value=[1, 2, 3], length=length, dtype='int')
+    df['list_strings'] = vaex.vconstant(value=[1, 2, 3], length=length, dtype='str')
+
+    assert df['floats'].tolist() == [1.0, 1.0, 1.0]
+    assert df['ints'].tolist() == [1, 1, 1]
+    assert df['strings'].tolist() == ['1', '1', '1']
+    assert df['bools'].tolist() == [True, True, True]
+    assert df['missing_float'].tolist() == [None, None, None]
+    assert df['missing_int'].tolist() == [None, None, None]
+    assert df['missing_string'].tolist() == [None, None, None]
+    assert df['list_floats'].tolist() == [[1.0, 2.0, 3.0], [1.0, 2.0, 3.0], [1.0, 2.0, 3.0]]
+    assert df['list_ints'].tolist() == [[1, 2, 3], [1, 2, 3], [1, 2, 3]]
+    assert df['list_strings'].tolist() == [['1', '2', '3'], ['1', '2', '3'], ['1', '2', '3']]
+
+    assert df['floats'].dtype == 'float'
+    assert df['ints'].dtype == 'int'
+    assert df['strings'].dtype == 'string'
+    assert df['bools'].dtype == 'bool'
+    assert df['missing_float'].dtype == 'float'
+    assert df['missing_int'].dtype == 'int'
+    assert df['missing_string'].dtype == 'string'
+    assert df['list_floats'].dtype == list
+    assert df['list_ints'].dtype == list
+    assert df['list_strings'].dtype == list
+
+
 def test_arrow_strings():
     N = 4
     x = ['a', 'bb', 'ccc', 'dddd']

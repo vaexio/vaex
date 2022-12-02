@@ -6,6 +6,7 @@ import warnings
 import six
 import numpy as np
 import pyarrow as pa
+import pyarrow.compute as pc
 
 import vaex
 import vaex.utils
@@ -77,10 +78,10 @@ class ColumnVirtualRange(Column):
 
 class ColumnVirtualConstant(Column):
     def __init__(self, value, length, dtype=None, chunk_size=1024):
-        self.value = value
         self.length = length
-        self.dtype = self._get_dtype(dtype)
+        self.dtype = self._get_dtype(value=value, dtype=dtype)
         self.chunk_size = chunk_size
+        self.value = self._get_value(value=value)
 
     def __len__(self):
         return self.length
@@ -102,11 +103,16 @@ class ColumnVirtualConstant(Column):
         fp = vaex.cache.fingerprint(self.value, self.length, self.dtype, self.chunk_size)
         return f'column-vconstant-{fp}'
 
-    def _get_dtype(self, dtype):
+    def _get_dtype(self, value, dtype):
         if dtype is None:
-            return vaex.datatype.DataType(pa.array([self.value]).type)
+            return vaex.dtype(pa.array([value]).type)
         else:
-            return vaex.datatype.DataType(dtype)
+            if isinstance(value, list):
+                return vaex.dtype(pa.list_(vaex.dtype(dtype).arrow))
+            return vaex.dtype(dtype)
+
+    def _get_value(self, value):
+        return pc.cast(pa.scalar(value), self.dtype.arrow).as_py()
 
     def trim(self, i1, i2):
         length = i2 - i1
