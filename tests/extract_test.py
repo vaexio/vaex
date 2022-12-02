@@ -45,5 +45,6 @@ def test_extract_empty():
     assert df_extracted.filtered is False
 
     df['z'] = df.x + 1
-    with pytest.raises(ValueError, match='Cannot extract a DataFrame with.*'):
+    with pytest.warns(Warning):
         df_extracted = df.extract()
+    assert len(df_extracted) == 0
