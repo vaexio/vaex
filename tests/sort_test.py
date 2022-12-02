@@ -57,3 +57,11 @@ def test_sort_strings_masked():
     df = vaex.from_arrays(x=['Groningen', 'Skopje', None, 'Amsterdam', 'Ohrid'])
     assert df.sort('x').x.tolist() == ['Amsterdam', 'Groningen', 'Ohrid', 'Skopje', None]
     assert df.sort('x', ascending=False).x.tolist() == ['Skopje', 'Ohrid', 'Groningen', 'Amsterdam', None]
+
+
+def test_sort_empty():
+    df = vaex.from_arrays(x=[5, 1, 4], y=[1, 2, 3])
+    dff = df[df.y > 10]
+    assert len(dff) == 0
+    dff_sorted = dff.sort(by='x')
+    assert len(dff_sorted) == 0
