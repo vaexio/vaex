@@ -86,6 +86,7 @@ class DatasetMemoryMapped(vaex.dataset.DatasetFile):
         return self.mapping_map[path]
 
     def close(self):
+        self._columns = {}
         for name, memmap in self.mapping_map.items():
             memmap.close()
         for name, file in self.file_map.items():
