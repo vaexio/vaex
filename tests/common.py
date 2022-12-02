@@ -128,6 +128,18 @@ def df_server_huge():
     return df
 
 
+@pytest.fixture(scope="session")
+def event_loop():
+    """Don't close event loop at the end of every function decorated by
+    @pytest.mark.asyncio
+    """
+    import asyncio
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    yield loop
+    loop.close()
+
+
 @pytest.fixture()#scope='module')
 def tornado_client(webserver, event_loop):
     client = vaex.connect("%s://localhost:%d" % (scheme, webserver.port))
