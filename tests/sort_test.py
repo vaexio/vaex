@@ -1,5 +1,4 @@
 from common import *
-import pytest
 
 
 def test_sort(ds_local):
@@ -64,6 +63,5 @@ def test_sort_empty():
     df = vaex.from_arrays(x=[5, 1, 4], y=[1, 2, 3])
     dff = df[df.y > 10]
     assert len(dff) == 0
-    with pytest.warns(UserWarning):
-        dff_sorted = dff.sort(by='x')
+    dff_sorted = dff.sort(by='x')
     assert len(dff_sorted) == 0

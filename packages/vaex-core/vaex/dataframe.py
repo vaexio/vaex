@@ -4709,7 +4709,6 @@ class DataFrame(object):
         '''
 
         if len(self) == 0:
-            warnings.warn('Cannot sort empty DataFrame, returning empty DataFrame.')
             return self.copy()
         self = self.trim()
         # Ensure "by" is in the proper format
