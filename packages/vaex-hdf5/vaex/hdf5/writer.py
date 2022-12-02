@@ -91,6 +91,7 @@ class Writer:
         self._layout_called = True
 
     def write(self, df, chunk_size=int(1e5), parallel=True, progress=None, column_count=1, export_threads=0):
+        chunk_size = ((chunk_size + 7) // 8) * 8  # round up to multiple of 8
         assert self._layout_called, "call .layout() first"
         N = len(df)
         if N == 0:
@@ -247,7 +248,7 @@ class ColumnWriterPrimitive:
                     raise ValueError("Cannot write to non-byte aligned offset")
                 null_buffer = values.buffers()[0]
                 if null_buffer is not None:
-                    self.null_bitmap_array[byte_index1:byte_index2] = memoryview(null_buffer)
+                    self.null_bitmap_array[byte_index1:byte_index2] = memoryview(null_buffer[:byte_index2-byte_index1])
                 else:
                     self.null_bitmap_array[byte_index1:byte_index2] = 0xff
             if np.ma.isMaskedArray(self.to_array) and np.ma.isMaskedArray(values):
