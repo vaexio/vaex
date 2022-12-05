@@ -1,4 +1,4 @@
-
+[![Supported Python Versions](https://img.shields.io/pypi/pyversions/vaex-core)](https://pypi.org/project/vaex-core/)
 [![Documentation](https://readthedocs.org/projects/vaex/badge/?version=latest)](https://docs.vaex.io)
 [![Slack](https://img.shields.io/badge/slack-chat-green.svg)](https://join.slack.com/t/vaexio/shared_invite/zt-shhxzf5i-Cf5n2LtkoYgUjOjbB3bGQQ)
 
