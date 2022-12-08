@@ -47,6 +47,8 @@ def create_checkers():
             if not _task_checker_types:
                 for entry in entry_points(group="vaex.task.checker"):
                     _task_checker_types[entry.name] = entry.load()
+            # avoid it being empty, otherwise we call it many times
+            _task_checker_types["__dummy__"] = Checker()
     names = list(_task_checker_types.keys())
     task_checkers_type = vaex.settings.main.task_tracker.type
     types = [k for k in task_checkers_type.split(",") if k]
