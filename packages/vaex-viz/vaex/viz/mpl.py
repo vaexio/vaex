@@ -806,7 +806,7 @@ def heatmap(self, x=None, y=None, z=None, what="count(*)", vwhat=None, reduce=["
                 label = labels["what"][what_index]
                 colorbar.ax.set_ylabel(colorbar_label or label)
 
-            if facets > 1:
+            if facets > 1 and colorbar_location != "individual":
                 ax = plt.subplot(gs[row_offset + row * row_scale:row_offset + (row + 1) * row_scale, column * column_scale:(column + 1) * column_scale])
             else:
                 ax = plt.gca()
