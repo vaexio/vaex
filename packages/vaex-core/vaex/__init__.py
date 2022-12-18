@@ -14,7 +14,7 @@ Or using :func:`open` to open a file.
 >>> df2 = vaex.open("somedata.arrow")
 >>> df4 = vaex.open("somedata.csv")
 
-Or connecting to a remove server:
+Or connecting to a remote server:
 
 >>> df_remote = vaex.open("http://try.vaex.io/nyc_taxi_2015")
 
