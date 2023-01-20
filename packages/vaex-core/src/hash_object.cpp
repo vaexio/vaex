@@ -13,15 +13,6 @@ typedef SSIZE_T ssize_t;
 
 namespace py = pybind11;
 
-namespace std {
-    template<>
-    struct hash<PyObject*> {
-        size_t operator()(const PyObject *const &o) const {
-            return PyObject_Hash((PyObject*)o);
-        }
-    };
-}
-
 namespace vaex {
 
 struct CompareObjects
