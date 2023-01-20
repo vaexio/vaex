@@ -4,7 +4,6 @@ on:
   push:
     tags:
       - core-*
-  pull_request:
 
 jobs:
   build_wheels_matrix:
@@ -91,7 +90,6 @@ jobs:
         path: packages/vaex-core/dist
 
     - name: Publish a Python distribution to PyPI
-      if: github.event_name == 'push'
       env:
         TWINE_USERNAME: __token__
         TWINE_PASSWORD: ${{ secrets.pypi_password_vaex_core }}
