@@ -70,7 +70,7 @@ jobs:
         package-dir: packages/vaex-core/
         output-dir: packages/vaex-core/dist/
       env:
-        CIBW_BEFORE_BUILD: ${{ matrix.os == 'windows-latest' && '' || 'bin/install_pcre.sh' }}
+        CIBW_BEFORE_BUILD: ${{ ( matrix.os != 'windows-latest' && 'bin/install_pcre.sh' ) || '' }}
         CIBW_BUILD_VERBOSITY: 2
         CIBW_MANYLINUX_X86_64_IMAGE: manylinux_2_28
         CIBW_MANYLINUX_AARCH64_IMAGE: manylinux_2_28
