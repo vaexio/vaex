@@ -4,6 +4,7 @@ on:
   push:
     tags:
       - core-*
+  pull_request:
 
 jobs:
   build_wheels:
