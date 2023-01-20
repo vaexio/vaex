@@ -3,6 +3,7 @@
 
 #include <nonstd/string_view.hpp>
 #include <string>
+#include <iostream>
 typedef nonstd::string_view string_view;
 typedef std::string string;
 #include <pybind11/numpy.h>
