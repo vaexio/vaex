@@ -382,8 +382,17 @@ class ColumnIndexed(Column):
             # arrow and numpy do not like the negative indices, so we set them to 0
             take_indices = indices.copy()
             take_indices[mask] = 0
-        if isinstance(ar_unfiltered, supported_arrow_array_types):
-            ar = ar_unfiltered.take(vaex.array_types.to_arrow(take_indices))
+        # Don't use .take in arrow anymore
+        # https://issues.apache.org/jira/browse/ARROW-9773
+        # slice is zero-copy
+        if isinstance(ar_unfiltered, pa.Array):
+            ar = pa.concat_arrays(
+                [ar_unfiltered.slice(i, 1) for i in take_indices]
+            )
+        elif isinstance(ar_unfiltered, pa.ChunkedArray):
+            ar = pa.concat_arrays(
+                [ar_unfiltered.slice(i, 1).combine_chunks() for i in take_indices]
+            )
         else:
             ar = ar_unfiltered[take_indices]
         assert not np.ma.isMaskedArray(indices)
