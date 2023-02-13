@@ -11,7 +11,7 @@ import pyarrow.compute as pc
 import vaex
 import vaex.utils
 import vaex.cache
-from .array_types import supported_array_types, supported_arrow_array_types, string_types, is_string_type
+from .array_types import supported_array_types, supported_arrow_array_types, string_types, is_string_type, take
 
 
 if vaex.utils.has_c_extension:
@@ -382,19 +382,7 @@ class ColumnIndexed(Column):
             # arrow and numpy do not like the negative indices, so we set them to 0
             take_indices = indices.copy()
             take_indices[mask] = 0
-        # Don't use .take in arrow anymore
-        # https://issues.apache.org/jira/browse/ARROW-9773
-        # slice is zero-copy
-        if isinstance(ar_unfiltered, pa.Array):
-            ar = pa.concat_arrays(
-                [ar_unfiltered.slice(i, 1) for i in take_indices]
-            )
-        elif isinstance(ar_unfiltered, pa.ChunkedArray):
-            ar = pa.concat_arrays(
-                [ar_unfiltered.slice(i, 1).combine_chunks() for i in take_indices]
-            )
-        else:
-            ar = ar_unfiltered[take_indices]
+        ar = take(ar_unfiltered, take_indices)
         assert not np.ma.isMaskedArray(indices)
         if self.masked:
             # TODO: we probably want to keep this as arrow array if it originally was
@@ -603,7 +591,7 @@ def _is_stringy(x):
 
 def _to_string_sequence(x, force=True):
     if isinstance(x, pa.DictionaryArray):
-        x = x.dictionary.take(x.indices)  # equivalent to PyArrow 5.0.0's dictionary_decode() but backwards compatible
+        x = take(x.dictionary, x.indices)  # equivalent to PyArrow 5.0.0's dictionary_decode() but backwards compatible
     if isinstance(x, pa.ChunkedArray):
         # turn into pa.Array, TODO: do we want this, this may result in a big mem copy
         table = pa.Table.from_arrays([x], ["single"])
