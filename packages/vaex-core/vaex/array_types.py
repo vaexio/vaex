@@ -57,7 +57,7 @@ def take(ar, indices):
             [ar.slice(i, 1).combine_chunks() for i in indices]
         )
     elif isinstance(ar, pa.lib.Array):
-        return ar.take(vaex.array_types.to_arrow(indices))
+        return ar.take(to_arrow(indices))
     else:
         return ar[indices]
 
