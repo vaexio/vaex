@@ -1,12 +1,16 @@
 from __future__ import absolute_import
+
+import os
+
 import ipyvuetify as v
 import ipywidgets as widgets
 import traitlets
 from traitlets import *  # noqa
-from . import traitlets as vt
-import os
+from traitlets import Dict, observe
 
 import vaex.jupyter
+
+from . import traitlets as vt
 
 
 def load_template(filename):
@@ -557,6 +561,7 @@ class LinkList(VuetifyTemplate):
 
 import ipyvuetify as v
 import traitlets
+
 
 class SettingsEditor(v.VuetifyTemplate):
     template_file = os.path.join(os.path.dirname(__file__), "vue/vjsf.vue")
