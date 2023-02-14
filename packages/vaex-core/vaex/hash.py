@@ -254,7 +254,7 @@ class HashMapUnique:
         indices = pa.compute.sort_indices(keys, sort_keys=[('x', "ascending" if ascending else "descending")]) if indices is None else indices
         # arrow sorts with null last
         null_index = -1 if not self.has_null else len(keys)-1
-        keys = pa.compute.take(keys, indices)
+        keys = vaex.array_types.take(keys, indices)
         fingerprint = self._internal.fingerprint + "-sorted"
         if self.dtype_item.is_string:
             # TODO: supported 32 bit in hashmap
