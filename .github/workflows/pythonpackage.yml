@@ -30,7 +30,7 @@ jobs:
       fail-fast: false
       max-parallel: 12
       matrix:
-        os: [ubuntu-latest, windows-latest, macOS-latest]
+        os: [ubuntu-latest, windows-latest, macOS-11]
         python-version: [3.6, 3.7, 3.8, 3.9]
 
     steps:
@@ -40,7 +40,7 @@ jobs:
         df -h
     - uses: maxim-lobanov/setup-xcode@v1
       # alternative would be to upgrade tapi to 1100.0.11, we can possibly remove this in the future
-      if: matrix.os == 'macOS-latest'
+      if: matrix.os == 'macOS-11'
       with:
         xcode-version: "11.7.0"
     - uses: actions/checkout@v2
@@ -79,12 +79,12 @@ jobs:
     #     docker rmi $(docker image ls -aq)
     #     df -h
     - name: Install OpenMP runtime (Mac-only)
-      if: matrix.os == 'macOS-latest'
+      if: matrix.os == 'macOS-11'
       run: |
         brew install libomp
     - name: Cache compiled binaries
       # this fails for this combination, leading to binaries filled with 0's
-      if: matrix.python-version != '3.6' || matrix.os != 'macOS-latest'
+      if: matrix.python-version != '3.6' || matrix.os != 'macOS-11'
       id: cache-compiled-binaries
       uses: actions/cache@v2
       with:
@@ -169,7 +169,7 @@ jobs:
       run: |
         ./ci/05-run-notebooks.sh
     - name: Authenticate Google Cloud Platform
-      if: ${{ (github.event.pull_request.head.repo.full_name == 'vaexio/vaex') && !((matrix.os == 'windows-latest') || (matrix.os == 'macOS-latest' && matrix.python-version == '3.6'))  }}
+      if: ${{ (github.event.pull_request.head.repo.full_name == 'vaexio/vaex') && !((matrix.os == 'windows-latest') || (matrix.os == 'macOS-11' && matrix.python-version == '3.6'))  }}
       uses: google-github-actions/setup-gcloud@v0
       with:
         project_id: ${{ secrets.GCP_PROJECT_ID_VAEX }}
@@ -177,7 +177,7 @@ jobs:
         export_default_credentials: true
     - name: Test vaex-contrib
       # do not run in a PR from someone else, skip windows, and osx+py36
-      if: ${{ (github.event.pull_request.head.repo.full_name == 'vaexio/vaex') && !((matrix.os == 'windows-latest') || (matrix.os == 'macOS-latest' && matrix.python-version == '3.6'))  }}
+      if: ${{ (github.event.pull_request.head.repo.full_name == 'vaexio/vaex') && !((matrix.os == 'windows-latest') || (matrix.os == 'macOS-11' && matrix.python-version == '3.6'))  }}
       env:
         PROJECT_ID: ${{ secrets.GCP_PROJECT_ID_VAEX }}
       run: |
@@ -191,7 +191,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macOS-latest]
+        os: [ubuntu-latest, windows-latest, macOS-11]
         python-version: [3.7, 3.8, 3.9]
         # ssl/certifi issues with this combination
         exclude:
