@@ -565,7 +565,7 @@ class ToolsToolbar(v.VuetifyTemplate):
     def _template(self):
         return load_template("vue/tools-toolbar.vue")
 
-    @trailets.observe("z_normalize")
+    @traitlets.observe("z_normalize")
     def _observe_normalize(self, change):
         self.normalize = bool(self.z_normalize)
 
