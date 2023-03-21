@@ -575,7 +575,7 @@ class VuetifyTemplate(v.VuetifyTemplate):
 
 
 class ContainerCard(v.VuetifyTemplate):
-    _metadata = Dict(default_value=None, allow_none=True).tag(sync=True)
+    _metadata = traitlets.Dict(default_value=None, allow_none=True).tag(sync=True)
 
     @traitlets.default("template")
     def _template(self):
