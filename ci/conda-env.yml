@@ -32,6 +32,7 @@ dependencies:
 - python-annoy
 - pyarrow>=5.0.0
 - pyqt
+- pytz  # for some reason, pip has trouble resolving this
 - pytest
 - pytest-asyncio<0.14
 - pytest-mpl
