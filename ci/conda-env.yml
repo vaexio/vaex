@@ -32,7 +32,6 @@ dependencies:
 - python-annoy
 - pyarrow>=5.0.0
 - pyqt
-- pytz  # for some reason, pip has trouble resolving this
 - pytest
 - pytest-asyncio<0.14
 - pytest-mpl
@@ -48,3 +47,6 @@ dependencies:
 - xarray<2022.6.0
 # currently not using this, since the test that requires this is flakey
 # - myst-parser<0.18  # 0.18 breaks our test, missing main
+- pytz  # for some reason, pip has trouble resolving this, and the libraries below
+- python-utils
+- progressbar2
