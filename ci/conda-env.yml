@@ -27,7 +27,7 @@ dependencies:
 - numpy<1.21
 - pandas
 - pcre
-- pip
+- pip==20.3.4
 - plotly
 - python-annoy
 - pyarrow>=5.0.0
