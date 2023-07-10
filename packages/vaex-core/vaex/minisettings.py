@@ -1,16 +1,17 @@
-
 import os
+from pathlib import Path
 from typing import Any, Optional
-
 
 # similar API to pydantic/pydantic-settings but we prefer not to have a dependency on pydantic
 # since we cannot be compatible with pydantic1 and 2
+# NOTE: not a public api
+
 
 def _get_type(annotation):
     check_optional_types = [str, int, float, bool, dict, list]
     for check_type in check_optional_types:
         if annotation == Optional[check_type]:
-            return check_type   
+            return check_type
     if hasattr(annotation, "__origin__"):
         if annotation.__origin__ == dict:
             return dict
@@ -30,7 +31,6 @@ class _Field:
         self.field_info = self
         self.extra = {"env_names": [env] if env else []}
 
-
     def __set_name__(self, owner, name):
         prefix = "SOLARA_"
         config = getattr(owner, "Config")
@@ -44,10 +44,9 @@ class _Field:
         self.alias = self.alias or self.name
         self.title = self.title or self.name
         if self.env is None:
-            self.env = self.name.upper()
-            self.fullenv = f"{prefix}{self.env.upper()}"
+            self.env = f"{prefix}{self.name.upper()}"
         else:
-            self.fullenv = self.env
+            self.env = self.env
         self.annotation = owner.__annotations__.get(self.name)
         assert self.annotation is not None, f"Field {self.name} must have a type annotation"
         self.type_ = _get_type(self.annotation)
@@ -57,11 +56,11 @@ class _Field:
             return self
         return instance._values[self.name]
 
+
 def convert(annotation, value: str) -> Any:
-    check_optional_types = [str, int, float, bool]
+    check_optional_types = [str, int, float, bool, Path]
     for check_type in check_optional_types:
         if annotation == Optional[check_type]:
-            breakpoint()
             annotation = check_type
             return convert(annotation, value)
     if annotation == str:
@@ -80,7 +79,6 @@ def convert(annotation, value: str) -> Any:
     else:
         # raise TypeError(f"Unsupported type {annotation}")
         return annotation(value)
-            
 
 
 def Field(*args, **kwargs) -> Any:
@@ -88,6 +86,8 @@ def Field(*args, **kwargs) -> Any:
 
 
 class BaseSettings:
+    __fields__: dict
+
     def __init__(self, **kwargs) -> None:
         cls = type(self)
         self._values = {**kwargs}
@@ -99,9 +99,9 @@ class BaseSettings:
                 value = field.default
                 if field.default_factory:
                     value = field.default_factory()
-                
-                if field.fullenv:
-                    env_key = field.fullenv.upper()
+
+                if field.env:
+                    env_key = field.env.upper()
                     if env_key in keys:
                         # do a case-insensitive lookup
                         for env_var_cased in os.environ.keys():
@@ -121,7 +121,6 @@ class BaseSettings:
                 setattr(cls, key, field)
                 field.__set_name__(cls, key)
             cls.__fields__[key] = field
-        
 
     def dict(self, by_alias=True):
         values = self._values.copy()
