@@ -19,7 +19,7 @@ from fastapi.openapi.docs import get_swagger_ui_html
 import requests
 
 
-from pydantic import BaseModel, BaseSettings
+from pydantic import BaseModel
 from starlette.responses import HTMLResponse, PlainTextResponse
 
 

@@ -40,8 +40,6 @@ dependencies:
 - python-graphviz
 - py-xgboost
 - pyyaml
-- pydantic
-- pydantic-settings
 - rich
 - s3fs>=2021.8.0
 - scikit-learn

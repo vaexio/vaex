@@ -19,25 +19,6 @@ except:
     has_dotenv = False
 
 
-# with pydantic 2.0, we require pydantic_settings
-# has_pydantic_settings = False
-try:
-    import pydantic_settings
-except ModuleNotFoundError:
-    # we should be on pydantic 1.x
-    BaseSettings = pydantic.BaseSettings
-    has_pydantic_settings = False
-else:
-    major = pydantic_settings.__version__.split(".")[0]
-    if major != "0":
-        # but the old pydantic_settings is unrelated
-        BaseSettings = pydantic_settings.BaseSettings
-        has_pydantic_settings = True
-    else:
-        # we should be on pydantic 2.x
-        BaseSettings = pydantic.BaseSettings
-        has_pydantic_settings = False
-
 logger = logging.getLogger("vaex.settings")
 _default_home = vaex.utils.get_vaex_home()
 
