@@ -12,7 +12,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-18.04, macOS-11, windows-latest]
+        os: [ubuntu-20.04, macOS-11, windows-latest]
         python-version: [36, 37, 38, 39, 310]
 
     steps:
