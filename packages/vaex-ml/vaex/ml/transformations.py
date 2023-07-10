@@ -243,7 +243,7 @@ class RandomProjections(Transformer):
 
     @traitlets.validate('density')
     def _valid_density(self, proposal):
-        if (proposal['value'] > 0) & (proposal['value'] <= 1):
+        if proposal['value'] is None or (proposal['value'] > 0) & (proposal['value'] <= 1):
             return proposal['value']
         else:
             raise traitlets.TraitError('`density` must be 0 < density <= 1.')

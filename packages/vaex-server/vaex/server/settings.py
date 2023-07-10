@@ -1,7 +1,10 @@
 
 from typing import Dict
-from pydantic import BaseSettings, Field
+from pydantic import Field
+import pydantic
 import vaex.config
+from ..minisettings import BaseSettings, Field
+
 
 class Settings(BaseSettings):
     '''Configuration options for the FastAPI server'''
@@ -9,7 +12,7 @@ class Settings(BaseSettings):
     add_example: bool = Field(True, title="Add example dataset")
     # vaex_config: dict = None
     graphql: bool = Field(False, title="Add graphql endpoint")
-    files: Dict[str, str] = Field(default_factory=list, title="Mapping of name to path")
+    files: Dict[str, str] = Field(default_factory=dict, title="Mapping of name to path")
     class Config(vaex.config.ConfigDefault):
         env_file = '.env'
         env_file_encoding = 'utf-8'
