@@ -9,9 +9,8 @@ import sys
 
 from pydantic import BaseModel, Field
 import pydantic
-from typing import List, Union, Optional, Dict
+from typing import Any, List, Union, Optional, Dict
 from enum import Enum
-from .config import ConfigDefault
 
 try:
     import dotenv
@@ -41,13 +40,13 @@ else:
 
 logger = logging.getLogger("vaex.settings")
 _default_home = vaex.utils.get_vaex_home()
-if has_dotenv:
-    if has_pydantic_settings:
-        from pydantic_settings.sources import read_env_file
-    else:
-        from pydantic.env_settings import read_env_file
-    envs = read_env_file(ConfigDefault.env_file)
-    _default_home = envs.get('vaex_home', _default_home)
+
+
+class ConfigDefault:
+    pass
+
+
+from .minisettings import BaseSettings, Field
 
 # we may want to use this
 # class ByteAmount(str):
@@ -177,7 +176,7 @@ Note that settings `vaex.settings.main.logging.info` etc at runtime, has no dire
 class Settings(BaseSettings):
     """General settings for vaex"""
     aliases: Optional[dict] = Field(title='Aliases to be used for vaex.open', default_factory=dict)
-    async_: AsyncEnum = Field('nest', env='VAEX_ASYNC', title="How to run async code in the local executor", min_length=2)
+    async_: AsyncEnum = Field('nest', env='VAEX_ASYNC', title="How to run async code in the local executor")
     home: str = Field(_default_home, env="VAEX_HOME", title="Home directory for vaex, which defaults to `$HOME/.vaex`, "\
         " If both `$VAEX_HOME` and `$HOME` are not defined, the current working directory is used. (Note that this setting cannot be configured from the vaex home directory itself).")
     mmap: bool = Field(True, title="Experimental to turn off, will avoid using memory mapping if set to False")
