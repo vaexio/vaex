@@ -53,3 +53,4 @@ dependencies:
 - pytz  # for some reason, pip has trouble resolving this, and the libraries below
 - python-utils
 - progressbar2
+- zipp<3.16.0
