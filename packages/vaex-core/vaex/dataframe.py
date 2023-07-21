@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from __future__ import division, print_function
 import io
+import vaex
 import difflib
 import base64
 from typing import Iterable
@@ -4425,9 +4426,10 @@ class DataFrame(object):
                 df._cached_filtered_length = None
                 df._filter_filled = False
         return df
-
+    
     @docsubst
-    def take(self, indices, filtered=True, dropfilter=True):
+    def take(self, indices,axis=0,filtered=True, dropfilter=True):
+
         '''Returns a DataFrame containing only rows indexed by indices
 
         {note_copy}
@@ -4448,23 +4450,34 @@ class DataFrame(object):
         :return: DataFrame which is a shallow copy of the original data.
         :rtype: DataFrame
         '''
-        df_trimmed = self.trim()
-        df = df_trimmed.copy()
-        indices = np.asarray(indices)
-        if df.filtered and filtered:
-            # we translate the indices that refer to filters row indices to
-            # indices of the unfiltered row indices
-            df._fill_filter_mask()
-            max_index = indices.max()
-            mask = df._selection_masks[FILTER_SELECTION_NAME]
-            filtered_indices = mask.first(max_index+1)
-            indices = filtered_indices[indices]
-        df.dataset = df.dataset.take(indices)
-        if dropfilter:
-            # if the indices refer to the filtered rows, we can discard the
-            # filter in the final dataframe
-            df.set_selection(None, name=FILTER_SELECTION_NAME)
+        if axis==1:
+            import pandas as pd
+            df_trimmed=self.trim()
+            df=df_trimmed.copy()
+            df_pd=df.to_pandas_df()
+            df_pd=df_pd.take(indices,axis=1)
+            df=vaex.from_pandas(df_pd)
+        else:
+            df_trimmed = self.trim()
+            df = df_trimmed.copy()
+            indices = np.asarray(indices)
+            if df.filtered and filtered:
+                # we translate the indices that refer to filters row indices to
+                # indices of the unfiltered row indices
+                df._fill_filter_mask()
+                max_index = indices.max()
+                mask = df._selection_masks[FILTER_SELECTION_NAME]
+                filtered_indices = mask.first(max_index+1)
+                indices = filtered_indices[indices]
+            df.dataset = df.dataset.take(indices)
+            if dropfilter:
+                # if the indices refer to the filtered rows, we can discard the
+                # filter in the final dataframe
+                df.set_selection(None, name=FILTER_SELECTION_NAME)
         return df
+
+
+        
 
     @docsubst
     def extract(self):
