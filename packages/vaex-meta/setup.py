@@ -22,7 +22,7 @@ install_requires = [
       'vaex-viz>=0.5.4,<0.6',
       'vaex-server>=0.9.0,<0.9',
       'vaex-jupyter>=0.8.2,<0.9',
-      'vaex-ml>=0.18.2,<0.19',
+      'vaex-ml>=0.18.3,<0.19',
       # vaex-graphql is not on conda-forge yet
 ]
 
