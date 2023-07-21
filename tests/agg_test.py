@@ -747,3 +747,19 @@ def test_agg_nunique_selections(df_factory):
     assert dfg.result_int.tolist()[0] == df.x_int.nunique(selection='cond==True')
     assert dfg.result_str.tolist()[0] == df.x_str.nunique(selection='cond==True')
     assert dfg.result_float.tolist()[0] == df.x_float.nunique(selection='cond==True')
+
+
+@pytest.mark.parametrize('assume_sparse', [True, False])
+def test_agg_list_multidimensional_sparse(assume_sparse):
+    data = {'x': [True, False, False, False, True],
+            'y': ['aa', 'bb', 'bb', 'aa', 'aa'],
+            'z': ['10', '20', '30', '40', '50']}
+
+    df = vaex.from_dict(data)
+
+    df_grouped = df.groupby(['x', 'y'], assume_sparse=assume_sparse, sort=True).agg({'z': 'list'})
+
+    assert df_grouped.shape == (3, 3)
+    assert df_grouped.x.tolist() == [False, False, True]
+    assert df_grouped.y.tolist() == ['aa', 'bb', 'aa']
+    assert df_grouped.z.tolist() == [['40'], ['20', '30'], ['10', '50']]
