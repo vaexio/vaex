@@ -280,3 +280,23 @@ def test_struct_flatten_recursive(df):
 
     df_flat = df.struct.flatten(recursive=False)
     assert df_flat.get_column_names() == ['array_copy1', 'array_copy2', 'integer']
+
+
+def test_struct_create():
+    data = {
+        'index': [1, 2, 3, 4, 5],
+        'value': [10, 20, 30, 40, 50],
+        'place': ['Amsterdam', 'London', 'Paris', 'Ohrid', 'Edinburgh'],
+    }
+
+    df = vaex.from_dict(data)
+
+    df['content'] = df.struct.create(['index', 'value', df.place])
+
+    assert df.shape == (5, 4)
+    assert df['content'].dtype == 'struct'  # perhaps we should have a better way to check this
+
+    df['content_new_names'] = df.struct.create({'index': 'Index', 'value': 'Value', df.place: 'Location'})
+
+    assert df.shape == (5, 5)
+    assert df['content_new_names'].dtype == 'struct'
