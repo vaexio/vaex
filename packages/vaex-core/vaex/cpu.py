@@ -251,7 +251,7 @@ class TaskPartValueCounts(TaskPart):
                 deletes.append(counter.nan_index)
             if vaex.array_types.is_arrow_array(keys):
                 indices = np.delete(np.arange(len(keys)), deletes)
-                keys = keys.take(indices)
+                keys = vaex.array_types.take(keys. indices)
             else:
                 keys = np.delete(keys, deletes)
                 if not self.dropmissing and counter.has_null:
@@ -264,7 +264,7 @@ class TaskPartValueCounts(TaskPart):
         if not self.ascending:
             order = order[::-1]
         counts = counts[order]
-        keys = keys.take(order)
+        keys = vaex.array_types.take(keys, order)
 
         keys = keys.tolist()
         if None in keys:
