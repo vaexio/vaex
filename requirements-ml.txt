@@ -1,7 +1,7 @@
 annoy
 scikit-learn
 xgboost
-lightgbm
+lightgbm<4  # https://github.com/microsoft/LightGBM/issues/5196#issuecomment-1702252267
 catboost
 # tensorflow==2.1.0
 # tensorflow-io==0.12.0
