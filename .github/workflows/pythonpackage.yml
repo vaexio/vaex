@@ -53,11 +53,12 @@ jobs:
         token: ${{ secrets.PAT_PULL_ENTERPRISE }}
         path: vaex-enterprise
     - name: install micromamba
-      uses: mamba-org/provision-with-micromamba@main
+      uses: mamba-org/setup-micromamba@v1
       with:
+        micromamba-version: 1.5.0-1
         environment-name: vaex-dev
         environment-file: ci/conda-env.yml
-        extra-specs: |
+        create-args: >-
             python=${{ matrix.python-version }}
     - name: Extra non-windows installs
       if: matrix.os != 'windows-latest'
@@ -206,11 +207,12 @@ jobs:
         path: ./dist
 
     - name: Install micromamba
-      uses: mamba-org/provision-with-micromamba@main
+      uses: mamba-org/setup-micromamba@v1
       with:
+        micromamba-version: 1.5.0-1
         environment-name: vaex-test
         environment-file: ci/conda-base-minimal.yml
-        extra-specs: |
+        create-args: >-
             python=${{ matrix.python-version }}
             pcre
             rich
