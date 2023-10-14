@@ -4,6 +4,9 @@ on:
   push:
     tags:
       - core-*
+  release:
+    types: [released, prereleased]
+  workflow_dispatch:  # allows running workflow manually from the Actions tab
 
 jobs:
   build_wheels_matrix:
@@ -63,7 +66,7 @@ jobs:
       if: runner.os == 'Linux'
       uses: docker/setup-qemu-action@v2
 
-    - uses: pypa/cibuildwheel@v2.12.0
+    - uses: pypa/cibuildwheel@v2.16.2
       with:
         only: ${{ matrix.only }}
         package-dir: packages/vaex-core/
@@ -75,6 +78,12 @@ jobs:
         CIBW_MANYLINUX_AARCH64_IMAGE: manylinux_2_28
         CIBW_ENVIRONMENT_LINUX: "CFLAGS='-Wl,-strip-all' CXXFLAGS='-Wl,-strip-all'"
         CIBW_ENVIRONMENT_MACOS: "CFLAGS='-I/usr/local/include -L/usr/local/lib' CXXFLAGS='-I/usr/local/include -L/usr/local/lib' LDFLAGS='-L/usr/local/lib'"
+
+    - name: Upload release assets
+      if: github.event_name == 'release'
+      uses: softprops/action-gh-release@v0.1.15
+      with:
+        files: packages/vaex-core/dist/*
 
     - uses: actions/setup-python@v4
       with:
