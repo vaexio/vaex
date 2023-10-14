@@ -44,8 +44,12 @@ jobs:
     name: Build ${{ matrix.only }}
 
     strategy:
+      fail-fast: false
       matrix:
         include: ${{ fromJson(needs.build_wheels_matrix.outputs.include) }}
+
+    permissions:
+      contents: write # for uploading release assets
 
     steps:
     - uses: actions/checkout@v3
