@@ -23,7 +23,7 @@ jobs:
         with:
           python-version: "3.x"
 
-      - run: pip install cibuildwheel==2.12.0
+      - run: pip install cibuildwheel~=2.16
 
       - id: set-matrix
         run: |
