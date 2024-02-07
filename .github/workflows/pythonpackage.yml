@@ -42,7 +42,7 @@ jobs:
       # alternative would be to upgrade tapi to 1100.0.11, we can possibly remove this in the future
       if: matrix.os == 'macOS-11'
       with:
-        xcode-version: "11.7.0"
+        xcode-version: "13.2.1"
     - uses: actions/checkout@v2
       with:
         submodules: true
