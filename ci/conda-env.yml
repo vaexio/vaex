@@ -20,7 +20,7 @@ dependencies:
 - h5py
 - httpx # for testing with starlette/fastapi
 - ipyvolume=0.6.0a6
-- lightgbm
+- lightgbm>=4.0.0
 - matplotlib-base
 - nest-asyncio<1.5.2
 - notebook
