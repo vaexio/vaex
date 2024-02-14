@@ -156,8 +156,8 @@ jobs:
       run: |
         VAEX_CACHE_RESULTS=1 ./ci/04-run-test-suite.sh
     - name: Check ml spec
-      # no catboost for py39 and py37
-      if: matrix.python-version != '3.9' && matrix.os != 'windows-latest' && matrix.python-version != '3.7'
+      # no catboost for py39 and py37, xgboost fails on 3.6
+      if: matrix.python-version != '3.6' && matrix.python-version != '3.7' && matrix.python-version != '3.9' && matrix.os != 'windows-latest'
       run: |
         python -m vaex.ml.spec packages/vaex-ml/vaex/ml/spec_new.json
         diff packages/vaex-ml/vaex/ml/spec_new.json packages/vaex-ml/vaex/ml/spec.json
@@ -166,7 +166,7 @@ jobs:
 #      run: |
 #        py.test vaex-enterprise/tests --timeout=1000
     - name: Test notebooks
-      if: matrix.os != 'windows-latest' && matrix.python-version != '3.6'
+      if: matrix.os != 'windows-latest' && matrix.python-version != '3.6' && matrix.python-version != '3.7'
       run: |
         ./ci/05-run-notebooks.sh
     - name: Authenticate Google Cloud Platform
