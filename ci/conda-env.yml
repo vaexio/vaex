@@ -10,6 +10,7 @@ dependencies:
 - cython
 - cachetools
 - catboost
+- dask<2024.2.0
 - diskcache
 - filelock
 - fsspec<2022.2.0
