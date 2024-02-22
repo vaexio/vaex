@@ -55,7 +55,7 @@ jobs:
     - name: install micromamba
       uses: mamba-org/setup-micromamba@v1
       with:
-        micromamba-version: 1.5.0-1
+        micromamba-version: 1.5.6-0
         environment-name: vaex-dev
         environment-file: ci/conda-env.yml
         create-args: >-
@@ -209,7 +209,7 @@ jobs:
     - name: Install micromamba
       uses: mamba-org/setup-micromamba@v1
       with:
-        micromamba-version: 1.5.0-1
+        micromamba-version: 1.5.6-0
         environment-name: vaex-test
         environment-file: ci/conda-base-minimal.yml
         create-args: >-

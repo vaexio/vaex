@@ -15,11 +15,11 @@ jobs:
       include: ${{ steps.set-matrix.outputs.include }}
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           submodules: true
 
-      - uses: actions/setup-python@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: "3.x"
 
@@ -52,7 +52,7 @@ jobs:
       contents: write # for uploading release assets
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         submodules: true
 
@@ -68,9 +68,9 @@ jobs:
 
     - name: Set up QEMU
       if: runner.os == 'Linux'
-      uses: docker/setup-qemu-action@v2
+      uses: docker/setup-qemu-action@v3
 
-    - uses: pypa/cibuildwheel@v2.16.2
+    - uses: pypa/cibuildwheel@v2.16.5
       with:
         only: ${{ matrix.only }}
         package-dir: packages/vaex-core/
@@ -89,7 +89,7 @@ jobs:
       with:
         files: packages/vaex-core/dist/*
 
-    - uses: actions/setup-python@v4
+    - uses: actions/setup-python@v5
       with:
         python-version: "3.x"
 
@@ -97,9 +97,9 @@ jobs:
       run: python setup.py sdist
       working-directory: packages/vaex-core/
 
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       with:
-        name: distributions
+        name: distribution-${{ matrix.only }}
         path: packages/vaex-core/dist
 
     - name: Publish a Python distribution to PyPI
