@@ -184,8 +184,6 @@ setup(name=name + '-core',
       ext_modules=([extension_vaexfast] if on_rtd else [extension_vaexfast, extension_strings, extension_superutils, extension_superagg]) if not use_skbuild else [],
       zip_safe=False,
       classifiers=[
-            "Programming Language :: Python :: 3.6",
-            "Programming Language :: Python :: 3.7",
             "Programming Language :: Python :: 3.8",
             "Programming Language :: Python :: 3.9",
             "Programming Language :: Python :: 3.10",
