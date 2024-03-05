@@ -86,7 +86,7 @@ class LightGBMModel(state.HasState):
         copy.add_virtual_column(self.prediction_name, expression, unique=False)
         return copy
 
-    def fit(self, df, valid_sets=None, valid_names=None, early_stopping_rounds=None, evals_result=None, verbose_eval=None, **kwargs):
+    def fit(self, df, valid_sets=None, valid_names=None, early_stopping_rounds=None, evals_result=None, verbose_eval=False, **kwargs):
         """Fit the LightGBMModel to the DataFrame.
 
         The model will train until the validation score stops improving.
@@ -112,14 +112,19 @@ class LightGBMModel(state.HasState):
         else:
             valid_sets = ()
 
+        callbacks = [
+            lightgbm.callback.record_evaluation(eval_result=evals_result) if evals_result is not None else None,
+            lightgbm.callback.early_stopping(stopping_rounds=early_stopping_rounds) if early_stopping_rounds else None,
+            lightgbm.callback.log_evaluation() if verbose_eval else None
+        ]
+        callbacks = [callback for callback in callbacks if callback is not None]
+
         self.booster = lightgbm.train(params=self.params,
                                       train_set=dtrain,
                                       num_boost_round=self.num_boost_round,
                                       valid_sets=valid_sets,
                                       valid_names=valid_names,
-                                      early_stopping_rounds=early_stopping_rounds,
-                                      evals_result=evals_result,
-                                      verbose_eval=verbose_eval,
+                                      callbacks=callbacks,
                                       **kwargs)
 
     def predict(self, df, **kwargs):

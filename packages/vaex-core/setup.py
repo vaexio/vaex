@@ -1,7 +1,7 @@
 from setuptools import setup
 import sys
 import os
-import imp
+from importlib.machinery import SourceFileLoader
 from setuptools import Extension
 import platform
 
@@ -15,7 +15,7 @@ on_rtd = os.environ.get('READTHEDOCS', None) == 'True'
 
 dirname = os.path.dirname(__file__)
 path_version = os.path.join(dirname, "vaex/core/_version.py")
-version = imp.load_source('version', path_version)
+version = SourceFileLoader('version', path_version).load_module()
 
 name = 'vaex'
 author = "Maarten A. Breddels"
@@ -183,12 +183,14 @@ setup(name=name + '-core',
       include_package_data=True,
       ext_modules=([extension_vaexfast] if on_rtd else [extension_vaexfast, extension_strings, extension_superutils, extension_superagg]) if not use_skbuild else [],
       zip_safe=False,
+      python_requires=">=3.6",
       classifiers=[
             "Programming Language :: Python :: 3.6",
             "Programming Language :: Python :: 3.7",
             "Programming Language :: Python :: 3.8",
             "Programming Language :: Python :: 3.9",
             "Programming Language :: Python :: 3.10",
+            "Programming Language :: Python :: 3.11",
       ],
       extras_require={
           'all': ["gcsfs>=0.6.2", "s3fs"]

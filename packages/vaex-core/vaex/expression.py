@@ -1138,7 +1138,7 @@ class Expression(with_metaclass(Meta)):
             if not verbose:
                 logger.setLevel(logging.ERROR)
             import pythran
-            import imp
+            from importlib.machinery import SourceFileLoader
             import hashlib
             # self._import_all(module)
             names = []
@@ -1165,7 +1165,7 @@ def f({0}):
             # print(m.hexdigest())
             module_path = pythran.compile_pythrancode(module_name, code, extra_compile_args=["-DBOOST_SIMD", "-march=native"] + [] if verbose else ["-w"])
 
-            module = imp.load_dynamic(module_name, module_path)
+            module = SourceFileLoader(module_name, module_path).load_module()
             function_name = "f_" + m.hexdigest()
             function = self.ds.add_function(function_name, module.f, unique=True)
 

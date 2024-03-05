@@ -10,6 +10,7 @@ dependencies:
 - cython
 - cachetools
 - catboost
+- dask<2024.2.0
 - diskcache
 - filelock
 - fsspec<2022.2.0
@@ -20,7 +21,6 @@ dependencies:
 - h5py
 - httpx # for testing with starlette/fastapi
 - ipyvolume=0.6.0a6
-- lightgbm
 - matplotlib-base
 - nest-asyncio<1.5.2
 - notebook
@@ -54,3 +54,5 @@ dependencies:
 - python-utils
 - progressbar2
 - zipp<3.16.0
+- pip:
+  - lightgbm>=4.0.0

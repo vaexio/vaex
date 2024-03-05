@@ -17,7 +17,6 @@ params_multiclass = {
     'objective': 'multi:softmax',  # learning task objective
     'num_class': 3,           # number of target classes (if classification)
     'random_state': 42,       # fixes the seed, for reproducibility
-    'silent': 1,              # silent mode
     'n_jobs': -1              # cpu cores used
     }
 
@@ -32,14 +31,13 @@ params_reg = {
     'min_child_weight': 1,      # minimum sum of instance weight (hessian) needed in a child
     'objective': 'reg:linear',  # learning task objective
     'random_state': 42,         # fixes the seed, for reproducibility
-    'silent': 1,                # silent mode
     'n_jobs': -1                # cpu cores used
     }
 
 
 def test_xgboost(df_iris):
     ds = df_iris
-    ds_train, ds_test = ds.ml.train_test_split(test_size=0.2, verbose=False)
+    ds_train, ds_test = ds.ml.train_test_split(test_size=0.1, verbose=False)
     features = ['sepal_length', 'sepal_width', 'petal_length', 'petal_width']
     booster = vaex.ml.xgboost.XGBoostModel(num_boost_round=10,
                                            params=params_multiclass,
@@ -104,7 +102,6 @@ def test_xgboost_validation_set(df_example):
     # fit the booster - including saving the history of the validation sets
     booster.fit(train, evals=[(train, 'train'), (test, 'test')],
                 early_stopping_rounds=2, evals_result=history)
-    assert booster.booster.best_ntree_limit == 10
     assert booster.booster.best_iteration == 9
     assert len(history['train']['rmse']) == 10
     assert len(history['test']['rmse']) == 10

@@ -1,11 +1,11 @@
 import os
-import imp
+from importlib.machinery import SourceFileLoader
 from setuptools import setup
 from setuptools import Extension
 
 dirname = os.path.dirname(__file__)
 path_version = os.path.join(dirname, 'vaex/meta/_version.py')
-version = imp.load_source('version', path_version)
+version = SourceFileLoader('version', path_version).load_module()
 
 
 name = 'vaex'

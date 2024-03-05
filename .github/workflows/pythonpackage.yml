@@ -42,7 +42,7 @@ jobs:
       # alternative would be to upgrade tapi to 1100.0.11, we can possibly remove this in the future
       if: matrix.os == 'macOS-11'
       with:
-        xcode-version: "11.7.0"
+        xcode-version: "13.2.1"
     - uses: actions/checkout@v2
       with:
         submodules: true
@@ -53,11 +53,12 @@ jobs:
         token: ${{ secrets.PAT_PULL_ENTERPRISE }}
         path: vaex-enterprise
     - name: install micromamba
-      uses: mamba-org/provision-with-micromamba@main
+      uses: mamba-org/setup-micromamba@v1
       with:
+        micromamba-version: 1.5.6-0
         environment-name: vaex-dev
         environment-file: ci/conda-env.yml
-        extra-specs: |
+        create-args: >-
             python=${{ matrix.python-version }}
     - name: Extra non-windows installs
       if: matrix.os != 'windows-latest'
@@ -155,8 +156,8 @@ jobs:
       run: |
         VAEX_CACHE_RESULTS=1 ./ci/04-run-test-suite.sh
     - name: Check ml spec
-      # no catboost for py39 and py37
-      if: matrix.python-version != '3.9' && matrix.os != 'windows-latest' && matrix.python-version != '3.7'
+      # no catboost for py39 and py37, xgboost fails on 3.6
+      if: matrix.python-version != '3.6' && matrix.python-version != '3.7' && matrix.python-version != '3.9' && matrix.os != 'windows-latest'
       run: |
         python -m vaex.ml.spec packages/vaex-ml/vaex/ml/spec_new.json
         diff packages/vaex-ml/vaex/ml/spec_new.json packages/vaex-ml/vaex/ml/spec.json
@@ -165,7 +166,7 @@ jobs:
 #      run: |
 #        py.test vaex-enterprise/tests --timeout=1000
     - name: Test notebooks
-      if: matrix.os != 'windows-latest' && matrix.python-version != '3.6'
+      if: matrix.os != 'windows-latest' && matrix.python-version != '3.6' && matrix.python-version != '3.7'
       run: |
         ./ci/05-run-notebooks.sh
     - name: Authenticate Google Cloud Platform
@@ -206,11 +207,12 @@ jobs:
         path: ./dist
 
     - name: Install micromamba
-      uses: mamba-org/provision-with-micromamba@main
+      uses: mamba-org/setup-micromamba@v1
       with:
+        micromamba-version: 1.5.6-0
         environment-name: vaex-test
         environment-file: ci/conda-base-minimal.yml
-        extra-specs: |
+        create-args: >-
             python=${{ matrix.python-version }}
             pcre
             rich

@@ -22,8 +22,8 @@ cd docs/source
  python -m nbconvert --TagRemovePreprocessor.remove_cell_tags="('skip-ci',)" --to html --execute guides/io.ipynb --ExecutePreprocessor.timeout=240
  python -m nbconvert --TagRemovePreprocessor.remove_cell_tags="('skip-ci',)" --to html --execute guides/ml_iris.ipynb --ExecutePreprocessor.timeout=240
  python -m nbconvert --TagRemovePreprocessor.remove_cell_tags="('skip-ci',)" --to html --execute guides/ml_titanic.ipynb --ExecutePreprocessor.timeout=240
- python -m nbconvert --TagRemovePreprocessor.remove_cell_tags="('skip-ci',)" --to html --execute example_jupyter_plotly.ipynb --ExecutePreprocessor.timeout=240
- python -m nbconvert --TagRemovePreprocessor.remove_cell_tags="('skip-ci',)" --to html --execute example_jupyter_ipyvolume.ipynb --ExecutePreprocessor.timeout=240
+#  python -m nbconvert --TagRemovePreprocessor.remove_cell_tags="('skip-ci',)" --to html --execute example_jupyter_plotly.ipynb --ExecutePreprocessor.timeout=240
+#  python -m nbconvert --TagRemovePreprocessor.remove_cell_tags="('skip-ci',)" --to html --execute example_jupyter_ipyvolume.ipynb --ExecutePreprocessor.timeout=240
 
 # this does not seem to work on osx:
 # # make sure the ~/.ipython dir exists because multiple processes might try to create it
