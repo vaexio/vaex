@@ -132,6 +132,7 @@ def test_lightgbm_validation_set(df_example):
 
 
 @pytest.mark.skipif(sys.version_info < (3, 6), reason="requires python3.6 or higher")
+@pytest.mark.skipif(vaex.utils.osname == 'osx', reason="hangs for unknown reason on osx")
 def test_lightgbm_pipeline(df_example):
     ds = df_example
     # train test splot
