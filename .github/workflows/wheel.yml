@@ -23,14 +23,15 @@ jobs:
         with:
           python-version: "3.x"
 
-      - run: pip install cibuildwheel~=2.16
+      - run: pip install cibuildwheel==2.17.0 # sync version with pypa/cibuildwheel below
 
       - id: set-matrix
         run: |
           MATRIX_INCLUDE=$(
             {
               cibuildwheel --print-build-identifiers --platform linux --arch x86_64,aarch64 | grep cp |  jq -nRc '{"only": inputs, "os": "ubuntu-latest"}' \
-              && cibuildwheel --print-build-identifiers --platform macos --arch x86_64,arm64 | grep cp |  jq -nRc '{"only": inputs, "os": "macos-latest"}' \
+              && cibuildwheel --print-build-identifiers --platform macos --arch x86_64 | grep cp |  jq -nRc '{"only": inputs, "os": "macos-13"}' \
+              && cibuildwheel --print-build-identifiers --platform macos --arch arm64 | grep cp |  jq -nRc '{"only": inputs, "os": "macos-14"}' \
               && cibuildwheel --print-build-identifiers --platform windows --arch AMD64 | grep cp |  jq -nRc '{"only": inputs, "os": "windows-latest"}'
             } | jq -sc
           )
@@ -70,7 +71,7 @@ jobs:
       if: runner.os == 'Linux'
       uses: docker/setup-qemu-action@v3
 
-    - uses: pypa/cibuildwheel@v2.16.5
+    - uses: pypa/cibuildwheel@v2.17.0 # sync version with pip install cibuildwheel above
       with:
         only: ${{ matrix.only }}
         package-dir: packages/vaex-core/
