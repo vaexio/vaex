@@ -1,6 +1,11 @@
 import platform
-
+import sys
 import pytest
+# py 36 and 37 not supported
+if sys.version_info < (3, 8):
+    pytest.skip(allow_module_level=True)
+
+
 import vaex
 pytest.importorskip("sklearn")
 from vaex.ml.sklearn import Predictor, IncrementalPredictor
