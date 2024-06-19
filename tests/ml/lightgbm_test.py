@@ -1,5 +1,8 @@
 import sys
 import pytest
+# py 36 and 37 give a syntax error
+if sys.version_info < (3, 8):
+    pytest.skip(allow_module_level=True)
 pytest.importorskip("lightgbm")
 
 import numpy as np
