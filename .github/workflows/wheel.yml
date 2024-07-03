@@ -82,7 +82,7 @@ jobs:
         package-dir: packages/vaex-core/
         output-dir: packages/vaex-core/dist/
       env:
-        CIBW_BEFORE_BUILD: ${{ ( matrix.os != 'windows-latest' && 'sudo bin/install_pcre.sh' ) || '' }}
+        CIBW_BEFORE_BUILD: ${{ ( matrix.os != 'windows-latest' && 'sudo -E bash bin/install_pcre.sh' ) || '' }}
         CIBW_BUILD_VERBOSITY: 2
         CIBW_MANYLINUX_X86_64_IMAGE: manylinux_2_28
         CIBW_MANYLINUX_AARCH64_IMAGE: manylinux_2_28
@@ -101,7 +101,7 @@ jobs:
 
     - name: Make source distribution
       run: |
-        pip install -U pip setuptools wheel
+        pip install setuptools
         python setup.py sdist
       working-directory: packages/vaex-core/
 
@@ -116,7 +116,7 @@ jobs:
         TWINE_USERNAME: __token__
         TWINE_PASSWORD: ${{ secrets.pypi_password_vaex_core }}
       run: |
-        pip install twine
+        pip install twine wheel
         openssl sha256 dist/*
         twine upload --skip-existing
       working-directory: packages/vaex-core/
