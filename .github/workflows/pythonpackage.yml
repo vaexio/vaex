@@ -30,7 +30,7 @@ jobs:
       fail-fast: false
       max-parallel: 12
       matrix:
-        os: [ubuntu-latest, windows-latest, macOS-11]
+        os: [ubuntu-latest, windows-latest, macOS-12]
         python-version: [3.8, 3.9]
 
     steps:
@@ -40,7 +40,7 @@ jobs:
         df -h
     - uses: maxim-lobanov/setup-xcode@v1
       # alternative would be to upgrade tapi to 1100.0.11, we can possibly remove this in the future
-      if: matrix.os == 'macOS-11'
+      if: matrix.os == 'macOS-12'
       with:
         xcode-version: "13.2.1"
     - uses: actions/checkout@v2
@@ -80,12 +80,12 @@ jobs:
     #     docker rmi $(docker image ls -aq)
     #     df -h
     - name: Install OpenMP runtime (Mac-only)
-      if: matrix.os == 'macOS-11'
+      if: matrix.os == 'macOS-12'
       run: |
         brew install libomp
     - name: Cache compiled binaries
       # this fails for this combination, leading to binaries filled with 0's
-      if: matrix.os != 'macOS-11'
+      if: matrix.os != 'macOS-12'
       id: cache-compiled-binaries
       uses: actions/cache@v2
       with:
@@ -187,7 +187,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macOS-11]
+        os: [ubuntu-latest, windows-latest, macOS-12]
         python-version: [3.8, 3.9]
 
     steps:
