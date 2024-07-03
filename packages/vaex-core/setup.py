@@ -185,8 +185,6 @@ setup(name=name + '-core',
       zip_safe=False,
       python_requires=">=3.8",
       classifiers=[
-            "Programming Language :: Python :: 3.6",
-            "Programming Language :: Python :: 3.7",
             "Programming Language :: Python :: 3.8",
             "Programming Language :: Python :: 3.9",
             "Programming Language :: Python :: 3.10",

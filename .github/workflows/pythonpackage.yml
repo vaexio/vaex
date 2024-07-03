@@ -31,7 +31,7 @@ jobs:
       max-parallel: 12
       matrix:
         os: [ubuntu-latest, windows-latest, macOS-11]
-        python-version: [3.6, 3.7, 3.8, 3.9]
+        python-version: [3.8, 3.9]
 
     steps:
     - name: disk space
@@ -85,7 +85,7 @@ jobs:
         brew install libomp
     - name: Cache compiled binaries
       # this fails for this combination, leading to binaries filled with 0's
-      if: matrix.python-version != '3.6' || matrix.os != 'macOS-11'
+      if: matrix.os != 'macOS-11'
       id: cache-compiled-binaries
       uses: actions/cache@v2
       with:
@@ -138,11 +138,6 @@ jobs:
     #     # flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
     #     # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
     #     # flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
-    - name: Install fixes for Python 3.6
-      if: matrix.python-version == '3.6'
-      run: |
-        # by default on 3.6 we get an old version, so manually upgrade
-        pip install gcsfs==0.8.0
     - name: Install pytest-asyncio correct version
       if: matrix.python-version != '3.10'
       run: |
@@ -157,7 +152,7 @@ jobs:
         VAEX_CACHE_RESULTS=1 ./ci/04-run-test-suite.sh
     - name: Check ml spec
       # no catboost for py39 and py37, xgboost fails on 3.6
-      if: matrix.python-version != '3.6' && matrix.python-version != '3.7' && matrix.python-version != '3.9' && matrix.os != 'windows-latest'
+      if: matrix.python-version != '3.9' && matrix.os != 'windows-latest'
       run: |
         python -m vaex.ml.spec packages/vaex-ml/vaex/ml/spec_new.json
         diff packages/vaex-ml/vaex/ml/spec_new.json packages/vaex-ml/vaex/ml/spec.json
@@ -166,19 +161,19 @@ jobs:
 #      run: |
 #        py.test vaex-enterprise/tests --timeout=1000
     - name: Test notebooks
-      if: matrix.os != 'windows-latest' && matrix.python-version != '3.6' && matrix.python-version != '3.7'
+      if: matrix.os != 'windows-latest'
       run: |
         ./ci/05-run-notebooks.sh
     - name: Authenticate Google Cloud Platform
-      if: ${{ (github.event.pull_request.head.repo.full_name == 'vaexio/vaex') && !((matrix.os == 'windows-latest') || (matrix.os == 'macOS-11' && matrix.python-version == '3.6'))  }}
+      if: ${{ (github.event.pull_request.head.repo.full_name == 'vaexio/vaex') && !((matrix.os == 'windows-latest'))  }}
       uses: google-github-actions/setup-gcloud@v0
       with:
         project_id: ${{ secrets.GCP_PROJECT_ID_VAEX }}
         service_account_key: ${{ secrets.GCP_SA_KEY_VAEX }}
         export_default_credentials: true
     - name: Test vaex-contrib
-      # do not run in a PR from someone else, skip windows, and osx+py36
-      if: ${{ (github.event.pull_request.head.repo.full_name == 'vaexio/vaex') && !((matrix.os == 'windows-latest') || (matrix.os == 'macOS-11' && matrix.python-version == '3.6'))  }}
+      # do not run in a PR from someone else, skip windows
+      if: ${{ (github.event.pull_request.head.repo.full_name == 'vaexio/vaex') && !((matrix.os == 'windows-latest'))  }}
       env:
         PROJECT_ID: ${{ secrets.GCP_PROJECT_ID_VAEX }}
       run: |
@@ -193,11 +188,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macOS-11]
-        python-version: [3.7, 3.8, 3.9]
-        # ssl/certifi issues with this combination
-        exclude:
-          - os: windows-latest
-            python-version: 3.7
+        python-version: [3.8, 3.9]
 
     steps:
     - uses: actions/checkout@v2
