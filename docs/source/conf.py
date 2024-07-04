@@ -174,9 +174,6 @@ html_theme_options = dict(
 
 extra_navbar = "<h1>dsadsa</h2>"
 
-html_sidebars = {
-	"**": ["sbt-sidebar-footer.html", "sbt-sidebar-nav.html", "sidebar-search-bs.html"]
-}
 html_logo = "_static/logo-grey.svg"
 html_favicon = "_static/vaex_alt.png"
 html_baseurl = "https://vaex.io/docs/"
