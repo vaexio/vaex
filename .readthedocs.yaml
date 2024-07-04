@@ -33,6 +33,4 @@ submodules:
 # See https://docs.readthedocs.io/en/stable/guides/reproducible-builds.html
 python:
   install:
-  - method: pip
-    path: -e.  # https://github.com/vaexio/vaex/issues/271#issuecomment-496007058
-  - requirements: requirements/docs.txt
+  - requirements: requirements_rtd.txt
