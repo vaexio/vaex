@@ -34,5 +34,5 @@ submodules:
 python:
   install:
   - method: pip
-    path: .
+    path: -e.  # https://github.com/vaexio/vaex/issues/271#issuecomment-496007058
   - requirements: requirements/docs.txt
