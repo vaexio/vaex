@@ -23,6 +23,11 @@ sphinx:
 # Optionally build your docs in additional formats such as PDF and ePub
 formats: all
 
+# Pull submodules
+submodules:
+  include: all
+  recursive: true
+
 # Optional but recommended, declare the Python requirements required
 # to build your documentation
 # See https://docs.readthedocs.io/en/stable/guides/reproducible-builds.html
