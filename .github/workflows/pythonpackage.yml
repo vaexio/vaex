@@ -21,14 +21,6 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  autocancel:
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
-    steps:
-    - uses: n1hility/cancel-previous-runs@v3
-      with:
-        token: ${{ secrets.GITHUB_TOKEN }}
-
   main:
     env:
       CACHE_NUMBER_COMPILE: 6
