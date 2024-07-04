@@ -10,6 +10,10 @@ on:
   schedule:
   - cron: "0 2 * * 1-5"
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref || github.run_id }}
+  cancel-in-progress: true
+
 jobs:
   build_wheels:
     name: Build wheel on ${{ matrix.os }}
