@@ -1,5 +1,6 @@
 -e .
-sphinx-book-theme==0.0.39b1
+sphinx
+sphinx-book-theme
 sphinx-sitemap
 sphinxcontrib-googleanalytics
 sphinxext-rediraffe
@@ -25,4 +26,3 @@ xgboost
 sphinx_gallery
 catboost
 myst-parser
-sphinx==4.2.0
