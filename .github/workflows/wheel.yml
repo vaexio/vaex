@@ -14,6 +14,14 @@ on:
   workflow_dispatch:  # allows running workflow manually from the Actions tab
 
 jobs:
+  autocancel:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+    - uses: n1hility/cancel-previous-runs@v3
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+
   build_wheels_matrix:
     runs-on: ubuntu-latest
     outputs:
