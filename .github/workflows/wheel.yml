@@ -88,6 +88,7 @@ jobs:
       env:
         CIBW_BEFORE_BUILD: ${{ startswith(matrix.os, 'ubuntu') && 'bash bin/install_pcre.sh' || startswith(matrix.os, 'macos') && 'sudo -E bash bin/install_pcre.sh' || '' }}
         CIBW_BUILD_VERBOSITY: 2
+        CIBW_TEST_COMMAND: python -c "import vaex; print(vaex.from_arrays(x=[1,2]))"
         CIBW_MANYLINUX_X86_64_IMAGE: manylinux_2_28
         CIBW_MANYLINUX_AARCH64_IMAGE: manylinux_2_28
         CIBW_ENVIRONMENT_LINUX: "CFLAGS='-Wl,-strip-all' CXXFLAGS='-Wl,-strip-all'"
