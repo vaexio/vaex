@@ -35,13 +35,15 @@ jobs:
       - run: pip install cibuildwheel==2.17.0 # sync version with pypa/cibuildwheel below
 
       - id: set-matrix
+        env:
+          CIBW_SKIP: pp* *musllinux*
         run: |
           MATRIX_INCLUDE=$(
             {
-              cibuildwheel --print-build-identifiers --platform linux --arch x86_64,aarch64 | grep cp |  jq -nRc '{"only": inputs, "os": "ubuntu-latest"}' \
-              && cibuildwheel --print-build-identifiers --platform macos --arch x86_64 | grep cp |  jq -nRc '{"only": inputs, "os": "macos-13"}' \
-              && cibuildwheel --print-build-identifiers --platform macos --arch arm64 | grep cp |  jq -nRc '{"only": inputs, "os": "macos-14"}' \
-              && cibuildwheel --print-build-identifiers --platform windows --arch AMD64 | grep cp |  jq -nRc '{"only": inputs, "os": "windows-latest"}'
+              cibuildwheel --print-build-identifiers --platform linux --arch x86_64,aarch64 | jq -nRc '{"only": inputs, "os": "ubuntu-latest"}' \
+              && cibuildwheel --print-build-identifiers --platform macos --arch x86_64 | jq -nRc '{"only": inputs, "os": "macos-13"}' \
+              && cibuildwheel --print-build-identifiers --platform macos --arch arm64 | jq -nRc '{"only": inputs, "os": "macos-14"}' \
+              && cibuildwheel --print-build-identifiers --platform windows --arch AMD64 | jq -nRc '{"only": inputs, "os": "windows-latest"}'
             } | jq -sc
           )
           echo "include=$MATRIX_INCLUDE" >> $GITHUB_OUTPUT
