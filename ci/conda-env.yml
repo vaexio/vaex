@@ -25,7 +25,7 @@ dependencies:
 - nest-asyncio<1.5.2
 - notebook
 - numba
-- numpy<1.21
+- numpy<1.26.4
 - pandas
 - pcre
 - pip==20.3.4
