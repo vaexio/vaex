@@ -10,7 +10,7 @@ name        = 'vaex'
 license     = 'MIT'
 version     = version.__version__
 url         = 'https://www.github.com/vaexio/vaex'
-install_requires_contrib = ['vaex-core>=4.0.0,<5']
+install_requires_contrib = ['vaex-core~=4.0']
 
 setup(name=name + '-contrib',
       version=version,
@@ -18,7 +18,7 @@ setup(name=name + '-contrib',
       url=url,
       install_requires=install_requires_contrib,
       extras_require={
-            'gcp': ['google-cloud-bigquery', 'google-cloud-bigquery-storage'],
+            'all': ['google-cloud-bigquery', 'google-cloud-bigquery-storage'],
       },
       license=license,
       packages=['vaex.contrib', 'vaex.contrib.io'],

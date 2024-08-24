@@ -33,7 +33,7 @@ def test_keras_model_classification(tmpdir, df_iris):
     nn_model.add(K.layers.Dense(3, activation='softmax'))
     nn_model.compile(optimizer=K.optimizers.RMSprop(learning_rate=0.01),
                     loss=K.losses.categorical_crossentropy,
-                    metrics='accuracy')
+                    metrics=['accuracy'])
 
     X = df[features].values
     y = df[targets].values

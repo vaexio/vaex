@@ -12,8 +12,8 @@ from common import small_buffer
 @pytest.mark.skipif(vaex.utils.osname == 'windows',
                     reason="windows' snprintf seems buggy")
 def test_format():
-    num1 = np.array([1, 2, 3], dtype=np.int32)
-    num2 = np.array([1.1, 2.2, 3.3], dtype=np.float32)
+    num1 = np.array([1, 2, 3], dtype=int)
+    num2 = np.array([1.1, 2.2, 3.3], dtype=float)
     text = ['Here', 'we', 'go']
 
     df = vaex.from_arrays(num1=num1, num2=num2, text=text)
@@ -77,7 +77,7 @@ def test_concat():
     ds = ds1.concat(ds2)
     assert len(ds) == len(ds1) + len(ds2)
     assert ds.data_type('names') == pa.string()
-    assert ds.data_type('names') != np.object
+    assert ds.data_type('names') != object
 
 
 def test_string_count_stat():

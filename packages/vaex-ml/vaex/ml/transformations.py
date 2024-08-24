@@ -432,7 +432,7 @@ class OneHotEncoder(Transformer):
                 column_name = self.prefix + feature + '_' + str_value
                 if value is None:
                     copy[column_name] = copy.func.where(copy[feature].ismissing(), self.one, self.zero, dtype=dtype)
-                elif isinstance(value, np.float) and np.isnan(value):
+                elif isinstance(value, float) and np.isnan(value):
                     copy[column_name] = copy.func.where(copy[feature].isnan(), self.one, self.zero, dtype=dtype)
                 else:
                     copy[column_name] = copy.func.where(copy[feature] == value, self.one, self.zero, dtype=dtype)

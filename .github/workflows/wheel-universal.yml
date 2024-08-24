@@ -43,7 +43,7 @@ jobs:
 
     - name: Build vaex (meta)
       run: |
-        (cp README.md packages/vaex-meta/ && cd packages/vaex-meta && python setup.py sdist bdist_wheel); cp packages/vaex-meta/dist/* dist
+        (cp README.md packages/vaex/ && cd packages/vaex && python setup.py sdist bdist_wheel); cp packages/vaex/dist/* dist
 
     - name: Publish a Python distribution to PyPI
       if: startsWith(github.ref, 'refs/tags/meta')

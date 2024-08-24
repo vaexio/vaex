@@ -23,7 +23,7 @@ def task_mybinder():
     return {
         'actions': [action],
         'targets': ["binder/requirements.txt"],
-        'file_dep': ['packages/vaex-meta/vaex/meta/_version.py']
+        'file_dep': ['packages/vaex/vaex/meta/_version.py']
         }
 
 
@@ -35,6 +35,6 @@ def task_sync_readme():
 
     return {
         'actions': [action],
-        'targets': ["packages/vaex-meta/README.md"],
+        'targets': ["packages/vaex/README.md"],
         'file_dep': ['README.md']
         }
