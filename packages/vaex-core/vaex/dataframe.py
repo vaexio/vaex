@@ -2281,9 +2281,12 @@ class DataFrame(object):
                 data = data.to_arrow()
                 data_type = data.type
             else:
+                import pandas
                 # when we eval constants, let arrow find it out
                 if isinstance(data, numbers.Number):
                     data_type = pa.array([data]).type
+                elif isinstance(data, pandas.core.arrays.base.ExtensionArray):
+                    data_type = data.dtype.type
                 else:
                     data_type = data.type  # assuming arrow
 
