@@ -42,7 +42,7 @@ jobs:
             {
               cibuildwheel --print-build-identifiers --platform linux --arch x86_64,aarch64 | jq -nRc '{"only": inputs, "os": "ubuntu-latest"}' \
               && cibuildwheel --print-build-identifiers --platform macos --arch x86_64 | jq -nRc '{"only": inputs, "os": "macos-13"}' \
-              && cibuildwheel --print-build-identifiers --platform macos --arch arm64 | jq -nRc '{"only": inputs, "os": "macos-13"}' \
+              && cibuildwheel --print-build-identifiers --platform macos --arch arm64 | jq -nRc '{"only": inputs, "os": "macos-14"}' \
               && cibuildwheel --print-build-identifiers --platform windows --arch AMD64 | jq -nRc '{"only": inputs, "os": "windows-latest"}'
             } | jq -sc
           )
@@ -81,6 +81,10 @@ jobs:
     - name: Set up QEMU
       if: runner.os == 'Linux'
       uses: docker/setup-qemu-action@v3
+
+    - name: Switch to older Xcode
+      if: startswith(matrix.os, 'macos')
+      run: sudo xcode-select -s "/Applications/Xcode_15.0.1.app"
 
     - uses: pypa/cibuildwheel@v2.17.0 # sync version with pip install cibuildwheel above
       with:
