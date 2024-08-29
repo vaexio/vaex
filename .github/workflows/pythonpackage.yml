@@ -59,7 +59,7 @@ jobs:
       uses: ./ci/actions/windll
 
     - name: Install vaex
-      run: uv pip install -v --system .[ci]
+      run: uv pip install -v --override requirements-override.txt --system .[ci]
 
     - run: uv pip freeze
 
