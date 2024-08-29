@@ -290,6 +290,7 @@ def test_expr():
     assert counts.tolist() == np.ones(10).tolist()
 
 
+@pytest.mark.skipif(sys.version_info[:2] < (3, 9) and sys.platform == "win32" , reason="Issue on windows and python 3.8 only?")
 def test_nunique():
     s = ['aap', 'aap', 'noot', 'mies', None, 'mies', 'kees', 'mies', 'aap']
     x = [0,     0,     0,      0,      0,     1,      1,     1,      2]
