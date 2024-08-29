@@ -1,3 +1,4 @@
+import sys
 import pytest
 pytest.importorskip("tensorflow")
 
