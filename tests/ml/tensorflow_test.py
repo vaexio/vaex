@@ -51,7 +51,7 @@ def test_keras_model_classification(tmpdir, df_iris):
     assert copy.pred.shape == (150, 3)
 
 
-@pytest.mark.skipif(sys.version_info <= (3, 8), reason="Doesn't run on keras that gets installed with Python 3.8")
+@pytest.mark.skipif(sys.version_info[:2] < (3, 8), reason="Doesn't run on keras that gets installed with Python 3.8")
 def test_keras_model_regression(df_example):
     df = df_example
     df = df[:1_000]  # To make the tests run faster
