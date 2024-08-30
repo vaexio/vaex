@@ -38,7 +38,7 @@ jobs:
 
       - id: set-matrix
         env:
-          CIBW_SKIP: pp*
+          CIBW_SKIP: pp* cp38-win*
         run: |
           MATRIX_INCLUDE=$(
             {
