@@ -63,7 +63,8 @@ jobs:
         include: ${{ fromJson(needs.build_wheels_matrix.outputs.include) }}
 
     permissions:
-      contents: write # for uploading release assets
+      contents: write # softprops/action-gh-release
+      id-token: write # pypa/gh-action-pypi-publish
 
     steps:
     - uses: actions/checkout@v4
