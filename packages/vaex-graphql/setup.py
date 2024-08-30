@@ -12,11 +12,9 @@ author_email= 'maartenbreddels@gmail.com'
 license     = 'MIT'
 version     = version.__version__
 url         = 'https://www.github.com/vaexio/vaex'
-# for now we leave graphene-tornado / graphene on v2
-# ref https://github.com/vaexio/vaex/pull/2356#issuecomment-2320707228
-# in top level vaex[ci] we added the following (additional) direct reference requirement which adds one commit (https://github.com/ddelange/graphene-tornado/commit/d75f01f) on top of the 2.6.1 release to unpin werkzeug
-# "graphene-tornado @ https://github.com/ddelange/graphene-tornado/archive/refs/heads/2.6.1.unpin-werkzeug.zip",
-install_requires_graphql = ['vaex-core~=4.0', 'graphene-tornado~=2.5']
+# graphene-tornado<3 pins werkzeug 0.12, which creates a conflict with vaex-ml (tensorflow 2.16+ required on python 3.12)
+# upgrading to graphene-tornado==3.0.0b2 caused CI to fail, so instead we pin to graphene-tornado==2.6.1 with unpinned werkzeug
+install_requires_graphql = ['vaex-core~=4.0', 'graphene-tornado @ https://github.com/ddelange/graphene-tornado/archive/refs/heads/2.6.1.unpin-werkzeug.zip']
 
 setup(
     name=name + '-graphql',
