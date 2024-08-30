@@ -113,16 +113,6 @@ jobs:
       with:
         files: packages/vaex-core/dist/*
 
-    - uses: actions/setup-python@v5
-      with:
-        python-version: "3.x"
-
-    - name: Make source distribution
-      run: |
-        pip install setuptools
-        python setup.py sdist
-      working-directory: packages/vaex-core/
-
     - uses: actions/upload-artifact@v4
       with:
         name: distribution-${{ matrix.only }}
