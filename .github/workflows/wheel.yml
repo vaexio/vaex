@@ -128,13 +128,10 @@ jobs:
         name: distribution-${{ matrix.only }}
         path: packages/vaex-core/dist
 
-    - name: Publish a Python distribution to PyPI
-      if: startsWith(github.ref, 'refs/tags/core')
-      env:
-        TWINE_USERNAME: __token__
-        TWINE_PASSWORD: ${{ secrets.pypi_password_vaex_core }}
-      run: |
-        pip install twine wheel
-        openssl sha256 dist/*
-        twine upload --skip-existing
-      working-directory: packages/vaex-core/
+    # https://github.com/pypa/gh-action-pypi-publish#trusted-publishing
+    - name: Publish package distributions to PyPI
+      uses: pypa/gh-action-pypi-publish@v1.9.0
+      if: startsWith(github.ref, 'refs/tags')
+      with:
+        skip-existing: true
+        packages-dir: packages/vaex-core/dist
