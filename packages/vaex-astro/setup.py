@@ -1,10 +1,10 @@
 import os
-import imp
 from setuptools import setup
+from importlib.machinery import SourceFileLoader
 
 dirname = os.path.dirname(__file__)
 path_version = os.path.join(dirname, 'vaex/astro/_version.py')
-version = imp.load_source('version', path_version)
+version = SourceFileLoader('version', path_version).load_module()
 
 name        = 'vaex'
 author      = 'Maarten A. Breddels'
@@ -12,7 +12,7 @@ author_email= 'maartenbreddels@gmail.com'
 license     = 'MIT'
 version     = version.__version__
 url         = 'https://www.github.com/maartenbreddels/vaex'
-install_requires_astro = ['vaex-core>=4.5.0,<5', 'astropy']
+install_requires_astro = ['vaex-core~=4.5', 'astropy']
 
 setup(
     name=name + '-astro',

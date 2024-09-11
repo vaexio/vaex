@@ -10,7 +10,7 @@ gittag_core = ReleaseTargetGitTagVersion(version_source=version_core, prefix='co
 core.version_source = version_core
 core.version_targets.append(VersionTarget(core, '{path}/vaex/core/_version.py'))
 core.version_targets.append(VersionTargetReplace(core, [
-    'packages/vaex-meta/setup.py',
+    'packages/vaex/setup.py',
 ]))
 
 
@@ -32,7 +32,7 @@ def add_version_replace(package):
 def add_meta_version_replace(package):
     # always bump the meta package
     package.version_targets.append(VersionTargetReplace(package, [
-        'packages/vaex-meta/setup.py',
+        'packages/vaex/setup.py',
     ], pattern='{name}(?P<cmp>[^0-9]*)' + str(package.version_source), ))
 
 add_version_replace(core)
@@ -43,7 +43,7 @@ core.release_targets.append(ReleaseTargetSourceDist(core))
 #core.release_targets.append(gitpush)
 core.release_targets.append(ReleaseTargetCondaForge(core, '../feedstocks/vaex-core-feedstock'))
 
-packages = ['vaex-core', 'vaex-meta', 'vaex-viz', 'vaex-hdf5', 'vaex-server', 'vaex-astro', 'vaex-jupyter', 'vaex-ml', 'vaex-graphql', 'vaex-contrib']
+packages = ['vaex-core', 'vaex', 'vaex-viz', 'vaex-hdf5', 'vaex-server', 'vaex-astro', 'vaex-jupyter', 'vaex-ml', 'vaex-graphql', 'vaex-contrib']
 names = [k[5:] for k in packages[1:]]
 
 for name in names:

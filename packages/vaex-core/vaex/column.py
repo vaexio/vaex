@@ -163,7 +163,10 @@ class ColumnSparse(Column):
 
     def __getitem__(self, slice):
         # not sure if this is the fastest
-        return self.matrix[slice, self.column_index].A[:,0]
+        mat = self.matrix[slice, self.column_index]
+        dense = mat.todense()
+        column_part = np.asarray(dense)[:,0]
+        return column_part
 
 
 class ColumnNumpyLike(Column):

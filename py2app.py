@@ -12,7 +12,7 @@ from distutils.sysconfig import get_python_inc
 from setuptools import setup, Extension
 import platform
 import sys
-import imp
+from importlib.machinery import SourceFileLoader
 
 def system(cmd):
 	print("Executing: ", cmd)
@@ -25,7 +25,7 @@ path_version_file = "vaex/version.py"
 if not os.path.exists(path_version_file):
 	system("version=`git describe --tags --long`; vaex/setversion.py ${version}")
 
-version = imp.load_source('version', path_version_file)
+version = SourceFileLoader('version', path_version_file).load_module()
 #system("version=`git describe --tags --long`; vaex/vaex/setversion.py ${version}")
 
 

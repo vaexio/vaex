@@ -1,7 +1,0 @@
-name: vaex-dev
-channels:
-  - conda-forge
-dependencies:
-- numpy<1.21
-- pandas
-- scipy

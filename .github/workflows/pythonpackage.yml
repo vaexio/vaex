@@ -5,103 +5,66 @@ on:
     branches:
       - master
   pull_request:
-    branches:
-    - master
-    - docs
   schedule:
   - cron: "0 2 * * 1-5"
 
-# to make bash use ~/.bashrc, see https://github.com/marketplace/actions/setup-miniconda#example-5-custom-installer
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 defaults:
   run:
-    shell: bash -l {0}
-
-concurrency:
-  group: ${{ github.ref }}
-  cancel-in-progress: true
+    shell: bash
 
 jobs:
   main:
-    env:
-      CACHE_NUMBER_COMPILE: 6
-      MAMBA_ROOT_PREFIX: /dev/shm/mambaroot
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
-      max-parallel: 12
       matrix:
-        os: [ubuntu-latest, windows-latest, macOS-11]
-        python-version: [3.6, 3.7, 3.8, 3.9]
+        os: [ubuntu-latest, windows-latest, macos-13]
+        python-version: ["3.8", "3.9", "3.10", "3.11", "3.12"]
+        exclude:
+          - {os: windows-latest, python-version: "3.8"}
 
     steps:
-    - name: disk space
-      if: ${{ (github.event.pull_request.head.repo.full_name == 'vaexio/vaex') && (matrix.os == 'ubuntu-latest') }}
-      run: |
-        df -h
-    - uses: maxim-lobanov/setup-xcode@v1
-      # alternative would be to upgrade tapi to 1100.0.11, we can possibly remove this in the future
-      if: matrix.os == 'macOS-11'
-      with:
-        xcode-version: "11.7.0"
     - uses: actions/checkout@v2
       with:
         submodules: true
-    - uses: actions/checkout@v2
-      if: ${{ (github.event.pull_request.head.repo.full_name == 'vaexio/vaex') && (matrix.os == 'ubuntu-latest') }}
+
+    - uses: actions/setup-python@v5
       with:
-        repository: vaexio/vaex-enterprise
-        token: ${{ secrets.PAT_PULL_ENTERPRISE }}
-        path: vaex-enterprise
-    - name: install micromamba
-      uses: mamba-org/provision-with-micromamba@main
-      with:
-        environment-name: vaex-dev
-        environment-file: ci/conda-env.yml
-        extra-specs: |
-            python=${{ matrix.python-version }}
-    - name: Extra non-windows installs
+        python-version: ${{ matrix.python-version }}
+
+    - run: python -m pip install --upgrade pip setuptools wheel uv
+
+    # - uses: actions/checkout@v2
+    #   if: ${{ (github.event.pull_request.head.repo.full_name == 'vaexio/vaex') && (matrix.os == 'ubuntu-latest') }}
+    #   with:
+    #     repository: vaexio/vaex-enterprise
+    #     token: ${{ secrets.PAT_PULL_ENTERPRISE }}
+    #     path: vaex-enterprise
+
+    - name: Setup Graphviz
+      uses: ts-graphviz/setup-graphviz@v2
+
+    - name: Setup PCRE (Nix-only)
       if: matrix.os != 'windows-latest'
-      run: |
-        echo "not needed for now"
-    # - name: Extra windows installs
-    #   if: matrix.os == 'windows-latest'
-    #   run: |
-    #     # not sure why, but the conda env is strange (old dask) if we put this constraint in the conda solver
-    #     # also might solve scipy issues
-    #     micromamba update scipy ipython dask
-    #     micromamba install scipy=1.7.1
-    # - name: free disk space
-    #   if: matrix.os == 'ubuntu-latest'
-    #   run: |
-    #     sudo swapoff -a
-    #     sudo rm -f /swapfile
-    #     sudo apt clean
-    #     docker rmi $(docker image ls -aq)
-    #     df -h
+      run: sudo -E bash bin/install_pcre.sh
+
     - name: Install OpenMP runtime (Mac-only)
-      if: matrix.os == 'macOS-11'
-      run: |
-        brew install libomp
-    - name: Cache compiled binaries
-      # this fails for this combination, leading to binaries filled with 0's
-      if: matrix.python-version != '3.6' || matrix.os != 'macOS-11'
-      id: cache-compiled-binaries
-      uses: actions/cache@v2
-      with:
-        path: |
-          packages/vaex-core/build/lib*/vaex/vaexfast*
-          packages/vaex-core/build/lib*/vaex/super*
-        key: ${{ runner.OS }}-${{ matrix.python-version }}-${{ hashFiles('packages/vaex-core/src/*') }}-${{ env.CACHE_NUMBER_COMPILE }}
-    - name: Fix cache timestamp
-      run: |
-        touch packages/vaex-core/build/lib*/vaex/vaexfast* || echo "ok to fail"
-        touch packages/vaex-core/build/lib*/vaex/super* || echo "ok to fail"
-        ls -alh packages/vaex-core/build/lib*/vaex/ || echo "ok to fail"
+      if: startswith(matrix.os, 'macos')
+      run: brew install libomp
+
+    - name: Copy dll (Windows-only)
+      if: (matrix.os == 'windows-latest')
+      uses: ./ci/actions/windll
+
     - name: Install vaex
-      run: |
-        pip install myst_parser
-        pip install -e . -v
-        # ./ci/03-install-vaex.sh micromamba
+      run: uv pip install -v --system .[ci]
+
+    - run: uv pip freeze
+
 #    - name: Install vaex-enterprise
 #      if: ${{ (github.event.pull_request.head.repo.full_name == 'vaexio/vaex') && (matrix.os == 'ubuntu-latest') }}
 #      run: |
@@ -109,26 +72,7 @@ jobs:
 #        micromamba install -c conda-forge distributed
 #        pip install ray
 #        pip install -e .
-    - name: Copy dll
-      if: (matrix.os == 'windows-latest')
-      uses: ./ci/actions/windll
-    - name: Build Python packages
-      run: |
-        mkdir dist
-        (cd packages/vaex-core && python setup.py bdist_wheel); cp packages/vaex-core/dist/* dist
-        (cd packages/vaex-graphql && python setup.py bdist_wheel); cp packages/vaex-graphql/dist/* dist
-        (cd packages/vaex-jupyter && python setup.py bdist_wheel); cp packages/vaex-jupyter/dist/* dist
-        (cd packages/vaex-ml && python setup.py bdist_wheel); cp packages/vaex-ml/dist/* dist
-        (cd packages/vaex-viz && python setup.py bdist_wheel); cp packages/vaex-viz/dist/* dist
-        (cd packages/vaex-astro && python setup.py bdist_wheel); cp packages/vaex-astro/dist/* dist
-        (cd packages/vaex-hdf5 && python setup.py bdist_wheel); cp packages/vaex-hdf5/dist/* dist
-        (cd packages/vaex-server && python setup.py bdist_wheel); cp packages/vaex-server/dist/* dist
-        (cd packages/vaex-meta && python setup.py bdist_wheel); cp packages/vaex-server/dist/* dist
-    - name: Upload builds
-      uses: actions/upload-artifact@v2
-      with:
-        name: dist-${{ github.run_number }}-${{ matrix.python-version }}-${{ matrix.os }}
-        path: ./dist
+
     # - name: Lint with flake8
     #   run: |
     #     echo "soon"
@@ -137,115 +81,48 @@ jobs:
     #     # flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
     #     # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
     #     # flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
-    - name: Install fixes for Python 3.6
-      if: matrix.python-version == '3.6'
-      run: |
-        # by default on 3.6 we get an old version, so manually upgrade
-        pip install gcsfs==0.8.0
-    - name: Install pytest-asyncio correct version
-      if: matrix.python-version != '3.10'
-      run: |
-        # 3.10 doesn't seem to work
-        pip install "pytest-asyncio<0.14"
+
     - name: Test with pytest
       run: |
         ./ci/04-run-test-suite.sh
+
     - name: Test with pytest (with cache on)
-      if: matrix.python-version == '3.9' && matrix.os == 'ubuntu-latest'
+      if: matrix.python-version == '3.12' && matrix.os == 'ubuntu-latest'
       run: |
         VAEX_CACHE_RESULTS=1 ./ci/04-run-test-suite.sh
+
     - name: Check ml spec
-      # no catboost for py39 and py37
-      if: matrix.python-version != '3.9' && matrix.os != 'windows-latest' && matrix.python-version != '3.7'
       run: |
         python -m vaex.ml.spec packages/vaex-ml/vaex/ml/spec_new.json
         diff packages/vaex-ml/vaex/ml/spec_new.json packages/vaex-ml/vaex/ml/spec.json
+
 #    - name: Test with pytest (vaex-enterprise)
 #      if: ${{ (github.event.pull_request.head.repo.full_name == 'vaexio/vaex') && (matrix.os == 'ubuntu-latest') }}
 #      run: |
 #        py.test vaex-enterprise/tests --timeout=1000
+
     - name: Test notebooks
-      if: matrix.os != 'windows-latest' && matrix.python-version != '3.6'
-      run: |
-        ./ci/05-run-notebooks.sh
+      if: matrix.os != 'windows-latest'
+      run: ./ci/05-run-notebooks.sh
+
     - name: Authenticate Google Cloud Platform
-      if: ${{ (github.event.pull_request.head.repo.full_name == 'vaexio/vaex') && !((matrix.os == 'windows-latest') || (matrix.os == 'macOS-11' && matrix.python-version == '3.6'))  }}
+      if: ${{ (github.event.pull_request.head.repo.full_name == 'vaexio/vaex') && !((matrix.os == 'windows-latest'))  }}
       uses: google-github-actions/setup-gcloud@v0
       with:
         project_id: ${{ secrets.GCP_PROJECT_ID_VAEX }}
         service_account_key: ${{ secrets.GCP_SA_KEY_VAEX }}
         export_default_credentials: true
+
     - name: Test vaex-contrib
-      # do not run in a PR from someone else, skip windows, and osx+py36
-      if: ${{ (github.event.pull_request.head.repo.full_name == 'vaexio/vaex') && !((matrix.os == 'windows-latest') || (matrix.os == 'macOS-11' && matrix.python-version == '3.6'))  }}
+      # do not run in a PR from someone else, skip windows
+      if: ${{ (github.event.pull_request.head.repo.full_name == 'vaexio/vaex') && (matrix.os != 'windows-latest')  }}
       env:
         PROJECT_ID: ${{ secrets.GCP_PROJECT_ID_VAEX }}
-      run: |
-        pip install -e 'packages/vaex-contrib[gcp]'
-        ./ci/06-run-contrib-tests.sh
-
-  install:
-    runs-on: ${{ matrix.os }}
-    needs: [main]
-
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, windows-latest, macOS-11]
-        python-version: [3.7, 3.8, 3.9]
-        # ssl/certifi issues with this combination
-        exclude:
-          - os: windows-latest
-            python-version: 3.7
-
-    steps:
-    - uses: actions/checkout@v2
-    - uses: actions/download-artifact@v2
-      with:
-        name: dist-${{ github.run_number }}-${{ matrix.python-version }}-${{ matrix.os }}
-        path: ./dist
-
-    - name: Install micromamba
-      uses: mamba-org/provision-with-micromamba@main
-      with:
-        environment-name: vaex-test
-        environment-file: ci/conda-base-minimal.yml
-        extra-specs: |
-            python=${{ matrix.python-version }}
-            pcre
-            rich
-    # it shouldn't be needed to use pcre, maybe we should make the wheels similar to how we make distributions
-    - name: Cache pip
-      uses: actions/cache@v2
-      env:
-        # Increase this value to reset cache
-        CACHE_NUMBER: 0
-      with:
-        path: |
-          ~/.cache/pip
-        key:
-          pip-${{ runner.os }}-${{ matrix.python-version }}-${{ env.CACHE_NUMBER }}
-
-    - name: Install core packages
-      run: |
-        pip install -vv dist/vaex*core* dist/vaex*hdf5*
-
-    - name: Test core import
-      run: |
-        python -c "import vaex; df = vaex.example()"
-
-    - name: Install all packages
-      run: |
-        pip install -vv dist/*
-
-    - name: Test import
-      run: |
-        python -c "import vaex; df = vaex.example()"
+      run: ./ci/06-run-contrib-tests.sh
 
     - name: Test comand line
       run: |
         vaex convert ~/.vaex/data/helmi-dezeeuw-2000-FeH-v2-10percent.hdf5 test.parquet
-        pip install rich
         VAEX_PROGRESS_TYPE=rich vaex convert ~/.vaex/data/helmi-dezeeuw-2000-FeH-v2-10percent.hdf5 test.parquet
         vaex settings yaml
         vaex settings md
@@ -253,7 +130,7 @@ jobs:
     - name: Test server
       if: matrix.os != 'windows-latest'
       run: |
-        vaex server --add-example --port 9999&
+        vaex server --add-example --port 9999 &
 
     - name: Wait for Vaex server
       if: matrix.os != 'windows-latest'

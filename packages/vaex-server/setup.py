@@ -1,11 +1,11 @@
 import os
-import imp
+from importlib.machinery import SourceFileLoader
 from setuptools import setup
 from setuptools import Extension
 
 dirname = os.path.dirname(__file__)
 path_version = os.path.join(dirname, 'vaex/server/_version.py')
-version = imp.load_source('version', path_version)
+version = SourceFileLoader('version', path_version).load_module()
 
 
 name = 'vaex'
@@ -14,7 +14,7 @@ author_email = 'maartenbreddels@gmail.com'
 license = 'MIT'
 version = version.__version__
 url = 'https://www.github.com/maartenbreddels/vaex'
-install_requires_server = ['vaex-core>=4.7.0,<5', 'tornado>4.1', 'cachetools', 'fastapi', 'uvicorn[standard]']
+install_requires_server = ['vaex-core~=4.7', 'tornado>4.1', 'cachetools', 'fastapi', 'uvicorn[standard]']
 
 setup(name=name + '-server',
       version=version,

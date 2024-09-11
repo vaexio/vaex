@@ -2,166 +2,85 @@ name: Build universal wheel
 
 on:
   push:
+    branches:
+      - master
     tags:
-      - meta-*
-      - astro-*
-      - graphql-*
-      - jupyter-*
-      - ml-*
-      - viz-*
-      - hdf5-*
-      - server-*
-      - contrib-*
+      - "*"
+  pull_request:
+    branches:
+    - master
+  schedule:
+  - cron: "0 2 * * 1-5"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   build_wheels:
-    name: Build wheel on ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [ubuntu-20.04]
-        python-version: [36]
+    name: Build universal wheels and source distributions
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write  # pypa/gh-action-pypi-publish
 
     steps:
     - uses: actions/checkout@v1
       with:
         submodules: true
 
-    - uses: actions/setup-python@v2
-      name: Install Python
+    - uses: actions/setup-python@v5
       with:
-        python-version: '3.7'
-
-    - name: Install twine/wheel
-      run: |
-        python -m pip install twine wheel
+        python-version: '3.12'
 
     - name: chores
       run: |
         mkdir dist
+        pip install -U pip setuptools wheel
 
-    - name: Build vaex (meta)
-      if: startsWith(github.ref, 'refs/tags/meta')
+    - name: Build vaex
       run: |
-        (cp README.md packages/vaex-meta/ && cd packages/vaex-meta && python setup.py sdist bdist_wheel); cp packages/vaex-meta/dist/* dist
-
-    - name: Publish a Python distribution to PyPI
-      if: startsWith(github.ref, 'refs/tags/meta')
-      env:
-        TWINE_USERNAME: __token__
-        TWINE_PASSWORD: ${{ secrets.pypi_password_vaex }}
-      run: |
-        twine upload dist/vaex* dist/vaex*
+        (cp README.md packages/vaex/ && cd packages/vaex && python setup.py sdist bdist_wheel); cp packages/vaex/dist/* dist
 
     - name: Build vaex-graphql
-      if: startsWith(github.ref, 'refs/tags/graphql')
       run: |
         (cd packages/vaex-graphql && python setup.py sdist bdist_wheel); cp packages/vaex-graphql/dist/* dist
 
-    - name: Publish a Python distribution to PyPI
-      if: startsWith(github.ref, 'refs/tags/graphql')
-      env:
-        TWINE_USERNAME: __token__
-        TWINE_PASSWORD: ${{ secrets.pypi_password_vaex_graphql }}
-      run: |
-        twine upload dist/vaex-graphql* dist/vaex_graphql*
-
-
     - name: Build vaex-jupyter
-      if: startsWith(github.ref, 'refs/tags/jupyter')
       run: |
         (cd packages/vaex-jupyter && python setup.py sdist bdist_wheel); cp packages/vaex-jupyter/dist/* dist
 
-    - name: Publish a Python distribution to PyPI
-      if: startsWith(github.ref, 'refs/tags/jupyter')
-      env:
-        TWINE_USERNAME: __token__
-        TWINE_PASSWORD: ${{ secrets.pypi_password_vaex_jupyter }}
-      run: |
-        twine upload dist/vaex-jupyter* dist/vaex_jupyter*
-
     - name: Build vaex-ml
-      if: startsWith(github.ref, 'refs/tags/ml')
       run: |
         (cd packages/vaex-ml && python setup.py sdist bdist_wheel); cp packages/vaex-ml/dist/* dist
 
-    - name: Publish a Python distribution to PyPI
-      if: startsWith(github.ref, 'refs/tags/ml')
-      env:
-        TWINE_USERNAME: __token__
-        TWINE_PASSWORD: ${{ secrets.pypi_password_vaex_ml }}
-      run: |
-        twine upload dist/vaex-ml* dist/vaex_ml*
-
     - name: Build vaex-contrib
-      if: startsWith(github.ref, 'refs/tags/contrib')
       run: |
         (cd packages/vaex-contrib && python setup.py sdist bdist_wheel); cp packages/vaex-contrib/dist/* dist
 
-    - name: Publish a Python distribution to PyPI
-      if: startsWith(github.ref, 'refs/tags/contrib')
-      env:
-        TWINE_USERNAME: __token__
-        TWINE_PASSWORD: ${{ secrets.pypi_password_vaex_contrib }}
-      run: |
-        twine upload dist/vaex-contrib* dist/vaex_contrib*
-
-
-
     - name: Build vaex-viz
-      if: startsWith(github.ref, 'refs/tags/viz')
       run: |
         (cd packages/vaex-viz && python setup.py sdist bdist_wheel); cp packages/vaex-viz/dist/* dist
 
-    - name: Publish a Python distribution to PyPI
-      if: startsWith(github.ref, 'refs/tags/viz')
-      env:
-        TWINE_USERNAME: __token__
-        TWINE_PASSWORD: ${{ secrets.pypi_password_vaex_viz }}
-      run: |
-        twine upload dist/vaex-viz* dist/vaex_viz*
-
     - name: Build vaex-astro
-      if: startsWith(github.ref, 'refs/tags/astro')
       run: |
         (cd packages/vaex-astro && python setup.py sdist bdist_wheel); cp packages/vaex-astro/dist/* dist
 
-    - name: Publish a Python distribution to PyPI
-      if: startsWith(github.ref, 'refs/tags/astro')
-      env:
-        TWINE_USERNAME: __token__
-        TWINE_PASSWORD: ${{ secrets.pypi_password_vaex_astro }}
-      run: |
-        twine upload dist/vaex-astro* dist/vaex_astro*
-
     - name: Build vaex-hdf5
-      if: startsWith(github.ref, 'refs/tags/hdf5')
       run: |
         (cd packages/vaex-hdf5 && python setup.py sdist bdist_wheel); cp packages/vaex-hdf5/dist/* dist
 
-    - name: Publish a Python distribution to PyPI
-      if: startsWith(github.ref, 'refs/tags/hdf5')
-      env:
-        TWINE_USERNAME: __token__
-        TWINE_PASSWORD: ${{ secrets.pypi_password_vaex_hdf5 }}
-      run: |
-        twine upload dist/vaex-hdf5* dist/vaex_hdf5*
-
     - name: Build vaex-server
-      if: startsWith(github.ref, 'refs/tags/server')
       run: |
         (cd packages/vaex-server && python setup.py sdist bdist_wheel); cp packages/vaex-server/dist/* dist
 
-    - name: Publish a Python distribution to PyPI
-      if: startsWith(github.ref, 'refs/tags/server')
-      env:
-        TWINE_USERNAME: __token__
-        TWINE_PASSWORD: ${{ secrets.pypi_password_vaex_server }}
-      run: |
-        openssl sha256 dist/*
-        twine upload dist/vaex-server* dist/vaex_server*
-
-    - uses: actions/upload-artifact@v1
+    - uses: actions/upload-artifact@v4
       with:
-        name: distributions
+        name: distributions-universal
         path: ./dist
+
+    # https://github.com/pypa/gh-action-pypi-publish#trusted-publishing
+    - name: Publish package distributions to PyPI
+      uses: pypa/gh-action-pypi-publish@v1.9.0
+      if: startsWith(github.ref, 'refs/tags')
+      with:
+        skip-existing: true

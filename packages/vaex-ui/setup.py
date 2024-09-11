@@ -1,11 +1,11 @@
 import os
-import imp
+from importlib.machinery import SourceFileLoader
 from setuptools import setup
 from setuptools import Extension
 
 dirname = os.path.dirname(__file__)
 path_version = os.path.join(dirname, "vaex/ui/_version.py")
-version = imp.load_source('version', path_version)
+version = SourceFileLoader('version', path_version).load_module()
 
 name = 'vaex'
 author = "Maarten A. Breddels"
@@ -13,7 +13,7 @@ author_email = "maartenbreddels@gmail.com"
 license = 'MIT'
 version = version.__version__
 url = 'https://www.github.com/maartenbreddels/vaex'
-install_requires_ui = ["vaex-core>=0.6.1", "PyOpenGL", "scipy", "matplotlib", "vaex-hdf5", "vaex-astro"]
+install_requires_ui = ["vaex-core>=0.6.1", "PyOpenGL", "scipy", "matplotlib", "vaex-hdf5", "vaex-astro", "PyQt5"]
 
 setup(name=name + '-ui',
       version=version,

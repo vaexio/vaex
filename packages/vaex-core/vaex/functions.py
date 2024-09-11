@@ -605,7 +605,7 @@ def dt_weekofyear(x):
     1   6
     2  46
     """
-    return _to_pandas_series(x).dt.weekofyear.values
+    return _to_pandas_series(x).dt.isocalendar().week.values
 
 @register_function(scope='dt', as_property=True)
 def dt_hour(x):

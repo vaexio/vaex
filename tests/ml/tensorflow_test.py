@@ -1,3 +1,4 @@
+import sys
 import pytest
 pytest.importorskip("tensorflow")
 
@@ -33,7 +34,7 @@ def test_keras_model_classification(tmpdir, df_iris):
     nn_model.add(K.layers.Dense(3, activation='softmax'))
     nn_model.compile(optimizer=K.optimizers.RMSprop(learning_rate=0.01),
                     loss=K.losses.categorical_crossentropy,
-                    metrics='accuracy')
+                    metrics=['accuracy'])
 
     X = df[features].values
     y = df[targets].values
@@ -50,6 +51,7 @@ def test_keras_model_classification(tmpdir, df_iris):
     assert copy.pred.shape == (150, 3)
 
 
+@pytest.mark.skipif(sys.version_info[:2] < (3, 9), reason="Doesn't run on keras that gets installed with Python 3.8")
 def test_keras_model_regression(df_example):
     df = df_example
     df = df[:1_000]  # To make the tests run faster

@@ -76,7 +76,7 @@ import vaex.dataset
 # import subspacefind
 # import ctypes
 
-import imp
+from importlib.machinery import SourceFileLoader
 
 import logging
 logger = logging.getLogger("vaex")
@@ -92,7 +92,7 @@ custom = None
 custompath = path = os.path.expanduser('~/.vaex/custom.py')
 # print path
 if os.path.exists(path):
-    customModule = imp.load_source('vaex.custom', path)
+    customModule = SourceFileLoader('vaex.custom', path).load_module()
     # custom = customModule.Custom()
 else:
     custom = None
@@ -1164,7 +1164,7 @@ class VaexApp(QtGui.QMainWindow):
                     logger.debug("plugin file: %s" % path)
                     filename = os.path.basename(path)
                     name = os.path.splitext(filename)[0]
-                    imp.load_source('vaexuser.plugin.' + name, path)
+                    SourceFileLoader('vaexuser.plugin.' + name, path).load_module()
 
         self.open_generators = []  # for reference counts
         self.action_open_hdf5_gadget.triggered.connect(self.openGenerator(self.gadgethdf5, "Gadget HDF5 file", "*.hdf5"))

@@ -155,8 +155,8 @@ def open(path, convert=False, progress=None, shuffle=False, fs_options={}, fs=No
 
     Examples:
 
-    >>> df = vaex.open('s3://vaex/taxi/yellow_taxi_2015_f32s.hdf5', fs_options={{'anonymous': True}})
-    >>> df = vaex.open('s3://vaex/taxi/yellow_taxi_2015_f32s.hdf5?anon=true')
+    >>> df = vaex.open('s3://vaex/taxi/nyc_taxi_2015_mini.hdf5?anon=true', fs_options={{'anonymous': True}})
+    >>> df = vaex.open('s3://vaex/taxi/nyc_taxi_2015_mini.hdf5?anon=true?anon=true')
     >>> df = vaex.open('s3://mybucket/path/to/file.hdf5', fs_options={{'access_key': my_key, 'secret_key': my_secret_key}})
     >>> df = vaex.open(f's3://mybucket/path/to/file.hdf5?access_key={{my_key}}&secret_key={{my_secret_key}}')
     >>> df = vaex.open('s3://mybucket/path/to/file.hdf5?profile=myproject')
