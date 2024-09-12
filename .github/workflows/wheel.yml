@@ -38,7 +38,8 @@ jobs:
 
       - id: set-matrix
         env:
-          CIBW_SKIP: pp* cp38-win* *musllinux_aarch64*
+          # skipping pypy for now, cp38-win was segfaulting on CI, numpy has no wheels for cp38-musllinux_aarch64 -> build from source -> CI timeouts
+          CIBW_SKIP: pp* cp38-win* cp38-musllinux_aarch64
         run: |
           MATRIX_INCLUDE=$(
             {
