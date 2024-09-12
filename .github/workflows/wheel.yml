@@ -38,7 +38,7 @@ jobs:
 
       - id: set-matrix
         env:
-          CIBW_SKIP: pp* cp38-win*
+          CIBW_SKIP: pp* cp38-win* *musllinux_aarch64*
         run: |
           MATRIX_INCLUDE=$(
             {
