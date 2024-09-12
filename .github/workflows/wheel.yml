@@ -38,7 +38,8 @@ jobs:
 
       - id: set-matrix
         env:
-          CIBW_SKIP: pp* cp38-win*
+          # skipping pypy for now, cp38-win was segfaulting on CI, numpy has no wheels for cp38-musllinux_aarch64 -> build from source -> CI timeouts
+          CIBW_SKIP: pp* cp38-win* cp38-musllinux_aarch64
         run: |
           MATRIX_INCLUDE=$(
             {
@@ -85,7 +86,9 @@ jobs:
       if: runner.os == 'Linux'
       uses: docker/setup-qemu-action@v3
 
-    - name: Switch to older Xcode
+    # xcode 15.2 throws compilation errors ref https://github.com/vaexio/vaex/pull/2432
+    # select older xcode from the available versions on the runner ref https://github.com/actions/runner-images/blob/ff9acc6/images/macos/macos-13-Readme.md#xcode
+    - name: Switch to older Xcode (Mac-only)
       if: startswith(matrix.os, 'macos')
       run: sudo xcode-select -s "/Applications/Xcode_15.0.1.app"
 
