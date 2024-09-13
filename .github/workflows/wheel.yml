@@ -40,11 +40,11 @@ jobs:
         env:
           # skipping pypy for now
           # cp38-win was segfaulting on CI -> skipping for now
-          # oldest-supported-numpy has no wheels for musllinux_aarch64 -> build numpy from source on QEMU -> CI timeouts -> skipping for now
+          # oldest-supported-numpy has no wheels for cp38-musllinux_aarch64 -> build numpy from source on QEMU -> CI timeouts -> skipping for now
           CIBW_SKIP: >
             pp*
             cp38-win*
-            *musllinux_aarch64
+            cp38-musllinux_aarch64
         run: |
           MATRIX_INCLUDE=$(
             {
