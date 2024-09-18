@@ -96,10 +96,10 @@ def test_dataset_arrays():
         'y': '4d48c88e587db8f3855eed9f5d5f51eea769451b7371ecf7bdee4e0258238631',
         'z': 'a4cead13bef1fd1ec5974d1a2f5ceffd243a7aa6c6b08b80e09a7454b7d04293'
     }
-    assert ds.fingerprint in ['dataset-arrays-hashed-88244cf38fe91c6bf435caa6160b089b', 'dataset-arrays-hashed-148c30472b155430f46bfb94d5509cf4', 'dataset-arrays-hashed-ed88ca5523bad737bbdbee53eaba3ca1']
+    assert ds.fingerprint in ['dataset-arrays-hashed-88244cf38fe91c6bf435caa6160b089b', 'dataset-arrays-hashed-148c30472b155430f46bfb94d5509cf4']
 
 
-df_fingerprints_xy = ['dataframe-943761acaa2ff2060d21ef519c77e1b9', 'dataframe-1c2f7e9c53dbd30220792e425418e343', 'dataframe-9f81a4cd8df8f65d5d1ee3368ec8e4ba', 'dataframe-5c6b97012243d0f534be85ed88d4da43', 'dataframe-5c6b97012243d0f534be85ed88d4da43']
+df_fingerprints_xy = ['dataframe-943761acaa2ff2060d21ef519c77e1b9', 'dataframe-1c2f7e9c53dbd30220792e425418e343']
 
 
 def test_df():
@@ -114,10 +114,10 @@ def test_df_different_virtual_columns():
     y = x**2
     df1 = vaex.from_arrays(x=x, y=y, z=x+y)
     df1['z'] = df1.x + df1.z
-    assert df1.fingerprint() in ['dataframe-8f2202e2b4e7845c8ace767db5a49bc4', 'dataframe-b72cf197307aa4b9806e6ce3199b2960', 'dataframe-3dccec28d5db6bc592576116ef05d805', 'dataframe-c48e8490b3ddf553a0184967376334c1']
+    assert df1.fingerprint() in ['dataframe-8f2202e2b4e7845c8ace767db5a49bc4', 'dataframe-b72cf197307aa4b9806e6ce3199b2960']
     df2 = vaex.from_arrays(x=x, y=y, z=x+y)
     df2['z'] = df2.x - df2.z
-    assert df2.fingerprint() in ['dataframe-81043a3c5b32eaa4b18bf4a915492e23', 'dataframe-0e9a4e2753715ff592527dcee1f1e8c2', '']
+    assert df2.fingerprint() in ['dataframe-81043a3c5b32eaa4b18bf4a915492e23', 'dataframe-0e9a4e2753715ff592527dcee1f1e8c2']
 
 
 def test_df_with_dependencies():
@@ -137,7 +137,7 @@ def test_df_project():
     df_a = df[['x', 'y']]
     df_b = df[['x', 'y']]
     assert df_a.fingerprint() == df_b.fingerprint()
-    assert df_a.fingerprint() in ['dataframe-c13a4ab588272f03855ae5627731f7e5', 'dataframe-d4565ca8187231a051a9ff888ba16e7c', 'dataframe-2029c62052149fa7a811f4bb6170a2b6', 'dataframe-3eff215820906d4a751eddda1a58a1d7']
+    assert df_a.fingerprint() in ['dataframe-c13a4ab588272f03855ae5627731f7e5', 'dataframe-d4565ca8187231a051a9ff888ba16e7c']
 
 
 def test_df_selection_references_virtual_column():

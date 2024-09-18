@@ -29,7 +29,7 @@ install_requires_core = [
     "numpy~=1.17",
     "aplus",
     "tabulate>=0.8.3",
-    "dask!=2022.4.0",
+    "dask!=2022.4.0,<2024.9",  # fingerprinting in no longer deterministic as of 2024.9.0
     "future>=0.15.2",
     "pyyaml",
     "six",
