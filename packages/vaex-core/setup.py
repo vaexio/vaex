@@ -29,7 +29,7 @@ install_requires_core = [
     "numpy~=1.17",
     "aplus",
     "tabulate>=0.8.3",
-    "dask!=2022.4.0",
+    "dask!=2022.4.0,<2024.9",  # fingerprinting in no longer deterministic as of 2024.9.0
     "future>=0.15.2",
     "pyyaml",
     "six",
@@ -263,7 +263,7 @@ setup(
     if not use_skbuild
     else [],
     zip_safe=False,
-    python_requires=">=3.8",
+    python_requires=">=3.8,<3.13",  # 3.13 needs numpy 2.1 support ref https://github.com/vaexio/vaex/pull/2434
     classifiers=[
         "Programming Language :: Python :: 3.8",
         "Programming Language :: Python :: 3.9",

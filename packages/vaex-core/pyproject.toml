@@ -1,7 +1,8 @@
 [build-system]
 # Minimum requirements for the build system to execute.
 requires = [
-    "oldest-supported-numpy",
+    "oldest-supported-numpy; python_version=='3.8'", # deprecated ref https://github.com/scipy/oldest-supported-numpy
+    "numpy~=1.25; python_version>'3.8'",  # numpy~=2.0 fails, backward compatible build-system as of v1.25 ref https://numpy.org/doc/2.1/dev/depending_on_numpy.html#build-time-dependency
     "scikit-build",
     "cmake",
     "ninja"
