@@ -105,11 +105,8 @@ jobs:
       env:
         CIBW_BEFORE_BUILD: ${{ startswith(matrix.os, 'ubuntu') && 'bash bin/install_pcre.sh' || startswith(matrix.os, 'macos') && 'sudo -E bash bin/install_pcre.sh' || '' }}
         CIBW_BUILD_VERBOSITY: 2
-        # cargo needed because of missing blake3 wheels (aarch64 and musllinux missing)
-        # cargo added to path in CIBW_ENVIRONMENT_LINUX below
-        CIBW_BEFORE_TEST: ${{ startswith(matrix.os, 'ubuntu') && 'curl https://sh.rustup.rs -sSf | sh -s -- -y' || '' }}
-        # if this works, cargo ^ can be removed again ref https://github.com/oconnor663/blake3-py/pull/45
-        PIP_FIND_LINKS: https://github.com/ddelange/blake3-py/releases/expanded_assets/0.4.1
+        # temporary ref https://github.com/oconnor663/blake3-py/pull/45
+        CIBW_BEFORE_TEST: pip install --force-reinstall blake3 --find-links https://github.com/ddelange/blake3-py/releases/expanded_assets/0.4.1
         # no test on musllinux due to missing pyarrow wheels ref https://github.com/apache/arrow/pull/40177
         CIBW_TEST_SKIP: '*musllinux*'
         CIBW_TEST_COMMAND: python -c "import vaex; print(vaex.from_arrays(x=[1,2]))"
