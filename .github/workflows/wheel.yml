@@ -48,10 +48,11 @@ jobs:
         run: |
           MATRIX_INCLUDE=$(
             {
-              cibuildwheel --print-build-identifiers --platform linux --arch x86_64,aarch64 | jq -nRc '{"only": inputs, "os": "ubuntu-latest"}' \
+              cibuildwheel --print-build-identifiers --platform linux --arch x86_64 | jq -nRc '{"only": inputs, "os": "ubuntu-22.04"}' \
+              && cibuildwheel --print-build-identifiers --platform linux --arch aarch64 | jq -nRc '{"only": inputs, "os": "ubuntu-22.04-arm64"}' \
               && cibuildwheel --print-build-identifiers --platform macos --arch x86_64 | jq -nRc '{"only": inputs, "os": "macos-13"}' \
               && cibuildwheel --print-build-identifiers --platform macos --arch arm64 | jq -nRc '{"only": inputs, "os": "macos-14"}' \
-              && cibuildwheel --print-build-identifiers --platform windows --arch AMD64 | jq -nRc '{"only": inputs, "os": "windows-latest"}'
+              && cibuildwheel --print-build-identifiers --platform windows --arch AMD64 | jq -nRc '{"only": inputs, "os": "windows-2022"}'
             } | jq -sc
           )
           echo "include=$MATRIX_INCLUDE" >> $GITHUB_OUTPUT
@@ -86,10 +87,6 @@ jobs:
       run: |
         mkdir packages/vaex-core/bin
         cp bin/install_pcre.sh packages/vaex-core/bin/
-
-    - name: Set up QEMU
-      if: runner.os == 'Linux'
-      uses: docker/setup-qemu-action@v3
 
     # xcode 15.2 throws compilation errors ref https://github.com/vaexio/vaex/pull/2432
     # select older xcode from the available versions on the runner ref https://github.com/actions/runner-images/blob/ff9acc6/images/macos/macos-13-Readme.md#xcode
