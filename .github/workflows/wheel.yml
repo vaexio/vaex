@@ -21,7 +21,7 @@ concurrency:
 
 jobs:
   build_wheels_matrix:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     outputs:
       include: ${{ steps.set-matrix.outputs.include }}
 
@@ -79,11 +79,11 @@ jobs:
         submodules: true
 
     - name: Copy dll
-      if: matrix.os == 'windows-latest'
+      if: startswith(matrix.os, 'windows')
       uses: ./ci/actions/windll
 
     - name: chores
-      if: matrix.os != 'windows-latest'
+      if: not startswith(matrix.os, 'windows')
       run: |
         mkdir packages/vaex-core/bin
         cp bin/install_pcre.sh packages/vaex-core/bin/
