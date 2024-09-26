@@ -83,7 +83,7 @@ jobs:
       uses: ./ci/actions/windll
 
     - name: chores
-      if: not startswith(matrix.os, 'windows')
+      if: ${{ !startswith(matrix.os, 'windows') }}
       run: |
         mkdir packages/vaex-core/bin
         cp bin/install_pcre.sh packages/vaex-core/bin/
