@@ -19,6 +19,8 @@ install_requires_server = ['vaex-core~=4.7', 'tornado>4.1', 'cachetools', 'fasta
 setup(name=name + '-server',
       version=version,
       description='Webserver and client for vaex for a remote dataset',
+      long_description="Webserver and client for vaex for a remote dataset",
+      long_description_content_type="text/markdown",
       url=url,
       author=author,
       author_email=author_email,

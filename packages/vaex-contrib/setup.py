@@ -15,6 +15,8 @@ install_requires_contrib = ['vaex-core~=4.0']
 setup(name=name + '-contrib',
       version=version,
       description='Community contributed modules to vaex',
+      long_description="Community contributed modules to vaex",
+      long_description_content_type="text/markdown",
       url=url,
       install_requires=install_requires_contrib,
       extras_require={

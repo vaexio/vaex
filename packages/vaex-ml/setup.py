@@ -28,6 +28,8 @@ extras_require_ml = {'all': ['tensorflow~=2.1']}
 setup(name=name + '-ml',
       version=version,
       description='Machine learning support for vaex',
+      long_description="Machine learning support for vaex",
+      long_description_content_type="text/markdown",
       url=url,
       author=author,
       author_email=author_email,
