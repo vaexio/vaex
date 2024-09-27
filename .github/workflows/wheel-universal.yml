@@ -80,7 +80,7 @@ jobs:
 
     # https://github.com/pypa/gh-action-pypi-publish#trusted-publishing
     - name: Publish package distributions to PyPI
-      uses: pypa/gh-action-pypi-publish@v1.9.0
+      uses: pypa/gh-action-pypi-publish@v1.10.2
       if: startsWith(github.ref, 'refs/tags')
       with:
         skip-existing: true
