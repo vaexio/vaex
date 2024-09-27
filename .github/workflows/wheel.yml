@@ -11,8 +11,6 @@ on:
     - master
   schedule:
   - cron: "0 2 * * 1-5"
-  release:
-    types: [released, prereleased]
   workflow_dispatch:  # allows running workflow manually from the Actions tab
 
 concurrency:
@@ -68,10 +66,6 @@ jobs:
       matrix:
         include: ${{ fromJson(needs.build_wheels_matrix.outputs.include) }}
 
-    permissions:
-      contents: write # softprops/action-gh-release
-      id-token: write # pypa/gh-action-pypi-publish
-
     steps:
     - uses: actions/checkout@v4
       with:
@@ -114,12 +108,6 @@ jobs:
         CIBW_MANYLINUX_AARCH64_IMAGE: manylinux_2_28
         CIBW_ENVIRONMENT_LINUX: 'CFLAGS="-Wl,-strip-all" CXXFLAGS="-Wl,-strip-all" PATH="$HOME/.cargo/bin:$PATH"'
         CIBW_ENVIRONMENT_MACOS: 'CFLAGS="-I/usr/local/include -L/usr/local/lib" CXXFLAGS="-I/usr/local/include -L/usr/local/lib" LDFLAGS="-L/usr/local/lib"'
-
-    - name: Upload release assets
-      if: github.event_name == 'release'
-      uses: softprops/action-gh-release@v0.1.15
-      with:
-        files: packages/vaex-core/dist/*
 
     - uses: actions/upload-artifact@v4
       with:
