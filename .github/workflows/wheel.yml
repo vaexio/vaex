@@ -123,13 +123,28 @@ jobs:
 
     - uses: actions/upload-artifact@v4
       with:
-        name: distribution-${{ matrix.only }}
+        name: dist-${{ matrix.only }}
         path: packages/vaex-core/dist
+
+  publish:
+    if: startsWith(github.ref, 'refs/tags')
+    needs: [build_wheels]
+    runs-on: ubuntu-22.04
+
+    permissions:
+      id-token: write  # pypa/gh-action-pypi-publish
+
+    steps:
+    - uses: actions/download-artifact@v4
+      with:
+        path: dist/
+        pattern: dist-*
+        merge-multiple: true
+
+    - run: ls -ltra dist/
 
     # https://github.com/pypa/gh-action-pypi-publish#trusted-publishing
     - name: Publish package distributions to PyPI
-      uses: pypa/gh-action-pypi-publish@v1.9.0
-      if: startsWith(github.ref, 'refs/tags')
+      uses: pypa/gh-action-pypi-publish@v1.10.2
       with:
         skip-existing: true
-        packages-dir: packages/vaex-core/dist
