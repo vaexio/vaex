@@ -21,7 +21,7 @@ concurrency:
 
 jobs:
   build_wheels_matrix:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     outputs:
       include: ${{ steps.set-matrix.outputs.include }}
 
@@ -48,10 +48,10 @@ jobs:
         run: |
           MATRIX_INCLUDE=$(
             {
-              cibuildwheel --print-build-identifiers --platform linux --arch x86_64,aarch64 | jq -nRc '{"only": inputs, "os": "ubuntu-latest"}' \
+              cibuildwheel --print-build-identifiers --platform linux --arch x86_64,aarch64 | jq -nRc '{"only": inputs, "os": "ubuntu-22.04"}' \
               && cibuildwheel --print-build-identifiers --platform macos --arch x86_64 | jq -nRc '{"only": inputs, "os": "macos-13"}' \
               && cibuildwheel --print-build-identifiers --platform macos --arch arm64 | jq -nRc '{"only": inputs, "os": "macos-14"}' \
-              && cibuildwheel --print-build-identifiers --platform windows --arch AMD64 | jq -nRc '{"only": inputs, "os": "windows-latest"}'
+              && cibuildwheel --print-build-identifiers --platform windows --arch AMD64 | jq -nRc '{"only": inputs, "os": "windows-2022"}'
             } | jq -sc
           )
           echo "include=$MATRIX_INCLUDE" >> $GITHUB_OUTPUT
@@ -78,11 +78,11 @@ jobs:
         submodules: true
 
     - name: Copy dll
-      if: matrix.os == 'windows-latest'
+      if: startswith(matrix.os, 'windows')
       uses: ./ci/actions/windll
 
     - name: chores
-      if: matrix.os != 'windows-latest'
+      if: ${{ !startswith(matrix.os, 'windows') }}
       run: |
         mkdir packages/vaex-core/bin
         cp bin/install_pcre.sh packages/vaex-core/bin/
@@ -105,9 +105,8 @@ jobs:
       env:
         CIBW_BEFORE_BUILD: ${{ startswith(matrix.os, 'ubuntu') && 'bash bin/install_pcre.sh' || startswith(matrix.os, 'macos') && 'sudo -E bash bin/install_pcre.sh' || '' }}
         CIBW_BUILD_VERBOSITY: 2
-        # cargo needed because of missing blake3 wheels (aarch64 and musllinux missing)
-        # cargo added to path in CIBW_ENVIRONMENT_LINUX below
-        CIBW_BEFORE_TEST: ${{ startswith(matrix.os, 'ubuntu') && 'curl https://sh.rustup.rs -sSf | sh -s -- -y' || '' }}
+        # temporary ref https://github.com/oconnor663/blake3-py/pull/45
+        CIBW_BEFORE_TEST: pip install --force-reinstall blake3 --find-links https://github.com/ddelange/blake3-py/releases/expanded_assets/0.4.1
         # no test on musllinux due to missing pyarrow wheels ref https://github.com/apache/arrow/pull/40177
         CIBW_TEST_SKIP: '*musllinux*'
         CIBW_TEST_COMMAND: python -c "import vaex; print(vaex.from_arrays(x=[1,2]))"
