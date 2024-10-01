@@ -18,6 +18,8 @@ install_requires_ui = ["vaex-core>=0.6.1", "PyOpenGL", "scipy", "matplotlib", "v
 setup(name=name + '-ui',
       version=version,
       description='Graphical user interface for vaex based on Qt',
+      long_description="Graphical user interface for vaex based on Qt",
+      long_description_content_type="text/markdown",
       url=url,
       author=author,
       author_email=author_email,

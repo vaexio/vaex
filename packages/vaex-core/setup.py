@@ -229,6 +229,8 @@ setup(
     name=name + "-core",
     version=version,
     description="Core of vaex",
+    long_description="Core of vaex",
+    long_description_content_type="text/markdown",
     url=url,
     author=author,
     author_email=author_email,

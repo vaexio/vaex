@@ -22,6 +22,8 @@ setup(
     name=name + '-graphql',
     version=version,
     description='GraphQL support for accessing vaex DataFrame',
+    long_description="GraphQL support for accessing vaex DataFrame",
+    long_description_content_type="text/markdown",
     url=url,
     author=author,
     author_email=author_email,

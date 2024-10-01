@@ -11,8 +11,6 @@ on:
     - master
   schedule:
   - cron: "0 2 * * 1-5"
-  release:
-    types: [released, prereleased]
   workflow_dispatch:  # allows running workflow manually from the Actions tab
 
 concurrency:
@@ -45,6 +43,7 @@ jobs:
             pp*
             cp38-win*
             cp38-musllinux_aarch64
+        # the supported python versions are parsed from vaex-core setup.py python_requires
         run: |
           MATRIX_INCLUDE=$(
             {
@@ -67,10 +66,6 @@ jobs:
       fail-fast: false
       matrix:
         include: ${{ fromJson(needs.build_wheels_matrix.outputs.include) }}
-
-    permissions:
-      contents: write # softprops/action-gh-release
-      id-token: write # pypa/gh-action-pypi-publish
 
     steps:
     - uses: actions/checkout@v4
@@ -115,21 +110,30 @@ jobs:
         CIBW_ENVIRONMENT_LINUX: 'CFLAGS="-Wl,-strip-all" CXXFLAGS="-Wl,-strip-all" PATH="$HOME/.cargo/bin:$PATH"'
         CIBW_ENVIRONMENT_MACOS: 'CFLAGS="-I/usr/local/include -L/usr/local/lib" CXXFLAGS="-I/usr/local/include -L/usr/local/lib" LDFLAGS="-L/usr/local/lib"'
 
-    - name: Upload release assets
-      if: github.event_name == 'release'
-      uses: softprops/action-gh-release@v0.1.15
-      with:
-        files: packages/vaex-core/dist/*
-
     - uses: actions/upload-artifact@v4
       with:
-        name: distribution-${{ matrix.only }}
+        name: dist-${{ matrix.only }}
         path: packages/vaex-core/dist
+
+  publish:
+    if: startsWith(github.ref, 'refs/tags')
+    needs: [build_wheels]
+    runs-on: ubuntu-22.04
+
+    permissions:
+      id-token: write  # pypa/gh-action-pypi-publish
+
+    steps:
+    - uses: actions/download-artifact@v4
+      with:
+        path: dist/
+        pattern: dist-*
+        merge-multiple: true
+
+    - run: ls -ltra dist/
 
     # https://github.com/pypa/gh-action-pypi-publish#trusted-publishing
     - name: Publish package distributions to PyPI
-      uses: pypa/gh-action-pypi-publish@v1.9.0
-      if: startsWith(github.ref, 'refs/tags')
+      uses: pypa/gh-action-pypi-publish@v1.10.2
       with:
         skip-existing: true
-        packages-dir: packages/vaex-core/dist

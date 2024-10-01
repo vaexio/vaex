@@ -19,6 +19,8 @@ install_requires_jupyter = ['vaex-core~=4.7', 'vaex-viz', 'bqplot>=0.10.1', 'ipy
 setup(name=name + '-jupyter',
       version=version,
       description='Jupyter notebook and Jupyter lab support for vaex',
+      long_description="Jupyter notebook and Jupyter lab support for vaex",
+      long_description_content_type="text/markdown",
       url=url,
       author=author,
       author_email=author_email,

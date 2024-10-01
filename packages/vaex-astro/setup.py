@@ -18,6 +18,8 @@ setup(
     name=name + '-astro',
     version=version,
     description='Astronomy related transformations and FITS file support',
+    long_description="Astronomy related transformations and FITS file support",
+    long_description_content_type="text/markdown",
     url=url,
     author=author,
     author_email=author_email,
