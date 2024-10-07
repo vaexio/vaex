@@ -280,25 +280,27 @@ class counter : public hash_base<counter<T, A>, T, A, V>, public counter_mixin<T
     py::object counts() {
         py::array_t<value_type> output_array(this->length());
         auto output = output_array.template mutable_unchecked<1>();
-        py::gil_scoped_release gil;
-        auto offsets = this->offsets();
-        size_t map_index = 0;
-        int64_t natural_order = 0;
-        // TODO: can be parallel due to non-overlapping maps
-        for (auto &map : this->maps) {
-            for (auto &el : map) {
-                key_type key = el.first;
-                value_type value = el.second;
-                output(key.index) = value;
+        {
+            py::gil_scoped_release gil;
+            auto offsets = this->offsets();        
+            size_t map_index = 0;
+            int64_t natural_order = 0;
+            // TODO: can be parallel due to non-overlapping maps
+            for (auto &map : this->maps) {
+                for (auto &el : map) {
+                    key_type key = el.first;
+                    value_type value = el.second;
+                    output(key.index) = value;
+                }
+                // map_index += 1;
             }
-            // map_index += 1;
-        }
-        // no nans possible
-        // if (this->nan_count) {
-        //     output(this->nan_index()) = this->nan_count;
-        // }
-        if (this->null_count) {
-            output(this->null_index()) = this->null_count;
+            // no nans possible
+            // if (this->nan_count) {
+            //     output(this->nan_index()) = this->nan_count;
+            // }
+            if (this->null_count) {
+                output(this->null_index()) = this->null_count;
+            }
         }
         return output_array;
     }
@@ -445,13 +447,28 @@ class ordered_set : public hash_base<ordered_set<T>, T, T, V> {
         int64_t size = strings->length;
         py::array_t<bool> result(size);
         auto output = result.template mutable_unchecked<1>();
-        py::gil_scoped_release gil;
-        size_t nmaps = this->maps.size();
-        if (strings->has_null()) {
-            for (int64_t i = 0; i < size; i++) {
-                if (strings->is_null(i)) {
-                    output(i) = this->null_count > 0;
-                } else {
+        {
+            py::gil_scoped_release gil;
+            size_t nmaps = this->maps.size();
+            if (strings->has_null()) {
+                for (int64_t i = 0; i < size; i++) {
+                    if (strings->is_null(i)) {
+                        output(i) = this->null_count > 0;
+                    } else {
+                        const string_view &value = strings->view(i);
+                        std::size_t hash = hasher_map_choice()(value);
+                        size_t map_index = (hash % nmaps);
+                        auto search = this->maps[map_index].find(value);
+                        auto end = this->maps[map_index].end();
+                        if (search == end) {
+                            output(i) = false;
+                        } else {
+                            output(i) = true;
+                        }
+                    }
+                }
+            } else {
+                for (int64_t i = 0; i < size; i++) {
                     const string_view &value = strings->view(i);
                     std::size_t hash = hasher_map_choice()(value);
                     size_t map_index = (hash % nmaps);
@@ -462,19 +479,6 @@ class ordered_set : public hash_base<ordered_set<T>, T, T, V> {
                     } else {
                         output(i) = true;
                     }
-                }
-            }
-        } else {
-            for (int64_t i = 0; i < size; i++) {
-                const string_view &value = strings->view(i);
-                std::size_t hash = hasher_map_choice()(value);
-                size_t map_index = (hash % nmaps);
-                auto search = this->maps[map_index].find(value);
-                auto end = this->maps[map_index].end();
-                if (search == end) {
-                    output(i) = false;
-                } else {
-                    output(i) = true;
                 }
             }
         }
@@ -847,15 +851,17 @@ class index_hash : public hash_base<index_hash<T>, T, T, V> {
         py::array_t<int64_t> indices_array(size);
         auto output = result.template mutable_unchecked<1>();
         auto output_indices = indices_array.template mutable_unchecked<1>();
-        py::gil_scoped_release gil;
-        size_t index = 0;
+        {
+            py::gil_scoped_release gil;
+            size_t index = 0;
 
-        std::copy(indices.begin(), indices.end(), &output_indices(0));
+            std::copy(indices.begin(), indices.end(), &output_indices(0));
 
-        for (auto el : found) {
-            std::vector<int64_t> &indices = el.second;
-            for (int64_t i : indices) {
-                output(index++) = i;
+            for (auto el : found) {
+                std::vector<int64_t> &indices = el.second;
+                for (int64_t i : indices) {
+                    output(index++) = i;
+                }
             }
         }
         return std::make_tuple(indices_array, result);
