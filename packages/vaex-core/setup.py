@@ -121,8 +121,14 @@ else:
     ]
     extra_compile_args.append("-g")
     extra_compile_args += extra_dev_options
+    if os.environ.get("CI"):
+        # this makes sure we catch error in using pybind11, see https://github.com/vaexio/vaex/issues/2439
+        extra_compile_args += ["-UNDEBUG"]
+    else:
+        extra_compile_args += ["-DNDEBUG"]
 if sys.platform == "darwin":
     extra_compile_args.append("-mmacosx-version-min=10.9")
+
 
 
 # on windows (Conda-forge builds), the dirname is an absolute path
