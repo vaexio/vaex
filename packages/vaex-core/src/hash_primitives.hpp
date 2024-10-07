@@ -385,25 +385,27 @@ class counter : public hash_base<counter<U, Hashmap2>, U, Hashmap2>, public coun
     py::object counts() {
         py::array_t<value_type> output_array(this->length());
         auto output = output_array.template mutable_unchecked<1>();
-        py::gil_scoped_release gil;
-        auto offsets = this->offsets();
         size_t map_index = 0;
         int64_t natural_order = 0;
         // TODO: can be parallel due to non-overlapping maps
-        for (auto &map : this->maps) {
-            for (auto &el : map) {
-                // key_type key = el.first;
-                value_type value = el.second;
-                int64_t index = key_offset(natural_order++, map_index, el, offsets[map_index]);
-                output(index) = value;
+        {
+            py::gil_scoped_release gil;
+            auto offsets = this->offsets();
+            for (auto &map : this->maps) {
+                for (auto &el : map) {
+                    // key_type key = el.first;
+                    value_type value = el.second;
+                    int64_t index = key_offset(natural_order++, map_index, el, offsets[map_index]);
+                    output(index) = value;
+                }
+                map_index += 1;
             }
-            map_index += 1;
-        }
-        if (this->nan_count) {
-            output(this->nan_index()) = this->nan_count;
-        }
-        if (this->null_count) {
-            output(this->null_index()) = this->null_count;
+            if (this->nan_count) {
+                output(this->nan_index()) = this->nan_count;
+            }
+            if (this->null_count) {
+                output(this->null_index()) = this->null_count;
+            }
         }
         return output_array;
     }
@@ -540,20 +542,22 @@ class ordered_set : public hash_base<ordered_set<T2, Hashmap2>, T2, Hashmap2> {
         auto input = values.template unchecked<1>();
         auto output = result.template mutable_unchecked<1>();
         size_t nmaps = this->maps.size();
-        py::gil_scoped_release gil;
-        for (int64_t i = 0; i < size; i++) {
-            const key_type &value = input(i);
-            if (custom_isnan(value)) {
-                output(i) = this->nan_count > 0;
-            } else {
-                std::size_t hash = hasher_map_choice()(value);
-                size_t map_index = (hash % nmaps);
-                auto search = this->maps[map_index].find(value);
-                auto end = this->maps[map_index].end();
-                if (search == end) {
-                    output(i) = false;
+        {
+            py::gil_scoped_release gil;
+            for (int64_t i = 0; i < size; i++) {
+                const key_type &value = input(i);
+                if (custom_isnan(value)) {
+                    output(i) = this->nan_count > 0;
                 } else {
-                    output(i) = true;
+                    std::size_t hash = hasher_map_choice()(value);
+                    size_t map_index = (hash % nmaps);
+                    auto search = this->maps[map_index].find(value);
+                    auto end = this->maps[map_index].end();
+                    if (search == end) {
+                        output(i) = false;
+                    } else {
+                        output(i) = true;
+                    }
                 }
             }
         }
@@ -646,7 +650,7 @@ class ordered_set : public hash_base<ordered_set<T2, Hashmap2>, T2, Hashmap2> {
                     const key_type &value = input[i];
                     // the caller is responsible for finding masked values
                     if (custom_isnan(value)) {
-                        if(this->null_count > 0) {
+                        if(this->nan_count > 0) {
                             output[i] = this->nan_value;
                         } else {
                             output[i] = -1;
@@ -843,7 +847,7 @@ class index_hash : public hash_base<index_hash<T2, Hashmap2>, T2, Hashmap2> {
         for (int64_t i = 0; i < size; i++) {
             const key_type &key = input(i);
             if (custom_isnan(key)) {
-                if(this->nan_count) {
+                if(this->nan_count > 0) {
                     output(i) = nan_value;
                     if(nan_value == -1) {
                         encountered_unknown = true;
@@ -853,7 +857,7 @@ class index_hash : public hash_base<index_hash<T2, Hashmap2>, T2, Hashmap2> {
                     encountered_unknown = true;
                 }
             } else if (input_mask(i) == 1) {
-                if(this->null_count) {
+                if(this->null_count > 0) {
                     output(i) = null_value;
                     if(null_value == -1) {
                         encountered_unknown = true;
@@ -957,16 +961,18 @@ class index_hash : public hash_base<index_hash<T2, Hashmap2>, T2, Hashmap2> {
         py::array_t<value_type> indices_array(size_output);
         auto output = result.template mutable_unchecked<1>();
         auto output_indices = indices_array.template mutable_unchecked<1>();
-        py::gil_scoped_release gil;
-        // int64_t offset = 0;
-        size_t index = 0;
+        {
+            py::gil_scoped_release gil;
+            // int64_t offset = 0;
+            size_t index = 0;
 
-        std::copy(indices.begin(), indices.end(), &output_indices(0));
+            std::copy(indices.begin(), indices.end(), &output_indices(0));
 
-        for (auto &el : found) {
-            std::vector<value_type> &indices = el.second;
-            for (int64_t i : indices) {
-                output(index++) = i;
+            for (auto &el : found) {
+                std::vector<value_type> &indices = el.second;
+                for (int64_t i : indices) {
+                    output(index++) = i;
+                }
             }
         }
         return std::make_tuple(indices_array, result);
