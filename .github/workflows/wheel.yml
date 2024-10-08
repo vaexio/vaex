@@ -107,8 +107,8 @@ jobs:
         CIBW_TEST_COMMAND: python -c "import vaex; print(vaex.from_arrays(x=[1,2]))"
         CIBW_MANYLINUX_X86_64_IMAGE: manylinux_2_28
         CIBW_MANYLINUX_AARCH64_IMAGE: manylinux_2_28
-        CIBW_ENVIRONMENT_LINUX: 'CFLAGS="-Wl,-strip-all" CXXFLAGS="-Wl,-strip-all" PATH="$HOME/.cargo/bin:$PATH"'
-        CIBW_ENVIRONMENT_MACOS: 'CFLAGS="-I/usr/local/include -L/usr/local/lib" CXXFLAGS="-I/usr/local/include -L/usr/local/lib" LDFLAGS="-L/usr/local/lib"'
+        CIBW_ENVIRONMENT_LINUX: 'CFLAGS="-Wl,-strip-all -O3 -DNDEBUG" CXXFLAGS="-Wl,-strip-all -O3 -DNDEBUG" PATH="$HOME/.cargo/bin:$PATH"'
+        CIBW_ENVIRONMENT_MACOS: 'CFLAGS="-O3 -DNDEBUG -I/usr/local/include -L/usr/local/lib" CXXFLAGS="-O3 -DNDEBUG -I/usr/local/include -L/usr/local/lib" LDFLAGS="-L/usr/local/lib"'
 
     - uses: actions/upload-artifact@v4
       with:
