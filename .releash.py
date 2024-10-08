@@ -47,8 +47,10 @@ packages = ['vaex-core', 'vaex', 'vaex-viz', 'vaex-hdf5', 'vaex-server', 'vaex-a
 names = [k[5:] for k in packages[1:]]
 
 for name in names:
+    if name == '':
+        name = 'meta'
     if name == 'meta':
-        package = add_package("packages/vaex-" + name, "vaex-" +name, 'vaex.' + name, distribution_name='vaex')
+        package = add_package("packages/vaex", "vaex-" +name, 'vaex.' + name, distribution_name='vaex')
         version = VersionSource(package, '{path}/vaex/' +name +'/_version.py')
     else:
         package = add_package("packages/vaex-" + name, "vaex-" +name, 'vaex.' + name)
@@ -68,4 +70,3 @@ for name in names:
         package.release_targets.append(ReleaseTargetCondaForge(package, '../feedstocks/vaex' + '-feedstock'))
     else:
         package.release_targets.append(ReleaseTargetCondaForge(package, '../feedstocks/vaex-' + name + '-feedstock'))
-
