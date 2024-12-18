@@ -23,14 +23,12 @@ author_email = "maartenbreddels@gmail.com"
 license = "MIT"
 version = version.__version__
 url = "https://www.github.com/maartenbreddels/vaex"
-# TODO: after python2 supports frops, future and futures can also be dropped
-setup_requires = ["numpy~=1.17"]
+setup_requires = ["numpy~=2.0"] # see vaex-core pyproject.toml
 install_requires_core = [
-    "numpy~=1.17",
+    "numpy>=1.19.3,<3", # 1.19.3 is the first version with 3.9 wheels
     "aplus",
     "tabulate>=0.8.3",
     "dask!=2022.4.0,<2024.9",  # fingerprinting in no longer deterministic as of 2024.9.0
-    "future>=0.15.2",
     "pyyaml",
     "six",
     "cloudpickle",
@@ -271,13 +269,15 @@ setup(
     if not use_skbuild
     else [],
     zip_safe=False,
-    python_requires=">=3.8,<3.13",  # 3.13 needs numpy 2.1 support ref https://github.com/vaexio/vaex/pull/2434
+    # 3.9 is the oldest python version that the new numpy build system supports
+    # ref https://github.com/scipy/oldest-supported-numpy/pull/86
+    python_requires=">=3.9,<3.14",
     classifiers=[
-        "Programming Language :: Python :: 3.8",
         "Programming Language :: Python :: 3.9",
         "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",
         "Programming Language :: Python :: 3.12",
+        "Programming Language :: Python :: 3.13",
     ],
     extras_require=extras_require_core,
     entry_points={
