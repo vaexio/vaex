@@ -98,7 +98,8 @@ class get_pybind_include(object):
 USE_ABSL = False
 USE_TSL = True
 
-define_macros = []
+define_macros=[('NPY_NO_DEPRECATED_API', 'NPY_1_7_API_VERSION')]
+np_define_macros=[('NPY_NO_DEPRECATED_API', 'NPY_1_7_API_VERSION')]
 if USE_ABSL:
     define_macros += [("VAEX_USE_ABSL", None)]
 if USE_TSL:
@@ -111,7 +112,7 @@ if platform.system().lower() == "windows":
 else:
     # TODO: maybe enable these flags for non-wheel/conda builds? ["-mtune=native", "-march=native"]
     extra_compile_args = [
-        "-std=c++11",
+        "-std=c++17",
         "-O3",
         "-funroll-loops",
         "-Werror=return-type",
@@ -135,6 +136,8 @@ extension_vaexfast = Extension(
     [os.path.relpath(os.path.join(dirname, "src/vaexfast.cpp"))],
     include_dirs=[get_numpy_include()],
     extra_compile_args=extra_compile_args,
+    define_macros=np_define_macros,
+
 )
 extension_strings = Extension(
     "vaex.superstrings",
@@ -163,6 +166,7 @@ extension_strings = Extension(
     ],
     extra_compile_args=extra_compile_args,
     libraries=["pcre", "pcrecpp"],
+    define_macros=np_define_macros,
 )
 extension_superutils = Extension(
     "vaex.superutils",
