@@ -52,23 +52,27 @@ template<typename T>
 void object_to_numpy1d_nocopy(T* &ptr, PyObject* obj, long long  &count, int& stride=stride_default, int type=NPY_DOUBLE) {
 		if(obj == NULL)
 			throw Error("cannot convert to numpy array");
-		if((int)PyArray_NDIM(obj) != 1)
+        if(!PyArray_Check(obj))
+			throw Error("object is not a numpy array");
+        PyArrayObject* array = (PyArrayObject*) obj;;
+
+		if((int)PyArray_NDIM(array) != 1)
 			throw Error("array is not 1d");
-		long long size = PyArray_DIMS(obj)[0];
+		long long size = PyArray_DIMS(array)[0];
 		if((count >= 0) && (size != count))
 			throw Error("arrays not of equal size");
-		if(PyArray_TYPE(obj) != type)
+		if(PyArray_TYPE(array) != type)
 			throw Error("is not of proper type");
-		npy_intp* strides =  PyArray_STRIDES(obj);
+		npy_intp* strides =  PyArray_STRIDES(array);
 		if(stride == -1) {
 			stride = strides[0];
 		} else {
-			if(strides[0] != stride*PyArray_ITEMSIZE(obj)) {
+			if(strides[0] != stride*PyArray_ITEMSIZE(array)) {
 				throw Error("stride is not equal to %d", stride);
 			}
 		}
 
-		ptr = (T*)PyArray_DATA(obj);
+		ptr = (T*)PyArray_DATA(array);
 		count = size;
 }
 
@@ -76,23 +80,27 @@ template<typename T>
 void object_to_numpy1d_nocopy_endian(T* &ptr, PyObject* obj, long long  &count, bool &native, int& stride=stride_default, int type=NPY_DOUBLE) {
 		if(obj == NULL)
 			throw Error("cannot convert to numpy array");
-		if((int)PyArray_NDIM(obj) != 1)
+        if(!PyArray_Check(obj))
+			throw Error("object is not a numpy array");
+
+        PyArrayObject* array = (PyArrayObject*) obj;;
+		if((int)PyArray_NDIM(array) != 1)
 			throw Error("array is not 1d");
-		long long size = PyArray_DIMS(obj)[0];
+		long long size = PyArray_DIMS(array)[0];
 		if((count >= 0) && (size != count))
 			throw Error("arrays not of equal size");
-		if(PyArray_TYPE(obj) != type)
+		if(PyArray_TYPE(array) != type)
 			throw Error("is not of proper type");
-		npy_intp* strides =  PyArray_STRIDES(obj);
+		npy_intp* strides =  PyArray_STRIDES(array);
 		if(stride == -1) {
 			stride = strides[0];
 		} else {
-			if(strides[0] != stride*PyArray_ITEMSIZE(obj)) {
+			if(strides[0] != stride*PyArray_ITEMSIZE(array)) {
 				throw Error("stride is not equal to %d", stride);
 			}
 		}
-		native = PyArray_ISNOTSWAPPED(obj);
-		ptr = (T*)PyArray_DATA(obj);
+		native = PyArray_ISNOTSWAPPED(array);
+		ptr = (T*)PyArray_DATA(array);
 		count = size;
 }
 
@@ -100,26 +108,30 @@ template<typename T>
 void object_to_numpy2d_nocopy(T* &ptr, PyObject* obj, int &count_x, int &count_y, int type=NPY_DOUBLE) {
 		if(obj == NULL)
 			throw Error("cannot convert to numpy array");
-		if((int)PyArray_NDIM(obj) != 2)
+        if(!PyArray_Check(obj))
+			throw Error("object is not a numpy array");
+        PyArrayObject* array = (PyArrayObject*) obj;;
+
+		if((int)PyArray_NDIM(array) != 2)
 			throw Error("array is not 2d");
-		int size_x = PyArray_DIMS(obj)[1];
+		int size_x = PyArray_DIMS(array)[1];
 		if((count_x >= 0) && (size_x != count_x))
 			throw Error("arrays not of equal size");
-		int size_y = PyArray_DIMS(obj)[0];
+		int size_y = PyArray_DIMS(array)[0];
 		if((count_y >= 0) && (size_y != count_y))
 			throw Error("arrays not of equal size");
-		if(PyArray_TYPE(obj) != type)
+		if(PyArray_TYPE(array) != type)
 			throw Error("is not of proper type");
-		npy_intp* strides =  PyArray_STRIDES(obj);
+		npy_intp* strides =  PyArray_STRIDES(array);
 		//printf("strides: %d %d (%d %d)\n", strides[0],strides[1], size_x, size_y);
-		if(strides[1] != PyArray_ITEMSIZE(obj)) {
+		if(strides[1] != PyArray_ITEMSIZE(array)) {
 			throw Error("stride[0] is not 1");
 		}
-		if(strides[0] != PyArray_ITEMSIZE(obj)*size_x) {
+		if(strides[0] != PyArray_ITEMSIZE(array)*size_x) {
 			throw Error("stride[1] is not 1");
 		}
 
-		ptr = (T*)PyArray_DATA(obj);
+		ptr = (T*)PyArray_DATA(array);
 		count_x = size_x;
 		count_y = size_y;
 }
@@ -128,32 +140,37 @@ template<typename T>
 void object_to_numpy3d_nocopy(T* &ptr, PyObject* obj, int &count_x, int &count_y, int &count_z, int type=NPY_DOUBLE) {
 		if(obj == NULL)
 			throw Error("cannot convert to numpy array");
-		if((int)PyArray_NDIM(obj) != 3)
+
+        if(!PyArray_Check(obj))
+			throw Error("object is not a numpy array");
+
+        PyArrayObject* array = (PyArrayObject*) obj;;
+		if((int)PyArray_NDIM(array) != 3)
 			throw Error("array is not 3d");
-		int size_x = PyArray_DIMS(obj)[2];
+		int size_x = PyArray_DIMS(array)[2];
 		if((count_x >= 0) && (size_x != count_x))
 			throw Error("arrays not of equal size");
-		int size_y = PyArray_DIMS(obj)[1];
+		int size_y = PyArray_DIMS(array)[1];
 		if((count_y >= 0) && (size_y != count_y))
 			throw Error("arrays not of equal size");
-		int size_z = PyArray_DIMS(obj)[0];
+		int size_z = PyArray_DIMS(array)[0];
 		if((count_z >= 0) && (size_z != count_z))
 			throw Error("arrays not of equal size");
-		if(PyArray_TYPE(obj) != type)
+		if(PyArray_TYPE(array) != type)
 			throw Error("is not of proper type");
-		npy_intp* strides =  PyArray_STRIDES(obj);
+		npy_intp* strides =  PyArray_STRIDES(array);
 		//printf("strides: %d %d %d(%d %d %d)\n", strides[0], strides[1], strides[2], size_x, size_y, size_z);
-		if(strides[2] != PyArray_ITEMSIZE(obj)) {
+		if(strides[2] != PyArray_ITEMSIZE(array)) {
 			throw Error("stride[0] is not 1");
 		}
-		if(strides[1] != PyArray_ITEMSIZE(obj)*size_x) {
+		if(strides[1] != PyArray_ITEMSIZE(array)*size_x) {
 			throw Error("stride[1] is not 1");
 		}
-		if(strides[0] != PyArray_ITEMSIZE(obj)*size_y*size_x) {
+		if(strides[0] != PyArray_ITEMSIZE(array)*size_y*size_x) {
 			throw Error("stride[2] is not 1");
 		}
 
-		ptr = (T*)PyArray_DATA(obj);
+		ptr = (T*)PyArray_DATA(array);
 		count_x = size_x;
 		count_y = size_y;
 		count_z = size_z;
@@ -163,18 +180,23 @@ template<typename T>
 void object_to_numpyNd_nocopy(T* &ptr, PyObject* obj, int max_dimension, int& dimension, int* sizes, long long int* strides, int type=NPY_DOUBLE) {
 		if(obj == NULL)
 			throw Error("cannot convert to numpy array");
-		//printf("dim = %i maxdim = %i %i\n", dimension, max_dimension,  (int)PyArray_NDIM(obj));
-		dimension = (int)PyArray_NDIM(obj);
+
+        if(!PyArray_Check(obj))
+			throw Error("object is not a numpy array");
+        PyArrayObject* array = (PyArrayObject*) obj;;
+
+		//printf("dim = %i maxdim = %i %i\n", dimension, max_dimension,  (int)PyArray_NDIM(array));
+		dimension = (int)PyArray_NDIM(array);
 		if(dimension > max_dimension) {
 			printf("dim = %i maxdim = %i\n", dimension, max_dimension);
 			throw Error("array dimension is bigger than allowed");
 		}
 
 		for(int i = 0; i < dimension; i++) {
-			sizes[i] = PyArray_DIMS(obj)[i];
-			strides[i] = PyArray_STRIDES(obj)[i];
+			sizes[i] = PyArray_DIMS(array)[i];
+			strides[i] = PyArray_STRIDES(array)[i];
 		}
-		ptr = (T*)PyArray_DATA(obj);
+		ptr = (T*)PyArray_DATA(array);
 }
 
 
@@ -202,7 +224,7 @@ PyObject* range_check_(PyObject* self, PyObject *args) {
 			Py_END_ALLOW_THREADS
 			Py_INCREF(Py_None);
 			result = Py_None;
-		} catch(Error e) {
+		} catch(const Error& e) {
 			PyErr_SetString(PyExc_RuntimeError, e.what());
 		} catch(...) {
 			PyErr_SetString(PyExc_RuntimeError, "unknown exception");
@@ -230,7 +252,7 @@ inline double double_to_native(double value)
     *val = (((*val) << 16) & 0xFFFF0000FFFF0000ULL ) | (((*val) >> 16) & 0x0000FFFF0000FFFFULL );
     *result = ((*val) << 32) | (((*val) >> 32) & 0xFFFFFFFFULL);*/
 	*result = __builtin_bswap64(*val);
-	return result_value;
+	return *result;
 }
 // no-op for template
 inline double double_to_double(double value) {
@@ -282,7 +304,7 @@ PyObject* find_nan_min_max_(PyObject* self, PyObject* args) {
 			find_nan_min_max(block_ptr, length, native, min, max);
 			Py_END_ALLOW_THREADS
 			result = Py_BuildValue("dd", min, max);
-		} catch(Error e) {
+		} catch(const Error& e) {
 			PyErr_SetString(PyExc_RuntimeError, e.what());
 		}
 	}
@@ -322,7 +344,7 @@ PyObject* nansum_(PyObject* self, PyObject* args) {
 			nansum(block_ptr, length, native, sum);
 			Py_END_ALLOW_THREADS
 			result = Py_BuildValue("d", sum);
-		} catch(Error e) {
+		} catch(const Error& e) {
 			PyErr_SetString(PyExc_RuntimeError, e.what());
 		}
 	}
@@ -394,7 +416,7 @@ PyObject* sum_(PyObject* self, PyObject* args) {
 			sum(block_ptr, length, native, sum__);
 			Py_END_ALLOW_THREADS
 			result = Py_BuildValue("d", sum__);
-		} catch(Error e) {
+		} catch(const Error& e) {
 			PyErr_SetString(PyExc_RuntimeError, e.what());
 		}
 	}
@@ -533,7 +555,7 @@ PyObject* histogram1d_(PyObject* self, PyObject* args) {
 			Py_END_ALLOW_THREADS
 			Py_INCREF(Py_None);
 			result = Py_None;
-		} catch(Error e) {
+		} catch(const Error& e) {
 			PyErr_SetString(PyExc_RuntimeError, e.what());
 		}
 	}
@@ -652,7 +674,7 @@ PyObject* histogram2d_(PyObject* self, PyObject* args) {
 			Py_END_ALLOW_THREADS
 			Py_INCREF(Py_None);
 			result = Py_None;
-		} catch(Error e) {
+		} catch(const Error& e) {
 			PyErr_SetString(PyExc_RuntimeError, e.what());
 		}
 	}
@@ -662,8 +684,8 @@ PyObject* histogram2d_(PyObject* self, PyObject* args) {
 
 template<typename Tout>
 void histogram2d_f4(const float* const __restrict__ blockx, const float* const __restrict__ blocky, const float* const weights, const long long block_length, bool blockx_native, bool blocky_native, bool weights_native, Tout* const __restrict__ counts, const int counts_length_x, const int counts_length_y, const double xmin_, const double xmax_, const double ymin_, const double ymax_, const long long offset_x, const long long offset_y) {
-	long long i_x = offset_x;
-	long long i_y = offset_y;
+	//long long i_x = offset_x;
+	//long long i_y = offset_y;
 	const float xmin = xmin_;
 	const float xmax = xmax_;
 	const float ymin = ymin_;
@@ -776,7 +798,7 @@ PyObject* histogram2d_f4_(PyObject* self, PyObject* args) {
 			Py_END_ALLOW_THREADS
 			Py_INCREF(Py_None);
 			result = Py_None;
-		} catch(Error e) {
+		} catch(const Error& e) {
 			PyErr_SetString(PyExc_RuntimeError, e.what());
 		}
 	}
@@ -893,7 +915,7 @@ PyObject* histogram3d_(PyObject* self, PyObject* args) {
 			Py_END_ALLOW_THREADS
 			Py_INCREF(Py_None);
 			result = Py_None;
-		} catch(Error e) {
+		} catch(const Error& e) {
 			PyErr_SetString(PyExc_RuntimeError, e.what());
 		}
 	}
@@ -992,7 +1014,7 @@ PyObject* histogramNd_(PyObject* self, PyObject* args) {
 			Py_END_ALLOW_THREADS
 			Py_INCREF(Py_None);
 			result = Py_None;
-		} catch(Error e) {
+		} catch(const Error& e) {
 			PyErr_SetString(PyExc_RuntimeError, e.what());
 		}
 	}
@@ -1325,7 +1347,7 @@ PyObject* statisticNd_(PyObject* self, PyObject* args) {
 		int dimensions_grid = -1;
 		int weights_count = -1;
 		T *block_ptrs[MAX_DIMENSIONS];
-		bool native;
+		bool native = false;
 
 		T *weights_ptrs[MAX_WEIGHTS];
 		double *counts_ptr = NULL;
@@ -1378,7 +1400,7 @@ PyObject* statisticNd_(PyObject* self, PyObject* args) {
 					throw Error("mixed native and non-native arrays not supported");
 			}*/
 			for(int d = 0; d < weights_count; d++) {
-				bool native_current;
+				bool native_current = false;
     			object_to_numpy1d_nocopy_endian(weights_ptrs[d], PyList_GetItem(weightslist, d), block_length, native_current, stride_default, NP_TYPE);
 				if((d == 0) & (dimensions == 0)) {
 					native = native_current;
@@ -1403,7 +1425,7 @@ PyObject* statisticNd_(PyObject* self, PyObject* args) {
 			Py_END_ALLOW_THREADS
 			Py_INCREF(Py_None);
 			result = Py_None;
-		} catch(Error e) {
+		} catch(const Error& e) {
 			PyErr_SetString(PyExc_RuntimeError, e.what());
 		}
 	}
@@ -1563,7 +1585,7 @@ PyObject* grid_interpolate_(PyObject* self, PyObject* args) {
 			Py_END_ALLOW_THREADS
 			Py_INCREF(Py_None);
 			result = Py_None;
-		} catch(Error e) {
+		} catch(const Error& e) {
 			PyErr_SetString(PyExc_RuntimeError, e.what());
 		}
 	}
@@ -1682,7 +1704,7 @@ PyObject* grid_find_edges_(PyObject* self, PyObject* args) {
 			Py_END_ALLOW_THREADS
 			Py_INCREF(Py_None);
 			result = Py_None;
-		} catch(Error e) {
+		} catch(const Error& e) {
 			PyErr_SetString(PyExc_RuntimeError, e.what());
 		}
 	}
@@ -1746,7 +1768,7 @@ PyObject* project_(PyObject* self, PyObject* args) {
 			Py_END_ALLOW_THREADS
 			Py_INCREF(Py_None);
 			result = Py_None;
-		} catch(Error e) {
+		} catch(const Error& e) {
 			PyErr_SetString(PyExc_RuntimeError, e.what());
 		}
 	}
@@ -1799,7 +1821,7 @@ static PyObject* pnpoly_(PyObject* self, PyObject *args) {
 			Py_END_ALLOW_THREADS
 			Py_INCREF(Py_None);
 			result = Py_None;
-		} catch(Error e) {
+		} catch(const Error& e) {
 			PyErr_SetString(PyExc_RuntimeError, e.what());
 		}
 	}
@@ -1858,7 +1880,7 @@ static PyObject* soneira_peebles_(PyObject* self, PyObject *args) {
 			Py_END_ALLOW_THREADS
 			Py_INCREF(Py_None);
 			result = Py_None;
-		} catch(Error e) {
+		} catch(const Error& e) {
 			PyErr_SetString(PyExc_RuntimeError, e.what());
 			//PyErr_SetString(PyExc_RuntimeError, "unknown exception");
 		}
@@ -1927,7 +1949,7 @@ static PyObject* shuffled_sequence_(PyObject* self, PyObject *args) {
 			Py_END_ALLOW_THREADS
 			Py_INCREF(Py_None);
 			result = Py_None;
-		} catch(Error e) {
+		} catch(const Error& e) {
 			PyErr_SetString(PyExc_RuntimeError, e.what());
 			//PyErr_SetString(PyExc_RuntimeError, "unknown exception");
 		}
@@ -2042,14 +2064,17 @@ static PyObject* resize_(PyObject* self, PyObject *args) {
 				stride *= size1;
 			}
 			PyObject* new_array = PyArray_SimpleNew(dimension, new_sizes, NPY_DOUBLE);
-			new_array_ptr = (double*)PyArray_DATA(new_array);
+            if(!PyArray_Check(new_array))
+                throw Error("failed to create a new array");
+
+			new_array_ptr = (double*)PyArray_DATA((PyArrayObject*) new_array);
 
 			//Py_BEGIN_ALLOW_THREADS
 			resize(array_ptr, size1, dimension, new_array_ptr, new_size);
 			//Py_END_ALLOW_THREADS
 			//Py_INCREF(Py_None);
-			result = new_array;
-		} catch(Error e) {
+			result = (PyObject*) new_array;
+		} catch(const Error& e) {
 			PyErr_SetString(PyExc_RuntimeError, e.what());
 			//PyErr_SetString(PyExc_RuntimeError, "unknown exception");
 		}
