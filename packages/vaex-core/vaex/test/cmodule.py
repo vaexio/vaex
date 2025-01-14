@@ -7,17 +7,20 @@ import vaex.vaexfast
 
 class TestStatisticNd(unittest.TestCase):
 	def test_add(self):
+		# blocklist
 		x = np.arange(10, dtype=np.float64)
+		# counts object
 		grid = np.zeros((10,2), dtype=np.float64)
+		# weightlist
 		w = x * 1
 		w[2] = np.nan
 		#grid[...,0] = np.inf
 		#grid[...,1] = -np.inf
-		vaex.vaexfast.statisticNd([x], w, grid, [0.], [10.], 0)
+		vaex.vaexfast.statisticNd_f8([x], w, grid, [0.], [10.], 0)
 		print(grid)
 
 		grid0 = np.zeros((1,), dtype=np.float64)
-		vaex.vaexfast.statisticNd([], w, grid0, [], [], 0)
+		vaex.vaexfast.statisticNd_f8([], w, grid0, [], [], 0)
 		print(grid0)
 
 	def test_2(self):
@@ -30,7 +33,7 @@ class TestStatisticNd(unittest.TestCase):
 		print(np.nansum(w))
 		#grid[...,0] = np.inf
 		#grid[...,1] = -np.inf
-		vaex.vaexfast.statisticNd([], w, grid, [], [], 2)
+		vaex.vaexfast.statisticNd_f8([], w, grid, [], [], 2)
 		print(grid)
 
 	def test_edges(self):
@@ -43,7 +46,7 @@ class TestStatisticNd(unittest.TestCase):
 		grid = np.zeros((10+3,1), dtype=np.float64)
 		x = np.arange(10, dtype=np.float64)
 		x[0] = np.nan
-		vaex.vaexfast.statisticNd([x], None, grid, [4.], [6.], 0, True)
+		vaex.vaexfast.statisticNd_f8([x], None, grid, [4.], [6.], 0, True)
 		print(x)
 		print(grid.T)
 		self.assertEqual(sum(grid), len(x))
@@ -60,7 +63,7 @@ class TestStatisticNd(unittest.TestCase):
 		y[-2] = np.nan
 		x[1] = np.nan
 		y[1] = np.nan
-		vaex.vaexfast.statisticNd([x, y], None, grid, [4., 3.], [6., 7.], 0, True)
+		vaex.vaexfast.statisticNd_f8([x, y], None, grid, [4., 3.], [6., 7.], 0, True)
 		print(grid[...,0])
 		print(grid.shape)
 
@@ -74,7 +77,7 @@ class TestStatisticNd(unittest.TestCase):
 		grid = np.zeros((10+3,1), dtype=np.float64)
 		x = np.arange(10, dtype=np.float64)
 		#vaex.vaexfast.statisticNd([x], None, grid, [-0.5], [10.-0.5], 0, True)
-		vaex.vaexfast.statisticNd([x], None, grid, [0.], [10.], 0, True)
+		vaex.vaexfast.statisticNd_f8([x], None, grid, [0.], [10.], 0, True)
 		print(grid.T)
 		#return
 		c = np.cumsum(grid[1:], axis=0)
