@@ -28,7 +28,12 @@ class Mask {
         mask_data = new uint8_t[length];
         reset();
     }
-    Mask(uint8_t *mask_data, size_t length) : mask_data(mask_data), length(length), _owns_data(false) {}
+    Mask(uint8_t *mask_data, size_t length)
+        : mask_data(mask_data)
+        , length(length)
+        , _owns_data(false)
+    {}
+
     virtual ~Mask() {
         if (_owns_data)
             delete[] mask_data;
@@ -54,9 +59,6 @@ class Mask {
         return {start, end};
     }
     int64_t raw_offset(int64_t logical_offset) {
-        // if(offset >= length) {
-        //     throw std::runtime_error("offset should be smaller than length");
-        // }
         int64_t counted = 0;
         for (int64_t i = 0; i < length; i++) {
             if (mask_data[i] == 1) {

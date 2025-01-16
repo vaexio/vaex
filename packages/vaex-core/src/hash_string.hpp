@@ -283,8 +283,8 @@ class counter : public hash_base<counter<T, A>, T, A, V>, public counter_mixin<T
         {
             py::gil_scoped_release gil;
             auto offsets = this->offsets();        
-            size_t map_index = 0;
-            int64_t natural_order = 0;
+            // size_t map_index = 0;
+            // int64_t natural_order = 0;
             // TODO: can be parallel due to non-overlapping maps
             for (auto &map : this->maps) {
                 for (auto &el : map) {
@@ -696,7 +696,12 @@ class index_hash : public hash_base<index_hash<T>, T, T, V> {
     typedef hashmap<key_type, std::vector<int64_t>> overflow_type;
 
     // TODO: might be better to use a node based hasmap, we don't want to move large vectors
-    index_hash(int nmaps, int64_t limit = -1) : Base(nmaps, limit), overflows(nmaps), has_duplicates(false), null_value(-1) {
+    index_hash(int nmaps, int64_t limit = -1)
+        : Base(nmaps, limit)
+        , overflows(nmaps)
+        , null_value(-1)
+        , has_duplicates(false)
+    {
         for (int i = 0; i < nmaps; i++) {
             // string_arrays_overflow.emplace_back(std::make_shared<StringList64>());
             // for each key in overflow, it should be present in the main string array
@@ -874,7 +879,7 @@ class index_hash : public hash_base<index_hash<T>, T, T, V> {
         for (auto &map : this->maps) {
             auto strings = this->string_arrays[i++];
             for (auto &el : map) {
-                key_type key = el.first;
+                //key_type key = el.first;
                 value_type value = el.second;
                 string_view key_view = strings->view(el.first.index);
                 std::string str(key_view);
