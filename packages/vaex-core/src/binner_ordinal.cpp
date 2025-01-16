@@ -1,6 +1,8 @@
 #include "agg.hpp"
 #include "utils.hpp"
 
+#include <cmath>
+
 namespace vaex {
 
 template <class T = uint64_t, class BinIndexType = default_index_type, bool FlipEndian = false>
@@ -29,7 +31,7 @@ class BinnerOrdinal : public Binner {
                         index_type index = 0;
                         // this followes numpy, 1 is masked
                         bool masked = data_mask_ptr[i] == 1;
-                        if (value != value) { // nan
+                        if (std::isnan(value)) {
                             index = ordinal_count + 2;
                         } else if (masked) { // missing/null
                             index = ordinal_count + 1;
@@ -47,7 +49,7 @@ class BinnerOrdinal : public Binner {
                             value = _to_native<>(value);
                         }
                         index_type index = 0;
-                        if (value != value) { // nan
+                        if (std::isnan(value)) {
                             index = ordinal_count + 2;
                         } else if ((value < 0) || (value >= ordinal_count)) { // 'other'
                             index = ordinal_count;
@@ -67,7 +69,7 @@ class BinnerOrdinal : public Binner {
                         index_type index = 0;
                         // this followes numpy, 1 is masked
                         bool masked = data_mask_ptr[i] == 1;
-                        if (value != value) { // nan
+                        if (std::isnan(value)) {
                             index = ordinal_count + 1;
                         } else if (masked || (value < 0) || (value >= ordinal_count)) { // negative values are interpreted as null, as well as out of bound
                             index = ordinal_count;
@@ -83,7 +85,7 @@ class BinnerOrdinal : public Binner {
                             value = _to_native<>(value);
                         }
                         index_type index = 0;
-                        if (value != value) { // nan
+                        if (std::isnan(value)) {
                             index = ordinal_count + 1;
                         } else if ((value < 0) || (value >= ordinal_count)) { // negative values are interpreted as null, as well as out of bound
                             index = ordinal_count;
@@ -105,7 +107,7 @@ class BinnerOrdinal : public Binner {
                         index_type index = 0;
                         // this followes numpy, 1 is masked
                         bool masked = data_mask_ptr[i] == 1;
-                        if (value != value) { // nan
+                        if (std::isnan(value)) {
                             index = ordinal_count + 2;
                         } else if (masked) { // missing/null
                             index = ordinal_count + 1;
@@ -123,7 +125,7 @@ class BinnerOrdinal : public Binner {
                             value = _to_native<>(value);
                         }
                         index_type index = 0;
-                        if (value != value) { // nan
+                        if (std::isnan(value)) {
                             index = ordinal_count + 2;
                         } else if ((value < 0) || (value >= ordinal_count)) { // 'other'
                             index = ordinal_count;
@@ -143,7 +145,7 @@ class BinnerOrdinal : public Binner {
                         index_type index = 0;
                         // this followes numpy, 1 is masked
                         bool masked = data_mask_ptr[i] == 1;
-                        if (value != value) { // nan
+                        if (std::isnan(value)) {
                             index = ordinal_count + 1;
                         } else if (masked || (value < 0) || (value >= ordinal_count)) { // negative values are interpreted as null, as well as out of bound
                             index = ordinal_count;
@@ -159,7 +161,7 @@ class BinnerOrdinal : public Binner {
                             value = _to_native<>(value);
                         }
                         index_type index = 0;
-                        if (value != value) { // nan
+                        if (std::isnan(value)) {
                             index = ordinal_count + 1;
                         } else if ((value < 0) || (value >= ordinal_count)) { // negative values are interpreted as null, as well as out of bound
                             index = ordinal_count;
