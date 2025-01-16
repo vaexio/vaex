@@ -255,7 +255,6 @@ inline double double_to_native(double value)
     double result;
     std::memcpy(&result, &swapped, sizeof(double));
     return result;
-
 }
 
 // no-op for template
@@ -1514,7 +1513,7 @@ double interpolate_1d(double* const __restrict__ grid, const int grid_size, doub
     double next_value = grid[0];
 
     while(1) {
-        printf("left) %i %f %f\n", current_edge, left_y, value);
+        //printf("left) %i %f %f\n", current_edge, left_y, value);
         if(current_edge == grid_size) // at end
             break;
         if(next_value <= value) { // is next edge still smaller or equal?
@@ -1524,7 +1523,7 @@ double interpolate_1d(double* const __restrict__ grid, const int grid_size, doub
             next_value = grid[current_edge]; // TODO: is this ok... out of bounds check?
             index_left = current_edge;
             if(exact_match) { // for the left edge we stop at the first match
-                printf("left exact) %i %f %f\n", current_edge, left_y, value);
+                //printf("left exact) %i %f %f\n", current_edge, left_y, value);
                 break;
             }
         } else { // we found an index, such that the next edge has a larger value than 'value'
@@ -1536,7 +1535,7 @@ double interpolate_1d(double* const __restrict__ grid, const int grid_size, doub
     index_right = current_edge;
 
     while(1) {
-        printf("right) %i %f %f\n", current_edge, right_y, value);
+        //printf("right) %i %f %f\n", current_edge, right_y, value);
         if(current_edge == grid_size) // at end
             break;
         if(current_value <= value) { // the current satisfies this, so take the next
@@ -1552,23 +1551,23 @@ double interpolate_1d(double* const __restrict__ grid, const int grid_size, doub
         }
     }
 
-    printf("left/right) %f %f %f\n", left_y, right_y, value);
+    //printf("left/right) %f %f %f\n", left_y, right_y, value);
     // compute normalized positions for left and right edges
     double x1 = ((double) (index_left) / grid_size);
     double x2 = ((double)index_right / grid_size);
-    printf("%f - %f\n", x1, x2);
-    printf("%d - %d\n", index_left, index_right);
+    //printf("%f - %f\n", x1, x2);
+    //printf("%d - %d\n", index_left, index_right);
     double x;
     if(left_y == right_y) {
         x = (x1 + x2) / 2;
-        printf("1: %f + %f / 2 = %f\n",x1,x2,x);
+        //printf("1: %f + %f / 2 = %f\n",x1,x2,x);
     } else if(index_left == index_right) {
         x = x1;
     } else {
         x = x1 + (((value - left_y) / (right_y - left_y)) * (x2 - x1));
-        printf("3: (value=%f - left_y=%f) / (right_y=%f - left_y=%f)*(x2=%f - x1=%f) + x1=%f\n",value,left_y, right_y, left_y,x2,x1,x1);
+        //printf("3: (value=%f - left_y=%f) / (right_y=%f - left_y=%f)*(x2=%f - x1=%f) + x1=%f\n",value,left_y, right_y, left_y,x2,x1,x1);
     }
-    printf("x = %f\n", x);
+    //printf("x = %f\n", x);
     return x;
     //double sum = (index_left) + (index_right);
     //return (sum/2) / (grid_size); // TODO: interpolate instead of taking center
@@ -2184,7 +2183,6 @@ static PyMethodDef pyvaex_functions[] = {
         {"soneira_peebles", (PyCFunction)soneira_peebles_, METH_VARARGS, ""},
         {"shuffled_sequence", (PyCFunction)shuffled_sequence_, METH_VARARGS, ""},
         {"resize", (PyCFunction)resize_, METH_VARARGS, ""},
-        {"ensure_array", (PyCFunction)ensure_array, METH_VARARGS, ""},
     { NULL, NULL, 0 }
 };
 
