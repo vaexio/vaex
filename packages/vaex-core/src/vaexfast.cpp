@@ -37,30 +37,42 @@ PyArrayObject* ensure_array(PyObject* obj, int dims, int type=NPY_DOUBLE, const 
     std::string prefix = "";
     if(!prefix_.empty()) {
         prefix = prefix_ + ": ";
-}
+    }
 
-        if(obj == nullptr) {
-            throw std::invalid_argument(prefix + "cannot convert a null object to numpy array");
-        }
+    if(obj == nullptr) {
+        throw std::invalid_argument(prefix + "cannot convert a null object to numpy array");
+    }
 
-        if(!PyArray_Check(obj)) {
-            throw std::invalid_argument(prefix + "object is neither a numpy array nor a list");
-        }
+    PyArrayObject* array  = nullptr;
+    if(obj == Py_None) {
+        throw std::invalid_argument(prefix + "object cannot be NONE");
+    }
 
-        PyArrayObject* array = reinterpret_cast<PyArrayObject*>(obj);
+    if(PyList_Check(obj)) {
+        array = (PyArrayObject*) PyArray_FROM_OTF(obj, type, NPY_ARRAY_IN_ARRAY);
+    } else if(PyArray_Check(obj)) {
+        array = reinterpret_cast<PyArrayObject*>(obj);
+    } else {
+        std::stringstream msg;
+        PyTypeObject* obj_type = Py_TYPE(obj);
+        PyObject* repr = PyObject_Str(obj);
+        msg << prefix + "obj must be either array or list, was " << obj_type->tp_name << ": " << PyUnicode_AsUTF8(repr);
+        Py_DECREF(repr);
+        throw std::invalid_argument(msg.str());
+    }
 
-        if(dims != -1 && (int) PyArray_NDIM(array) != dims) {
-            std::stringstream msg;
-            msg << prefix << "array is not " << dims << "d";
-            throw std::invalid_argument(msg.str());
-        }
+    if(dims != -1 && (int) PyArray_NDIM(array) != dims) {
+        std::stringstream msg;
+        msg << prefix << "array is not " << dims << "d";
+        throw std::invalid_argument(msg.str());
+    }
 
-        if(PyArray_TYPE(array) != type) {
+    if(PyArray_TYPE(array) != type) {
         std::stringstream msg;
         msg << prefix << "array is not compatible. Expected " << type << " but got " << PyArray_TYPE(array);
-            throw std::invalid_argument(msg.str());
-        }
-        return array;
+        throw std::invalid_argument(msg.str());
+    }
+    return array;
 }
 
 template<typename T>
@@ -81,123 +93,123 @@ void ensure_array_size(T &expected_size, T &actual_size, const std::string& pref
 template<typename T>
 void object_to_numpy1d_nocopy(T* &ptr, PyObject* obj, long long  &count, int& stride=stride_default, int type=NPY_DOUBLE) {
 
-        PyArrayObject* array = ensure_array(obj, 1, type, "object_to_numpy1d_nocopy");
+    PyArrayObject* array = ensure_array(obj, 1, type, "object_to_numpy1d_nocopy");
 
-        long long size = PyArray_DIMS(array)[0];
-        ensure_array_size(count, size, "object_to_numpy1d_nocopy");
+    long long size = PyArray_DIMS(array)[0];
+    ensure_array_size(count, size, "object_to_numpy1d_nocopy");
 
-        npy_intp* strides =  PyArray_STRIDES(array);
-        if(stride == -1) {
-            stride = strides[0];
-        } else {
-            if(strides[0] != stride*PyArray_ITEMSIZE(array)) {
-                std::stringstream msg;
-                msg << "object_to_numpy1d_nocopy: stride is not equal to " << stride;
-                throw std::invalid_argument(msg.str());
-            }
+    npy_intp* strides =  PyArray_STRIDES(array);
+    if(stride == -1) {
+        stride = strides[0];
+    } else {
+        if(strides[0] != stride*PyArray_ITEMSIZE(array)) {
+            std::stringstream msg;
+            msg << "object_to_numpy1d_nocopy: stride is not equal to " << stride;
+            throw std::invalid_argument(msg.str());
         }
+    }
 
-        ptr = (T*)PyArray_DATA(array);
-        count = size;
+    ptr = (T*)PyArray_DATA(array);
+    count = size;
 }
 
 template<typename T>
 void object_to_numpy1d_nocopy_endian(T* &ptr, PyObject* obj, long long  &count, bool &native, int& stride=stride_default, int type=NPY_DOUBLE) {
 
-        PyArrayObject* array = ensure_array(obj, 1, type, "object_to_numpy1d_nocopy_endian");
+    PyArrayObject* array = ensure_array(obj, 1, type, "object_to_numpy1d_nocopy_endian");
 
-        long long size = PyArray_DIMS(array)[0];
-        ensure_array_size(count, size, "object_to_numpy1d_nocopy_endian");
+    long long size = PyArray_DIMS(array)[0];
+    ensure_array_size(count, size, "object_to_numpy1d_nocopy_endian");
 
-        npy_intp* strides =  PyArray_STRIDES(array);
-        if(stride == -1) {
-            stride = strides[0];
-        } else {
-            if(strides[0] != stride*PyArray_ITEMSIZE(array)) {
-                std::stringstream msg;
-                msg << "object_to_numpy1d_nocopy_endian: stride is not equal to " << stride;
-                throw std::invalid_argument(msg.str());
-            }
+    npy_intp* strides =  PyArray_STRIDES(array);
+    if(stride == -1) {
+        stride = strides[0];
+    } else {
+        if(strides[0] != stride*PyArray_ITEMSIZE(array)) {
+            std::stringstream msg;
+            msg << "object_to_numpy1d_nocopy_endian: stride is not equal to " << stride;
+            throw std::invalid_argument(msg.str());
         }
-        native = PyArray_ISNOTSWAPPED(array);
-        ptr = (T*)PyArray_DATA(array);
-        count = size;
+    }
+    native = PyArray_ISNOTSWAPPED(array);
+    ptr = (T*)PyArray_DATA(array);
+    count = size;
 }
 
 template<typename T>
 void object_to_numpy2d_nocopy(T* &ptr, PyObject* obj, int &count_x, int &count_y, int type=NPY_DOUBLE) {
 
-        PyArrayObject* array = ensure_array(obj, 2, type, "object_to_numpy2d_nocopy");
+    PyArrayObject* array = ensure_array(obj, 2, type, "object_to_numpy2d_nocopy");
 
-        int size_x = PyArray_DIMS(array)[1];
-        ensure_array_size(count_x, size_x, "object_to_numpy1d_nocopy_endian: 2nd dimension");
+    int size_x = PyArray_DIMS(array)[1];
+    ensure_array_size(count_x, size_x, "object_to_numpy1d_nocopy_endian: 2nd dimension");
 
-        int size_y = PyArray_DIMS(array)[0];
-        ensure_array_size(count_y, size_y, "object_to_numpy1d_nocopy_endian: 1rst dimension");
+    int size_y = PyArray_DIMS(array)[0];
+    ensure_array_size(count_y, size_y, "object_to_numpy1d_nocopy_endian: 1rst dimension");
 
-        npy_intp* strides =  PyArray_STRIDES(array);
-        //printf("strides: %d %d (%d %d)\n", strides[0],strides[1], size_x, size_y);
-        if(strides[1] != PyArray_ITEMSIZE(array)) {
-            throw std::invalid_argument("object_to_numpy2d_nocopy: stride[0] is not 1");
-        }
-        if(strides[0] != PyArray_ITEMSIZE(array)*size_x) {
-            throw std::invalid_argument("object_to_numpy2d_nocopy: stride[1] is not 1");
-        }
+    npy_intp* strides =  PyArray_STRIDES(array);
+    //printf("strides: %d %d (%d %d)\n", strides[0],strides[1], size_x, size_y);
+    if(strides[1] != PyArray_ITEMSIZE(array)) {
+        throw std::invalid_argument("object_to_numpy2d_nocopy: stride[0] is not 1");
+    }
+    if(strides[0] != PyArray_ITEMSIZE(array)*size_x) {
+        throw std::invalid_argument("object_to_numpy2d_nocopy: stride[1] is not 1");
+    }
 
-        ptr = (T*)PyArray_DATA(array);
-        count_x = size_x;
-        count_y = size_y;
+    ptr = (T*)PyArray_DATA(array);
+    count_x = size_x;
+    count_y = size_y;
 }
 
 template<typename T>
 void object_to_numpy3d_nocopy(T* &ptr, PyObject* obj, int &count_x, int &count_y, int &count_z, int type=NPY_DOUBLE) {
 
-        PyArrayObject* array = ensure_array(obj, 3, type);
+    PyArrayObject* array = ensure_array(obj, 3, type);
 
-        int size_x = PyArray_DIMS(array)[2];
-        ensure_array_size(count_x, size_x, "object_to_numpy3d_nocopy: 3rd dimension");
+    int size_x = PyArray_DIMS(array)[2];
+    ensure_array_size(count_x, size_x, "object_to_numpy3d_nocopy: 3rd dimension");
 
-        int size_y = PyArray_DIMS(array)[1];
-        ensure_array_size(count_y, size_y, "object_to_numpy3d_nocopy: 2nd dimension");
+    int size_y = PyArray_DIMS(array)[1];
+    ensure_array_size(count_y, size_y, "object_to_numpy3d_nocopy: 2nd dimension");
 
-        int size_z = PyArray_DIMS(array)[0];
-        ensure_array_size(count_z, size_z, "object_to_numpy3d_nocopy: 1rst dimension");
+    int size_z = PyArray_DIMS(array)[0];
+    ensure_array_size(count_z, size_z, "object_to_numpy3d_nocopy: 1rst dimension");
 
-        npy_intp* strides =  PyArray_STRIDES(array);
-        //printf("strides: %d %d %d(%d %d %d)\n", strides[0], strides[1], strides[2], size_x, size_y, size_z);
-        if(strides[2] != PyArray_ITEMSIZE(array)) {
-            throw std::invalid_argument("stride[0] is not 1");
-        }
-        if(strides[1] != PyArray_ITEMSIZE(array)*size_x) {
-            throw std::invalid_argument("stride[1] is not 1");
-        }
-        if(strides[0] != PyArray_ITEMSIZE(array)*size_y*size_x) {
-            throw std::invalid_argument("stride[2] is not 1");
-        }
+    npy_intp* strides =  PyArray_STRIDES(array);
+    //printf("strides: %d %d %d(%d %d %d)\n", strides[0], strides[1], strides[2], size_x, size_y, size_z);
+    if(strides[2] != PyArray_ITEMSIZE(array)) {
+        throw std::invalid_argument("stride[0] is not 1");
+    }
+    if(strides[1] != PyArray_ITEMSIZE(array)*size_x) {
+        throw std::invalid_argument("stride[1] is not 1");
+    }
+    if(strides[0] != PyArray_ITEMSIZE(array)*size_y*size_x) {
+        throw std::invalid_argument("stride[2] is not 1");
+    }
 
-        ptr = (T*)PyArray_DATA(array);
-        count_x = size_x;
-        count_y = size_y;
-        count_z = size_z;
+    ptr = (T*)PyArray_DATA(array);
+    count_x = size_x;
+    count_y = size_y;
+    count_z = size_z;
 }
 
 template<typename T>
 void object_to_numpyNd_nocopy(T* &ptr, PyObject* obj, int max_dimension, int& dimension, int* sizes, long long int* strides, int type=NPY_DOUBLE) {
-        PyArrayObject* array = ensure_array(obj, -1, type);
+    PyArrayObject* array = ensure_array(obj, -1, type);
 
-        //printf("dim = %i maxdim = %i %i\n", dimension, max_dimension,  (int)PyArray_NDIM(array));
-        dimension = (int)PyArray_NDIM(array);
-        if(dimension > max_dimension) {
-            std::stringstream msg;
-            msg << "array dimension is bigger than allowed: dim = " << dimension << " maxdim = " << max_dimension;
-            throw std::invalid_argument(msg.str());
-        }
+    //printf("dim = %i maxdim = %i %i\n", dimension, max_dimension,  (int)PyArray_NDIM(array));
+    dimension = (int)PyArray_NDIM(array);
+    if(dimension > max_dimension) {
+        std::stringstream msg;
+        msg << "array dimension is bigger than allowed: dim = " << dimension << " maxdim = " << max_dimension;
+        throw std::invalid_argument(msg.str());
+    }
 
-        for(int i = 0; i < dimension; i++) {
-            sizes[i] = PyArray_DIMS(array)[i];
-            strides[i] = PyArray_STRIDES(array)[i];
-        }
-        ptr = (T*)PyArray_DATA(array);
+    for(int i = 0; i < dimension; i++) {
+        sizes[i] = PyArray_DIMS(array)[i];
+        strides[i] = PyArray_STRIDES(array)[i];
+    }
+    ptr = (T*)PyArray_DATA(array);
 }
 
 
@@ -288,10 +300,6 @@ void find_nan_min_max(const double* const block_ptr, const long long length, boo
     max_ = max;
 }
 
-
-
-
-
 PyObject* find_nan_min_max_(PyObject* self, PyObject* args) {
     PyObject* result = NULL;
     PyObject* block;
@@ -330,7 +338,6 @@ void nansum(const double* const __restrict__ block_ptr, const long long length, 
     }
     sum_ = sum;
 }
-
 
 PyObject* nansum_(PyObject* self, PyObject* args) {
     PyObject* result = NULL;
@@ -473,7 +480,7 @@ void histogram1d(const double* const __restrict__ block, const long long block_s
             }
         }
     }
-    /*/
+    */
 
 
     const double scale = 1 / (max-min);;
@@ -978,6 +985,7 @@ PyObject* histogramNd_(PyObject* self, PyObject* args) {
         try {
             if(!PyList_Check(blocklist))
                 throw std::invalid_argument("histogramNd_: blocks is not a list of blocks");
+
             dimensions = PyList_Size(blocklist);
 
             if(!PyList_Check(minimalist))
@@ -1369,121 +1377,136 @@ PyObject* statisticNd_(PyObject* self, PyObject* args) {
         T *block_ptrs[MAX_DIMENSIONS];
         bool native = false;
 
-        PyArrayObject* weights = nullptr;
-        T *weights_ptrs[MAX_WEIGHTS];
-        double *counts_ptr = NULL;
-        if(!PyList_Check(blocklist))
-            throw std::invalid_argument("statisticNd_: blocklist (first argument) is not a list");
+        try {
+            PyArrayObject* weights = nullptr;
+            T *weights_ptrs[MAX_WEIGHTS];
+            double *counts_ptr = NULL;
+            if(!PyList_Check(blocklist))
+                throw std::invalid_argument("statisticNd_: blocklist (first argument) is not a list");
 
-        dimensions = PyList_Size(blocklist);
-        dimensions_grid = dimensions + 1; // one dimension higher for multiple output values
+            dimensions = PyList_Size(blocklist);
+            dimensions_grid = dimensions + 1; // one dimension higher for multiple output values
 
-        if(weightslist != Py_None) {
-            if(!PyArray_Check(weightslist)) {
-                throw std::invalid_argument("statisticNd_: weightslist (second argument) is not an array");
-            }
-
-            weights = ensure_array(weightslist,1, NP_TYPE);
-            weights_count = PyArray_DIM(weights, 0);
-        }
-
-        if(!PyList_Check(minimalist))
-            throw std::invalid_argument("statisticNd_: minimalist (fourth argument) is not a list");
-        if(PyList_Size(minimalist) != dimensions) {
-            std::stringstream msg;
-            msg << "statisticNd_: minima is of length " << PyList_Size(minimalist) << " expected " << dimensions;
-            throw std::invalid_argument(msg.str());
-        }
-
-        if(!PyList_Check(maximalist))
-            throw std::invalid_argument("statisticNd_: maximalist (fifth argument) is not a list");
-        if(PyList_Size(maximalist) != dimensions) {
-            std::stringstream msg;
-            msg << "statisticNd_: maximalist is of length " << PyList_Size(maximalist) << " expected " << dimensions;
-            throw std::invalid_argument(msg.str());
-        } 
-
-        for(int d = 0; d < dimensions; d++) {
-            //object_to_numpy1d_nocopy       (block_ptrs[d], PyList_GetItem(blocklist, d), block_length);
-            bool native_current;
-            object_to_numpy1d_nocopy_endian(block_ptrs[d], PyList_GetItem(blocklist, d), block_length, native_current, stride_default, NP_TYPE);
-            PyObject *min = PyList_GetItem(minimalist, d);
-            PyObject *max = PyList_GetItem(maximalist, d);
-            if(!PyFloat_Check(min)) {
-                std::stringstream msg;
-                msg << "statisticNd_: element " << d << " of minima is not of type float";
-                throw std::invalid_argument(msg.str());
-            }
-
-            if(!PyFloat_Check(max)) {
-                std::stringstream msg;
-                msg << "statisticNd_: element " << d << " of maxima is not of type float";
-                throw std::invalid_argument(msg.str());
-            }
-
-            if(d == 0) {
-                native = native_current;
-            } else if(native != native_current) {
-                throw std::invalid_argument("statisticNd_: mixed native and non-native arrays not supported");
-            }
-            minima[d] =  (T)PyFloat_AsDouble(min);
-            maxima[d] =  (T)PyFloat_AsDouble(max);
-            //printf("min/max[%d] = %f/%f\n", d, minima[d], maxima[d]);
-        }
-
-        /*if(weights != Py_None) {
-            bool weight_native = true;
-            object_to_numpy1d_nocopy_endian(weights_ptr, weights, block_length, weight_native);
-            if(dimensions == 0) {
-                block_native[0] = weight_native; // ugly, but works to support 0 dim
-            }
-            if(weight_native != block_native[0])
-                throw std::invalid_argument("statisticNd_: mixed native and non-native arrays not supported");
-        }*/
-
-        if(weights != nullptr) {
-            int weights_ndim = PyArray_NDIM(weights);
-            if(weights_ndim <= 1) {
-                bool native_current = false;
-                object_to_numpy1d_nocopy_endian(weights_ptrs[0], weightslist, block_length, native_current, stride_default, NP_TYPE);
-                if(dimensions == 0) {
-                    native = native_current;
-                } else if(dimensions != 0 && native != native_current) {
+            if(weightslist != Py_None) {
+                if(PyArray_Check(weightslist)) {
+                    weights = ensure_array(weightslist,1, NP_TYPE);
+                    weights_count = PyArray_DIM(weights, 0);
+                } else if(PyList_Check(weightslist)) {
+                    weights = (PyArrayObject*) PyArray_FROM_OTF(weightslist, NP_TYPE, NPY_ARRAY_ENSUREARRAY);
+                    weights_count = PyList_Size(weightslist);
+                } else {
                     std::stringstream msg;
-                    msg << "statisticNd_: mixed native and non-native arrays not supported (weights ndim: " << weights_ndim << ")";
+                    PyTypeObject* type = Py_TYPE(weightslist);
+                    msg << "statisticNd_: weightslist (second argument) must be either array or list, was " << type->tp_name;
                     throw std::invalid_argument(msg.str());
                 }
-            } else {
-                for(int d = 0; d < weights_count; d++) {
+            }
+
+            if(!PyList_Check(minimalist))
+                throw std::invalid_argument("statisticNd_: minimalist (fourth argument) is not a list");
+            if(PyList_Size(minimalist) != dimensions) {
+                std::stringstream msg;
+                msg << "statisticNd_: minima is of length " << PyList_Size(minimalist) << " expected " << dimensions;
+                throw std::invalid_argument(msg.str());
+            }
+
+            if(!PyList_Check(maximalist))
+                throw std::invalid_argument("statisticNd_: maximalist (fifth argument) is not a list");
+            if(PyList_Size(maximalist) != dimensions) {
+                std::stringstream msg;
+                msg << "statisticNd_: maximalist is of length " << PyList_Size(maximalist) << " expected " << dimensions;
+                throw std::invalid_argument(msg.str());
+            } 
+
+            for(int d = 0; d < dimensions; d++) {
+                //object_to_numpy1d_nocopy       (block_ptrs[d], PyList_GetItem(blocklist, d), block_length);
+                bool native_current;
+                object_to_numpy1d_nocopy_endian(block_ptrs[d], PyList_GetItem(blocklist, d), block_length, native_current, stride_default, NP_TYPE);
+                PyObject *min = PyList_GetItem(minimalist, d);
+                PyObject *max = PyList_GetItem(maximalist, d);
+                if(!PyFloat_Check(min)) {
+                    std::stringstream msg;
+                    msg << "statisticNd_: element " << d << " of minima is not of type float";
+                    throw std::invalid_argument(msg.str());
+                }
+
+                if(!PyFloat_Check(max)) {
+                    std::stringstream msg;
+                    msg << "statisticNd_: element " << d << " of maxima is not of type float";
+                    throw std::invalid_argument(msg.str());
+                }
+
+                if(d == 0) {
+                    native = native_current;
+                } else if(native != native_current) {
+                    throw std::invalid_argument("statisticNd_: mixed native and non-native arrays not supported");
+                }
+                minima[d] =  (T)PyFloat_AsDouble(min);
+                maxima[d] =  (T)PyFloat_AsDouble(max);
+                //printf("min/max[%d] = %f/%f\n", d, minima[d], maxima[d]);
+            }
+
+            /*if(weights != Py_None) {
+                bool weight_native = true;
+                object_to_numpy1d_nocopy_endian(weights_ptr, weights, block_length, weight_native);
+                if(dimensions == 0) {
+                    block_native[0] = weight_native; // ugly, but works to support 0 dim
+                }
+                if(weight_native != block_native[0])
+                    throw std::invalid_argument("statisticNd_: mixed native and non-native arrays not supported");
+            }*/
+
+            if(weights != nullptr) {
+                int weights_ndim = PyArray_NDIM(weights);
+                if(weights_ndim <= 1) {
                     bool native_current = false;
-                    npy_intp indices[1] = {d};
-                    const char* itemptr = (const char*) PyArray_GetPtr(weights, indices);
-                    object_to_numpy1d_nocopy_endian(weights_ptrs[d], PyArray_GETITEM(weights, itemptr), block_length, native_current, stride_default, NP_TYPE);
-                    if((d == 0) && (dimensions == 0)) {
+                    object_to_numpy1d_nocopy_endian(weights_ptrs[0], weightslist, block_length, native_current, stride_default, NP_TYPE);
+                    if(dimensions == 0) {
                         native = native_current;
-                    } else if(native != native_current) {
-                        throw std::invalid_argument("statisticNd_: mixed native and non-native arrays not supported");
+                    } else if(dimensions != 0 && native != native_current) {
+                        std::stringstream msg;
+                        msg << "statisticNd_: mixed native and non-native arrays not supported (weights ndim: " << weights_ndim << ")";
+                        throw std::invalid_argument(msg.str());
+                    }
+                } else {
+                    // list of ndarray for weights
+                    for(int d = 0; d < weights_count; d++) {
+                        bool native_current = false;
+                        object_to_numpy1d_nocopy_endian(weights_ptrs[d], PyList_GetItem(weightslist, d), block_length, native_current, stride_default, NP_TYPE);
+                        if((d == 0) && (dimensions == 0)) {
+                            native = native_current;
+                        } else if(native != native_current) {
+                            throw std::invalid_argument("statisticNd_: mixed native and non-native arrays not supported");
+                        }
                     }
                 }
             }
+
+            object_to_numpyNd_nocopy(counts_ptr, counts_object, MAX_DIMENSIONS, dimensions_grid, &count_sizes[0], &count_strides[0]);
+            for(int d = 0; d < dimensions_grid; d++) {
+                count_strides[d] /= 8; // convert from byte stride to element stride
+            }
+            if(count_strides[dimensions_grid-1] != 1) {
+                std::stringstream msg;
+                msg << "last dimension in grid should have stride of 1, not " << count_strides[dimensions_grid-1];
+                throw std::runtime_error(msg.str());
+            }
+            /*if(weights != Py_None) {
+                object_to_numpy1d_nocopy(weights_ptr, weights, block_length);
+            }*/
+            Py_BEGIN_ALLOW_THREADS
+            statisticNd_wrap_template(block_ptrs, weights_ptrs, block_length, weights_count, dimensions, counts_ptr, count_strides, count_sizes, minima, maxima, native, op_code, use_edges);
+            Py_END_ALLOW_THREADS
+            Py_INCREF(Py_None);
+            result = Py_None;
+
+        } catch(const std::runtime_error& e) {
+            PyErr_SetString(PyExc_RuntimeError, e.what());
+        } catch(const std::invalid_argument& e) {
+            PyErr_SetString(PyExc_ValueError, e.what());
+        } catch(...) {
+            PyErr_SetString(PyExc_RuntimeError, "unknown exception");
         }
-        object_to_numpyNd_nocopy(counts_ptr, counts_object, MAX_DIMENSIONS, dimensions_grid, &count_sizes[0], &count_strides[0]);
-        for(int d = 0; d < dimensions_grid; d++) {
-            count_strides[d] /= 8; // convert from byte stride to element stride
-        }
-        if(count_strides[dimensions_grid-1] != 1) {
-            std::stringstream msg;
-            msg << "last dimension in grid should have stride of 1, not " << count_strides[dimensions_grid-1];
-            throw std::runtime_error(msg.str());
-        }
-        /*if(weights != Py_None) {
-            object_to_numpy1d_nocopy(weights_ptr, weights, block_length);
-        }*/
-        Py_BEGIN_ALLOW_THREADS
-        statisticNd_wrap_template(block_ptrs, weights_ptrs, block_length, weights_count, dimensions, counts_ptr, count_strides, count_sizes, minima, maxima, native, op_code, use_edges);
-        Py_END_ALLOW_THREADS
-        Py_INCREF(Py_None);
-        result = Py_None;
     }
     return result;
 }
@@ -2246,12 +2269,6 @@ initvaexfast(void)
     if (module == NULL)
         INITERROR;
     struct module_state *st = GETSTATE(module);
-
-    st->error = PyErr_NewException("vaex.vaexfast.Error", NULL, NULL);
-    if (st->error == NULL) {
-        Py_DECREF(module);
-        INITERROR;
-    }
 
 #if PY_MAJOR_VERSION >= 3
     return module;
