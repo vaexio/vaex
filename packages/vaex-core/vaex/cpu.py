@@ -524,7 +524,11 @@ class TaskPartStatistic(TaskPart):
 
         # blocks = [as_flat_float(block) for block in blocks]
         if len(blocks) != 0:
-            dtype = np.find_common_type([block.dtype for block in blocks], [])
+            if np.lib.NumpyVersion(np.__version__) >= '1.25.0':
+                dtype = np.result_type(*[block.dtype for block in blocks])
+            else:
+                dtype = np.find_common_type([block.dtype for block in blocks], [])
+
             if dtype.str in ">f8 <f8 =f8":
                 statistic_function = vaex.vaexfast.statisticNd_f8
             elif dtype.str in ">f4 <f4 =f4":
