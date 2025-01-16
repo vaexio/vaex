@@ -54,7 +54,12 @@ template <class IndexType = default_index_type>
 class Grid {
   public:
     using index_type = IndexType;
-    Grid(std::vector<Binner *> binners) : binners(binners), dimensions(binners.size()), shapes(binners.size()), strides(binners.size()) {
+    Grid(std::vector<Binner *> binners)
+        : binners(binners)
+        , strides(binners.size())
+        , shapes(binners.size())
+        , dimensions(binners.size())
+    {
         length1d = 1;
         for (size_t i = 0; i < dimensions; i++) {
             shapes[i] = binners[i]->shape();
