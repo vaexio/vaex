@@ -144,7 +144,7 @@ class Mask {
         }
         auto ar_ordered = py::array_t<int64_t>(found);
         auto ar_ordered_unsafe = ar_ordered.mutable_unchecked<1>();
-        for (size_t i = 0; i < found; i++) {
+        for (int64_t i = 0; i < found; i++) {
             ar_ordered_unsafe(i) = ar_unsafe(found - 1 - i);
         }
         return ar_ordered;
