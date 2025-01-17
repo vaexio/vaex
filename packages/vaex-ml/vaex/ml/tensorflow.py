@@ -95,7 +95,10 @@ class DataFrameAccessorTensorflow():
                         chunk_shape = len(chunk[0].shape) + 1
                         transpose_order = np.arange(1, chunk_shape).tolist() + [0]
                         X = np.array(chunk[:-n_target_cols]).transpose(transpose_order)
-                        y = np.array(chunk[-n_target_cols:], copy=False).T
+                        if np.lib.NumpyVersion(np.__version__) >= '2.0.0':
+                            y = np.array(chunk[-n_target_cols:]).T
+                        else:
+                            y = np.array(chunk[-n_target_cols:], copy=False).T
                         yield (X, y)
 
                 else:
