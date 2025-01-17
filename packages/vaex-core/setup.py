@@ -1,4 +1,5 @@
 from setuptools import setup
+import shutil
 import sys
 import os
 from importlib.machinery import SourceFileLoader
@@ -25,6 +26,11 @@ version = version.__version__
 url = "https://www.github.com/maartenbreddels/vaex"
 # TODO: after python2 supports frops, future and futures can also be dropped
 setup_requires = ["numpy~=1.17"]
+if use_skbuild:
+    if not shutil.which("cmake"):
+        setup_requires += ["cmake"]
+    if not shutil.which("ninja"):
+        setup_requires += ["ninja"]
 install_requires_core = [
     "numpy~=1.17",
     "aplus",
