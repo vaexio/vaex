@@ -12,7 +12,7 @@ author_email= 'maartenbreddels@gmail.com'
 license     = 'MIT'
 version     = version.__version__
 url         = 'https://www.github.com/maartenbreddels/vaex'
-install_requires_astro = ['vaex-core~=4.5', 'astropy']
+install_requires_astro = ['vaex-core~=4.5', 'astropy>=6.0.0']
 
 setup(
     name=name + '-astro',
