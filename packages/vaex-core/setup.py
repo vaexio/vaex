@@ -31,6 +31,7 @@ install_requires_core = [
     "dask!=2022.4.0,<2024.9",  # fingerprinting in no longer deterministic as of 2024.9.0
     "filelock",
     "frozendict!=2.2.0",
+    "future",
     "nest_asyncio>=1.3.3",
     "numpy>=1.19.3,<3", # 1.19.3 is the first version with 3.9 wheels
     "pandas>=1.0,<3",
