@@ -1,4 +1,5 @@
 /* regex match/search using string_view */
+#include <cstdint>
 #include <nonstd/string_view.hpp>
 #include <regex>
 
