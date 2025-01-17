@@ -25,34 +25,34 @@ version = version.__version__
 url = "https://www.github.com/maartenbreddels/vaex"
 setup_requires = ["numpy~=2.0"] # see vaex-core pyproject.toml
 install_requires_core = [
-    "numpy>=1.19.3,<3", # 1.19.3 is the first version with 3.9 wheels
     "aplus",
-    "tabulate>=0.8.3",
-    "dask!=2022.4.0,<2024.9",  # fingerprinting in no longer deterministic as of 2024.9.0
-    "pyyaml",
-    "six",
-    "cloudpickle",
-    "pandas>=1.0,<3",
-    "nest_asyncio>=1.3.3",
-    "pyarrow>=5.0.0",
-    "frozendict!=2.2.0",
     "blake3",
+    "cloudpickle",
+    "dask!=2022.4.0,<2024.9",  # fingerprinting in no longer deterministic as of 2024.9.0
     "filelock",
+    "frozendict!=2.2.0",
+    "nest_asyncio>=1.3.3",
+    "numpy>=1.19.3,<3", # 1.19.3 is the first version with 3.9 wheels
+    "pandas>=1.0,<3",
+    "pyarrow>=5.0.0",
     "pydantic>=1.8.0",
+    "pyyaml",
     "rich",
+    "six",
+    "tabulate>=0.8.3",
 ]
 extras_require_core = {
     "all": [
-        "gcsfs>=0.6.2",
-        "s3fs",
-        "ipyvolume",
+        "aplus",
         "diskcache",
         "fsspec",
+        "gcsfs>=0.6.2",
+        "graphviz",
         "h5py",
         "httpx",
-        "aplus",
+        "ipyvolume",
         "psutil",
-        "graphviz",
+        "s3fs",
     ],
 }
 
