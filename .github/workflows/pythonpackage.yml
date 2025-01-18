@@ -128,7 +128,7 @@ jobs:
         PROJECT_ID: ${{ secrets.GCP_PROJECT_ID_VAEX }}
       run: ./ci/06-run-contrib-tests.sh
 
-    - name: Test comand line
+    - name: Test command line
       run: |
         vaex convert ~/.vaex/data/helmi-dezeeuw-2000-FeH-v2-10percent.hdf5 test.parquet
         VAEX_PROGRESS_TYPE=rich vaex convert ~/.vaex/data/helmi-dezeeuw-2000-FeH-v2-10percent.hdf5 test.parquet
