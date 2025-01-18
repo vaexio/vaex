@@ -84,11 +84,19 @@ for op in _binary_ops:
             def operator(b, a):
                 a_data = a
                 b_data = b
-                if isinstance(a, NumpyDispatch):
-                    a_data = a.numpy_array
-                if isinstance(b, NumpyDispatch):
-                    b_data = b.numpy_array
+                if isinstance(a_data, NumpyDispatch):
+                    a_data = a_data.numpy_array
+                if isinstance(b_data, NumpyDispatch):
+                    b_data = b_data.numpy_array
+
+                result_type = np.result_type(np.min_scalar_type(a_data), np.min_scalar_type(b_data))
+                if isinstance(a_data, np.ndarray):
+                    a_data = a_data.astype(result_type)
+                if isinstance(b_data, np.ndarray):
+                    b_data = b_data.astype(result_type)
+
                 result_data = op['op'](a_data, b_data)
+
                 if isinstance(a, NumpyDispatch):
                     result_data = a.add_missing(result_data)
                 if isinstance(b, NumpyDispatch):
