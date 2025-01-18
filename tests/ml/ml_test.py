@@ -375,7 +375,7 @@ def test_robust_scaler(df_factory):
     scaler_vaex = vaex.ml.RobustScaler(features=features)
     result_vaex = scaler_vaex.fit_transform(ds)
 
-    np.testing.assert_array_almost_equal(scaler_vaex.center_, scaler_skl.center_, decimal=0.2)
+    np.testing.assert_array_almost_equal(scaler_vaex.center_, scaler_skl.center_, decimal=2)
 
     # check that an exception is rased for invalid percentile range
     scaler_vaex = vaex.ml.RobustScaler(features=features, percentile_range=(12, 175))
