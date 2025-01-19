@@ -110,12 +110,15 @@ def validate_expression(expr, variable_set, function_set=[], names=None):
     elif isinstance(expr, ast_Str):
         pass  # as well as strings
     elif isinstance(expr, _ast.Call):
-        validate_func(expr.func, function_set)
-        last_func = expr
-        for arg in expr.args:
-            validate_expression(arg, variable_set, function_set, names)
-        for arg in expr.keywords:
-            validate_expression(arg, variable_set, function_set, names)
+        if isinstance(expr.func, _ast.Attribute):
+            pass
+        else:
+            validate_func(expr.func, function_set)
+            last_func = expr
+            for arg in expr.args:
+                validate_expression(arg, variable_set, function_set, names)
+            for arg in expr.keywords:
+                validate_expression(arg, variable_set, function_set, names)
     elif isinstance(expr, _ast.Compare):
         validate_expression(expr.left, variable_set, function_set, names)
         for op in expr.ops:
@@ -370,6 +373,10 @@ class ExpressionString(ast.NodeVisitor):
         return '{' + ', '.join(parts) + '}'
 
     def visit_Call(self, node):
+        if isinstance(node.func, _ast.Attribute):
+            # assuming np.float64(0.0) for instance
+            return str(node.args[0].value)
+
         args = [self.visit(k) for k in node.args]
         keywords = []
         if hasattr(node, 'keywords'):

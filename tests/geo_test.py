@@ -1,8 +1,5 @@
 from common import *
 
-if np.lib.NumpyVersion(np.__version__) >= "2.0.0":
-    np.set_printoptions(legacy="1.25")
-
 def test_virtual_columns_spherical():
     df = vaex.from_scalars(alpha=0, delta=0, distance=1)
     df.add_virtual_columns_spherical_to_cartesian("alpha", "delta", "distance", "x", "y", "z", radians=False)
