@@ -47,12 +47,8 @@ default_shape = 128
 PRINT_MAX_COUNT = 10
 
 expression_namespace = {}
+expression_namespace['np'] = np
 expression_namespace['nan'] = np.nan
-
-
-expression_namespace = {}
-expression_namespace['nan'] = np.nan
-
 
 _binary_ops = [
     dict(code="+", name='add', op=operator.add),
