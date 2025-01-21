@@ -23,7 +23,7 @@ install_requires_ml = [
       'lightgbm~=4.0',
       'catboost',
 ]
-extras_require_ml = {'all': ['tensorflow~=2.1']}
+extras_require_ml = {'all': ['tensorflow~=2.18']}
 
 setup(name=name + '-ml',
       version=version,
