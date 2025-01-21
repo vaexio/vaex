@@ -101,6 +101,7 @@ jobs:
 
     - name: Check ml spec
       run: |
+        pip install dask[dataframe]
         python -m vaex.ml.spec packages/vaex-ml/vaex/ml/spec_new.json
         diff packages/vaex-ml/vaex/ml/spec_new.json packages/vaex-ml/vaex/ml/spec.json
 
