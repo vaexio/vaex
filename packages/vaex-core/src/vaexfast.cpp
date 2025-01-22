@@ -1687,50 +1687,35 @@ void grid_find_edges(
     long long * const __restrict__ edges_grid,
     const long long * const __restrict__ edges_strides
 ) {
-    long long length_1d = 1;//grid_strides[0];
-    //printf("dimension: %d\n", dimensions);
-    for(int d = 0; d < dimensions-1; d++) {
-        //printf("length_1d = %d, mul by %d\n", length_1d, grid_sizes[d]);
-        length_1d *= grid_sizes[d];
-    }
-    //length_1d *= grid_strides[0];
-    /*for(int d = 0; d < dimensions+1; d++) {
-        printf("strides[%d] = %d size[%d] = %d\n", d, grid_strides[d], d, grid_sizes[d]);
-    }
-    for(int d = 0; d < dimensions; d++) {
-        printf("strides[%d] = %d\n", d, output_strides[d]);
-    }*/
-    //printf("length_1d = %d\n", length_1d);
-    //printf("output = %p\n", output);
-    //printf("grid sizes: %d %d\n", grid_sizes[0], grid_sizes[1]);
-    //printf("edges_strides: %d %d\n", edges_strides[0], edges_strides[1]);
-    //printf("values_strides: %d %d\n", values_strides[0], values_strides[1]);
-    //printf("cumulative_grid_strides: %d %d %d\n", cumulative_grid_strides[0], cumulative_grid_strides[1], cumulative_grid_strides[2]);
-    //printf("dimensions: %d\n", dimensions);
+    long long length_1d = 1;
+    long long grid_stride = 1;
+    long long value_stride = 1;
 
+    for(int d = 0; d < dimensions-1; d++) {
+        length_1d *= grid_sizes[d];
+        grid_stride *= cumulative_grid_strides[d];
+        value_stride *= values_strides[d];
+    }
 
     for(long long int i = 0; i < length_1d; i++) {
-        double* const __restrict__ cumulative_grid1d = &cumulative_grid[i*cumulative_grid_strides[dimensions-2]];
-        double value = values_grid[i*values_strides[dimensions-2]];
+        double* const __restrict__ cumulative_grid1d = &cumulative_grid[i*grid_stride];
+        double const value = values_grid[i*value_stride];
+
         long long left = 0; //  'edge' index if left of the value we are looking for
-        //printf("first/last value: %f / %f, looking for %f %dn", cumulative_grid1d[0], cumulative_grid1d[cumulative_grid_strides[dimensions-2]-1], value, left);
-        while(cumulative_grid1d[left+1] < value && left < cumulative_grid_strides[dimensions-2]-1) {
+        while(cumulative_grid1d[left+1] < value && left < grid_sizes[dimensions-1]-1 ) {
             left+= 1;
         }
         long long right = left; // 'edge' index that is right of the value
-        while (cumulative_grid1d[right] < value && right < cumulative_grid_strides[dimensions-2]-1) {
+        while (cumulative_grid1d[right] < value && right < grid_sizes[dimensions-1]-1) {
             right+= 1;
         }
-        //while (cumulative_grid[right+1] == cumulative_grid[right]) { // make sure we get the right most bin
-        //    right+= 1;
-        //}
-        //printf("setting: %d(%d) %d(%d)\n", i*edges_strides[0]+edges_strides[dimensions-1]*0, left, i*edges_strides[0]+edges_strides[dimensions-1]*1, right);
-        edges_grid[i*edges_strides[dimensions-2]+edges_strides[dimensions-1]*0] = left;
-        edges_grid[i*edges_strides[dimensions-2]+edges_strides[dimensions-1]*1] = right;
+
+        long long int base_index = i*edges_strides[dimensions-2];
+        long int offset = edges_strides[dimensions-1];
+
+        edges_grid[base_index] = left;
+        edges_grid[base_index + offset] = right;
     }
-
-
-
 }
 
 
@@ -1759,7 +1744,6 @@ PyObject* grid_find_edges_(PyObject* self, PyObject* args) {
             int dimensions_cumulative_grid= -1;
             object_to_numpyNd_nocopy(cumulative_grid_ptr, cumulative_grid, MAX_DIMENSIONS, dimensions_cumulative_grid, &cumulative_grid_sizes[0], &cumulative_grid_strides[0]);
 
-
             int dimensions_values = dimensions_cumulative_grid-1;
             object_to_numpyNd_nocopy(values_ptr, values_grid, MAX_DIMENSIONS, dimensions_values, &values_sizes[0], &values_strides[0]);
 
@@ -1774,7 +1758,7 @@ PyObject* grid_find_edges_(PyObject* self, PyObject* args) {
                 values_strides[d] /= 8; // convert from byte stride to element stride
                 if(cumulative_grid_sizes[d] != values_sizes[d]) {
                     std::stringstream msg;
-                    msg << "grid_find_edges_: cumulative_grid and values_grid dont match shape in dimension: " << d;
+                    msg << "grid_find_edges_: cumulative_grid and values_grid do not match shape in dimension: " << d;
                     throw std::invalid_argument(msg.str());
                 }
                 if(cumulative_grid_sizes[d] != edges_sizes[d]) {
