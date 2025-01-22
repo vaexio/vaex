@@ -276,13 +276,12 @@ setup(
     zip_safe=False,
     # 3.9 is the oldest python version that the new numpy build system supports
     # ref https://github.com/scipy/oldest-supported-numpy/pull/86
-    python_requires=">=3.9,<3.14",
+    python_requires=">=3.9,<3.13",
     classifiers=[
         "Programming Language :: Python :: 3.9",
         "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",
         "Programming Language :: Python :: 3.12",
-        "Programming Language :: Python :: 3.13",
     ],
     extras_require=extras_require_core,
     entry_points={
