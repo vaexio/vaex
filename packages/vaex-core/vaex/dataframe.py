@@ -1705,13 +1705,12 @@ class DataFrame(object):
 
                     values = np.array((totalcounts + 1) * p / 100.)  # make sure it's an ndarray
                     values[empty] = 0
+
                     floor_values = np.array(np.floor(values))
                     ceil_values = np.array(np.ceil(values))
 
-                    # non-deterministic behaviour in vaex/tests/percentile_approx_test.py narrowed down to here:
-                    #     required to feed floor_values/ceil_values with astype(np.float64) even if already of dtype=np.float64
-                    vaex.vaexfast.grid_find_edges(cumulative_grid.astype(np.float64), floor_values.astype(np.float64), edges_floor)
-                    vaex.vaexfast.grid_find_edges(cumulative_grid.astype(np.float64), ceil_values.astype(np.float64), edges_ceil)
+                    vaex.vaexfast.grid_find_edges(cumulative_grid.astype(np.float64), floor_values, edges_floor)
+                    vaex.vaexfast.grid_find_edges(cumulative_grid.astype(np.float64), ceil_values, edges_ceil)
 
                     def index_choose(a, indices):
                         # alternative to np.choise, which doesn't like the last dim to be >= 32
@@ -1734,11 +1733,14 @@ class DataFrame(object):
                         elif denom == 0:
                             denom = 1.0
 
+                        # lower and upper bound
+                        lb, ub = percentile_limits[i]
                         u = np.array(values - left_value) / denom
                         # TODO: should it really be -3? not -2
-                        xleft, xright = percentile_limits[i][0] + (left - 0.5) * (percentile_limits[i][1] - percentile_limits[i][0]) / (shape[-1] - 3),\
-                            percentile_limits[i][0] + (right - 0.5) * (percentile_limits[i][1] - percentile_limits[i][0]) / (shape[-1] - 3)
+                        xleft  = lb + (left  - 0.5) * (ub - lb) / (shape[-1] - 3)
+                        xright = lb + (right - 0.5) * (ub - lb) / (shape[-1] - 3)
                         x = xleft + (xright - xleft) * u  # /2
+
                         return x
 
                     x1 = calculate_x(edges_floor, floor_values)
