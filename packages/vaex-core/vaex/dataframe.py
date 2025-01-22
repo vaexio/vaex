@@ -1675,20 +1675,19 @@ class DataFrame(object):
         def finish(percentile_limits, counts_list):
             results = []
             for i, counts in enumerate(counts_list):
-                counts = counts.astype(np.float64)
                 # remove the nan and boundary edges from the first dimension,
                 nonnans = list([slice(2, -1, None) for k in range(len(counts.shape) - 1)])
                 nonnans.append(slice(1, None, None))  # we're gonna get rid only of the nan's, and keep the overflow edges
                 nonnans = tuple(nonnans)
-                cumulative_grid = np.cumsum(counts.__getitem__(nonnans), -1)  # convert to cumulative grid
 
-                totalcounts = np.sum(counts.__getitem__(nonnans), -1)
+                counts_nonnans = counts.__getitem__(nonnans)
+                cumulative_grid = np.cumsum(counts_nonnans, -1)  # convert to cumulative grid
+                totalcounts = np.sum(counts_nonnans, -1)
                 empty = totalcounts == 0
 
                 original_shape = counts.shape
                 shape = cumulative_grid.shape  # + (original_shape[-1] - 1,) #
 
-                counts = np.sum(counts, -1)
                 edges_floor = np.zeros(shape[:-1] + (2,), dtype=np.int64)
                 edges_ceil = np.zeros(shape[:-1] + (2,), dtype=np.int64)
                 # if we have an off  # of elements, say, N=3, the center is at i=1=(N-1)/2
@@ -1703,12 +1702,16 @@ class DataFrame(object):
                     if p == 100:
                         percentiles.append(percentile_limits[i][1])
                         continue
+
                     values = np.array((totalcounts + 1) * p / 100.)  # make sure it's an ndarray
                     values[empty] = 0
                     floor_values = np.array(np.floor(values))
                     ceil_values = np.array(np.ceil(values))
-                    vaex.vaexfast.grid_find_edges(cumulative_grid, floor_values, edges_floor)
-                    vaex.vaexfast.grid_find_edges(cumulative_grid, ceil_values, edges_ceil)
+
+                    # non-deterministic behaviour in vaex/tests/percentile_approx_test.py narrowed down to here:
+                    #     required to feed floor_values/ceil_values with astype(np.float64) even if already of dtype=np.float64
+                    vaex.vaexfast.grid_find_edges(cumulative_grid.astype(np.float64), floor_values.astype(np.float64), edges_floor)
+                    vaex.vaexfast.grid_find_edges(cumulative_grid.astype(np.float64), ceil_values.astype(np.float64), edges_ceil)
 
                     def index_choose(a, indices):
                         # alternative to np.choise, which doesn't like the last dim to be >= 32
