@@ -358,7 +358,6 @@ import sys
 import platform
 version = tuple(map(int, numpy.__version__.split('.')))
 
-@pytest.mark.skipif(sys.platform != "linux" , reason="strange ref count issue with numpy")
 def test_robust_scaler(df_factory):
     x = np.array([-2.65395789, -7.97116295, -4.76729177, -0.76885033, -6.45609635])
     y = np.array([-8.9480332, -4.81582449, -3.73537263, -3.46051912,  1.35137275])
@@ -377,7 +376,7 @@ def test_robust_scaler(df_factory):
 
     np.testing.assert_array_almost_equal(scaler_vaex.center_, scaler_skl.center_, decimal=2)
 
-    # check that an exception is rased for invalid percentile range
+    # check that an exception is raised for invalid percentile range
     scaler_vaex = vaex.ml.RobustScaler(features=features, percentile_range=(12, 175))
     with pytest.raises(Exception):
         result_vaex = scaler_vaex.fit_transform(ds)
