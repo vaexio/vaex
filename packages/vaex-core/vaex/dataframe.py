@@ -1727,12 +1727,18 @@ class DataFrame(object):
                         left, right = edges[..., 0], edges[..., 1]
                         left_value = index_choose(cumulative_grid, left)
                         right_value = index_choose(cumulative_grid, right)
-                        with np.errstate(divide='ignore', invalid='ignore'):
-                            u = np.array((values - left_value) / (right_value - left_value))
-                            # TODO: should it really be -3? not -2
-                            xleft, xright = percentile_limits[i][0] + (left - 0.5) * (percentile_limits[i][1] - percentile_limits[i][0]) / (shape[-1] - 3),\
-                                percentile_limits[i][0] + (right - 0.5) * (percentile_limits[i][1] - percentile_limits[i][0]) / (shape[-1] - 3)
-                            x = xleft + (xright - xleft) * u  # /2
+
+                        denom = right_value - left_value
+                        if type(denom) == np.ndarray:
+                            denom[denom==0] = 1.0
+                        elif denom == 0:
+                            denom = 1.0
+
+                        u = np.array(values - left_value) / denom
+                        # TODO: should it really be -3? not -2
+                        xleft, xright = percentile_limits[i][0] + (left - 0.5) * (percentile_limits[i][1] - percentile_limits[i][0]) / (shape[-1] - 3),\
+                            percentile_limits[i][0] + (right - 0.5) * (percentile_limits[i][1] - percentile_limits[i][0]) / (shape[-1] - 3)
+                        x = xleft + (xright - xleft) * u  # /2
                         return x
 
                     x1 = calculate_x(edges_floor, floor_values)
