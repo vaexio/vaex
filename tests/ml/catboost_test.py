@@ -8,6 +8,9 @@ try:
     import vaex.datasets
     from sklearn.metrics import roc_auc_score, accuracy_score
 except ValueError as e:
+    # this try-except can be removed once catboost releases numpy v2 support
+    # ref https://github.com/catboost/catboost/issues/2671
+    # ref https://github.com/vaexio/vaex/pull/2449
     import re
     if re.match(r'numpy.dtype size changed', str(e)):
         pytestmark = pytest.mark.skip(f"all tests skipped due to: numpy2 incompatibility -- {e}")
