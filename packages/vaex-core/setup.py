@@ -24,9 +24,9 @@ license = "MIT"
 version = version.__version__
 url = "https://www.github.com/maartenbreddels/vaex"
 # TODO: after python2 supports frops, future and futures can also be dropped
-setup_requires = ["numpy~=1.17"]
+setup_requires = ["numpy>=1.17"]
 install_requires_core = [
-    "numpy~=1.17",
+    "numpy>=1.17",
     "aplus",
     "tabulate>=0.8.3",
     "dask!=2022.4.0,<2024.9",  # fingerprinting in no longer deterministic as of 2024.9.0
@@ -271,13 +271,14 @@ setup(
     if not use_skbuild
     else [],
     zip_safe=False,
-    python_requires=">=3.8,<3.13",  # 3.13 needs numpy 2.1 support ref https://github.com/vaexio/vaex/pull/2434
+    python_requires=">=3.8",
     classifiers=[
         "Programming Language :: Python :: 3.8",
         "Programming Language :: Python :: 3.9",
         "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",
         "Programming Language :: Python :: 3.12",
+        "Programming Language :: Python :: 3.13",
     ],
     extras_require=extras_require_core,
     entry_points={
