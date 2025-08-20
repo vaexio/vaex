@@ -10,11 +10,11 @@ find_package(NumPy REQUIRED)
 
 
 if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-    SET(CMAKE_CXX_FLAGS --std=c++11)
+    SET(CMAKE_CXX_FLAGS "--std=c++11 -Wno-enum-constexpr-conversion")
 endif()
 
 IF(CMAKE_COMPILER_IS_GNUCC)
-    SET(CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} -fdiagnostics-color -fmax-errors=4 -std=c++11 -Werror=return-type -Wno-unused-parameter -O3 -funroll-loops")
+    SET(CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} -fdiagnostics-color -fmax-errors=4 -std=c++11 -Werror=return-type -Wno-enum-constexpr-conversion -Wno-unused-parameter -O3 -funroll-loops")
     set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -O0")
     set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -O0")
 ENDIF(CMAKE_COMPILER_IS_GNUCC)

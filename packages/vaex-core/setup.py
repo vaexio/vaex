@@ -128,6 +128,7 @@ else:
         extra_compile_args += ["-DNDEBUG"]
 if sys.platform == "darwin":
     extra_compile_args.append("-mmacosx-version-min=10.9")
+    extra_compile_args.append("-Wno-enum-constexpr-conversion")
 
 
 
