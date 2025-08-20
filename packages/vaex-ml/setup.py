@@ -21,7 +21,7 @@ install_requires_ml = [
       'scikit-learn',
       'xgboost',
       'lightgbm~=4.0',
-      'catboost',
+      'catboost>=1.2.8',
 ]
 extras_require_ml = {'all': ['tensorflow~=2.18']}
 
