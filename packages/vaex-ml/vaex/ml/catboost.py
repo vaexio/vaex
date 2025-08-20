@@ -13,7 +13,7 @@ import catboost
 @vaex.serialize.register
 @generate.register
 class CatBoostModel(state.HasState):
-    '''The CatBoost algorithm 
+    '''The CatBoost algorithm.
 
 This class provides an interface to the CatBoost algorithm.
 CatBoost is a fast, scalable, high performance Gradient Boosting on
