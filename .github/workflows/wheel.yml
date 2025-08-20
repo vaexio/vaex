@@ -93,6 +93,8 @@ jobs:
         output-dir: packages/vaex-core/dist/
       env:
         CIBW_BEFORE_BUILD: ${{ startswith(matrix.os, 'ubuntu') && 'bash bin/install_pcre.sh' || startswith(matrix.os, 'macos') && 'sudo -E bash bin/install_pcre.sh' || '' }}
+        # Installation of cmake on musllinux requires openssl-dev to be present
+        CIBW_BEFORE_BUILD_LINUX: if command -v apk; then apk add openssl-dev; fi
         CIBW_BUILD_VERBOSITY: 2
         # temporary ref https://github.com/oconnor663/blake3-py/pull/45
         CIBW_BEFORE_TEST: pip install --force-reinstall blake3 --find-links https://github.com/ddelange/blake3-py/releases/expanded_assets/0.4.1
