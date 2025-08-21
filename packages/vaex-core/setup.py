@@ -36,6 +36,7 @@ install_requires_core = [
     "numpy>=1.19.3,<3", # 1.19.3 is the first version with 3.9 wheels
     "pandas>=1.0,<3",
     "pyarrow>=5.0.0",
+    "pyarrow<21.0.0;platform_system=='Windows'",
     "pydantic>=1.8.0",
     "pyyaml",
     "rich",

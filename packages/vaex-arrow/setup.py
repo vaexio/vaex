@@ -13,7 +13,8 @@ author_email = "maartenbreddels@gmail.com"
 license = 'MIT'
 version = version.__version__
 url = 'https://www.github.com/maartenbreddels/vaex'
-install_requires = ["vaex-core>=2.0.0,<3", "astropy>=2", "matplotlib>=1.3.1", "pillow", "pyarrow>=0.15"]
+# windows only: pyarrow<21.0.0 -- https://github.com/apache/arrow/issues/47234
+install_requires = ["vaex-core>=2.0.0,<3", "astropy>=2", "matplotlib>=1.3.1", "pillow", "pyarrow>=0.15", "pyarrow<21.0.0;platform_system=='Windows'"]
 
 setup(name=name + '-arrow',
       version=version,
