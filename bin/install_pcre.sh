@@ -104,7 +104,7 @@ function install_precompiled() {
         apt update
         apt install -y libpcre3-dev
     elif [ -n "$(which apk)" ]; then
-        apk add --update pcre
+        apk add --update pcre pcre-dev
     elif [ -n "$(which dnf)" ]; then
         dnf --setopt install_weak_deps=false -y install pcre
     else

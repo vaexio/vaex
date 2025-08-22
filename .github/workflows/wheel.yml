@@ -32,7 +32,7 @@ jobs:
         with:
           python-version: "3.x"
 
-      - run: pip install cibuildwheel==2.17.0 # sync version with pypa/cibuildwheel below
+      - run: pip install cibuildwheel==2.23.3 # sync version with pypa/cibuildwheel below
 
       - id: set-matrix
         env:
@@ -86,7 +86,7 @@ jobs:
       if: runner.os == 'Linux'
       uses: docker/setup-qemu-action@v3
 
-    - uses: pypa/cibuildwheel@v2.17.0 # sync version with pip install cibuildwheel above
+    - uses: pypa/cibuildwheel@v2.23.3 # sync version with pip install cibuildwheel above
       with:
         only: ${{ matrix.only }}
         package-dir: packages/vaex-core/
