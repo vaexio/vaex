@@ -23,7 +23,9 @@ install_requires_ml = [
       'lightgbm~=4.0',
       'catboost>=1.2.8',
 ]
-extras_require_ml = {'all': ['tensorflow~=2.18']}
+
+# https://stackoverflow.com/questions/79744362/import-tensorflow-statement-crashes-or-hangs-on-macos/79744363#79744363
+extras_require_ml = {'all': ['tensorflow~=2.18',"tensorflow<2.20.0;sys_platform=='darwin'"]}
 
 setup(name=name + '-ml',
       version=version,
