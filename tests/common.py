@@ -21,6 +21,7 @@ import vaex.server.service
 import vaex.server.tornado_server
 import vaex.server.dummy
 
+import pytest_asyncio
 
 
 test_port = 3911 + sys.version_info[0] * 10 + sys.version_info[1]
@@ -71,7 +72,7 @@ def buffer_size():
     return small_buffer
 
 
-@pytest.fixture(scope='session')
+@pytest_asyncio.fixture(scope='session')
 def webserver_tornado():
     webserver = vaex.server.tornado_server.WebServer(datasets=[], port=test_port, cache_byte_size=0)
     webserver.serve_threaded()
@@ -81,7 +82,7 @@ def webserver_tornado():
         webserver.stop_serving()
 
 
-@pytest.fixture(scope='session')
+@pytest_asyncio.fixture(scope='session')
 def webserver_fastapi():
     import vaex.server.fastapi
     webserver = vaex.server.fastapi.Server(port=test_port+1)
@@ -97,7 +98,7 @@ else:
     webservers = ['webserver_fastapi']
 
 
-@pytest.fixture(scope='session', params=webservers)
+@pytest_asyncio.fixture(scope='session', params=webservers)
 def webserver(request, webserver_fastapi, webserver_tornado, df_server, df_server_huge):
     webserver = locals()[request.param]
     df_example = vaex.example()
@@ -128,20 +129,8 @@ def df_server_huge():
     return df
 
 
-@pytest.fixture(scope="session")
-def event_loop():
-    """Don't close event loop at the end of every function decorated by
-    @pytest.mark.asyncio
-    """
-    import asyncio
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    yield loop
-    loop.close()
-
-
-@pytest.fixture()#scope='module')
-def tornado_client(webserver, event_loop):
+@pytest_asyncio.fixture
+def tornado_client(webserver): #, event_loop):
     client = vaex.connect("%s://localhost:%d" % (scheme, webserver.port))
     yield client
     client.close()
@@ -157,7 +146,7 @@ def dummy_client(df_server, df_server_huge):
 
 
 # @pytest.fixture(params=['dummy_client', 'tornado_client'])
-@pytest.fixture(params=['tornado_client'] if sys.version_info <= (3, 10) else [])
+@pytest.fixture(params=['tornado_client'])
 def client(request, dummy_client, tornado_client):
     named = dict(dummy_client=dummy_client, tornado_client=tornado_client)
     return named[request.param]
