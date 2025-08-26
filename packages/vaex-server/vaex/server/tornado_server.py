@@ -50,9 +50,7 @@ class WebSocketHandler(tornado.websocket.WebSocketHandler):
         # avoids this limitation of tornado, so we can send progress/cancel information
         logger.debug("get msg: %r", websocket_msg)
         try:
-            # see https://docs.python.org/3/library/asyncio-task.html#asyncio.create_task
-            # TODO: replace after we drop 36 support asyncio.create_task(handler.handle_message(data['bytes']))
-            asyncio.ensure_future(self._on_message(websocket_msg))
+            asyncio.create_task(self._on_message(websocket_msg))
         except:
             logger.exception("creating task")
 
@@ -128,16 +126,10 @@ class WebServer(threading.Thread):
 
     def serve_threaded(self):
         logger.debug("start thread")
-        if tornado.version_info[0] >= 5:
-            from tornado.platform.asyncio import AnyThreadEventLoopPolicy
-            # see https://github.com/tornadoweb/tornado/issues/2308
-            asyncio.set_event_loop_policy(AnyThreadEventLoopPolicy())
         self.start()
         logger.debug("wait for thread to run")
         self.started.wait()
         logger.debug("make tornado io loop the main thread's current")
-        # this will make the main thread use this ioloop as current
-        # self.ioloop.make_current()
 
     def run(self):
         self.mainloop()
@@ -145,6 +137,7 @@ class WebServer(threading.Thread):
     def mainloop(self):
         logger.info("serving at http://%s:%d" % (self.address, self.port))
         self.ioloop = tornado.ioloop.IOLoop.current()
+
         # listen doesn't return a server object, which we need to close
         # self.application.listen(self.port, address=self.address)
         from tornado.httpserver import HTTPServer
@@ -155,11 +148,6 @@ class WebServer(threading.Thread):
             self.started.set()
             raise
         self.started.set()
-        if tornado.version_info[0] >= 5:
-            from tornado.platform.asyncio import AnyThreadEventLoopPolicy
-            # see https://github.com/tornadoweb/tornado/issues/2308
-            asyncio.set_event_loop_policy(AnyThreadEventLoopPolicy())
-
         try:
             self.ioloop.start()
         except RuntimeError:
@@ -168,8 +156,7 @@ class WebServer(threading.Thread):
     def stop_serving(self):
         logger.debug("stop server")
         self.server.stop()
-        logger.debug("stop io loop")
-        # self.ioloop.stop()
+        logger.debug("stop service")
         self.service.stop()
         # for thread_pool in self.thread_pools:
         #     thread_pool.shutdown()
