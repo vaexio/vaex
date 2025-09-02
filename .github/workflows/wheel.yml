@@ -131,6 +131,6 @@ jobs:
 
     # https://github.com/pypa/gh-action-pypi-publish#trusted-publishing
     - name: Publish package distributions to PyPI
-      uses: pypa/gh-action-pypi-publish@v1.10.2
+      uses: pypa/gh-action-pypi-publish@v1.12.4
       with:
         skip-existing: true
