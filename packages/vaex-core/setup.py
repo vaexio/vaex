@@ -55,7 +55,7 @@ extras_require_core = {
         "httpx",
         "ipyvolume",
         "psutil",
-        "s3fs",
+        "s3fs>=2024",
     ],
 }
 
