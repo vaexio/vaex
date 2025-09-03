@@ -24,7 +24,7 @@ jobs:
       id-token: write  # pypa/gh-action-pypi-publish
 
     steps:
-    - uses: actions/checkout@v1
+    - uses: actions/checkout@v5
       with:
         submodules: true
 
@@ -80,7 +80,7 @@ jobs:
 
     # https://github.com/pypa/gh-action-pypi-publish#trusted-publishing
     - name: Publish package distributions to PyPI
-      uses: pypa/gh-action-pypi-publish@v1.10.2
+      uses: pypa/gh-action-pypi-publish@v1.12.4
       if: startsWith(github.ref, 'refs/tags')
       with:
         skip-existing: true
