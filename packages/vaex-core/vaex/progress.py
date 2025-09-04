@@ -183,7 +183,7 @@ def bar(type_name=None, title="processing", max_value=1):
 
 def tree(f=None, next=None, name=None, title=None):
     if f in [False, None] and _progress_tree_stack:
-        f = _progress_tree_stack[-1]
+        f = _progress_tree_stack[-1].hidden()
     if f in [False, None] and vaex.settings.main.progress.force:
         f = vaex.settings.main.progress.force
     if name is None:
