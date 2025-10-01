@@ -24,11 +24,11 @@ jobs:
       include: ${{ steps.set-matrix.outputs.include }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           submodules: true
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.x"
 
@@ -68,7 +68,7 @@ jobs:
         include: ${{ fromJson(needs.build_wheels_matrix.outputs.include) }}
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v5
       with:
         submodules: true
 
@@ -86,7 +86,7 @@ jobs:
       if: runner.os == 'Linux'
       uses: docker/setup-qemu-action@v3
 
-    - uses: pypa/cibuildwheel@v2.23.3 # sync version with pip install cibuildwheel above
+    - uses: pypa/cibuildwheel@v3.2.0 # sync version with pip install cibuildwheel above
       with:
         only: ${{ matrix.only }}
         package-dir: packages/vaex-core/
@@ -121,7 +121,7 @@ jobs:
       id-token: write  # pypa/gh-action-pypi-publish
 
     steps:
-    - uses: actions/download-artifact@v4
+    - uses: actions/download-artifact@v5
       with:
         path: dist/
         pattern: dist-*
@@ -131,6 +131,6 @@ jobs:
 
     # https://github.com/pypa/gh-action-pypi-publish#trusted-publishing
     - name: Publish package distributions to PyPI
-      uses: pypa/gh-action-pypi-publish@v1.12.4
+      uses: pypa/gh-action-pypi-publish@v1.13.0
       with:
         skip-existing: true
