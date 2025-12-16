@@ -194,7 +194,7 @@ def test_export_unicode_column_name_hdf5(tmpdir):
 #   assert df[0:2].s.tolist() == ['x', 'x']
 #   assert df[-3:-1].s.tolist() == ['y', 'y']
 
-@pytest.mark.parametrize("dtypes", [{}, {'name': np.object, 'age': 'Int64', 'weight': np.float}])
+@pytest.mark.parametrize("dtypes", [{}, {'name': 'string', 'age': 'Int64', 'weight': 'Float32'}])
 def test_multi_file_naive_read_convert_export(tmpdir, dtypes):
     current_dir = os.path.dirname(__file__)
 
@@ -236,7 +236,7 @@ def test_export_csv(df_local, tmpdir):
     assert '123456' in vaex.open(path)
 
 
-@pytest.mark.parametrize("dtypes", [{}, {'name': np.object, 'age': 'Int64', 'weight': np.float}])
+@pytest.mark.parametrize("dtypes", [{}, {'name': 'string', 'age': 'Int64', 'weight': 'Float32'}])
 def test_export_generates_same_hdf5_shasum(tmpdir, dtypes):
     current_dir = os.path.dirname(__file__)
 

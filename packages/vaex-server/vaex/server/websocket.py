@@ -66,15 +66,13 @@ class WebSocketHandler:
                     nonlocal last_progress
                     logger.debug("progress: %r", f)
                     last_progress = f
-                    # TODO: create task?
                     return await self.write_json({'msg_id': msg_id, 'msg': {'progress': f}})
+
                 # emit when it's the first time (None), at least 0.05 sec lasted, or and the end
                 # but never send old or same values
                 if (last_progress is None or (f - last_progress) > 0.05 or f == 1.0) and (last_progress is None or f > last_progress):
                     def wrapper():
-                        # see https://docs.python.org/3/library/asyncio-task.html#asyncio.create_task
-                        # TODO: replace after we drop 36 support progress_futures.append(asyncio.create_task(send_progress()))
-                        progress_futures.append(asyncio.ensure_future(send_progress()))
+                        progress_futures.append(asyncio.create_task(send_progress()))
                     ioloop.call_soon_threadsafe(wrapper)
                 return True
 

@@ -12,10 +12,10 @@ import sys
 import time
 import itertools
 import platform
+from importlib.machinery import SourceFileLoader
 
 
 import vaex.dataset
-import imp
 
 
 #import matplotlib
@@ -57,7 +57,7 @@ custom_module = None
 for path in path_list:
 	if os.path.exists(path):
 		print "loading", path
-		custom_module = imp.load_source('vaex.web.custom', path)
+		custom_module = SourceFileLoader('vaex.web.custom', path).load_module()
 	else:
 		print >>sys.stderr, path, "does not exist"
 if custom_module:

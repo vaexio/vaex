@@ -79,13 +79,11 @@ class AggListPrimitive : public AggregatorPrimitive<DataType, std::vector<typena
     }
     virtual void aggregate(int grid, int thread, default_index_type *indices1d, size_t length, uint64_t offset) {
         auto data_ptr = this->data_ptr[thread];
-        auto data_ptr2 = this->data_ptr2[thread];
+        //auto data_ptr2 = this->data_ptr2[thread];
         auto data_mask_ptr = this->data_mask_ptr[thread];
         // auto data_mask_ptr2 = this->data_mask_ptr2[thread];
         auto grid_data = &this->grid_data[grid * this->grid->length1d];
         // auto grid_data_order = &this->grid_data_order[grid * this->grid->length1d];
-        auto null_count = &this->null_count[grid * this->grid->length1d];
-        auto nan_count = &this->nan_count[grid * this->grid->length1d];
 
         if (data_ptr == nullptr) {
             throw std::runtime_error("data not set");
@@ -161,10 +159,9 @@ class AggListString : public AggBaseString<StringList64, IndexType> {
             }
 
             py::gil_scoped_release release;
-            int64_t flat_length = offset;
             for (size_t j = 0; j < this->grid->length1d; j++) {
                 // for (auto &s : grid_data[j]) {
-                for (int64_t i = 0; i < grid_data[j].length; i++) {
+                for (size_t i = 0; i < grid_data[j].length; i++) {
                     if (grid_data[j].is_null(i)) {
                         sl->push_null();
                     } else {
@@ -188,20 +185,10 @@ class AggListString : public AggBaseString<StringList64, IndexType> {
         if (string_sequence == nullptr) {
             throw std::runtime_error("string_sequence not set");
         }
-        // auto data_ptr = this->data_ptr[thread];
-        auto data_ptr2 = this->data_ptr2[thread];
-        auto data_mask_ptr = this->data_mask_ptr[thread];
-        // auto data_mask_ptr2 = this->data_mask_ptr2[thread];
         auto grid_data = &this->grid_data[grid * this->grid->length1d];
-        // auto grid_data_order = &this->grid_data_order[grid * this->grid->length1d];
-
-        auto null_count = &this->null_count[grid * this->grid->length1d];
-        auto nan_count = &this->nan_count[grid * this->grid->length1d];
-
         for (size_t j = 0; j < length; j++) {
             IndexType i = indices1d[j];
             if (!string_sequence->is_null(j + offset)) {
-                // grid_data[i].push_back(string_sequence->get(j + offset));
                 grid_data[i].push(string_sequence->view(j + offset));
             } else if (!dropnull) {
                 grid_data[i].push_null();

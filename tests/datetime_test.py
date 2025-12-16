@@ -25,7 +25,7 @@ def test_datetime_operations():
     assert df.date.dt.year.tolist() == pandas_df.date.dt.year.values.tolist()
     assert df.date.dt.is_leap_year.tolist() == pandas_df.date.dt.is_leap_year.values.tolist()
     assert any(df.date.dt.is_leap_year.tolist())
-    assert df.date.dt.weekofyear.tolist() == pandas_df.date.dt.weekofyear.values.tolist()
+    assert df.date.dt.weekofyear.tolist() == pandas_df.date.dt.isocalendar().week.values.tolist()
     assert df.date.dt.dayofyear.tolist() == pandas_df.date.dt.dayofyear.values.tolist()
     assert df.date.dt.dayofweek.tolist() == pandas_df.date.dt.dayofweek.values.tolist()
     assert df.date.dt.floor('H').tolist() == pandas_df.date.dt.floor('H').values.tolist()

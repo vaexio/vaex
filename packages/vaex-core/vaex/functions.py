@@ -605,7 +605,7 @@ def dt_weekofyear(x):
     1   6
     2  46
     """
-    return _to_pandas_series(x).dt.weekofyear.values
+    return _to_pandas_series(x).dt.isocalendar().week.values
 
 @register_function(scope='dt', as_property=True)
 def dt_hour(x):
@@ -2695,10 +2695,10 @@ def where(condition, x, y, dtype=None):
     else:
         # cast x and y
         if dtype is not None:
-            if np.can_cast(x, dtype):
+            if np.can_cast(np.min_scalar_type(x), dtype):
                 dtype_scalar = np.dtype(dtype)
                 x = dtype_scalar.type(x)
-            if np.can_cast(y, dtype):
+            if np.can_cast(np.min_scalar_type(y), dtype):
                 dtype_scalar = np.dtype(dtype)
                 y = dtype_scalar.type(y)
 

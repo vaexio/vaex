@@ -3,6 +3,7 @@
 
 #include <nonstd/string_view.hpp>
 #include <string>
+#include <iostream>
 typedef nonstd::string_view string_view;
 typedef std::string string;
 #include <pybind11/numpy.h>
@@ -489,15 +490,43 @@ class StringList : public StringSequenceBase {
 
 
     StringList(char *bytes, size_t byte_length, index_type *indices, size_t length, size_t offset = 0, uint8_t *null_bitmap = 0, int64_t null_offset = 0)
-        : StringSequenceBase(length, null_bitmap, null_offset), bytes(bytes), byte_length(byte_length), indices(indices), offset(offset), _own_bytes(false), _own_indices(false),
-          _own_null_bitmap(false), indices_length(length+1) {}
+        : StringSequenceBase(length, null_bitmap, null_offset)
+        , bytes(bytes)
+        , byte_length(byte_length)
+        , indices_length(length+1)
+        , indices(indices)
+        , offset(offset)
+        , _own_bytes(false)
+        , _own_indices(false)
+        , _own_null_bitmap(false)
+    {}
+
     StringList(size_t byte_length, size_t string_count, index_type *indices, size_t offset = 0, uint8_t *null_bitmap = 0)
-        : StringSequenceBase(string_count, null_bitmap), bytes(0), byte_length(byte_length), indices(indices), offset(offset), _own_bytes(true), _own_indices(false), _own_null_bitmap(false), indices_length(length+1) {
+        : StringSequenceBase(string_count, null_bitmap)
+        , bytes(0)
+        , byte_length(byte_length)
+        , indices_length(length+1)
+        , indices(indices)
+        , offset(offset)
+        , _own_bytes(true)
+        , _own_indices(false)
+        , _own_null_bitmap(false)
+    {
         bytes = (char *)malloc(byte_length);
         _own_bytes = true;
     }
+
     StringList(size_t byte_length=0, size_t string_count=0, size_t offset = 0, uint8_t *null_bitmap = 0, int64_t null_offset = 0)
-        : StringSequenceBase(string_count, null_bitmap, null_offset), bytes(0), byte_length(byte_length), indices(0), offset(offset), _own_bytes(true), _own_indices(true), _own_null_bitmap(false), indices_length(length+1) {
+        : StringSequenceBase(string_count, null_bitmap, null_offset)
+        , bytes(0)
+        , byte_length(byte_length)
+        , indices_length(length+1)
+        , indices(0)
+        , offset(offset)
+        , _own_bytes(true)
+        , _own_indices(true)
+        , _own_null_bitmap(false)
+    {
         bytes = (char *)malloc(byte_length);
         indices = (index_type *)malloc(sizeof(index_type) * (length + 1));
         _own_bytes = true;

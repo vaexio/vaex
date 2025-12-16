@@ -1,10 +1,10 @@
 import os
-import imp
+from importlib.machinery import SourceFileLoader
 from setuptools import setup
 
 dirname = os.path.dirname(__file__)
 path_version = os.path.join(dirname, "vaex/viz/_version.py")
-version = imp.load_source('version', path_version)
+version = SourceFileLoader('version', path_version).load_module()
 
 
 name = 'vaex'
@@ -18,6 +18,8 @@ install_requires_viz = ["vaex-core>=4.0.0,<5", "matplotlib>=1.3.1", "pillow"]
 setup(name=name + '-viz',
       version=version,
       description='Visualization for vaex',
+      long_description="Visualization for vaex",
+      long_description_content_type="text/markdown",
       url=url,
       author=author,
       author_email=author_email,

@@ -7,22 +7,27 @@ import json
 import multiprocessing
 import sys
 
-from pydantic import BaseModel, BaseSettings, Field
-from typing import List, Union, Optional, Dict
+from pydantic import BaseModel, Field
+import pydantic
+from typing import Any, List, Union, Optional, Dict
 from enum import Enum
-from .config import ConfigDefault
 
-logger = logging.getLogger("vaex.settings")
-_default_home = vaex.utils.get_vaex_home()
 try:
     import dotenv
     has_dotenv = True
 except:
     has_dotenv = False
-if has_dotenv:
-    from pydantic.env_settings import read_env_file
-    envs = read_env_file(ConfigDefault.env_file)
-    _default_home = envs.get('vaex_home', _default_home)
+
+
+logger = logging.getLogger("vaex.settings")
+_default_home = vaex.utils.get_vaex_home()
+
+
+class ConfigDefault:
+    pass
+
+
+from .minisettings import BaseSettings, Field
 
 # we may want to use this
 # class ByteAmount(str):
@@ -77,7 +82,7 @@ class Display(BaseSettings):
 
 class Chunk(BaseSettings):
     """Configure how a dataset is broken down in smaller chunks. The executor dynamically adjusts the chunk size based on `size_min` and `size_max` and the number of threads when `size` is not set."""
-    size: Optional[int] = Field(title="When set, fixes the number of chunks, e.g. do not dynamically adjust between min and max")
+    size: Optional[int] = Field(None, title="When set, fixes the number of chunks, e.g. do not dynamically adjust between min and max")
     size_min: int = Field(1024, title="Minimum chunk size")
     size_max: int = Field(1024**2, title="Maximum chunk size")
     class Config(ConfigDefault):
@@ -126,7 +131,7 @@ class Data(BaseSettings):
 class Progress(BaseSettings):
     """Data configuration"""
     type: str = Field('simple', title="Default progressbar to show: 'simple', 'rich' or 'widget'")
-    force: str = Field(None, title="Force showing a progress bar of this type, even when no progress bar was requested from user code", env="VAEX_PROGRESS")
+    force: Optional[str] = Field(None, title="Force showing a progress bar of this type, even when no progress bar was requested from user code", env="VAEX_PROGRESS")
 
     class Config(ConfigDefault):
         env_prefix = 'vaex_progress_'
@@ -152,27 +157,27 @@ Note that settings `vaex.settings.main.logging.info` etc at runtime, has no dire
 class Settings(BaseSettings):
     """General settings for vaex"""
     aliases: Optional[dict] = Field(title='Aliases to be used for vaex.open', default_factory=dict)
-    async_: AsyncEnum = Field('nest', env='VAEX_ASYNC', title="How to run async code in the local executor", min_length=2)
+    async_: AsyncEnum = Field('nest', env='VAEX_ASYNC', title="How to run async code in the local executor")
     home: str = Field(_default_home, env="VAEX_HOME", title="Home directory for vaex, which defaults to `$HOME/.vaex`, "\
         " If both `$VAEX_HOME` and `$HOME` are not defined, the current working directory is used. (Note that this setting cannot be configured from the vaex home directory itself).")
     mmap: bool = Field(True, title="Experimental to turn off, will avoid using memory mapping if set to False")
-    process_count: Optional[int] = Field(title="Number of processes to use for multiprocessing (e.g. apply), defaults to thread_count setting", gt=0)
-    thread_count: Optional[int] = Field(env='VAEX_NUM_THREADS', title="Number of threads to use for computations, defaults to multiprocessing.cpu_count()", gt=0)
-    thread_count_io: Optional[int] = Field(env='VAEX_NUM_THREADS_IO', title="Number of threads to use for IO, defaults to thread_count_io + 1", gt=0)
+    process_count: Optional[int] = Field(None, title="Number of processes to use for multiprocessing (e.g. apply), defaults to thread_count setting", gt=0)
+    thread_count: Optional[int] = Field(None, env='VAEX_NUM_THREADS', title="Number of threads to use for computations, defaults to multiprocessing.cpu_count()", gt=0)
+    thread_count_io: Optional[int] = Field(None, env='VAEX_NUM_THREADS_IO', title="Number of threads to use for IO, defaults to thread_count_io + 1", gt=0)
     path_lock: str = Field(os.path.join(_default_home, "lock"), env="VAEX_LOCK", title="Directory to store lock files for vaex, which defaults to `${VAEX_HOME}/lock/`, "\
         " Due to possible race conditions lock files cannot be removed while processes using Vaex are running (on Unix systems).")
 
 
     # avoid name collisions of VAEX_CACHE with configurting the whole object via json in env var
-    cache = Field(Cache(), env='_VAEX_CACHE')
+    cache: Cache = Field(Cache(), env='_VAEX_CACHE')
     chunk: Chunk = Field(Chunk(), env='_VAEX_CHUNK')
-    data = Field(Data(), env='_VAEX_DATA')
+    data: Data = Field(Data(), env='_VAEX_DATA')
     display: Display = Field(Display(), env='_VAEX_DISPLAY')
     fs: FileSystem = Field(FileSystem(), env='_VAEX_FS')
-    memory_tracker = Field(MemoryTracker(), env='_VAEX_MEMORY_TRACKER')
-    task_tracker = Field(TaskTracker(), env='_VAEX_TASK_TRACKER')
-    logging = Field(Logging(), env="_VAEX_LOGGING")
-    progress = Field(Progress(), env="_VAEX_PROGRESS")
+    memory_tracker: MemoryTracker = Field(MemoryTracker(), env='_VAEX_MEMORY_TRACKER')
+    task_tracker: TaskTracker = Field(TaskTracker(), env='_VAEX_TASK_TRACKER')
+    logging: Logging = Field(Logging(), env="_VAEX_LOGGING")
+    progress: Progress = Field(Progress(), env="_VAEX_PROGRESS")
 
     if has_server:
         server: vaex.server.settings.Settings = vaex.server.settings.Settings()

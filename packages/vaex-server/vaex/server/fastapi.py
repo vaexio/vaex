@@ -19,7 +19,7 @@ from fastapi.openapi.docs import get_swagger_ui_html
 import requests
 
 
-from pydantic import BaseModel, BaseSettings
+from pydantic import BaseModel
 from starlette.responses import HTMLResponse, PlainTextResponse
 
 
@@ -44,8 +44,8 @@ class HistogramInput(BaseModel):
     shape: int = 128
     min: Optional[Union[float, int, str]] = None
     max: Optional[Union[float, int, str]] = None
-    filter: str = None
-    virtual_columns: Dict[str, str] = None
+    filter: Optional[str] = None
+    virtual_columns: Optional[Dict[str, str]] = None
 
 
 class HistogramOutput(BaseModel):
@@ -68,8 +68,8 @@ class HeatmapInput(BaseModel):
     max_x: Optional[Union[float, int, str]] = None
     min_y: Optional[Union[float, int, str]] = None
     max_y: Optional[Union[float, int, str]] = None
-    filter: str = None
-    virtual_columns: Dict[str, str] = None
+    filter: Optional[str] = None
+    virtual_columns: Optional[Dict[str, str]] = None
 
 
 class HeatmapOutput(BaseModel):
@@ -139,9 +139,17 @@ def get_df(name):
     yield vaex.from_dataset(datasets[name])
 
 
+def _number(v):
+    if v is None:
+        return v
+    try:
+        return float(v)
+    except:
+        return v
+
 async def _compute_histogram(input: HistogramInput) -> HistogramOutput:
     with get_df(input.dataset_id) as df:
-        limits = [input.min, input.max]
+        limits = [_number(input.min), _number(input.max)]
         limits = df.limits(input.expression, limits, delay=True)
         await df.execute_async()
         limits = await limits
@@ -185,8 +193,8 @@ async def histogram_plot(input: HistogramInput = Depends(HistogramInput)) -> His
 
 async def _compute_heatmap(input: HeatmapInput) -> HeatmapOutput:
     with get_df(input.dataset_id) as df:
-        limits_x = [input.min_x, input.max_x]
-        limits_y = [input.min_y, input.max_y]
+        limits_x = [_number(input.min_x), _number(input.max_x)]
+        limits_y = [_number(input.min_y), _number(input.max_y)]
         limits_x = df.limits(input.expression_x, limits_x, delay=True)
         limits_y = df.limits(input.expression_y, limits_y, delay=True)
         await df.execute_async()

@@ -243,7 +243,7 @@ class RandomProjections(Transformer):
 
     @traitlets.validate('density')
     def _valid_density(self, proposal):
-        if (proposal['value'] > 0) & (proposal['value'] <= 1):
+        if proposal['value'] is None or (proposal['value'] > 0) & (proposal['value'] <= 1):
             return proposal['value']
         else:
             raise traitlets.TraitError('`density` must be 0 < density <= 1.')
@@ -423,7 +423,7 @@ class OneHotEncoder(Transformer):
         :rtype: DataFrame
         '''
         copy = df.copy()
-        downcast_uint8 = np.can_cast(self.one, np.uint8) and np.can_cast(self.zero, np.uint8)
+        downcast_uint8 = np.can_cast(np.min_scalar_type(self.one), np.uint8) and np.can_cast(np.min_scalar_type(self.zero), np.uint8)
         dtype = 'uint8' if downcast_uint8 else None
         # for each feature, add a virtual column for each unique entry
         for i, feature in enumerate(self.features):
@@ -432,7 +432,7 @@ class OneHotEncoder(Transformer):
                 column_name = self.prefix + feature + '_' + str_value
                 if value is None:
                     copy[column_name] = copy.func.where(copy[feature].ismissing(), self.one, self.zero, dtype=dtype)
-                elif isinstance(value, np.float) and np.isnan(value):
+                elif isinstance(value, float) and np.isnan(value):
                     copy[column_name] = copy.func.where(copy[feature].isnan(), self.one, self.zero, dtype=dtype)
                 else:
                     copy[column_name] = copy.func.where(copy[feature] == value, self.one, self.zero, dtype=dtype)

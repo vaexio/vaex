@@ -280,25 +280,27 @@ class counter : public hash_base<counter<T, A>, T, A, V>, public counter_mixin<T
     py::object counts() {
         py::array_t<value_type> output_array(this->length());
         auto output = output_array.template mutable_unchecked<1>();
-        py::gil_scoped_release gil;
-        auto offsets = this->offsets();
-        size_t map_index = 0;
-        int64_t natural_order = 0;
-        // TODO: can be parallel due to non-overlapping maps
-        for (auto &map : this->maps) {
-            for (auto &el : map) {
-                key_type key = el.first;
-                value_type value = el.second;
-                output(key.index) = value;
+        {
+            py::gil_scoped_release gil;
+            auto offsets = this->offsets();        
+            // size_t map_index = 0;
+            // int64_t natural_order = 0;
+            // TODO: can be parallel due to non-overlapping maps
+            for (auto &map : this->maps) {
+                for (auto &el : map) {
+                    key_type key = el.first;
+                    value_type value = el.second;
+                    output(key.index) = value;
+                }
+                // map_index += 1;
             }
-            // map_index += 1;
-        }
-        // no nans possible
-        // if (this->nan_count) {
-        //     output(this->nan_index()) = this->nan_count;
-        // }
-        if (this->null_count) {
-            output(this->null_index()) = this->null_count;
+            // no nans possible
+            // if (this->nan_count) {
+            //     output(this->nan_index()) = this->nan_count;
+            // }
+            if (this->null_count) {
+                output(this->null_index()) = this->null_count;
+            }
         }
         return output_array;
     }
@@ -445,13 +447,28 @@ class ordered_set : public hash_base<ordered_set<T>, T, T, V> {
         int64_t size = strings->length;
         py::array_t<bool> result(size);
         auto output = result.template mutable_unchecked<1>();
-        py::gil_scoped_release gil;
-        size_t nmaps = this->maps.size();
-        if (strings->has_null()) {
-            for (int64_t i = 0; i < size; i++) {
-                if (strings->is_null(i)) {
-                    output(i) = this->null_count > 0;
-                } else {
+        {
+            py::gil_scoped_release gil;
+            size_t nmaps = this->maps.size();
+            if (strings->has_null()) {
+                for (int64_t i = 0; i < size; i++) {
+                    if (strings->is_null(i)) {
+                        output(i) = this->null_count > 0;
+                    } else {
+                        const string_view &value = strings->view(i);
+                        std::size_t hash = hasher_map_choice()(value);
+                        size_t map_index = (hash % nmaps);
+                        auto search = this->maps[map_index].find(value);
+                        auto end = this->maps[map_index].end();
+                        if (search == end) {
+                            output(i) = false;
+                        } else {
+                            output(i) = true;
+                        }
+                    }
+                }
+            } else {
+                for (int64_t i = 0; i < size; i++) {
                     const string_view &value = strings->view(i);
                     std::size_t hash = hasher_map_choice()(value);
                     size_t map_index = (hash % nmaps);
@@ -462,19 +479,6 @@ class ordered_set : public hash_base<ordered_set<T>, T, T, V> {
                     } else {
                         output(i) = true;
                     }
-                }
-            }
-        } else {
-            for (int64_t i = 0; i < size; i++) {
-                const string_view &value = strings->view(i);
-                std::size_t hash = hasher_map_choice()(value);
-                size_t map_index = (hash % nmaps);
-                auto search = this->maps[map_index].find(value);
-                auto end = this->maps[map_index].end();
-                if (search == end) {
-                    output(i) = false;
-                } else {
-                    output(i) = true;
                 }
             }
         }
@@ -490,8 +494,11 @@ class ordered_set : public hash_base<ordered_set<T>, T, T, V> {
         if (strings->has_null()) {
             for (int64_t i = offset; i < offset + length; i++) {
                 if (strings->is_null(i)) {
-                    output[i - offset] = this->null_value;
-                    assert(this->null_count > 0);
+                    if(this->null_count > 0) {
+                        output[i - offset] = this->null_value;
+                    } else {
+                        output[i - offset] = -1;
+                    }
                 } else {
                     const string_view &key = strings->view(i);
                     size_t hash = hasher_map_choice()(key);
@@ -555,19 +562,35 @@ class ordered_set : public hash_base<ordered_set<T>, T, T, V> {
             return result;
         }
         auto output = result.template mutable_unchecked<1>();
-        py::gil_scoped_release gil;
         size_t nmaps = this->maps.size();
         auto offsets = this->offsets();
 
-        if (nmaps == 1) {
-            auto &map0 = this->maps[0];
-            // split slow and fast path
-            if (strings->has_null()) {
-                for (int64_t i = 0; i < size; i++) {
-                    if (strings->is_null(i)) {
-                        output(i) = this->null_value;
-                        assert(this->null_count > 0);
-                    } else {
+        {
+            py::gil_scoped_release gil;
+            if (nmaps == 1) {
+                auto &map0 = this->maps[0];
+                // split slow and fast path
+                if (strings->has_null()) {
+                    for (int64_t i = 0; i < size; i++) {
+                        if (strings->is_null(i)) {
+                            if(this->null_count > 0) {
+                                output(i) = this->null_value;
+                            } else {
+                                output(i) = -1;
+                            }
+                        } else {
+                            const string_view &key = strings->view(i);
+                            auto search = map0.find(key);
+                            auto end = map0.end();
+                            if (search == end) {
+                                output(i) = -1;
+                            } else {
+                                output(i) = search->second;
+                            }
+                        }
+                    }
+                } else {
+                    for (int64_t i = 0; i < size; i++) {
                         const string_view &key = strings->view(i);
                         auto search = map0.find(key);
                         auto end = map0.end();
@@ -579,27 +602,32 @@ class ordered_set : public hash_base<ordered_set<T>, T, T, V> {
                     }
                 }
             } else {
-                for (int64_t i = 0; i < size; i++) {
-                    const string_view &key = strings->view(i);
-                    auto search = map0.find(key);
-                    auto end = map0.end();
-                    if (search == end) {
-                        output(i) = -1;
-                    } else {
-                        output(i) = search->second;
+                // split slow and fast path
+                if (strings->has_null()) {
+                    for (int64_t i = 0; i < size; i++) {
+                        if (strings->is_null(i)) {
+                            if(this->null_count > 0) {
+                                output(i) = this->null_value;
+                            } else {
+                                output(i) = -1;
+                            }
+                        } else {
+                            const string_view &key = strings->view(i);
+                            size_t hash = hasher_map_choice()(key);
+                            size_t map_index = (hash % nmaps);
+                            auto search = this->maps[map_index].find(key, hash);
+                            auto end = this->maps[map_index].end();
+                            if (search == end) {
+                                output(i) = -1;
+                            } else {
+                                output(i) = search->second + offsets[map_index];
+                            }
+                        }
                     }
-                }
-            }
-        } else {
-            // split slow and fast path
-            if (strings->has_null()) {
-                for (int64_t i = 0; i < size; i++) {
-                    if (strings->is_null(i)) {
-                        output(i) = this->null_value;
-                        assert(this->null_count > 0);
-                    } else {
+                } else {
+                    for (int64_t i = 0; i < size; i++) {
                         const string_view &key = strings->view(i);
-                        size_t hash = hasher_map_choice()(key);
+                        std::size_t hash = hasher_map_choice()(key);
                         size_t map_index = (hash % nmaps);
                         auto search = this->maps[map_index].find(key, hash);
                         auto end = this->maps[map_index].end();
@@ -608,19 +636,6 @@ class ordered_set : public hash_base<ordered_set<T>, T, T, V> {
                         } else {
                             output(i) = search->second + offsets[map_index];
                         }
-                    }
-                }
-            } else {
-                for (int64_t i = 0; i < size; i++) {
-                    const string_view &key = strings->view(i);
-                    std::size_t hash = hasher_map_choice()(key);
-                    size_t map_index = (hash % nmaps);
-                    auto search = this->maps[map_index].find(key, hash);
-                    auto end = this->maps[map_index].end();
-                    if (search == end) {
-                        output(i) = -1;
-                    } else {
-                        output(i) = search->second + offsets[map_index];
                     }
                 }
             }
@@ -681,7 +696,12 @@ class index_hash : public hash_base<index_hash<T>, T, T, V> {
     typedef hashmap<key_type, std::vector<int64_t>> overflow_type;
 
     // TODO: might be better to use a node based hasmap, we don't want to move large vectors
-    index_hash(int nmaps, int64_t limit = -1) : Base(nmaps, limit), overflows(nmaps), has_duplicates(false), null_value(-1) {
+    index_hash(int nmaps, int64_t limit = -1)
+        : Base(nmaps, limit)
+        , overflows(nmaps)
+        , null_value(-1)
+        , has_duplicates(false)
+    {
         for (int i = 0; i < nmaps; i++) {
             // string_arrays_overflow.emplace_back(std::make_shared<StringList64>());
             // for each key in overflow, it should be present in the main string array
@@ -751,9 +771,13 @@ class index_hash : public hash_base<index_hash<T>, T, T, V> {
         if (strings->has_null()) {
             for (int64_t i = 0; i < size; i++) {
                 if (strings->is_null(i)) {
-                    output(i) = null_value;
-                    assert(this->null_count > 0);
-                    if(null_value == -1) {
+                    if(this->null_count > 0) {
+                        output(i) = null_value;
+                        if(null_value == -1) {
+                            encountered_unknown = true;
+                        }
+                    } else {
+                        output(i) = -1;
                         encountered_unknown = true;
                     }
                 } else {
@@ -832,15 +856,17 @@ class index_hash : public hash_base<index_hash<T>, T, T, V> {
         py::array_t<int64_t> indices_array(size);
         auto output = result.template mutable_unchecked<1>();
         auto output_indices = indices_array.template mutable_unchecked<1>();
-        py::gil_scoped_release gil;
-        size_t index = 0;
+        {
+            py::gil_scoped_release gil;
+            size_t index = 0;
 
-        std::copy(indices.begin(), indices.end(), &output_indices(0));
+            std::copy(indices.begin(), indices.end(), &output_indices(0));
 
-        for (auto el : found) {
-            std::vector<int64_t> &indices = el.second;
-            for (int64_t i : indices) {
-                output(index++) = i;
+            for (auto el : found) {
+                std::vector<int64_t> &indices = el.second;
+                for (int64_t i : indices) {
+                    output(index++) = i;
+                }
             }
         }
         return std::make_tuple(indices_array, result);
@@ -853,7 +879,7 @@ class index_hash : public hash_base<index_hash<T>, T, T, V> {
         for (auto &map : this->maps) {
             auto strings = this->string_arrays[i++];
             for (auto &el : map) {
-                key_type key = el.first;
+                //key_type key = el.first;
                 value_type value = el.second;
                 string_view key_view = strings->view(el.first.index);
                 std::string str(key_view);

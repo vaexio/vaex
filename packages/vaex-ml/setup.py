@@ -1,10 +1,10 @@
 import os
-import imp
+from importlib.machinery import SourceFileLoader
 from setuptools import setup
 
 dirname = os.path.dirname(__file__)
 path_version = os.path.join(dirname, 'vaex/ml/_version.py')
-version = imp.load_source('version', path_version)
+version = SourceFileLoader('version', path_version).load_module()
 
 name        = 'vaex'
 author      = 'Jovan Veljanoski'
@@ -12,16 +12,31 @@ author_email= 'jovan.veljanoski@gmail.com'
 license     = 'MIT'
 version     = version.__version__
 url         = 'https://www.github.com/vaexio/vaex'
-install_requires_ml = ['vaex-core>=4.8.0,<5', 'numba', 'traitlets', 'jinja2']
+install_requires_ml = [
+      'vaex-core~=4.8',
+      'numba',
+      'traitlets',
+      'jinja2',
+      'annoy',
+      'scikit-learn',
+      'xgboost',
+      'lightgbm~=4.0',
+      'catboost>=1.2.8',
+]
+
+# https://stackoverflow.com/questions/79744362/import-tensorflow-statement-crashes-or-hangs-on-macos/79744363#79744363
+extras_require_ml = {'all': ['tensorflow~=2.18',"tensorflow<2.20.0;sys_platform=='darwin'"]}
 
 setup(name=name + '-ml',
       version=version,
       description='Machine learning support for vaex',
+      long_description="Machine learning support for vaex",
+      long_description_content_type="text/markdown",
       url=url,
       author=author,
       author_email=author_email,
       install_requires=install_requires_ml,
-      extras_require={'all': ['tensorflow>=2.1.0', 'tensorflow-io>=0.12.0']},
+      extras_require=extras_require_ml,
       license=license,
       packages=['vaex.ml', 'vaex.ml.incubator'],
       include_package_data=True,

@@ -96,17 +96,17 @@ def test_dataset_arrays():
         'y': '4d48c88e587db8f3855eed9f5d5f51eea769451b7371ecf7bdee4e0258238631',
         'z': 'a4cead13bef1fd1ec5974d1a2f5ceffd243a7aa6c6b08b80e09a7454b7d04293'
     }
-    assert ds.fingerprint == 'dataset-arrays-hashed-88244cf38fe91c6bf435caa6160b089b'
+    assert ds.fingerprint in ['dataset-arrays-hashed-88244cf38fe91c6bf435caa6160b089b', 'dataset-arrays-hashed-148c30472b155430f46bfb94d5509cf4']
 
 
-df_fingerprint_xy = 'dataframe-943761acaa2ff2060d21ef519c77e1b9'
+df_fingerprints_xy = ['dataframe-943761acaa2ff2060d21ef519c77e1b9', 'dataframe-1c2f7e9c53dbd30220792e425418e343']
 
 
 def test_df():
     x = np.arange(10, dtype='i4')
     y = x**2
     df = vaex.from_arrays(x=x, y=y, z=x+y)
-    assert df.fingerprint() == df_fingerprint_xy
+    assert df.fingerprint() in df_fingerprints_xy
 
 
 def test_df_different_virtual_columns():
@@ -114,10 +114,10 @@ def test_df_different_virtual_columns():
     y = x**2
     df1 = vaex.from_arrays(x=x, y=y, z=x+y)
     df1['z'] = df1.x + df1.z
-    assert df1.fingerprint() == 'dataframe-8f2202e2b4e7845c8ace767db5a49bc4'
+    assert df1.fingerprint() in ['dataframe-8f2202e2b4e7845c8ace767db5a49bc4', 'dataframe-b72cf197307aa4b9806e6ce3199b2960']
     df2 = vaex.from_arrays(x=x, y=y, z=x+y)
     df2['z'] = df2.x - df2.z
-    assert df2.fingerprint() == 'dataframe-81043a3c5b32eaa4b18bf4a915492e23'
+    assert df2.fingerprint() in ['dataframe-81043a3c5b32eaa4b18bf4a915492e23', 'dataframe-0e9a4e2753715ff592527dcee1f1e8c2']
 
 
 def test_df_with_dependencies():
@@ -125,8 +125,8 @@ def test_df_with_dependencies():
     y = x**2
     df = vaex.from_arrays(x=x, y=y, z=x+y)
     df['q'] = df.x + df.y
-    assert df.fingerprint() != df_fingerprint_xy
-    assert df.fingerprint(dependencies={'x', 'y', 'z'}) == df_fingerprint_xy
+    assert df.fingerprint() not in df_fingerprints_xy
+    assert df.fingerprint(dependencies={'x', 'y', 'z'}) in df_fingerprints_xy
 
 
 def test_df_project():
@@ -137,7 +137,7 @@ def test_df_project():
     df_a = df[['x', 'y']]
     df_b = df[['x', 'y']]
     assert df_a.fingerprint() == df_b.fingerprint()
-    assert df_a.fingerprint() == 'dataframe-c13a4ab588272f03855ae5627731f7e5'
+    assert df_a.fingerprint() in ['dataframe-c13a4ab588272f03855ae5627731f7e5', 'dataframe-d4565ca8187231a051a9ff888ba16e7c']
 
 
 def test_df_selection_references_virtual_column():

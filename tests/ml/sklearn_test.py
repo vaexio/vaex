@@ -1,6 +1,11 @@
 import platform
-
+import sys
 import pytest
+# py 36 and 37 not supported
+if sys.version_info < (3, 8):
+    pytest.skip(allow_module_level=True)
+
+
 import vaex
 pytest.importorskip("sklearn")
 from vaex.ml.sklearn import Predictor, IncrementalPredictor
@@ -206,7 +211,7 @@ def test_sklearn_incremental_predictor_classification(prediction_type, df_iris_1
     features = df_train.column_names[:4]
     target = 'class_'
 
-    incremental = IncrementalPredictor(model=SGDClassifier(loss='log', learning_rate='constant', eta0=0.01),
+    incremental = IncrementalPredictor(model=SGDClassifier(loss='log_loss', learning_rate='constant', eta0=0.01),
                                        features=features,
                                        target=target,
                                        batch_size=10_000,

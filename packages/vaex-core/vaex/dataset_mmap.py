@@ -101,7 +101,11 @@ class DatasetMemoryMapped(vaex.dataset.DatasetFile):
         return self._do_map(path, offset, shape, dtype)
     
     def _do_map(self, path, offset, shape, dtype):
-        length = np.product(shape)
+        if np.lib.NumpyVersion(np.__version__) >= '1.25.0':
+            length = np.prod(shape)
+        else:
+            length = np.product(shape)
+
         if self.nommap:
             if len(shape) > 1:
                 raise RuntimeError('not supported, high d arrays from non local files')

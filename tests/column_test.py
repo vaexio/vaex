@@ -132,8 +132,8 @@ def test_plain_strings():
 def test_dtype_object_with_arrays():
     x = np.arange(10)
     y = np.arange(11) ** 2
-    z = np.array([x, y])
-    assert z.dtype == np.object
+    z = np.array([x, y], dtype=object)
+    assert z.dtype == object
     df = vaex.from_arrays(z=z)
     assert df.z.tolist()[0].tolist() == x.tolist()
     assert df.z.tolist()[1].tolist() == y.tolist()

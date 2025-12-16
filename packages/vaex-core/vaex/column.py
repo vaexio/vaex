@@ -163,7 +163,10 @@ class ColumnSparse(Column):
 
     def __getitem__(self, slice):
         # not sure if this is the fastest
-        return self.matrix[slice, self.column_index].A[:,0]
+        mat = self.matrix[slice, self.column_index]
+        dense = mat.todense()
+        column_part = np.asarray(dense)[:,0]
+        return column_part
 
 
 class ColumnNumpyLike(Column):
@@ -434,7 +437,7 @@ class ColumnConcatenatedLazy(Column):
                             index = np.argmax([df.columns[self.column_name].astype('O').astype('U').dtype.itemsize for df in dfs])
                             self.dtype = dfs[index].columns[self.column_name].astype('O').astype('U').dtype
                     else:
-                        self.dtype = np.find_common_type([k.numpy for k in dtypes], [])
+                        self.dtype = np.result_type(*[k.numpy for k in dtypes])
                     logger.debug("common type for %r is %r", dtypes, self.dtype)
             # make sure all expression are the same type
             self.expressions = [e if vaex.array_types.same_type(e.dtype, self.dtype) else e.astype(self.dtype) for e in expressions]

@@ -35,7 +35,7 @@ class AggNUniquePrimitive : public AggregatorPrimitive<DataType, counter<DataTyp
             }
         }
         auto shape = py::tuple(this->grid->shapes.size());
-        for (int i = 0; i < this->grid->shapes.size(); i++) {
+        for (size_t i = 0; i < this->grid->shapes.size(); i++) {
             shape[i] = this->grid->shapes[this->grid->shapes.size() - i - 1];
         }
         return result_array.attr("reshape")(shape).attr("T");

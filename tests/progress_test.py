@@ -53,7 +53,8 @@ def test_progress_error():
 
 
 # progress only supported for local df's
-def test_progress_calls(df, event_loop):
+@pytest.mark.asyncio
+def test_progress_calls(df):
     with vaex.cache.off():
         x, y = df.sum([df.x, df.y], progress=True)
         counter = CallbackCounter(True)
@@ -129,12 +130,15 @@ async def test_cancel_huge_async(client):
         df = client['huge']
         import threading
         main_thread = threading.current_thread()
-
+        max_progress = 0
         def progress(f):
             print("progress", f)
+            nonlocal max_progress
             assert threading.current_thread() == main_thread
+            max_progress = max(max_progress, f)
             return f > 0.01
+
         with pytest.raises(vaex.execution.UserAbort):
-            df.x.min(progress=progress, delay=True)
+            value = df.x.min(progress=progress, delay=True)
             await df.execute_async()
-        # assert df.x.min() is not None
+            await value

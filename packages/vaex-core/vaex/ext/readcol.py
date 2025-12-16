@@ -241,7 +241,7 @@ class Struct(object):
     and turn it into a struct by removing special characters
     """
     def __init__(self,namedict):
-        R = re.compile('\W')  # find and remove all non-alphanumeric characters
+        R = re.compile(r'\W')  # find and remove all non-alphanumeric characters
         for k in namedict.keys():
             v = namedict.pop(k) 
             if k[0].isdigit():

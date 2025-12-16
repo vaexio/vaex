@@ -1,5 +1,6 @@
 #include "agg_base.hpp"
 #include "utils.hpp"
+#include <stdexcept>
 
 namespace vaex {
 
@@ -38,7 +39,8 @@ class AggFirstPrimitive : public AggregatorPrimitive<DataType, DataType, IndexTy
         }
     }
     virtual void merge(std::vector<Aggregator *> others) {
-        const bool invert = this->invert;
+        throw std::runtime_error("merge: not implemented");
+        //const bool invert = this->invert;
         // for (auto i : others) {
         //     auto other = static_cast<AggFirstPrimitive *>(i);
         //     for (size_t i = 0; i < this->grid->length1d; i++) {
@@ -105,7 +107,7 @@ class AggFirstPrimitive : public AggregatorPrimitive<DataType, DataType, IndexTy
         py::object data = numpy.attr("array")(self).attr("__getitem__")(0);
         using namespace pybind11::literals; // to bring in the `_a` literal
         auto shape = py::tuple(this->grid->shapes.size());
-        for (int i = 0; i < this->grid->shapes.size(); i++) {
+        for (size_t i = 0; i < this->grid->shapes.size(); i++) {
             shape[i] = this->grid->shapes[this->grid->shapes.size() - i - 1];
         }
         return numpy_ma.attr("array")(data, "mask"_a=mask.attr("reshape")(shape).attr("T"));

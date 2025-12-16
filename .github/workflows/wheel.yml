@@ -2,88 +2,135 @@ name: Build binary wheel
 
 on:
   push:
+    branches:
+      - master
     tags:
       - core-*
+  pull_request:
+    branches:
+    - master
+  schedule:
+  - cron: "0 2 * * 1-5"
+  workflow_dispatch:  # allows running workflow manually from the Actions tab
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  build_wheels_matrix:
+    runs-on: ubuntu-22.04
+    outputs:
+      include: ${{ steps.set-matrix.outputs.include }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - run: pip install cibuildwheel==2.23.3 # sync version with pypa/cibuildwheel below
+
+      - id: set-matrix
+        env:
+          # skipping pypy for now
+          # cp38-win was segfaulting on CI -> skipping for now
+          # oldest-supported-numpy has no wheels for cp38-musllinux_aarch64 -> build numpy from source on QEMU -> CI timeouts -> skipping for now
+          CIBW_SKIP: >
+            pp*
+            cp38-win*
+            cp38-musllinux_aarch64
+        # the supported python versions are parsed from vaex-core setup.py python_requires
+        run: |
+          MATRIX_INCLUDE=$(
+            {
+              cibuildwheel --print-build-identifiers --platform linux --arch x86_64,aarch64 | jq -nRc '{"only": inputs, "os": "ubuntu-22.04"}' \
+              && cibuildwheel --print-build-identifiers --platform macos --arch x86_64 | jq -nRc '{"only": inputs, "os": "macos-13"}' \
+              && cibuildwheel --print-build-identifiers --platform macos --arch arm64 | jq -nRc '{"only": inputs, "os": "macos-14"}' \
+              && cibuildwheel --print-build-identifiers --platform windows --arch AMD64 | jq -nRc '{"only": inputs, "os": "windows-2022"}'
+            } | jq -sc
+          )
+          echo "include=$MATRIX_INCLUDE" >> $GITHUB_OUTPUT
+          cat $GITHUB_OUTPUT
+        working-directory: packages/vaex-core/
+
   build_wheels:
-    name: Build wheel on ${{ matrix.os }}
+    needs: build_wheels_matrix
     runs-on: ${{ matrix.os }}
+    name: Build ${{ matrix.only }}
+
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-18.04, macOS-latest, windows-latest]
-        python-version: [36, 37, 38, 39, 310]
+        include: ${{ fromJson(needs.build_wheels_matrix.outputs.include) }}
 
     steps:
-    - uses: actions/checkout@v1
+    - uses: actions/checkout@v4
       with:
         submodules: true
 
     - name: Copy dll
-      if: (matrix.os == 'windows-latest')
+      if: startswith(matrix.os, 'windows')
       uses: ./ci/actions/windll
 
-    - uses: actions/setup-python@v2
-      name: Install Python
-      with:
-        python-version: '3.7'
-
-    - name: Install cibuildwheel
-      run: |
-        python -m pip install cibuildwheel==2.8.1
-
-    - name: Install twine/wheel
-      run: |
-        python -m pip install twine wheel
-
     - name: chores
-      if: matrix.os != 'windows-latest'
+      if: ${{ !startswith(matrix.os, 'windows') }}
       run: |
-        mkdir dist
         mkdir packages/vaex-core/bin
         cp bin/install_pcre.sh packages/vaex-core/bin/
 
-    - name: Build vaex-core (windows)
-      if: (matrix.os == 'windows-latest')
-      env:
-        CIBW_BUILD: cp${{ matrix.python-version }}*64
-        CIBW_ENVIRONMENT_LINUX: "CFLAGS='-Wl,-strip-all' CXXFLAGS='-Wl,-strip-all'"
-      run: |
-        python -m cibuildwheel --output-dir dist packages/vaex-core
+    - name: Set up QEMU
+      if: runner.os == 'Linux'
+      uses: docker/setup-qemu-action@v3
 
-    - name: Build vaex-core (linux, osx)
-      if: (matrix.os != 'windows-latest')
-      env:
-        CIBW_BEFORE_BUILD: bin/install_pcre.sh
-        CIBW_BUILD: "cp${{ matrix.python-version }}*64 cp${{ matrix.python-version }}-macosx-*"
-        CIBW_ENVIRONMENT_LINUX: "CFLAGS='-Wl,-strip-all' CXXFLAGS='-Wl,-strip-all'"
-        CIBW_BUILD_VERBOSITY: 2
-        # needed for m1 builds
-        CIBW_ENVIRONMENT_MACOS: "CFLAGS='-I/usr/local/include -L/usr/local/lib' CXXFLAGS='-I/usr/local/include -L/usr/local/lib' LDFLAGS='-L/usr/local/lib'"
-        CIBW_ARCHS_MACOS: "x86_64 arm64"
-      run: |
-        python -m cibuildwheel --output-dir dist packages/vaex-core
-
-    - name: Make source distribution
-      shell: bash
-      run: |
-          cd packages/vaex-core && python setup.py sdist
-
-    - name: Copy build artifacts
-      shell: bash
-      run: |
-          cp packages/vaex-core/dist/* dist/
-
-    - uses: actions/upload-artifact@v1
+    - uses: pypa/cibuildwheel@v2.23.3 # sync version with pip install cibuildwheel above
       with:
-        name: distributions
-        path: ./dist
-
-    - name: Publish a Python distribution to PyPI
+        only: ${{ matrix.only }}
+        package-dir: packages/vaex-core/
+        output-dir: packages/vaex-core/dist/
       env:
-        TWINE_USERNAME: __token__
-        TWINE_PASSWORD: ${{ secrets.pypi_password_vaex_core }}
-      run: |
-        openssl sha256 dist/*
-        twine upload --skip-existing dist/vaex?core*
+        # Installation of cmake on musllinux requires python3-dev and openssl-dev to be present
+        CIBW_BEFORE_BUILD_LINUX: bash -c "./bin/install_pcre.sh && if command -v apk; then apk add python3-dev openssl-dev; fi"
+        CIBW_BEFORE_BUILD_MACOS: sudo -E bash bin/install_pcre.sh
+        #CIBW_BEFORE_BUILD_WINDOWS:
+        CIBW_BUILD_VERBOSITY: 2
+        # temporary ref https://github.com/oconnor663/blake3-py/pull/45
+        CIBW_BEFORE_TEST: pip install --force-reinstall blake3 --find-links https://github.com/ddelange/blake3-py/releases/expanded_assets/0.4.1
+        # no test on musllinux due to missing pyarrow wheels ref https://github.com/apache/arrow/pull/40177
+        CIBW_TEST_SKIP: '*musllinux*'
+        CIBW_TEST_COMMAND: python -c "import vaex; print(vaex.from_arrays(x=[1,2]))"
+        CIBW_MANYLINUX_X86_64_IMAGE: manylinux_2_28
+        CIBW_MANYLINUX_AARCH64_IMAGE: manylinux_2_28
+        CIBW_ENVIRONMENT_LINUX: 'CFLAGS="-Wl,-strip-all" CXXFLAGS="-Wl,-strip-all" PATH="$HOME/.cargo/bin:$PATH"'
+        CIBW_ENVIRONMENT_MACOS: 'CFLAGS="-I/usr/local/include -L/usr/local/lib" CXXFLAGS="-I/usr/local/include -L/usr/local/lib" LDFLAGS="-L/usr/local/lib"'
+
+    - uses: actions/upload-artifact@v4
+      with:
+        name: dist-${{ matrix.only }}
+        path: packages/vaex-core/dist
+
+  publish:
+    if: startsWith(github.ref, 'refs/tags')
+    needs: [build_wheels]
+    runs-on: ubuntu-22.04
+
+    permissions:
+      id-token: write  # pypa/gh-action-pypi-publish
+
+    steps:
+    - uses: actions/download-artifact@v4
+      with:
+        path: dist/
+        pattern: dist-*
+        merge-multiple: true
+
+    - run: ls -ltra dist/
+
+    # https://github.com/pypa/gh-action-pypi-publish#trusted-publishing
+    - name: Publish package distributions to PyPI
+      uses: pypa/gh-action-pypi-publish@v1.12.4
+      with:
+        skip-existing: true

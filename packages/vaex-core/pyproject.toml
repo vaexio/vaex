@@ -1,9 +1,10 @@
 [build-system]
 # Minimum requirements for the build system to execute.
 requires = [
-    "setuptools",
-    "wheel",
-    "oldest-supported-numpy",
+    # python 3.9 supported in numpy v2.0
+    # python 3.13 supported as of numpy v2.1
+    # ref https://github.com/scipy/oldest-supported-numpy/pull/86
+    "numpy~=2.0",
     "scikit-build",
     "cmake",
     "ninja"

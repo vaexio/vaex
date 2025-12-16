@@ -1,10 +1,10 @@
 import os
-import imp
 from setuptools import setup
+from importlib.machinery import SourceFileLoader
 
 dirname = os.path.dirname(__file__)
 path_version = os.path.join(dirname, "vaex_arrow/_version.py")
-version = imp.load_source('version', path_version)
+version = SourceFileLoader('version', path_version).load_module()
 
 
 name = 'vaex'
@@ -13,11 +13,13 @@ author_email = "maartenbreddels@gmail.com"
 license = 'MIT'
 version = version.__version__
 url = 'https://www.github.com/maartenbreddels/vaex'
-install_requires = ["vaex-core>=2.0.0,<3", "astropy>=2", "matplotlib>=1.3.1", "pillow", "pyarrow>=0.15"]
+install_requires = ["vaex-core>=2.0.0,<3", "astropy>=2", "matplotlib>=1.3.1", "pillow"]
 
 setup(name=name + '-arrow',
       version=version,
       description='Arrow support for vaex',
+      long_description='Arrow support for vaex',
+      long_description_content_type="text/markdown",
       url=url,
       author=author,
       author_email=author_email,
