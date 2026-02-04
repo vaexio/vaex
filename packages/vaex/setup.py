@@ -16,13 +16,13 @@ version = version.__version__
 url = 'https://www.github.com/vaexio/vaex'
 
 install_requires = [
-      'vaex-core~=4.18.1',
-      'vaex-astro>=0.9.3,<0.10',
-      'vaex-hdf5>=0.13.0,<0.15',
-      'vaex-viz>=0.5.4,<0.6',
-      'vaex-server~=0.9.0',
-      'vaex-jupyter>=0.8.2,<0.9',
-      'vaex-ml>=0.18.3,<0.19',
+      'vaex-core~=4.19.0',
+      'vaex-astro>=0.9.3,<0.11',
+      'vaex-hdf5>=0.13.0,<0.16',
+      'vaex-viz>=0.6.0,<0.7',
+      'vaex-server~=0.10.0',
+      'vaex-jupyter>=0.8.2,<0.10',
+      'vaex-ml>=0.18.3,<0.20',
       # vaex-graphql is not on conda-forge yet
 ]
 

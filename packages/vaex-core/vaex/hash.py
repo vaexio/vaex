@@ -201,7 +201,14 @@ class HashMapUnique:
             keys = vaex.array_types.to_numpy(keys)
         indices = self._internal.map_ordinal(keys)
         if np.ma.isMaskedArray(keys):
-            indices[keys.mask] = self.null_index
+            if np.lib.NumpyVersion(np.__version__) >= '2.0.0':
+                if self.null_index > np.iinfo(indices.dtype).max:
+                    # out-of-bounds
+                    indices[keys.mask] = -1
+                else:
+                    indices[keys.mask] = self.null_index
+            else:
+                indices[keys.mask] = self.null_index
         if check_missing:
             indices = np.ma.array(indices, mask=indices==-1)
         return indices

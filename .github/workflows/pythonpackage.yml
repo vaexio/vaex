@@ -23,10 +23,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-        python-version: ["3.8", "3.9", "3.10", "3.11", "3.12"]
-        exclude:
-          - {os: windows-latest, python-version: "3.8"}
-          - {os: macos-latest, python-version: "3.8"}
+        python-version: ["3.9", "3.10", "3.11", "3.12"]
 
     steps:
     - uses: actions/checkout@v2
@@ -56,12 +53,6 @@ jobs:
     - name: Install OpenMP runtime (Mac-only)
       if: startswith(matrix.os, 'macos')
       run: brew install libomp
-
-    # xcode 15.2 throws compilation errors ref https://github.com/vaexio/vaex/pull/2432
-    # select older xcode from the available versions on the runner ref https://github.com/actions/runner-images/blob/ff9acc6/images/macos/macos-13-Readme.md#xcode
-    - name: Switch to older Xcode (Mac-only)
-      if: startswith(matrix.os, 'macos')
-      run: sudo xcode-select -s "/Applications/Xcode_15.0.1.app"
 
     - name: Copy dll (Windows-only)
       if: (matrix.os == 'windows-latest')
@@ -100,6 +91,7 @@ jobs:
 
     - name: Check ml spec
       run: |
+        pip install dask[dataframe]
         python -m vaex.ml.spec packages/vaex-ml/vaex/ml/spec_new.json
         diff packages/vaex-ml/vaex/ml/spec_new.json packages/vaex-ml/vaex/ml/spec.json
 
@@ -127,7 +119,7 @@ jobs:
         PROJECT_ID: ${{ secrets.GCP_PROJECT_ID_VAEX }}
       run: ./ci/06-run-contrib-tests.sh
 
-    - name: Test comand line
+    - name: Test command line
       run: |
         vaex convert ~/.vaex/data/helmi-dezeeuw-2000-FeH-v2-10percent.hdf5 test.parquet
         VAEX_PROGRESS_TYPE=rich vaex convert ~/.vaex/data/helmi-dezeeuw-2000-FeH-v2-10percent.hdf5 test.parquet

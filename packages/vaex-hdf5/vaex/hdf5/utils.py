@@ -6,7 +6,11 @@ from vaex.column import ColumnNumpyLike, ColumnMaskedNumpy
 
 # these helper functions are quite similar to the dataset methods
 def mmap_array(mmap, file, offset, dtype, shape):
-    length = np.product(shape)
+    if np.lib.NumpyVersion(np.__version__) >= '1.25.0':
+        length = np.prod(shape)
+    else:
+        length = np.product(shape)
+
     if mmap is None:
         if len(shape) > 1:
             raise RuntimeError('not supported, high d arrays from non local files')

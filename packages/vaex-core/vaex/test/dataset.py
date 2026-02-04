@@ -402,8 +402,16 @@ class TestDataset(unittest.TestCase):
 				with open(fn, "w") as f:
 					if use_header:
 						print(seperator.join(["x", "y"]), file=f)
+
+					# Scalar representation changed in numpy to to np.float64(0.0) for instance to
+					# avoid ambiguities
+					if np.lib.NumpyVersion(np.__version__) >= '2.0.0':
+						_repr = str
+					else:
+						_repr = repr
+
 					for x, y, name in zip(self.x, self.y, self.dataset.data.name):
-						print(seperator.join(map(repr, [x, y])), file=f)
+						print(seperator.join(map(_repr, [x, y])), file=f)
 				#with open(fn) as f:
 				#	print(f.read())
 				sep = seperator

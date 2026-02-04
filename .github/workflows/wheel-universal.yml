@@ -18,13 +18,25 @@ concurrency:
 
 jobs:
   build_wheels:
-    name: Build universal wheels and source distributions
+    name: Build ${{ matrix.package }}
     runs-on: ubuntu-latest
     permissions:
       id-token: write  # pypa/gh-action-pypi-publish
-
+    strategy:
+      fail-fast: false
+      matrix:
+        package:
+          - vaex
+          - vaex-graphql
+          - vaex-jupyter
+          - vaex-ml
+          - vaex-contrib
+          - vaex-viz
+          - vaex-astro
+          - vaex-hdf5
+          - vaex-server
     steps:
-    - uses: actions/checkout@v1
+    - uses: actions/checkout@v5
       with:
         submodules: true
 
@@ -32,55 +44,21 @@ jobs:
       with:
         python-version: '3.12'
 
-    - name: chores
-      run: |
-        mkdir dist
-        pip install -U pip setuptools wheel
+    - name: Install build dependencies
+      run: pip install -U pip setuptools wheel
 
-    - name: Build vaex
-      run: |
-        (cp README.md packages/vaex/ && cd packages/vaex && python setup.py sdist bdist_wheel); cp packages/vaex/dist/* dist
+    - name: Copy README for vaex package
+      if: matrix.package == 'vaex'
+      run: cp README.md packages/vaex/
 
-    - name: Build vaex-graphql
-      run: |
-        (cd packages/vaex-graphql && python setup.py sdist bdist_wheel); cp packages/vaex-graphql/dist/* dist
-
-    - name: Build vaex-jupyter
-      run: |
-        (cd packages/vaex-jupyter && python setup.py sdist bdist_wheel); cp packages/vaex-jupyter/dist/* dist
-
-    - name: Build vaex-ml
-      run: |
-        (cd packages/vaex-ml && python setup.py sdist bdist_wheel); cp packages/vaex-ml/dist/* dist
-
-    - name: Build vaex-contrib
-      run: |
-        (cd packages/vaex-contrib && python setup.py sdist bdist_wheel); cp packages/vaex-contrib/dist/* dist
-
-    - name: Build vaex-viz
-      run: |
-        (cd packages/vaex-viz && python setup.py sdist bdist_wheel); cp packages/vaex-viz/dist/* dist
-
-    - name: Build vaex-astro
-      run: |
-        (cd packages/vaex-astro && python setup.py sdist bdist_wheel); cp packages/vaex-astro/dist/* dist
-
-    - name: Build vaex-hdf5
-      run: |
-        (cd packages/vaex-hdf5 && python setup.py sdist bdist_wheel); cp packages/vaex-hdf5/dist/* dist
-
-    - name: Build vaex-server
-      run: |
-        (cd packages/vaex-server && python setup.py sdist bdist_wheel); cp packages/vaex-server/dist/* dist
-
-    - uses: actions/upload-artifact@v4
-      with:
-        name: distributions-universal
-        path: ./dist
+    - name: Build ${{ matrix.package }}
+      run: python setup.py sdist bdist_wheel
+      working-directory: packages/${{ matrix.package }}
 
     # https://github.com/pypa/gh-action-pypi-publish#trusted-publishing
-    - name: Publish package distributions to PyPI
-      uses: pypa/gh-action-pypi-publish@v1.10.2
+    - name: Publish ${{ matrix.package }} to PyPI
+      uses: pypa/gh-action-pypi-publish@v1.12.4
       if: startsWith(github.ref, 'refs/tags')
       with:
+        packages-dir: packages/${{ matrix.package }}/dist/
         skip-existing: true

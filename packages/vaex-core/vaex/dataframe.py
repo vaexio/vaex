@@ -1675,20 +1675,19 @@ class DataFrame(object):
         def finish(percentile_limits, counts_list):
             results = []
             for i, counts in enumerate(counts_list):
-                counts = counts.astype(np.float64)
                 # remove the nan and boundary edges from the first dimension,
                 nonnans = list([slice(2, -1, None) for k in range(len(counts.shape) - 1)])
                 nonnans.append(slice(1, None, None))  # we're gonna get rid only of the nan's, and keep the overflow edges
                 nonnans = tuple(nonnans)
-                cumulative_grid = np.cumsum(counts.__getitem__(nonnans), -1)  # convert to cumulative grid
 
-                totalcounts = np.sum(counts.__getitem__(nonnans), -1)
+                counts_nonnans = counts.__getitem__(nonnans)
+                cumulative_grid = np.cumsum(counts_nonnans, -1)  # convert to cumulative grid
+                totalcounts = np.sum(counts_nonnans, -1)
                 empty = totalcounts == 0
 
                 original_shape = counts.shape
                 shape = cumulative_grid.shape  # + (original_shape[-1] - 1,) #
 
-                counts = np.sum(counts, -1)
                 edges_floor = np.zeros(shape[:-1] + (2,), dtype=np.int64)
                 edges_ceil = np.zeros(shape[:-1] + (2,), dtype=np.int64)
                 # if we have an off  # of elements, say, N=3, the center is at i=1=(N-1)/2
@@ -1703,12 +1702,15 @@ class DataFrame(object):
                     if p == 100:
                         percentiles.append(percentile_limits[i][1])
                         continue
+
                     values = np.array((totalcounts + 1) * p / 100.)  # make sure it's an ndarray
                     values[empty] = 0
+
                     floor_values = np.array(np.floor(values))
                     ceil_values = np.array(np.ceil(values))
-                    vaex.vaexfast.grid_find_edges(cumulative_grid, floor_values, edges_floor)
-                    vaex.vaexfast.grid_find_edges(cumulative_grid, ceil_values, edges_ceil)
+
+                    vaex.vaexfast.grid_find_edges(cumulative_grid.astype(np.float64), floor_values, edges_floor)
+                    vaex.vaexfast.grid_find_edges(cumulative_grid.astype(np.float64), ceil_values, edges_ceil)
 
                     def index_choose(a, indices):
                         # alternative to np.choise, which doesn't like the last dim to be >= 32
@@ -1724,12 +1726,21 @@ class DataFrame(object):
                         left, right = edges[..., 0], edges[..., 1]
                         left_value = index_choose(cumulative_grid, left)
                         right_value = index_choose(cumulative_grid, right)
-                        with np.errstate(divide='ignore', invalid='ignore'):
-                            u = np.array((values - left_value) / (right_value - left_value))
-                            # TODO: should it really be -3? not -2
-                            xleft, xright = percentile_limits[i][0] + (left - 0.5) * (percentile_limits[i][1] - percentile_limits[i][0]) / (shape[-1] - 3),\
-                                percentile_limits[i][0] + (right - 0.5) * (percentile_limits[i][1] - percentile_limits[i][0]) / (shape[-1] - 3)
-                            x = xleft + (xright - xleft) * u  # /2
+
+                        denom = right_value - left_value
+                        if type(denom) == np.ndarray:
+                            denom[denom==0] = 1.0
+                        elif denom == 0:
+                            denom = 1.0
+
+                        # lower and upper bound
+                        lb, ub = percentile_limits[i]
+                        u = np.array(values - left_value) / denom
+                        # TODO: should it really be -3? not -2
+                        xleft  = lb + (left  - 0.5) * (ub - lb) / (shape[-1] - 3)
+                        xright = lb + (right - 0.5) * (ub - lb) / (shape[-1] - 3)
+                        x = xleft + (xright - xleft) * u  # /2
+
                         return x
 
                     x1 = calculate_x(edges_floor, floor_values)

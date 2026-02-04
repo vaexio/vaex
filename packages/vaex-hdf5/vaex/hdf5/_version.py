@@ -1,2 +1,2 @@
-__version_tuple__ = (0, 14, 1)
-__version__ = '0.14.1'
+__version_tuple__ = (0, 15, 0)
+__version__ = '0.15.0'

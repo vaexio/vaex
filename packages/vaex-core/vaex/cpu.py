@@ -524,7 +524,11 @@ class TaskPartStatistic(TaskPart):
 
         # blocks = [as_flat_float(block) for block in blocks]
         if len(blocks) != 0:
-            dtype = np.find_common_type([block.dtype for block in blocks], [])
+            if np.lib.NumpyVersion(np.__version__) >= '1.25.0':
+                dtype = np.result_type(*[block.dtype for block in blocks])
+            else:
+                dtype = np.find_common_type([block.dtype for block in blocks], [])
+
             if dtype.str in ">f8 <f8 =f8":
                 statistic_function = vaex.vaexfast.statisticNd_f8
             elif dtype.str in ">f4 <f4 =f4":
@@ -786,7 +790,10 @@ class TaskPartAggregation(TaskPart):
             for selection_index, selection in enumerate(selections):
                 agg0 = aggregation[selection_index]
                 aggs = [other.aggregations[agg_index][2][selection_index] for other in others]
-                agg0.merge(aggs)
+                try:
+                    agg0.merge(aggs)
+                except Exception as e:
+                    logger.warning(f"TaskPartAggregation.reduce: merge used here, but: {e}")
 
     def get_result(self):
         results = []

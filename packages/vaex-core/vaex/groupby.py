@@ -551,7 +551,10 @@ def _combine(df, groupers, sort, row_limit=None, progress=None):
             break
     counts.append(1)
     # decreasing [40, 4, 1] for 2 groupers (N=10 and N=4)
-    cumulative_counts = np.cumproduct(counts[::-1], dtype='i8').tolist()[::-1]
+    if np.lib.NumpyVersion(np.__version__) >= '1.25.0':
+        cumulative_counts = np.cumprod(counts[::-1], dtype='i8').tolist()[::-1]
+    else:
+        cumulative_counts = np.cumproduct(counts[::-1], dtype='i8').tolist()[::-1]
     assert len(combine_now) >= 2
     combine_later = ([next] if next else []) + groupers
 
@@ -753,10 +756,14 @@ class GroupByBase(object):
 
         >>> import vaex
         >>> import vaex.datasets
+        >>> import numpy as np
         >>> df = vaex.datasets.titanic()
         >>> g1 = df.groupby(by='pclass')
         >>> df_group1 = g1.get_group(1)
-        >>> df_group1.head(3)
+        >>> result = df_group1.head(3)
+        >>> if np.lib.NumpyVersion(np.__version__) >= "2.0.0":
+        ...     result = str(result).replace("np.True_","True    ").replace("np.False_","False    ")
+        >>> print(result)
           #    pclass  survived    name                            sex         age    sibsp    parch    ticket     fare  cabin    embarked    boat      body  home_dest
           0         1  True        Allen, Miss. Elisabeth Walton   female  29             0        0     24160  211.338  B5       S           2          nan  St Louis, MO
           1         1  True        Allison, Master. Hudson Trevor  male     0.9167        1        2    113781  151.55   C22 C26  S           11         nan  Montreal, PQ / Chesterville, ON
@@ -765,7 +772,10 @@ class GroupByBase(object):
         >>> df = vaex.datasets.titanic()
         >>> g2 = df.groupby(by=['pclass', 'sex'])
         >>> df_group2 = g2.get_group([1, 'female'])
-        >>> df_group2.head(3)
+        >>> result = df_group2.head(3)
+        >>> if np.lib.NumpyVersion(np.__version__) >= "2.0.0":
+        ...     result = str(result).replace("np.True_","True    ").replace("np.False_","False    ")
+        >>> print(result)
           #    pclass  survived    name                                             sex       age    sibsp    parch    ticket     fare  cabin    embarked    boat      body  home_dest
           0         1  True        Allen, Miss. Elisabeth Walton                    female     29        0        0     24160  211.338  B5       S           2          nan  St Louis, MO
           1         1  False       Allison, Miss. Helen Loraine                     female      2        1        2    113781  151.55   C22 C26  S           --         nan  Montreal, PQ / Chesterville, ON

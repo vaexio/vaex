@@ -10,50 +10,49 @@ from . import generate
 import numpy as np
 import catboost
 
-
 @vaex.serialize.register
 @generate.register
 class CatBoostModel(state.HasState):
     '''The CatBoost algorithm.
 
-    This class provides an interface to the CatBoost aloritham.
-    CatBoost is a fast, scalable, high performance Gradient Boosting on
-    Decision Trees library, used for ranking, classification, regression and
-    other machine learning tasks. For more information please visit
-    https://github.com/catboost/catboost
+This class provides an interface to the CatBoost algorithm.
+CatBoost is a fast, scalable, high performance Gradient Boosting on
+Decision Trees library, used for ranking, classification, regression and
+other machine learning tasks. For more information please visit
+https://github.com/catboost/catboost
 
-    Example:
+Example:
 
-    >>> import vaex
-    >>> import vaex.ml.catboost
-    >>> df = vaex.datasets.iris()
-    >>> features = ['sepal_width', 'petal_length', 'sepal_length', 'petal_width']
-    >>> df_train, df_test = df.ml.train_test_split()
-    >>> params = {
-        'leaf_estimation_method': 'Gradient',
-        'learning_rate': 0.1,
-        'max_depth': 3,
-        'bootstrap_type': 'Bernoulli',
-        'objective': 'MultiClass',
-        'eval_metric': 'MultiClass',
-        'subsample': 0.8,
-        'random_state': 42,
-        'verbose': 0}
-    >>> booster = vaex.ml.catboost.CatBoostModel(features=features, target='class_', num_boost_round=100, params=params)
-    >>> booster.fit(df_train)
-    >>> df_train = booster.transform(df_train)
-    >>> df_train.head(3)
-    #    sepal_length    sepal_width    petal_length    petal_width    class_  catboost_prediction
-    0             5.4            3               4.5            1.5         1  [0.00615039 0.98024259 0.01360702]
-    1             4.8            3.4             1.6            0.2         0  [0.99034267 0.00526382 0.0043935 ]
-    2             6.9            3.1             4.9            1.5         1  [0.00688241 0.95190908 0.04120851]
-    >>> df_test = booster.transform(df_test)
-    >>> df_test.head(3)
-    #    sepal_length    sepal_width    petal_length    petal_width    class_  catboost_prediction
-    0             5.9            3               4.2            1.5         1  [0.00464228 0.98883351 0.00652421]
-    1             6.1            3               4.6            1.4         1  [0.00350424 0.9882139  0.00828186]
-    2             6.6            2.9             4.6            1.3         1  [0.00325705 0.98891631 0.00782664]
-    '''
+>>> import vaex
+>>> import vaex.ml.catboost
+>>> df = vaex.datasets.iris()
+>>> features = ['sepal_width', 'petal_length', 'sepal_length', 'petal_width']
+>>> df_train, df_test = df.ml.train_test_split()
+>>> params = {
+    'leaf_estimation_method': 'Gradient',
+    'learning_rate': 0.1,
+    'max_depth': 3,
+    'bootstrap_type': 'Bernoulli',
+    'objective': 'MultiClass',
+    'eval_metric': 'MultiClass',
+    'subsample': 0.8,
+    'random_state': 42,
+    'verbose': 0}
+>>> booster = vaex.ml.catboost.CatBoostModel(features=features, target='class_', num_boost_round=100, params=params)
+>>> booster.fit(df_train)
+>>> df_train = booster.transform(df_train)
+>>> df_train.head(3)
+#    sepal_length    sepal_width    petal_length    petal_width    class_  catboost_prediction
+0             5.4            3               4.5            1.5         1  [0.00615039 0.98024259 0.01360702]
+1             4.8            3.4             1.6            0.2         0  [0.99034267 0.00526382 0.0043935 ]
+2             6.9            3.1             4.9            1.5         1  [0.00688241 0.95190908 0.04120851]
+>>> df_test = booster.transform(df_test)
+>>> df_test.head(3)
+#    sepal_length    sepal_width    petal_length    petal_width    class_  catboost_prediction
+0             5.9            3               4.2            1.5         1  [0.00464228 0.98883351 0.00652421]
+1             6.1            3               4.6            1.4         1  [0.00350424 0.9882139  0.00828186]
+2             6.6            2.9             4.6            1.3         1  [0.00325705 0.98891631 0.00782664]
+'''
     snake_name = "catboost_model"
     features = traitlets.List(traitlets.Unicode(), help='List of features to use when fitting the CatBoostModel.')
     target = traitlets.Unicode(allow_none=False, help='The name of the target column.')

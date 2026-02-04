@@ -1,6 +1,7 @@
 /* regex match/search using string_view */
 #include <nonstd/string_view.hpp>
 #include <regex>
+#include <cstdint>
 
 const char REPLACEMENT_CHAR = '?';
 const char32_t CHARS = 0x110000;

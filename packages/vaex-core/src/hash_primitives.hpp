@@ -739,7 +739,13 @@ class index_hash : public hash_base<index_hash<T2, Hashmap2>, T2, Hashmap2> {
 
     // TODO: might be better to use a node based hasmap, we don't want to move large vectors
     typedef hashmap<key_type, std::vector<int64_t>> overflow_type;
-    index_hash(int nmaps = 1) : Base(nmaps), overflows(nmaps), has_duplicates(false), null_value(-1), nan_value(-1) {}
+    index_hash(int nmaps = 1)
+        : Base(nmaps)
+        , overflows(nmaps)
+        , null_value(-1)
+        , nan_value(-1)
+        , has_duplicates(false)
+    {}
 
     int64_t length() const {
         int64_t c = this->count();

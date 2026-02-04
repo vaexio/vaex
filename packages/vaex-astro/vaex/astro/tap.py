@@ -81,7 +81,7 @@ class DatasetTap(DatasetArrays):
         'DOUBLE':np.float64,
         'BIGINT':np.int64,
         'INTEGER':np.int32,
-        'BOOLEAN':np.bool8
+        'BOOLEAN': np.bool_ if np.lib.NumpyVersion(np.__version__) >= '1.24.0' else np.bool8
     }
     #not supported types yet 'VARCHAR',', u'BOOLEAN', u'INTEGER', u'CHAR
     def __init__(self, tap_url="http://gaia.esac.esa.int/tap-server/tap/g10_smc", table_name=None):

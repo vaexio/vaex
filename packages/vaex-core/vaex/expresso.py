@@ -110,12 +110,15 @@ def validate_expression(expr, variable_set, function_set=[], names=None):
     elif isinstance(expr, ast_Str):
         pass  # as well as strings
     elif isinstance(expr, _ast.Call):
-        validate_func(expr.func, function_set)
-        last_func = expr
-        for arg in expr.args:
-            validate_expression(arg, variable_set, function_set, names)
-        for arg in expr.keywords:
-            validate_expression(arg, variable_set, function_set, names)
+        if isinstance(expr.func, _ast.Attribute):
+            pass
+        else:
+            validate_func(expr.func, function_set)
+            last_func = expr
+            for arg in expr.args:
+                validate_expression(arg, variable_set, function_set, names)
+            for arg in expr.keywords:
+                validate_expression(arg, variable_set, function_set, names)
     elif isinstance(expr, _ast.Compare):
         validate_expression(expr.left, variable_set, function_set, names)
         for op in expr.ops:
@@ -137,13 +140,17 @@ def validate_expression(expr, variable_set, function_set=[], names=None):
             validate_expression(value, variable_set, function_set, names)
     elif isinstance(expr, _ast.Subscript):
         validate_expression(expr.value, variable_set, function_set, names)
-        if isinstance(expr.slice.value, ast_Num):
-            pass  # numbers are fine
-        elif isinstance(expr.slice.value, str) or isinstance(expr.slice.value, _ast.Str):
-            pass  # and strings (from py3.9, value is str)
+        if hasattr(expr.slice, "value"):
+            if isinstance(expr.slice.value, ast_Num) or np.isscalar(expr.slice.value):
+                pass  # numbers are fine
+            elif isinstance(expr.slice.value, str) or isinstance(expr.slice.value, ast_Str):
+                pass  # and strings (from py3.9, value is str)
+            else:
+                raise ValueError(
+                    "Only subscript/slices with numbers allowed, not: %r" % expr.slice.value)
         else:
             raise ValueError(
-                "Only subscript/slices with numbers allowed, not: %r" % expr.slice.value)
+                "Only subscript/slices with numbers allowed, not: %r" % expr.slice)
     else:
         last_func = expr
         raise ValueError("Unknown expression type: %r" % type(expr))
@@ -263,8 +270,8 @@ class Derivative(ast.NodeTransformer):
         return ExpressionString().visit(node)
         # return ast.dump(node)
 
-    def visit_Num(self, node):
-        return ast.Num(n=0)
+    def visit_Constant(self, node):
+        return ast.Constant(0)
 
     def visit_Name(self, node):
         if node.id == self.id:
@@ -351,14 +358,11 @@ class ExpressionString(ast.NodeVisitor):
     def visit_Name(self, node):
         return node.id
 
-    def visit_Num(self, node):
-        return repr(node.n)
+    def visit_Constant(self, node):
+        return repr(node.value)
 
     def visit_keyword(self, node):
         return "%s=%s" % (node.arg, self.visit(node.value))
-
-    def visit_NameConstant(self, node):
-        return repr(node.value)
 
     def visit_Dict(self, node):
         parts = []
@@ -369,6 +373,10 @@ class ExpressionString(ast.NodeVisitor):
         return '{' + ', '.join(parts) + '}'
 
     def visit_Call(self, node):
+        if isinstance(node.func, _ast.Attribute):
+            # assuming np.float64(0.0) for instance
+            return str(node.args[0].value)
+
         args = [self.visit(k) for k in node.args]
         keywords = []
         if hasattr(node, 'keywords'):

@@ -85,10 +85,32 @@ function build_simple {
     fi
     # touch "${name}-stamp"
 }
+
+
 function build_pcre {
-    echo "Build"
+    echo "Build pcre"
     echo $ARCHFLAGS
     build_simple pcre $PCRE_VERSION http://ftp.exim.org/pub/pcre/
 }
-echo Build pcre
-build_pcre
+
+function install_precompiled() {
+    # Mac https://formulae.brew.sh/formula/pcre
+    # DebianUbuntu https://packages.ubuntu.com/libpcre3-dev
+    # Alpine https://pkgs.alpinelinux.org/package/edge/main/x86_64/pcre
+    # RHEL https://git.almalinux.org/rpms/pcre
+    if [ -n "$(which brew)" ]; then
+        brew install pcre
+    elif [ -n "$(which apt)" ]; then
+        apt update
+        apt install -y libpcre3-dev
+    elif [ -n "$(which apk)" ]; then
+        apk add --update pcre pcre-dev
+    elif [ -n "$(which dnf)" ]; then
+        dnf --setopt install_weak_deps=false -y install pcre
+    else
+        false
+    fi
+}
+
+echo "Install pcre"
+install_precompiled || build_pcre
