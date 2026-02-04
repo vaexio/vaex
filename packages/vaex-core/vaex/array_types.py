@@ -49,7 +49,17 @@ def filter(ar, boolean_mask):
 
 
 def take(ar, indices):
-    return ar.take(indices)
+    if isinstance(ar, pa.ChunkedArray):
+        # Don't use .take in arrow for chunked arrays
+        # https://issues.apache.org/jira/browse/ARROW-9773
+        # slice is zero-copy
+        return pa.concat_arrays(
+            [ar.slice(i, 1).combine_chunks() for i in indices]
+        )
+    elif isinstance(ar, pa.lib.Array):
+        return ar.take(to_arrow(indices))
+    else:
+        return ar[indices]
 
 
 def slice(ar, offset, length=None):

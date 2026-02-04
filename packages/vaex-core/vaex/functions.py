@@ -2493,7 +2493,7 @@ def _map(ar, value_to_index, choices, default_value=None, use_missing=False, axi
 
     ar = vaex.array_types.to_numpy(ar)
     indices = value_to_index.map(ar) + 1
-    values = choices.take(indices)
+    values = vaex.array_types.take(choices, indices)
     if np.ma.isMaskedArray(ar):
         mask = np.ma.getmaskarray(ar).copy()
         # also mask out the missing (which had -1 and was moved to 0)
