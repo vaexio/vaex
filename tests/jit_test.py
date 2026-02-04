@@ -88,3 +88,22 @@ def test_types_metal(type_name, df_factory_numpy):
     # df['x'] = df['x'].astype(type_name)
     df['z'] = (df['x'] + df['y']).jit_metal()
     assert df['z'].tolist() == [2, 4, 6]
+
+
+def test_opencl(df_local):
+    pytest.importorskip("pyopencl")
+    df = df_local
+    df_original = df.copy()
+    #df.columns['x'] = (df.columns['x']*1).copy()  # convert non non-big endian for now
+    expr = arc_distance(df.y*1, df.y*1, df.y**2*df.y, df.x+df.y)
+    # expr = df.x + df.y
+    df['arc_distance'] = expr
+    #assert df.arc_distance.expression == expr.expression
+    df['arc_distance_jit'] = df['arc_distance'].jit_opencl()
+    # assert df.arc_distance.tolist() == df.arc_distance_jit.tolist()
+    np.testing.assert_almost_equal(df.arc_distance.values, df.arc_distance_jit.values, decimal=1)
+    # TODO: make it such that they can be pickled
+    df_original.state_set(df.state_get())
+    df = df_original
+    np.testing.assert_almost_equal(df.arc_distance.values, df.arc_distance_jit.values, decimal=1)
+
