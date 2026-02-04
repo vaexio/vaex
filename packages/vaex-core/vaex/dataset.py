@@ -572,14 +572,23 @@ class DatasetDecorator(Dataset):
         return self.original.shape(column)
 
 
+import weakref
+
 class ColumnProxy(vaex.column.Column):
     '''To give the Dataset._columns object useful containers for debugging'''
     ds: Dataset
 
     def __init__(self, ds, name, type):
-        self.ds = ds
+        self._ds = weakref.ref(ds)
         self.name = name
         self.dtype = type
+
+    @property
+    def ds(self):
+        ds = self._ds()
+        if ds is None:
+            raise RuntimeError("Proxy has a weak ref to its dataset, which is now garbage collected, please keep a reference to your dataframe or dataset while using the proxy")
+        return ds
 
     def _fingerprint(self):
         fp = vaex.cache.fingerprint(self.ds.fingerprint, self.name)
