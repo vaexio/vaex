@@ -43,11 +43,11 @@ jobs:
         run: |
           MATRIX_INCLUDE=$(
             {
-              cibuildwheel --print-build-identifiers --platform linux --arch x86_64 | jq -nRc '{"only": inputs, "os": "ubuntu-24.04"}' \
-              && cibuildwheel --print-build-identifiers --platform linux --arch aarch64 | jq -nRc '{"only": inputs, "os": "ubuntu-24.04-arm"}' \
-              && cibuildwheel --print-build-identifiers --platform macos --arch x86_64 | jq -nRc '{"only": inputs, "os": "macos-15-intel"}' \
-              && cibuildwheel --print-build-identifiers --platform macos --arch arm64 | jq -nRc '{"only": inputs, "os": "macos-15"}' \
-              && cibuildwheel --print-build-identifiers --platform windows --arch AMD64 | jq -nRc '{"only": inputs, "os": "windows-2025"}'
+              cibuildwheel --print-build-identifiers --platform linux --archs x86_64 | jq -nRc '{"only": inputs, "os": "ubuntu-24.04"}' \
+              && cibuildwheel --print-build-identifiers --platform linux --archs aarch64 | jq -nRc '{"only": inputs, "os": "ubuntu-24.04-arm"}' \
+              && cibuildwheel --print-build-identifiers --platform macos --archs x86_64 | jq -nRc '{"only": inputs, "os": "macos-15-intel"}' \
+              && cibuildwheel --print-build-identifiers --platform macos --archs arm64 | jq -nRc '{"only": inputs, "os": "macos-15"}' \
+              && cibuildwheel --print-build-identifiers --platform windows --archs AMD64 | jq -nRc '{"only": inputs, "os": "windows-2025"}'
             } | jq -sc
           )
           echo "include=$MATRIX_INCLUDE" >> $GITHUB_OUTPUT
