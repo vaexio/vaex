@@ -6,6 +6,4 @@ requires = [
     # ref https://github.com/scipy/oldest-supported-numpy/pull/86
     "numpy~=2.0",
     "scikit-build",
-    "cmake",
-    "ninja"
 ]

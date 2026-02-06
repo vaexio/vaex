@@ -1,4 +1,5 @@
 from setuptools import setup
+import shutil
 import sys
 import os
 from importlib.machinery import SourceFileLoader
@@ -24,6 +25,11 @@ license = "MIT"
 version = version.__version__
 url = "https://www.github.com/maartenbreddels/vaex"
 setup_requires = ["numpy~=2.0"] # see vaex-core pyproject.toml
+if use_skbuild:
+    if not shutil.which("cmake"):
+        setup_requires += ["cmake"]
+    if not shutil.which("ninja"):
+        setup_requires += ["ninja"]
 install_requires_core = [
     "aplus",
     "blake3",
