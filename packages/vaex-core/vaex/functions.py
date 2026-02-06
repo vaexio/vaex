@@ -2407,8 +2407,14 @@ def to_string(x):
     # don't change the dtype, otherwise for each block the dtype may be different (string length)
     ar = vaex.array_types.to_numpy(x)
     if np.ma.isMaskedArray(ar):
+        # Handle object dtype by converting to string array first
+        if ar.dtype == object:
+            ar = ar.astype(str)
         sl = vaex.strings.to_string(ar.data, ar.mask)
     else:
+        # Handle object dtype by converting to string array first
+        if ar.dtype == object:
+            ar = ar.astype(str)
         sl = vaex.strings.to_string(ar)
     return column.ColumnStringArrow.from_string_sequence(sl)
 
