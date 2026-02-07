@@ -457,15 +457,15 @@ def from_pandas(df, name="pandas", copy_index=False, index_name="index"):
     return from_dict(columns)
 
 
-def from_ascii(path, seperator=None, names=True, skip_lines=0, skip_after=0, **kwargs):
+def from_ascii(path, separator=None, names=True, skip_lines=0, skip_after=0, **kwargs):
     """
-    Create an in memory DataFrame from an ascii file (whitespace seperated by default).
+    Create an in memory DataFrame from an ascii file (whitespace separated by default).
 
     >>> ds = vx.from_ascii("table.asc")
-    >>> ds = vx.from_ascii("table.csv", seperator=",", names=["x", "y", "z"])
+    >>> ds = vx.from_ascii("table.csv", separator=",", names=["x", "y", "z"])
 
     :param path: file path
-    :param seperator: value seperator, by default whitespace, use "," for comma seperated values.
+    :param separator: value separator, by default whitespace, use "," for comma separated values.
     :param names: If True, the first line is used for the column names, otherwise provide a list of strings with names
     :param skip_lines: skip lines at the start of the file
     :param skip_after: skip lines at the end of the file
@@ -480,7 +480,7 @@ def from_ascii(path, seperator=None, names=True, skip_lines=0, skip_after=0, **k
         names = False
     else:
         namelist = None
-    data = rc.readcol(path, fsep=seperator, asdict=namelist is None, names=names, skipline=skip_lines, skipafter=skip_after, **kwargs)
+    data = rc.readcol(path, fsep=separator, asdict=namelist is None, names=names, skipline=skip_lines, skipafter=skip_after, **kwargs)
     if namelist:
         for name, array in zip(namelist, data.T):
             ds.add_column(name, array)

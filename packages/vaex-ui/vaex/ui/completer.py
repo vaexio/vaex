@@ -131,7 +131,7 @@ secondary_list = list(sorted(ucd_words._secondary))
 class UCDCompleter(Completer):
     """
     UCDs have primary words (that come first), and secondary, that come after the second
-    UCD words are seperated by a ; char
+    UCD words are separated by a ; char
     """
 
     def __init__(self, line_edit):

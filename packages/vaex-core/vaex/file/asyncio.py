@@ -107,7 +107,7 @@ class WriteStream(io.RawIOBase):
                 logger.debug('stop yielding, file closed')
                 break
             # if isinstance(item, BaseException):
-            #     logger.debug('stop yielding, exception occured')
+            #     logger.debug('stop yielding, exception occurred')
             #     raise item
             yield item
         if self.exception:

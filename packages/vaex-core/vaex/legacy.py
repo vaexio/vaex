@@ -292,8 +292,8 @@ class Subspaces(object):
     def __len__(self):
         return len(self.subspaces)
 
-    def names(self, seperator=" "):
-        return [seperator.join(subspace.expressions) for subspace in self.subspaces]
+    def names(self, separator=" "):
+        return [separator.join(subspace.expressions) for subspace in self.subspaces]
 
     def expressions_list(self):
         return [subspace.expressions for subspace in self.subspaces]
@@ -550,7 +550,7 @@ class Subspace(object):
                 grid = self.bin_mean(weight, limits=limits, size=size, group_limits=group_limits, group_by=group_by)
             else:
                 grid = self.histogram(limits=limits, size=size, weight=weight, group_limits=group_limits, group_by=group_by)
-            if grid is None:  # cancel occured
+            if grid is None:  # cancel occurred
                 return
         import matplotlib.cm
         background_color = np.array(matplotlib.colors.colorConverter.to_rgb(background_color))
