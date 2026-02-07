@@ -1076,7 +1076,7 @@ class LayerTable(object):
         pass
 
     def on_error(self, exception):
-        logger.exception("unhandled error occured: %r", exception)
+        logger.exception("unhandled error occurred: %r", exception)
         self.finished_tasks()
         traceback.print_exc()
         raise exception
