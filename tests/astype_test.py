@@ -1,5 +1,4 @@
 from common import *
-import collections
 import numpy as np
 
 def test_astype(ds_local):
@@ -34,6 +33,18 @@ def test_astype_numeric(array_factory):
     assert df.x.astype('int8').tolist() == [1, 2, None]
     assert df.x.astype('int').tolist() == [1, 2, None]
 
+
+@pytest.mark.xfail
+def test_astype_dictionary(df_factory):
+    arr = pa.array(["one", "two", "one"]).dictionary_encode()
+    # With just strings, it works fine:
+    # arr = pa.array(["one", "two", "one"])
+    df = df_factory(x=arr)
+    # These work
+    df["x"].astype(df["x"].dtype).nop()
+    df["x"].astype(vaex.datatype.DataType(arr.type)).nop()
+    # This doesn't
+    df["x"].astype(arr.type).nop()
 
 
 def test_astype_dtype():
