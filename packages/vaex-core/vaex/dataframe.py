@@ -7129,6 +7129,21 @@ class DataFrameLocal(DataFrame):
     #     self._has_selection = mask is not None
     #     # self.signal_selection_changed.emit(self)
 
+    def drop_duplicates(self, columns=None):
+        """Return a :class:`DataFrame` object with no duplicates in the given columns.
+
+        .. warning:: The resulting dataframe will be in memory, use with caution.
+
+        :param columns: Column or list of column to remove duplicates by, default to all columns.
+        :return: :class:`DataFrame` object with duplicates filtered away.
+        """
+        if columns is None:
+            columns = self.get_column_names()
+        if type(columns) is str:
+            columns = [columns]
+
+        return self.groupby(columns, agg={'__hidden_count': vaex.agg.count()}).drop('__hidden_count')
+
     @docsubst
     def groupby(self, by=None, agg=None, sort=False, ascending=True, assume_sparse='auto', row_limit=None, copy=True, progress=None, delay=False):
         """Return a :class:`GroupBy` or :class:`DataFrame` object when agg is not None
