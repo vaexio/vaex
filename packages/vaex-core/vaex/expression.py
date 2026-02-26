@@ -1186,6 +1186,21 @@ def f({0}):
         return expression
 
     def astype(self, data_type):
+        """Cast this expression to a different data type.
+
+        Supported formats for data_type are:
+
+        - strings, such as "string", "float", "float32", "datetime64[ns]"
+        - pyarrow types, such as ``pa.float32()``, ``pa.uint8()``
+
+        Formats that are not supported are:
+
+        - native python types, such as ``int`` and ``float``
+        - native numpy types, such as ``np.int32``
+
+        :param data_type: The data type to cast to.
+        :return: :class:`Expression` in the new data type.
+        """
         if vaex.array_types.is_string_type(data_type) or data_type == str:
             return self.ds.func.astype(self, 'str')
         else:
