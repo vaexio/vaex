@@ -789,6 +789,9 @@ class Expression(with_metaclass(Meta)):
 
     def __str__(self):
         return self.expression
+    
+    def __contains__(self, v):
+        return self.count(selection=self==v) > 0
 
     # def __array__(self, dtype=None):
     #     '''For casting to a numpy array

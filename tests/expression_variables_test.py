@@ -44,3 +44,13 @@ def test_non_identifiers():
     df['valid'] = df['2']
     assert df['valid'].variables(ourself=True) == {'x', 'y', '2', '1', 'valid'}
     assert df['valid'].variables(include_virtual=False) == {'x', 'y'}
+
+    
+def test_expression_in():
+    df = vaex.from_dict({"id":[1,2,3,4,5,6], "y":[5.4,3.5,1.1,2.4,3.7,3.5]})
+    for i in range(1,7):
+        assert i in df["id"]
+    assert 7 not in df["id"]
+    assert 5.4 in df["y"]
+    assert 5.44 not in df["y"]
+    assert "test string" not in df["y"]
