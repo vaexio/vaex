@@ -1,5 +1,17 @@
 from common import *
 
+
+def test_renames(df_local):
+    ds = df_local
+    new_columns = ds.rename({'x': 'x1', 'y': 'y1'})
+    assert new_columns == ['x1', 'y1']
+    current_columns = ds.get_column_names()
+    for column in new_columns:
+        assert column in current_columns
+    for column in ['x', 'y']:
+        assert column not in current_columns
+
+
 def test_rename(ds_filtered):
     ds = ds_filtered
     ds['r'] = ds.x
