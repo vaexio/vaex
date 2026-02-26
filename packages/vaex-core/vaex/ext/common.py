@@ -29,7 +29,7 @@ class Job(object):
         if not self.cancelled:
             try:
                 self.result = self.f(self, **self.kwargs)
-            except:
+            except Exception:
                 self.exception = True
                 raise
 

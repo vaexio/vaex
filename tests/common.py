@@ -3,7 +3,7 @@ try:
     # https://github.com/pytorch/pytorch/issues/2575
     # but with catboost, xgboost and lightgbm
     import sklearn
-except:
+except Exception:
     pass
 
 import os
@@ -446,7 +446,7 @@ def df_factory_arrow():
         def try_convert(ar):
             try:
                 return pa.array(ar)
-            except:
+            except Exception:
                 return ar
         return vaex.from_dict({k: try_convert(v) for k, v in arrays.items()})
     return create
@@ -458,7 +458,7 @@ def df_factory_arrow_chunked(array_factory_arrow_chunked):
         def try_convert(ar):
             try:
                 return array_factory_arrow_chunked(ar)
-            except:
+            except Exception:
                 return ar
         return vaex.from_dict({k: try_convert(v) for k, v in arrays.items()})
     return create

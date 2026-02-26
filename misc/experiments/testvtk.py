@@ -3,7 +3,7 @@ import sys
 import vtk
 try:
 	from PyQt4 import QtCore, QtGui
-except:
+except Exception:
 	from PySide import QtCore, QtGui
 from vtk.qt4.QVTKRenderWindowInteractor import QVTKRenderWindowInteractor
 import vtk.util.numpy_support

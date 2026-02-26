@@ -51,7 +51,7 @@ class WebSocketHandler(tornado.websocket.WebSocketHandler):
         logger.debug("get msg: %r", websocket_msg)
         try:
             asyncio.create_task(self._on_message(websocket_msg))
-        except:
+        except Exception:
             logger.exception("creating task")
 
     async def _on_message(self, websocket_msg):

@@ -106,7 +106,7 @@ class FitsBinTable(DatasetMemoryMapped):
     def _try_votable(self, table):
         try:
             from io import BytesIO as StringIO
-        except:
+        except Exception:
             from StringIO import StringIO
         if table.data is None:
             return
@@ -140,7 +140,7 @@ class FitsBinTable(DatasetMemoryMapped):
                 unit = _try_unit(column.unit)
                 if unit:
                     self.units[column_name] = unit
-            except:
+            except Exception:
                 logger.exception("could not understand unit: %s" % column.unit)
         else: # we may want to try ourselves
             unit_header_name = "TUNIT%d" % (i+1)

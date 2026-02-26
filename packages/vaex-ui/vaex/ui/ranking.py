@@ -853,7 +853,7 @@ class RankDialog(QtGui.QDialog):
             ranges = minmax.get()
             self.table1d.setRanges(pairs, ranges)
             self.fill_range_map()
-        except:
+        except Exception:
             logger.exception("Error in min/max or cancelled")
         # dialog.hide()
 

@@ -15,7 +15,7 @@ import vaex.utils
 
 try:
 	raw_input = input
-except:
+except Exception:
 	pass # py2/3 fix
 
 base_path = os.path.dirname(__file__)

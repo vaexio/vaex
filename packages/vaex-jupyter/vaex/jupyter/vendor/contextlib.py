@@ -197,7 +197,7 @@ class _GeneratorContextManager(_GeneratorContextManagerBase,
                 if type is StopIteration and exc.__cause__ is value:
                     return False
                 raise
-            except:
+            except Exception:
                 # only re-raise if it's *not* the exception that was
                 # passed to throw(), because __exit__() must not raise
                 # an exception unless __exit__() itself failed.  But throw()
@@ -564,7 +564,7 @@ class ExitStack(_BaseExitStack, AbstractContextManager):
                     suppressed_exc = True
                     pending_raise = False
                     exc_details = (None, None, None)
-            except:
+            except Exception:
                 new_exc_details = sys.exc_info()
                 # simulate the stack of exceptions by setting the context
                 _fix_exception_context(new_exc_details[1], exc_details[1])
@@ -718,7 +718,7 @@ class AsyncExitStack(_BaseExitStack, AbstractAsyncContextManager):
                     suppressed_exc = True
                     pending_raise = False
                     exc_details = (None, None, None)
-            except:
+            except Exception:
                 new_exc_details = sys.exc_info()
                 # simulate the stack of exceptions by setting the context
                 _fix_exception_context(new_exc_details[1], exc_details[1])
