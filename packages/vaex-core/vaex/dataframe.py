@@ -3431,6 +3431,13 @@ class DataFrame(object):
         """
         import dask.array as da
         import uuid
+        import numpy as np
+
+        #Check for non-numeric columns
+        non_numeric_columns= [col for col in self.columns if not np.issubdtype(self[col].dtype, np.number)]
+        if non_numeric_columns:
+            raise TypeError(f"Cannot Convert non-numeric columns to Dask array. Non-numeric columns: {non_numeric_columns}")
+        
         dtype = self._dtype
         chunks = da.core.normalize_chunks(chunks, shape=self.shape, dtype=dtype.numpy)
         name = 'vaex-df-%s' % str(uuid.uuid1())
