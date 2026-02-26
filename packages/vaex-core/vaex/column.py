@@ -11,7 +11,7 @@ import pyarrow.compute as pc
 import vaex
 import vaex.utils
 import vaex.cache
-from .array_types import supported_array_types, supported_arrow_array_types, string_types, is_string_type
+from .array_types import supported_array_types, supported_arrow_array_types, string_types, is_string_type, take
 
 
 if vaex.utils.has_c_extension:
@@ -385,10 +385,7 @@ class ColumnIndexed(Column):
             # arrow and numpy do not like the negative indices, so we set them to 0
             take_indices = indices.copy()
             take_indices[mask] = 0
-        if isinstance(ar_unfiltered, supported_arrow_array_types):
-            ar = ar_unfiltered.take(vaex.array_types.to_arrow(take_indices))
-        else:
-            ar = ar_unfiltered[take_indices]
+        ar = take(ar_unfiltered, take_indices)
         assert not np.ma.isMaskedArray(indices)
         if self.masked:
             # TODO: we probably want to keep this as arrow array if it originally was
@@ -597,7 +594,7 @@ def _is_stringy(x):
 
 def _to_string_sequence(x, force=True):
     if isinstance(x, pa.DictionaryArray):
-        x = x.dictionary.take(x.indices)  # equivalent to PyArrow 5.0.0's dictionary_decode() but backwards compatible
+        x = take(x.dictionary, x.indices)  # equivalent to PyArrow 5.0.0's dictionary_decode() but backwards compatible
     if isinstance(x, pa.ChunkedArray):
         # turn into pa.Array, TODO: do we want this, this may result in a big mem copy
         table = pa.Table.from_arrays([x], ["single"])
