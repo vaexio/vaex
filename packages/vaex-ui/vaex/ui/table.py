@@ -73,7 +73,7 @@ class FullTableModel(QtCore.QAbstractTableModel):
                     return str(value)
                 else:
                     return "%s %s" % (value.dtype.name, value.shape)
-            except:
+            except Exception:
                 pass  # TODO: ok, it can be a scalar sometimes... should not happen, but can when an column expression is set to '0'
                 return str(value)
             # column = [self.dataset.all_column_names[index.column()-1]]

@@ -2012,7 +2012,7 @@ class DataFrame(object):
             try:
                 len(shape)
                 shape = tuple(shape)
-            except:
+            except Exception:
                 shape = len(binby) * (shape,)
             shape = (mode_shape,) + shape
             subspace = self(*(list(binby) + [expression]))
@@ -2282,7 +2282,7 @@ class DataFrame(object):
             expression = vaex.utils.valid_expression(self.get_column_names(hidden=True), expression)
             try:
                 data = self.evaluate(expression, 0, 1, filtered=False, array_type=array_type, parallel=False)
-            except:
+            except Exception:
                 data = self.evaluate(expression, 0, 1, filtered=True, array_type=array_type, parallel=False)
         if data_type is None:
             # means we have to determine it from the data
@@ -2366,7 +2366,7 @@ class DataFrame(object):
             if output_unit and unit:  # avoid unnecessary error msg'es
                 output_unit.to(unit)
                 unit = output_unit
-        except:
+        except Exception:
             logger.exception("unit error")
         if unit is not None:
             label = "%s (%s)" % (label, unit.to_string('latex_inline'))
@@ -2397,12 +2397,12 @@ class DataFrame(object):
             unit = unit_or_quantity.unit if hasattr(unit_or_quantity, "unit") else unit_or_quantity
             unit_types = (astropy.units.core.UnitBase, )
             return unit if isinstance(unit, unit_types) else None
-        except:
+        except Exception:
             # logger.exception("error evaluating unit expression: %s", expression)
             # astropy doesn't add units, so we try with a quatiti
             try:
                 return eval(expression, expression_namespace, scopes.UnitScope(self, 1.)).unit
-            except:
+            except Exception:
                 # logger.exception("error evaluating unit expression: %s", expression)
                 return default
 
@@ -2473,7 +2473,7 @@ class DataFrame(object):
                 selections_dict = vaex.utils.read_json_or_yaml(path)
                 for key, value in selections_dict.items():
                     self.favorite_selections[key] = selections.selection_from_dict(self, value)
-        except:
+        except Exception:
             logger.exception("non fatal error")
 
     def get_private_dir(self, create=False):
@@ -2904,7 +2904,7 @@ class DataFrame(object):
                 os.remove(path)
             if not os.listdir(dir):
                 os.rmdir(dir)
-        except:
+        except Exception:
             logger.exception("error while trying to remove %s or %s", path, dir)
     # def remove_meta(self):
     #   path = os.path.join(self.get_private_dir(create=True), "meta.yaml")
@@ -2948,7 +2948,7 @@ class DataFrame(object):
                 self.descriptions.update(meta_info["descriptions"])
                 units = {key: astropy.units.Unit(value) for key, value in meta_info["units"].items()}
                 self.units.update(units)
-        except:
+        except Exception:
             logger.exception("non fatal error")
 
     @_hidden
@@ -2987,7 +2987,7 @@ class DataFrame(object):
                 # self.variables.update(meta_info["variables"])
                 units = {key: astropy.units.Unit(value) for key, value in meta_info["units"].items()}
                 self.units.update(units)
-        except:
+        except Exception:
             logger.exception("non fatal error, but could read/understand %s", path)
 
     def is_local(self):
@@ -3858,7 +3858,7 @@ class DataFrame(object):
                 if isinstance(getattr(self, old), Expression):
                     try:
                         delattr(self, old)
-                    except:
+                    except Exception:
                         pass
             self._save_assign_expression(new)
         existing_expressions = [k() for k in self._expressions]
@@ -4105,12 +4105,12 @@ class DataFrame(object):
             df = self[k1:k2]
             try:
                 values = dict(zip(column_names, df.evaluate(column_names)))
-            except:
+            except Exception:
                 values = {}
                 for i, name in enumerate(column_names):
                     try:
                         values[name] = df.evaluate(name)
-                    except:
+                    except Exception:
                         values[name] = ["error"] * (N)
                         logger.exception('error evaluating: %s at rows %i-%i' % (name, k1, k2))
             for i in range(k2 - k1):
@@ -4184,7 +4184,7 @@ class DataFrame(object):
             for name in column_names:
                 try:
                     data_parts[name] = self.evaluate(name, i1=k1, i2=k2)
-                except:
+                except Exception:
                     data_parts[name] = ["error"] * (N)
                     logger.exception('error evaluating: %s at rows %i-%i' % (name, k1, k2))
             for i in range(k2 - k1):
@@ -5490,7 +5490,7 @@ class DataFrame(object):
             try:
                 if isinstance(getattr(self, name), Expression):
                     delattr(self, name)
-            except:
+            except Exception:
                 pass
 
     @docsubst
@@ -6679,7 +6679,7 @@ class DataFrameLocal(DataFrame):
                             for i in range(min(len(values1), show)):
                                 try:
                                     diff = values1[i] - values2[i]
-                                except:
+                                except Exception:
                                     diff = "does not exists"
                                 print("%s[%d] == %s != %s other.%s[%d] (diff = %s)" % (column_name, indices[i], values1[i], values2[i], column_name, indices[i], diff))
         return different_values, missing, type_mismatch, meta_mismatch

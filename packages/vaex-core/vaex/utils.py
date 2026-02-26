@@ -399,7 +399,7 @@ def listify(*args):
     try:
         _ = args[0][0]
         return True, args
-    except:
+    except Exception:
         return False, [[x] for x in args]
 
 
@@ -950,7 +950,7 @@ def get_env_memory(key, default=None):
     if value is not None:
         try:
             value = ast.literal_eval(value)
-        except:
+        except Exception:
             pass
         if isinstance(value, str):
             value = dask.utils.parse_bytes(value)

@@ -70,7 +70,7 @@ def kld_shuffled(columns, Ngrid=128, datamins=None, datamaxes=None, offset=1):
         print((x, y, counts, counts_shuffled, datamins[0], datamaxes[0], datamins[1], datamaxes[1], offset))
         try:
             vaex.histogram.hist2d_and_shuffled(x, y, counts, counts_shuffled, datamins[0], datamaxes[0], datamins[1], datamaxes[1], offset)
-        except:
+        except Exception:
             args = [x, y, counts, counts_shuffled, datamins[0], datamaxes[0], datamins[1], datamaxes[1], offset]
             sig = [numba.dispatcher.typeof_pyval(a) for a in args]
             print(sig)

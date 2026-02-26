@@ -64,7 +64,7 @@ class Samp(object):
 			name = params["name"]
 			for callback in self.tableLoadCallbacks:
 				callback(url, table_id, name)
-		except:
+		except Exception:
 			logger.exception("event handler failed")
 		
 		if msg_id != None: # if SAMP call, send a reply
@@ -78,6 +78,6 @@ class Samp(object):
 		try:
 			print(("Call:", repr(private_key), repr(sender_id), repr(msg_id), repr(mtype), repr(params), repr(extra)))
 			self.client.ereply(msg_id, sampy.SAMP_STATUS_OK, result = {"txt": "printed"})
-		except:
+		except Exception:
 			print("errrrrrrororrrr hans!")
 

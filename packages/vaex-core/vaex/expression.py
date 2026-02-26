@@ -114,7 +114,7 @@ class Meta(type):
                         a = self.index_values()
                     try:
                         stringy = isinstance(b, str) or b.is_string()
-                    except:
+                    except Exception:
                         # this can happen when expression is a literal, like '1' (used in propagate_unc)
                         # which causes the dtype to fail
                         stringy = False
@@ -1359,7 +1359,7 @@ def f({0}):
             def try_nan(x):
                 try:
                     return np.isnan(x)
-                except:
+                except Exception:
                     return False
             mapper_nan_key_mask = np.array([try_nan(k) for k in mapper_keys])
         mapper_has_nan = mapper_nan_key_mask.sum() > 0

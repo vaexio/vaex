@@ -153,7 +153,7 @@ class Slice(Base):
         self.args = args
         try:
             len(self.args)
-        except:
+        except Exception:
             self.args = (self.args,)
 
     def tovar(self):

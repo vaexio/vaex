@@ -73,7 +73,7 @@ except ImportError:
 
 try:
     from . import version
-except:
+except Exception:
     import sys
     print("version file not found, please run git/hooks/post-commit or git/hooks/post-checkout and/or install them as hooks (see git/README)", file=sys.stderr)
     raise
@@ -265,7 +265,7 @@ def open(path, convert=False, progress=None, shuffle=False, fs_options={}, fs=No
         if df is None:
             raise IOError('Unknown error opening: {}'.format(path))
         return df
-    except:
+    except Exception:
         logger.exception("error opening %r" % path)
         raise
 
@@ -619,7 +619,7 @@ def _read_csv_read(filename_or_buffer, copy_index, chunk_size, fs_options={}, fs
             if "compression" not in kwargs:
                 try:
                     path = vaex.file.stringyfy(filename_or_buffer)
-                except:
+                except Exception:
                     path = None
                 if path:
                     parts = path.rsplit('.', 3)
@@ -703,7 +703,7 @@ if os.path.exists(import_script):
         with open(import_script) as f:
             code = compile(f.read(), import_script, 'exec')
             exec(code)
-    except:
+    except Exception:
         import traceback
         traceback.print_stack()
 
