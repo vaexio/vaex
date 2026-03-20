@@ -61,15 +61,7 @@ from vaex.expression import Expression as Expression
 
 import vaex.progress
 
-try:
-    from sys import version_info
-    if version_info[:2] >= (3, 10):
-        from importlib.metadata import entry_points
-    else:
-        from importlib_metadata import entry_points
-except ImportError:
-    import pkg_resources
-    entry_points = pkg_resources.iter_entry_points
+from importlib.metadata import entry_points
 
 try:
     from . import version
