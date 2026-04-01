@@ -24,7 +24,7 @@ jobs:
       include: ${{ steps.set-matrix.outputs.include }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           submodules: true
 
@@ -65,7 +65,7 @@ jobs:
         include: ${{ fromJson(needs.build_wheels_matrix.outputs.include) }}
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
       with:
         submodules: true
 
@@ -81,9 +81,9 @@ jobs:
 
     - name: Set up QEMU
       if: runner.os == 'Linux'
-      uses: docker/setup-qemu-action@v3
+      uses: docker/setup-qemu-action@v4
 
-    - uses: pypa/cibuildwheel@v3.3.1 # sync version with pip install cibuildwheel above
+    - uses: pypa/cibuildwheel@v3.4.0 # sync version with pip install cibuildwheel above
       with:
         only: ${{ matrix.only }}
         package-dir: packages/vaex-core/
@@ -100,7 +100,7 @@ jobs:
         CIBW_ENVIRONMENT_LINUX: 'CFLAGS="-Wl,-strip-all" CXXFLAGS="-Wl,-strip-all" PATH="$HOME/.cargo/bin:$PATH"'
         CIBW_ENVIRONMENT_MACOS: 'CFLAGS="-I/usr/local/include -L/usr/local/lib" CXXFLAGS="-I/usr/local/include -L/usr/local/lib" LDFLAGS="-L/usr/local/lib"'
 
-    - uses: actions/upload-artifact@v6
+    - uses: actions/upload-artifact@v7
       with:
         name: dist-${{ matrix.only }}
         path: packages/vaex-core/dist
@@ -114,7 +114,7 @@ jobs:
       id-token: write  # pypa/gh-action-pypi-publish
 
     steps:
-    - uses: actions/download-artifact@v6
+    - uses: actions/download-artifact@v8
       with:
         path: dist/
         pattern: dist-*
