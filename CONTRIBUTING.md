@@ -7,11 +7,11 @@ Below are the instructions on how to setup a development version of vaex, but co
 ## Setup for Development
 
 * First, clone (with submodules!) the repo:
-    
+
     ``git clone --recursive https://github.com/vaexio/vaex && cd vaex``
 
 * Next, create and activate a virtual python environment (using `conda` or `venv`).
- 
+
 * Finally, install vaex for development (this might take a long time):
 
     ``make init`` or ``pip install -e ".[dev]"``

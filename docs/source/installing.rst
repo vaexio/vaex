@@ -21,8 +21,8 @@ Short version
 
  * **Anaconda users**: ``conda install -c conda-forge vaex``
  * **Regular Python users using virtualenv**: ``pip install vaex``
- * **Regular Python users (not recommended)**:  ``pip install --user vaex`` 
- * **System install (not recommended)**: ``sudo pip install vaex`` 
+ * **Regular Python users (not recommended)**:  ``pip install --user vaex``
+ * **System install (not recommended)**: ``sudo pip install vaex``
 
 
 Longer version
