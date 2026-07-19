@@ -163,8 +163,8 @@ def simple_handle(name, method_name):
 		print "using masked"
 		expr = expr.selected()
 	method = getattr(expr, method_name)
-	args, varargs, kwargs, defaults = inspect.getargspec(method)
-	print inspect.getargspec(method)
+	args, varargs, kwargs, defaults, *_ = inspect.getfullargspec(method)
+	print inspect.getfullargspec(method)
 	#args_required = args[:len(args)-len(defaults)]
 	kwargs = {}
 	for arg in args:
