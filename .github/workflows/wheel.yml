@@ -34,7 +34,8 @@ jobs:
 
       - run: pip install cibuildwheel==3.3.1 # sync version with pypa/cibuildwheel below
 
-      - id: set-matrix
+      - name: Build cibuildwheel matrix
+        id: set-matrix
         env:
           # skipping pypy for now
           CIBW_SKIP: >
