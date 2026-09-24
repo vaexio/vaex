@@ -17,14 +17,20 @@
 #include "boost/numeric/conversion/detail/meta.hpp"
 
 #include "boost/mpl/integral_c.hpp"
+// Use boost::integral_constant instead of mpl::integral_c here: mpl::integral_c eagerly
+// instantiates prior/next typedefs via static_cast<EnumType>(value -/+ 1), which produces
+// an out-of-range enum value for the first/last enumerator. Modern Clang rejects this as
+// "non-type template argument is not a constant expression". boost::integral_constant
+// exposes the same ::value/::tag interface without that eager instantiation.
+#include "boost/type_traits/integral_constant.hpp"
 
 namespace boost { namespace numeric { namespace convdetail
 {
   // Integral Constants for 'SignMixture'
-  typedef mpl::integral_c<sign_mixture_enum, unsigned_to_unsigned> unsig2unsig_c ;
-  typedef mpl::integral_c<sign_mixture_enum, signed_to_signed>     sig2sig_c ;
-  typedef mpl::integral_c<sign_mixture_enum, signed_to_unsigned>   sig2unsig_c ;
-  typedef mpl::integral_c<sign_mixture_enum, unsigned_to_signed>   unsig2sig_c ;
+  typedef boost::integral_constant<sign_mixture_enum, unsigned_to_unsigned> unsig2unsig_c ;
+  typedef boost::integral_constant<sign_mixture_enum, signed_to_signed>     sig2sig_c ;
+  typedef boost::integral_constant<sign_mixture_enum, signed_to_unsigned>   sig2unsig_c ;
+  typedef boost::integral_constant<sign_mixture_enum, unsigned_to_signed>   unsig2sig_c ;
 
   // Metafunction:
   //

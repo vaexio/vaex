@@ -18,7 +18,7 @@ def test_linear_model(df_iris):
     m2.fit(ds, 'petal_length')
     # print(m.coef_, m.intercept_)
     np.testing.assert_approx_equal(m1.intercept_, m2.intercept_, significant=2)
-    np.testing.assert_approx_equal(np.array(m1.coef_), np.array(m2.coef_), significant=2)
+    np.testing.assert_approx_equal(float(np.asarray(m1.coef_).ravel()[0]), float(np.asarray(m2.coef_).ravel()[0]), significant=2)
 
 
 @pytest.mark.skipif(sys.version_info < (3, 6), reason="requires python3.6 or higher")

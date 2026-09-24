@@ -203,7 +203,7 @@ class SubspaceGridded(object):
             return None
         colormap_name = "afmhot"
         import matplotlib.cm
-        colormap = matplotlib.cm.get_cmap(colormap_name)
+        colormap = matplotlib.colormaps.get_cmap(colormap_name)
         mapping = matplotlib.cm.ScalarMappable(cmap=colormap)
         # pixmap = QtGui.QPixmap(32*2, 32)
         data = np.zeros((128 * 8, 128 * 16, 4), dtype=np.uint8)
@@ -557,7 +557,7 @@ class Subspace(object):
         if group_by:
             gmin, gmax, group_count = group_limits
             if isinstance(group_colors, six.string_types):
-                group_colors = matplotlib.cm.get_cmap(group_colors)
+                group_colors = matplotlib.colormaps.get_cmap(group_colors)
             if isinstance(group_colors, matplotlib.colors.Colormap):
                 group_count = group_limits[2]
                 colors = [group_colors(k / float(group_count - 1.)) for k in range(group_count)]
@@ -605,7 +605,7 @@ class Subspace(object):
                     data[:] = 0
                 rgba[..., 3] = data
             else:
-                cmap = matplotlib.cm.get_cmap(cmap)
+                cmap = matplotlib.colormaps.get_cmap(cmap)
                 data = f(grid)
                 if normalize:
                     mask = (data > 0) & np.isfinite(data)
@@ -708,7 +708,7 @@ class Subspace(object):
         import matplotlib
         if group_by:
             if isinstance(group_colors, six.string_types):
-                group_colors = matplotlib.cm.get_cmap(group_colors)
+                group_colors = matplotlib.colormaps.get_cmap(group_colors)
             if isinstance(group_colors, matplotlib.colors.Colormap):
                 group_count = group_limits[2]
                 colors = [group_colors(k / float(group_count - 1.)) for k in range(group_count)]

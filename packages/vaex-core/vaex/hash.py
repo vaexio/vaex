@@ -125,7 +125,9 @@ class HashMapUnique:
             if null_count == 0:
                 keys = keys.data
             elif null_count == 1:
-                null_index = np.where(keys.mask == 1)[0]
+                # np.where(...)[0] returns a 1-element ndarray; NumPy >= 2.0 no longer
+                # implicitly converts it to a Python int, so extract the scalar explicitly.
+                null_index = int(np.where(keys.mask == 1)[0][0])
                 keys = keys.data
             else:
                 raise ValueError('key arrays contained more than 1 null value')
@@ -141,7 +143,8 @@ class HashMapUnique:
                 if null_count == 0:
                     pass  # fine
                 elif null_count == 1:
-                    null_index = np.where(mask == 1)[0]
+                    # See comment above: extract a Python int from the 1-element array.
+                    null_index = int(np.where(mask == 1)[0][0])
                 else:
                     raise ValueError('key arrays contained more than 1 null value')
             hash_map_unique_internal = set_type(string_sequence, null_index, nancount, null_count, fingerprint)

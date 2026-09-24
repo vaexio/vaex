@@ -2012,7 +2012,7 @@ class LayerTable(object):
             self.colormap_box.setIconSize(QtCore.QSize(16, 16))
             model = QtGui.QStandardItemModel(self.colormap_box)
             for colormap_name in vaex.ui.colormaps.colormaps:
-                colormap = matplotlib.cm.get_cmap(colormap_name)
+                colormap = matplotlib.colormaps.get_cmap(colormap_name)
                 pixmap = vaex.ui.colormaps.colormap_pixmap[colormap_name]
                 icon = QtGui.QIcon(pixmap)
                 item = QtGui.QStandardItem(icon, colormap_name)
@@ -2586,7 +2586,7 @@ class LayerTable(object):
             self.colormap_vector_box.setIconSize(QtCore.QSize(16, 16))
             model = QtGui.QStandardItemModel(self.colormap_vector_box)
             for colormap_name in vaex.ui.colormaps.colormaps:
-                colormap = matplotlib.cm.get_cmap(colormap_name)
+                colormap = matplotlib.colormaps.get_cmap(colormap_name)
                 pixmap = vaex.ui.colormaps.colormap_pixmap[colormap_name]
                 icon = QtGui.QIcon(pixmap)
                 item = QtGui.QStandardItem(icon, colormap_name)

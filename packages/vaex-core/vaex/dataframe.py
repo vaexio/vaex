@@ -4598,8 +4598,7 @@ class DataFrame(object):
             n = int(round(frac * len(self)))
         weights_values = None
         if weights is not None:
-            weights_values = self.evaluate(weights)
-            weights_values = weights_values / self.sum(weights)
+            weights_values = np.asarray(self.evaluate(weights)).ravel().astype(np.float64) / float(self.sum(weights))
         indices = random_state.choice(len(self), n, replace=replace, p=weights_values)
         return self.take(indices)
 

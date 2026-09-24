@@ -982,7 +982,7 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
         import matplotlib.cm
         self.textures_colormap = glGenTextures(len(colormaps))
         for i, colormap_name in enumerate(colormaps):
-            colormap = matplotlib.cm.get_cmap(colormap_name)
+            colormap = matplotlib.colormaps.get_cmap(colormap_name)
             mapping = matplotlib.cm.ScalarMappable(cmap=colormap)
             # pixmap = QtGui.QPixmap(32*2, 32)
             x = np.arange(Nx) / (Nx - 1.)
@@ -1382,7 +1382,7 @@ class VolumeRenderWidget(QtOpenGL.QGLWidget):
     def write(self):
         colormap_name = "afmhot"
         import matplotlib.cm
-        colormap = matplotlib.cm.get_cmap(colormap_name)
+        colormap = matplotlib.colormaps.get_cmap(colormap_name)
         mapping = matplotlib.cm.ScalarMappable(cmap=colormap)
         # pixmap = QtGui.QPixmap(32*2, 32)
         data = np.zeros((128 * 8, 128 * 16, 4), dtype=np.uint8)

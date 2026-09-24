@@ -566,8 +566,8 @@ def _parse_reduction(name, colormap, colors):
             return grid[..., -1]  # return last..
         return _reduce_stack_fade
     elif name.startswith("colormap"):
-        import matplotlib.cm
-        cmap = matplotlib.cm.get_cmap(colormap)
+        import matplotlib
+        cmap = matplotlib.colormaps.get_cmap(colormap)
 
         def f(grid):
             masked_grid = np.ma.masked_invalid(grid)  # convert inf/nan to a mask so that mpl colors bad values correcty
@@ -575,10 +575,10 @@ def _parse_reduction(name, colormap, colors):
         return f
     elif name.startswith("stack.color"):
         def f(grid, colors=colors, colormap=colormap):
-            import matplotlib.cm
-            colormap = matplotlib.cm.get_cmap(colormap)
+            import matplotlib
+            colormap = matplotlib.colormaps.get_cmap(colormap)
             if isinstance(colors, six.string_types):
-                colors = matplotlib.cm.get_cmap(colors)
+                colors = matplotlib.colormaps.get_cmap(colors)
             if isinstance(colors, matplotlib.colors.Colormap):
                 group_count = grid.shape[-1]
                 colors = [colors(k / float(group_count - 1.)) for k in range(group_count)]
