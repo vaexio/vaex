@@ -273,10 +273,12 @@ def scatter(self, x, y, xerr=None, yerr=None, cov=None, corr=None, s_expr=None, 
         ellipse_kwargs['facecolor'] = ellipse_kwargs.get('facecolor', 'none')
         ellipse_kwargs['edgecolor'] = ellipse_kwargs.get('edgecolor', 'black')
         for i in range(len(sx)):
-            eigen_values, eigen_vectors = np.linalg.eig(cov_matrix[i])
-            indices = np.argsort(eigen_values)[::-1]
-            eigen_values = eigen_values[indices]
-            eigen_vectors = eigen_vectors[:,indices]
+            # covariance matrices are symmetric; eigh guarantees real
+            # eigen(vectors|values) where eig may return complex pairs for
+            # numerically degenerate inputs (numpy>=2 LAPACK)
+            eigen_values, eigen_vectors = np.linalg.eigh(cov_matrix[i])
+            eigen_values = eigen_values[::-1]
+            eigen_vectors = eigen_vectors[:, ::-1]
             v1 = eigen_vectors[:, 0]
             v2 = eigen_vectors[:, 1]
             varx = cov_matrix[i, 0, 0]
