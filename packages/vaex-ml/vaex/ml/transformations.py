@@ -404,12 +404,19 @@ class OneHotEncoder(Transformer):
             expression = _ensure_strings_from_expressions(i)
             unique_values = vaex.array_types.tolist(df.unique(expression))
 
-            if None in unique_values:
-                unique_values.remove(None)
-                unique_values.sort()
-                unique_values.insert(0, None)  # This is done in place
+            # df.unique does not guarantee ordering; list.sort() cannot reliably
+            # place NaN (all NaN comparisons are False), so order explicitly:
+            # None first, then NaN, then the remaining values sorted.
+            contains_none = None in unique_values
+            contains_nan = any(isinstance(v, float) and math.isnan(v) for v in unique_values)
+            finite_values = [v for v in unique_values
+                             if v is not None and not (isinstance(v, float) and math.isnan(v))]
+            finite_values.sort()
+            if contains_none or contains_nan:
+                special_values = ([None] if contains_none else []) + ([float('nan')] if contains_nan else [])
+                unique_values = special_values + finite_values
             else:
-                unique_values.sort()
+                unique_values = finite_values
             uniques.append(unique_values)
         self.uniques_ = uniques
 
