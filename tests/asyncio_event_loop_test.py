@@ -5,15 +5,29 @@ import vaex.asyncio
 
 
 async def _wait():
-    async with asyncio.timeout(1):
-        for _ in range(3):
+    if hasattr(asyncio, "timeout"):
+        # cpython >= 3.11 only: keep the asyncio.timeout() shape, which is what
+        # makes nest_asyncio 1.6.0 raise "Timeout should be used inside a task"
+        # on cpython >= 3.14 (trap the test suite is pinning as fixed)
+        async with asyncio.timeout(1):
             await asyncio.sleep(0.001)
+    else:
+        # cpython < 3.11 has no asyncio.timeout; nest_asyncio application is
+        # still exercised, only without the trap
+        await asyncio.sleep(0.001)
     return "done"
 
 
 def _run_in_thread(fn):
     box = []
-    thread = threading.Thread(target=lambda: box.append(fn()))
+
+    def target():
+        try:
+            box.append(fn())
+        except BaseException as exc:  # re-raised below instead of lost
+            box.append(exc)
+
+    thread = threading.Thread(target=target)
     thread.start()
     thread.join()
     (result,) = box
