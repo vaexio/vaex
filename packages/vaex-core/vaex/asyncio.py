@@ -58,5 +58,13 @@ def just_run(coro):
             check_patch_tornado()
         return loop.run_until_complete(coro)
     finally:
-        if not had_loop:  # remove loop if we did not have one
-            asyncio.set_event_loop(None)
+        # NOTE: even when we created the loop above (had_loop == False), we keep
+        # the loop set as the thread's default loop rather than clearing it back
+        # to None. Clearing would hand every subsequent just_run call a fresh
+        # loop, while long-lived transport objects (e.g. the tornado websockets
+        # of the vaex server client) hold onto the loop of the call that created
+        # them; on cpython >= 3.14, which no longer auto-creates a sticky loop in
+        # get_event_loop, that orphans the websocket's reader loop and incoming
+        # replies are never processed, hanging requests forever. Keeping the loop
+        # set restores cpython <= 3.12 behaviour.
+        pass
