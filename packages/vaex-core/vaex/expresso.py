@@ -27,7 +27,10 @@ else:
 
 
 def _is_number(node):
-    """Numeric constant (int/float/complex), matching removed ast.Num semantics (bool excluded)."""
+    """Numeric constant (int/float/complex), matching removed ast.Num semantics (bool excluded).
+
+    bool excluded because bool was NameConstant pre-3.8, and False == 0 would wrongly fold "a * False" to 0.
+    """
     return (
         isinstance(node, ast.Constant)
         and isinstance(node.value, (int, float, complex))
@@ -554,8 +557,6 @@ class SliceCollector(ast.NodeTransformer):
         # py39
         if node.value.id == 'df' and isinstance(node.slice.value, str):
             self.slices[node.slice.value].append(node)
-        if node.value.id == 'df' and isinstance(node.slice.value, ast.Str):
-            self.slices[node.slice.value.s].append(node)
         return node
 
 class GraphBuiler(ast.NodeVisitor):
