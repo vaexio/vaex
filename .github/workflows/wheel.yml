@@ -36,9 +36,10 @@ jobs:
 
       - id: set-matrix
         env:
-          # skipping pypy for now
+          # skipping pypy for now, and free-threaded builds (the C extensions are not built/tested for no-GIL)
           CIBW_SKIP: >
             pp*
+            cp314t-*
         # the supported python versions are parsed from vaex-core setup.py python_requires
         run: |
           MATRIX_INCLUDE=$(
