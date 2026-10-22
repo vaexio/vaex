@@ -96,3 +96,17 @@ def test_derivative_of_name():
     # hits Derivative.visit_Name (`ast.Num(n=1/0)` at lines 278/280)
     assert derivative("x", "x") == "1"
     assert derivative("y", "x") == "0"
+
+
+def test_bool_not_folded():
+    assert simplify("a * False") == "(a * False)"
+    assert simplify("a * True") == "(a * True)"
+    assert simplify("a * 0") == "0"
+    assert simplify("a * 1") == "a"
+
+
+def test_unary_printing():
+    assert node_to_string(parse_expression("-x")) == "-x"
+    assert node_to_string(parse_expression("~x")) == "~x"
+    assert node_to_string(parse_expression("-(x+1)")) == "-((x + 1))"
+    assert node_to_string(parse_expression("-'abc'")) == "-'abc'"
