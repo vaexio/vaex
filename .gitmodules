@@ -1,3 +1,4 @@
+# pinned v3.0.4: v3.1.0 segfaults keep_alive on try-next-overload (pybind11#6183, unreleased in 3.1.x); re-evaluate on first 3.1.x release containing the fix
 [submodule "packages/vaex-core/vendor/pybind11"]
 	path = packages/vaex-core/vendor/pybind11
 	url = https://github.com/pybind/pybind11

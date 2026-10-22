@@ -114,6 +114,7 @@ def test_rename_function():
     assert 'add' not in df.functions
 
 
+# red only on >=3.14 (AttributeError ast.Str); on 3.9-3.13 the old code took the dead-free else branch
 def test_rename_column_used_in_expression():
     # regression: ast.Str was removed in cpython 3.14, renaming a column referenced
     # via df['...'] in an expression used to raise AttributeError
