@@ -14,7 +14,7 @@ on_rtd = os.environ.get("READTHEDOCS", None) == "True"
 
 dirname = os.path.dirname(__file__)
 # load the version by exec'ing the file: SourceFileLoader().load_module() is
-# removed in cpython 3.14
+# deprecated in cpython 3.14 (still present, but emits a DeprecationWarning)
 _version_ns: dict = {}
 with open(os.path.join(dirname, "vaex", "core", "_version.py")) as f:
     exec(f.read(), _version_ns)
