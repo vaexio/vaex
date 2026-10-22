@@ -12,6 +12,7 @@ def flush_guard():
     assert not vaex.jupyter.utils._debounced_execute_queue, "oops, stuff was left in the queue, please call flush before ending the test"
 
 
+# kept for pytest-asyncio <1; 1.x provides its own loop management and ignores this fixture
 # as in https://github.com/erdewit/nest_asyncio/issues/20
 @pytest.fixture(scope="session")
 def event_loop():
@@ -45,6 +46,7 @@ def _current_event_loop(_shared_event_loop):
     """
     asyncio.set_event_loop(_shared_event_loop)
     yield
+    asyncio.set_event_loop(None)
 
 
 @pytest.fixture()
