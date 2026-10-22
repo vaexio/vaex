@@ -32,7 +32,8 @@ install_requires_core = [
     "filelock",
     "frozendict!=2.2.0",
     "future",
-    "nest_asyncio>=1.3.3",
+    "nest_asyncio>=1.3.3;python_version<'3.14'",  # 1.6.0 breaks asyncio.timeout() inside nested asyncio.run on 3.14
+    "nest-asyncio2>=1.7.4;python_version>='3.14'",  # maintained fork, same API (module nest_asyncio2)
     "numpy>=1.19.3,<3", # 1.19.3 is the first version with 3.9 wheels
     "pandas>=1.0,<3",
     "pyarrow>=5.0.0",

@@ -23,7 +23,12 @@ _is_gatherering = False
 
 
 def get_ioloop():
-    return asyncio.get_event_loop()
+    try:
+        return asyncio.get_event_loop()
+    except RuntimeError:  # cpython >= 3.14 does not create a loop when none is set (e.g. in a script)
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        return loop
 
 
 def flush(recursive_counts=-1, ignore_exceptions=False, all=False):
@@ -130,6 +135,7 @@ class _debounced_callable:
             pass
 
     def __call__(self, *args, **kwargs):
+        ioloop = get_ioloop()  # also makes sure a loop is set, needed by asyncio.Future() below on cpython >= 3.14
         if self.result_future is None:
             self.result_future = asyncio.Future()
             self.last_result_future = self.result_future
@@ -204,8 +210,6 @@ class _debounced_callable:
             ioloop.create_task(run_async())
 
         if debounce_enabled:
-            ioloop = get_ioloop()
-
             _debounced_execute_queue.append(debounced_execute)
             if ioloop is not None:  # not in IPython
                 logger.debug("Schedule debounced call to %r, counter=%r", self.f, self.counter)
