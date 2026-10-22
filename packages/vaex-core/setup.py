@@ -1,7 +1,6 @@
 from setuptools import setup
 import sys
 import os
-from importlib.machinery import SourceFileLoader
 from setuptools import Extension
 import platform
 
@@ -14,14 +13,17 @@ if use_skbuild:
 on_rtd = os.environ.get("READTHEDOCS", None) == "True"
 
 dirname = os.path.dirname(__file__)
-path_version = os.path.join(dirname, "vaex/core/_version.py")
-version = SourceFileLoader("version", path_version).load_module()
+# load the version by exec'ing the file: SourceFileLoader().load_module() is
+# removed in cpython 3.14
+_version_ns: dict = {}
+with open(os.path.join(dirname, "vaex", "core", "_version.py")) as f:
+    exec(f.read(), _version_ns)
 
 name = "vaex"
 author = "Maarten A. Breddels"
 author_email = "maartenbreddels@gmail.com"
 license = "MIT"
-version = version.__version__
+version = _version_ns["__version__"]
 url = "https://www.github.com/maartenbreddels/vaex"
 setup_requires = ["numpy~=2.0"] # see vaex-core pyproject.toml
 install_requires_core = [
