@@ -66,7 +66,8 @@ def test_just_run_nests_over_drawn_loop():
 
 
 def test_just_run_without_loop():
-    # no-loop path: just_run creates its own loop and unsubscribes it after
+    # no-loop path: just_run creates its own loop and keeps it set afterwards
+    # (see the NOTE on the finally block in vaex/asyncio.py:just_run)
     def scenario():
         return vaex.asyncio.just_run(_wait())
 

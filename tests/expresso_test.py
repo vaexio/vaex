@@ -88,12 +88,12 @@ def test_num_returns_constant():
 
 
 def test_derivative_of_power():
-    # hits Derivative.visit_BinOp (Pow, `ast.Num` at line 325) and SimplifyExpression
+    # hits Derivative.visit_BinOp (Pow, number branch) and SimplifyExpression
     assert derivative("x**2", "x") == "(2 * x)"
 
 
 def test_derivative_of_name():
-    # hits Derivative.visit_Name (`ast.Num(n=1/0)` at lines 278/280)
+    # hits Derivative.visit_Name (number literal branch, n=1/0)
     assert derivative("x", "x") == "1"
     assert derivative("y", "x") == "0"
 

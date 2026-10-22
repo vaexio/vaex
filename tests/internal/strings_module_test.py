@@ -1,6 +1,5 @@
 import vaex.strings
 import numpy as np
-import sys
 import pytest
 import pyarrow as pa
 
