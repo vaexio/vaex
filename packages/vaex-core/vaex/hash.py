@@ -125,7 +125,7 @@ class HashMapUnique:
             if null_count == 0:
                 keys = keys.data
             elif null_count == 1:
-                null_index = np.where(keys.mask == 1)[0]
+                null_index = int(np.where(keys.mask == 1)[0][0])
                 keys = keys.data
             else:
                 raise ValueError('key arrays contained more than 1 null value')
@@ -141,7 +141,7 @@ class HashMapUnique:
                 if null_count == 0:
                     pass  # fine
                 elif null_count == 1:
-                    null_index = np.where(mask == 1)[0]
+                    null_index = int(np.where(mask == 1)[0][0])
                 else:
                     raise ValueError('key arrays contained more than 1 null value')
             hash_map_unique_internal = set_type(string_sequence, null_index, nancount, null_count, fingerprint)

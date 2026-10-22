@@ -25,7 +25,7 @@ author_email = "maartenbreddels@gmail.com"
 license = "MIT"
 version = _version_ns["__version__"]
 url = "https://www.github.com/maartenbreddels/vaex"
-setup_requires = ["numpy~=2.0"] # see vaex-core pyproject.toml
+setup_requires = ["numpy~=2.0"]  # see vaex-core pyproject.toml
 install_requires_core = [
     "aplus",
     "blake3",
@@ -36,7 +36,7 @@ install_requires_core = [
     "future",
     "nest_asyncio>=1.3.3;python_version<'3.14'",  # 1.6.0 breaks asyncio.timeout() inside nested asyncio.run on 3.14
     "nest-asyncio2>=1.7.4;python_version>='3.14'",  # maintained fork, same API (module nest_asyncio2)
-    "numpy>=1.19.3,<3", # 1.19.3 is the first version with 3.9 wheels
+    "numpy>=1.19.3,<3",  # 1.19.3 is the first version with 3.9 wheels
     "pandas>=1.0,<3",
     "pyarrow>=5.0.0",
     # windows only: pyarrow<21.0.0 -- https://github.com/apache/arrow/issues/47234
@@ -104,8 +104,8 @@ class get_pybind_include(object):
 USE_ABSL = False
 USE_TSL = True
 
-define_macros=[('NPY_NO_DEPRECATED_API', 'NPY_1_7_API_VERSION')]
-np_define_macros=[('NPY_NO_DEPRECATED_API', 'NPY_1_7_API_VERSION')]
+define_macros = [("NPY_NO_DEPRECATED_API", "NPY_1_7_API_VERSION")]
+np_define_macros = [("NPY_NO_DEPRECATED_API", "NPY_1_7_API_VERSION")]
 if USE_ABSL:
     define_macros += [("VAEX_USE_ABSL", None)]
 if USE_TSL:
@@ -136,7 +136,6 @@ if sys.platform == "darwin":
     extra_compile_args.append("-Wno-enum-constexpr-conversion")
 
 
-
 # on windows (Conda-forge builds), the dirname is an absolute path
 extension_vaexfast = Extension(
     "vaex.vaexfast",
@@ -144,7 +143,6 @@ extension_vaexfast = Extension(
     include_dirs=[get_numpy_include()],
     extra_compile_args=extra_compile_args,
     define_macros=np_define_macros,
-
 )
 extension_strings = Extension(
     "vaex.superstrings",
@@ -284,7 +282,7 @@ setup(
     # ref https://github.com/scipy/oldest-supported-numpy/pull/86
     # numpy 2.1+ is needed for cpython 3.13, 2.3.x for 3.14; ~=2.0 lets the build
     # resolver pick a compatible numpy per interpreter
-    python_requires=">=3.9,<3.15",
+    python_requires=">=3.9,<3.16",
     classifiers=[
         "Programming Language :: Python :: 3.9",
         "Programming Language :: Python :: 3.10",
@@ -292,6 +290,7 @@ setup(
         "Programming Language :: Python :: 3.12",
         "Programming Language :: Python :: 3.13",
         "Programming Language :: Python :: 3.14",
+        "Programming Language :: Python :: 3.15",
     ],
     extras_require=extras_require_core,
     entry_points={
