@@ -26,6 +26,15 @@ else:
     ast_Constant = _ast.Constant
 
 
+def _is_number(node):
+    """Numeric constant (int/float/complex), matching removed ast.Num semantics (bool excluded)."""
+    return (
+        isinstance(node, ast.Constant)
+        and isinstance(node.value, (int, float, complex))
+        and not isinstance(node.value, bool)
+    )
+
+
 logger = logging.getLogger("expr")
 logger.setLevel(logging.ERROR)
 
@@ -201,7 +210,7 @@ def neg(node):
 
 
 def num(n):
-    return ast.Num(n=n)
+    return ast.Constant(value=n)
 
 
 def call(fname, args):
@@ -275,9 +284,9 @@ class Derivative(ast.NodeTransformer):
 
     def visit_Name(self, node):
         if node.id == self.id:
-            return ast.Num(n=1)
+            return ast.Constant(1)
         else:
-            return ast.Num(n=0)
+            return ast.Constant(0)
 
     def visit_Call(self, node):
         fname = node.func.id
@@ -322,8 +331,8 @@ class Derivative(ast.NodeTransformer):
             g = node.right
             dg = self.visit(g)
             # if g is a number, we take a equivalent solution, which gives a nicer result
-            if isinstance(g, ast.Num):
-                solution = mul(g, mul(df, pow(node.left, num(node.right.n-1))))
+            if _is_number(g):
+                solution = mul(g, mul(df, pow(node.left, num(node.right.value-1))))
             else:
                 a = add(mul(df, div(g, f)), mul(dg, call('log', [f])))
                 solution = mul(pow(f, g), a)
@@ -338,17 +347,17 @@ class ExpressionString(ast.NodeVisitor):
         self.indent = 0
     def visit_UnaryOp(self, node):
         if isinstance(node.op, ast.USub):
-            if isinstance(node.operand, (ast.Name, ast.Num, _ast.Name)):
+            if isinstance(node.operand, (ast.Name, ast.Constant)):
                 return "-{}".format(self.visit(node.operand))  # prettier
             else:
                 return "-({})".format(self.visit(node.operand))
         elif isinstance(node.op, ast.UAdd):
-            if isinstance(node.operand, (ast.Name, ast.Num, _ast.Name)):
+            if isinstance(node.operand, (ast.Name, ast.Constant)):
                 return "+{}".format(self.visit(node.operand))  # prettier
             else:
                 return "+({})".format(self.visit(node.operand))
         elif isinstance(node.op, ast.Invert):
-            if isinstance(node.operand, (ast.Name, ast.Num, _ast.Name)):
+            if isinstance(node.operand, (ast.Name, ast.Constant)):
                 return "~{}".format(self.visit(node.operand))  # prettier
             else:
                 return "~({})".format(self.visit(node.operand))
@@ -459,7 +468,7 @@ class SimplifyExpression(ast.NodeTransformer):
     def visit_UnaryOp(self, node):
         node.operand = self.visit(node.operand)
         if isinstance(node.op, ast.USub):
-            if isinstance(node.operand, ast.Num) and node.operand.n == 0:
+            if _is_number(node.operand) and node.operand.value == 0:
                 node = node.operand
         return node
 
@@ -467,34 +476,34 @@ class SimplifyExpression(ast.NodeTransformer):
         node.left = left = self.visit(node.left)
         node.right = right = self.visit(node.right)
         if isinstance(node.op, ast.Mult):
-            if isinstance(right, ast.Num) and right.n == 0:
+            if _is_number(right) and right.value == 0:
                 return num(0)
-            elif isinstance(right, ast.Num) and right.n == 1:
+            elif _is_number(right) and right.value == 1:
                 return left
-            elif isinstance(left, ast.Num) and left.n == 0:
+            elif _is_number(left) and left.value == 0:
                 return num(0)
-            elif isinstance(left, ast.Num) and left.n == 1:
+            elif _is_number(left) and left.value == 1:
                 return right
         if isinstance(node.op, ast.Div):
-            if isinstance(left, ast.Num) and left.n == 0:
+            if _is_number(left) and left.value == 0:
                 return num(0)
         if isinstance(node.op, ast.Add):
-            if isinstance(right, ast.Num) and right.n == 0:
+            if _is_number(right) and right.value == 0:
                 return left
-            if isinstance(left, ast.Num) and left.n == 0:
+            if _is_number(left) and left.value == 0:
                 return right
         if isinstance(node.op, ast.Sub):
-            if isinstance(right, ast.Num) and right.n == 0:
+            if _is_number(right) and right.value == 0:
                 return left
-            if isinstance(left, ast.Num) and left.n == 0:
+            if _is_number(left) and left.value == 0:
                 return neg(right)
         if isinstance(node.op, ast.Pow):
-            if isinstance(left, ast.Num) and left.n == 0:
+            if _is_number(left) and left.value == 0:
                 return num(0)  # not ok with negative powers..
-            if isinstance(right, ast.Num) and right.n == 0:
+            if _is_number(right) and right.value == 0:
                 # TODO: this means a numpy arrays can become a scalar
                 return num(1)
-            if isinstance(right, ast.Num) and right.n == 1:
+            if _is_number(right) and right.value == 1:
                 return left
         return node
 
