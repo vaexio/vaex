@@ -5,7 +5,10 @@ import sys
 
 @contextlib.contextmanager
 def with_event_loop(event_loop=None):
-    loop_previous = asyncio.get_event_loop()
+    try:
+        loop_previous = asyncio.get_event_loop()
+    except RuntimeError:  # cpython >= 3.14 does not create a loop when none is set
+        loop_previous = None
     if event_loop is None:
         loop_new = asyncio.new_event_loop()
     else:
@@ -45,7 +48,12 @@ def just_run(coro):
     try:
         if had_loop:
             check_ipython()
-            import nest_asyncio
+            try:
+                # prefer the maintained fork: nest_asyncio 1.6.0 is broken on cpython >= 3.14 (same API),
+                # and it may still be installed alongside, so it cannot be tried first
+                import nest_asyncio2 as nest_asyncio
+            except ImportError:
+                import nest_asyncio
             nest_asyncio.apply()
             check_patch_tornado()
         return loop.run_until_complete(coro)

@@ -1,0 +1,69 @@
+import asyncio
+import threading
+
+import vaex.asyncio
+
+
+async def _wait():
+    async with asyncio.timeout(1):
+        for _ in range(3):
+            await asyncio.sleep(0.001)
+    return "done"
+
+
+def _run_in_thread(fn):
+    box = []
+    thread = threading.Thread(target=lambda: box.append(fn()))
+    thread.start()
+    thread.join()
+    (result,) = box
+    if isinstance(result, BaseException):
+        raise result
+    return result
+
+
+def test_with_event_loop_restores_previous_loop():
+    loop_outer = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop_outer)
+    with vaex.asyncio.with_event_loop():
+        loop_inner = asyncio.get_event_loop()
+    assert loop_inner is not loop_outer
+    assert asyncio.get_event_loop() is loop_outer
+
+
+def test_with_event_loop_without_prior_loop():
+    # on cpython >= 3.14 (and on any non-main thread >= 3.10) there is no
+    # implicitly created event loop, so with_event_loop must tolerate that;
+    # run in a worker thread so the fallback branch is exercised everywhere
+    def scenario():
+        loops = []
+        with vaex.asyncio.with_event_loop():
+            loops.append(asyncio.get_event_loop())
+        try:
+            asyncio.get_event_loop()
+        except RuntimeError:  # restored to 'no loop set'
+            loops.append("cleared")
+        return loops
+
+    loops = _run_in_thread(scenario)
+    assert len(loops) == 2
+    assert loops[0] is not None
+    assert loops[1] == "cleared"
+
+
+def test_just_run_nests_over_drawn_loop():
+    # exercises the nest_asyncio-application path with asyncio.timeout() in the
+    # coroutine: nest_asyncio 1.6.0 raises 'Timeout should be used inside a
+    # task' there on cpython >= 3.14, nest-asyncio2 1.7.4 does not
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    assert vaex.asyncio.just_run(_wait()) == "done"
+
+
+def test_just_run_without_loop():
+    # no-loop path: just_run creates its own loop and unsubscribes it after
+    def scenario():
+        return vaex.asyncio.just_run(_wait())
+
+    assert _run_in_thread(scenario) == "done"
+
