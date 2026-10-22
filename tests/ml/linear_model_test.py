@@ -1,37 +1,42 @@
 import pytest
+
 pytest.importorskip("sklearn")
 import sys
 import numpy as np
 import vaex.datasets
 import vaex.ml.linear_model
 
-features = ['petal_length', 'petal_width', 'sepal_length', 'sepal_width']
+features = ["petal_length", "petal_width", "sepal_length", "sepal_width"]
 
 
 @pytest.mark.skipif(sys.version_info < (3, 6), reason="requires python3.6 or higher")
 def test_linear_model(df_iris):
     ds = df_iris
-    m1 = vaex.ml.linear_model.LinearRegression(features=['petal_width'], binned=False)
-    m1.fit(ds, 'petal_length')
+    m1 = vaex.ml.linear_model.LinearRegression(features=["petal_width"], binned=False)
+    m1.fit(ds, "petal_length")
     # print(m.coef_, m.intercept_)
-    m2 = vaex.ml.linear_model.LinearRegression(features=['petal_width'], binned=True)
-    m2.fit(ds, 'petal_length')
+    m2 = vaex.ml.linear_model.LinearRegression(features=["petal_width"], binned=True)
+    m2.fit(ds, "petal_length")
     # print(m.coef_, m.intercept_)
     np.testing.assert_approx_equal(m1.intercept_, m2.intercept_, significant=2)
-    np.testing.assert_approx_equal(np.array(m1.coef_), np.array(m2.coef_), significant=2)
+    np.testing.assert_approx_equal(
+        np.array(m1.coef_)[0], np.array(m2.coef_)[0], significant=2
+    )
 
 
 @pytest.mark.skipif(sys.version_info < (3, 6), reason="requires python3.6 or higher")
 @pytest.mark.skip(reason="This will fail: produces wrong answer")
 def test_logit(df_iris):
     ds = df_iris
-    ds.categorize(ds.class_, labels='0 1 2 3'.split(), inplace=True)
+    ds.categorize(ds.class_, labels="0 1 2 3".split(), inplace=True)
     m1 = vaex.ml.linear_model.LogisticRegression(features=features, binned=False)
-    m1.fit(ds, 'class_')
+    m1.fit(ds, "class_")
     class1 = m1.predict(ds)
     print(m1.coef_, m1.intercept_)
-    m2 = vaex.ml.linear_model.LogisticRegression(features=features, binned=True, shape=32)
-    m2.fit(ds, 'class_')
+    m2 = vaex.ml.linear_model.LogisticRegression(
+        features=features, binned=True, shape=32
+    )
+    m2.fit(ds, "class_")
     class2 = m2.predict(ds)
     # print(m.coef_, m.intercept_)
     np.testing.assert_array_equal(class1, class2)
