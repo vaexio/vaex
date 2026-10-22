@@ -5,10 +5,18 @@ runs:
   steps:
     - shell: bash
       run: |
-        ls /c/Program\ Files/Microsoft\ Visual\ Studio/2022
-        ls /c/Program\ Files/Microsoft\ Visual\ Studio/2022/Enterprise/VC/Redist/
-        ls /c/Program\ Files/Microsoft\ Visual\ Studio/2022/Enterprise/VC/Redist/MSVC/
-        cp /c/Program\ Files/Microsoft\ Visual\ Studio/2022/Enterprise/VC/Redist/MSVC/14.29.30133/x64/Microsoft.VC142.CRT/vcruntime140_1.dll packages/vaex-core/vaex/
+        # the runner image installs one of VS2022 Community/Enterprise, and the MSVC
+        # redist version + CRT folder name change between image updates, so find the
+        # newest one with vswhere instead of hardcoding paths
+        VSWHERE="/c/Program Files (x86)/Microsoft Visual Studio/Installer/vswhere.exe"
+        VS_PATH=$("$VSWHERE" -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath | tail -1)
+        VS_PATH=$(echo "$VS_PATH" | sed -e 's|\\\\|/|g' -e 's|^C:|/c|' -e 's|^c:|/c|')
+        echo "Visual Studio installation: $VS_PATH"
+        REDIST_ROOT="$VS_PATH/VC/Redist/MSVC"
+        REDIST_DIR=$(ls -1 "$REDIST_ROOT" | grep -E '^14\.' | sort -V | tail -1)
+        CRT_DIR=$(ls -1d "$REDIST_ROOT/$REDIST_DIR/x64/Microsoft.VC"*.CRT | sort -V | tail -1)
+        echo "MSVC redist: $REDIST_DIR, CRT: $CRT_DIR"
+        cp "$CRT_DIR/vcruntime140_1.dll" packages/vaex-core/vaex/
         mkdir packages/vaex-core/vendor/pcre
         cd packages/vaex-core/vendor/pcre
         curl https://anaconda.org/conda-forge/pcre/8.44/download/win-64/pcre-8.44-h6538335_0.tar.bz2 -Lo pcre.tar.bz2
