@@ -28,6 +28,25 @@ def event_loop():
     loop.close()
 
 
+@pytest.fixture(scope="session")
+def _shared_event_loop():
+    loop = asyncio.new_event_loop()
+    yield loop
+    loop.close()
+
+
+@pytest.fixture(autouse=True)
+def _current_event_loop(_shared_event_loop):
+    """Make sure there is a (shared) current event loop for the synchronous tests.
+
+    Futures created by vaex.jupyter (e.g. in the debounce logic) need an event loop. Since cpython 3.14
+    asyncio.get_event_loop() (and thus asyncio.Future()) no longer creates one implicitly, and
+    pytest-asyncio>=1 ignores the event_loop fixture above.
+    """
+    asyncio.set_event_loop(_shared_event_loop)
+    yield
+
+
 @pytest.fixture()
 def server_latency(webserver):
     try:
