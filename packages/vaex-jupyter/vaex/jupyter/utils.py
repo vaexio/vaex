@@ -1,4 +1,5 @@
 import collections
+import inspect
 import time
 import functools
 import ipywidgets as widgets
@@ -185,7 +186,7 @@ class _debounced_callable:
                             result = self.f(self.obj, *args, **kwargs)
                         else:
                             result = self.f(*args, **kwargs)
-                        if asyncio.iscoroutinefunction(self.f):
+                        if inspect.iscoroutinefunction(self.f):
                             logger.debug("Awaiting result f=%r counter=%r self.counter=%r", self.f, counter, self.counter)
                             result = await result
                         future.set_result(result)
