@@ -21,7 +21,10 @@ install_requires_ml = [
       'scikit-learn',
       'xgboost',
       'lightgbm~=4.0',
-      'catboost>=1.2.8',
+      # catboost 1.2.10 ships no cp315 wheel; its sdist build needs a full
+      # yarn/rimraf node toolchain that CI (and users) don't have, so leave
+      # catboost uninstalled there (tests already importorskip catboost)
+      'catboost>=1.2.8;python_version<"3.15"',
 ]
 
 extras_require_ml = {
