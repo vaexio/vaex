@@ -31,7 +31,8 @@ A few strong features of vaex are:
 
 Follow the tutorial at https://docs.vaex.io/en/latest/tutorial.html to learn how to use vaex.
 
-"""  # -*- coding: utf-8 -*-
+"""
+# -*- coding: utf-8 -*-
 import logging as root_logging
 import os
 from typing import Dict, List
