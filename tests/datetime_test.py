@@ -28,7 +28,8 @@ def test_datetime_operations():
     assert df.date.dt.weekofyear.tolist() == pandas_df.date.dt.isocalendar().week.values.tolist()
     assert df.date.dt.dayofyear.tolist() == pandas_df.date.dt.dayofyear.values.tolist()
     assert df.date.dt.dayofweek.tolist() == pandas_df.date.dt.dayofweek.values.tolist()
-    assert df.date.dt.floor('H').tolist() == pandas_df.date.dt.floor('H').values.tolist()
+    # 'H' is removed in pandas 3 (deprecated since 2.2); 'h' works on both
+    assert df.date.dt.floor('H').tolist() == pandas_df.date.dt.floor('h').values.tolist()
     assert df.date.dt.date.tolist() == pandas_df.date.dt.date.values.tolist()
     assert df.date.dt.quarter.tolist() == pandas_df.date.dt.quarter.tolist()
     assert df.date.dt.halfyear.tolist() == [2, 1, 2, 1, 2, 1]  # this method does not exist in pandas yet
