@@ -99,6 +99,9 @@ jobs:
         CIBW_TEST_COMMAND: python -c "import vaex; print(vaex.from_arrays(x=[1,2]))"
         # the cp315 test env cannot resolve h5py/numexpr (no cp315/abi3 wheels yet), so skip the smoke run there; the 3.15 matrix leg runs the full suite
         CIBW_TEST_SKIP: cp315-*
+        # the wheels already bundle vaex/pcrecpp.dll next to their extensions (setup.py data files), and delvewheel became the default repair command on windows in cibuildwheel 4.0;
+        # delvewheel does not resolve dependencies that are already in the wheel by default, so tell it to ignore them instead of failing to find pcrecpp.dll on the host
+        CIBW_REPAIR_WHEEL_COMMAND_WINDOWS: delvewheel repair --ignore-in-wheel -w {dest_dir} {wheel}
         CIBW_MANYLINUX_X86_64_IMAGE: manylinux_2_28
         CIBW_MANYLINUX_AARCH64_IMAGE: manylinux_2_28
         CIBW_ENVIRONMENT_LINUX: 'CFLAGS="-Wl,-strip-all" CXXFLAGS="-Wl,-strip-all" PATH="$HOME/.cargo/bin:$PATH"'
