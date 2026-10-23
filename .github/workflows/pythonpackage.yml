@@ -97,6 +97,9 @@ jobs:
         VAEX_CACHE_RESULTS=1 ./ci/04-run-test-suite.sh
 
     - name: Check ml spec
+      # catboost is not installed on 3.15 (no cp315 wheel), so the registry
+      # there legitimately lacks the catboost models and the spec diff fails
+      if: matrix.python-version != '3.15'
       run: |
         pip install dask[dataframe]
         python -m vaex.ml.spec packages/vaex-ml/vaex/ml/spec_new.json
@@ -108,7 +111,8 @@ jobs:
 #        py.test vaex-enterprise/tests --timeout=1000
 
     - name: Test notebooks
-      if: matrix.os != 'windows-latest'
+      # healpy (installed by the notebook script) has no cp315 wheels
+      if: matrix.os != 'windows-latest' && matrix.python-version != '3.15'
       run: ./ci/05-run-notebooks.sh
 
     - name: Authenticate Google Cloud Platform
