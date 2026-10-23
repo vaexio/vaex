@@ -12,7 +12,6 @@ name        = 'vaex'
 author      = 'Jovan Veljanoski'
 author_email= 'jovan.veljanoski@gmail.com'
 license     = 'MIT'
-version     = version.__version__
 url         = 'https://www.github.com/vaexio/vaex'
 install_requires_ml = [
       'vaex-core~=4.8',
