@@ -719,6 +719,13 @@ def dt_strftime(x, date_format):
     """
     return pa.array(_to_pandas_series(x).dt.strftime(date_format))
 
+def _pandas_freq(freq):
+    # pandas 3 removed the deprecated uppercase offset aliases (deprecation
+    # since pandas 2.2): 'H'->'h', 'T'->'min', 'S'->'s', 'L'->'ms',
+    # 'U'->'us', 'N'->'ns'; all other aliases (e.g. 'D', 'ME') pass through
+    return {'H': 'h', 'T': 'min', 'S': 's', 'L': 'ms', 'U': 'us', 'N': 'ns'}.get(freq, freq)
+
+
 @register_function(scope='dt')
 def dt_floor(x, freq, *args):
     """Perform floor operation on an expression for a given frequency.
@@ -746,7 +753,7 @@ def dt_floor(x, freq, *args):
     1  2016-02-11 10:00:00.000000000
     2  2015-11-12 11:00:00.000000000
     """
-    return _to_pandas_series(x).dt.floor(freq, *args).values
+    return _to_pandas_series(x).dt.floor(_pandas_freq(freq), *args).values
 
 
 @register_function(scope='dt', as_property=True)

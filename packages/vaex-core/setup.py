@@ -37,7 +37,11 @@ install_requires_core = [
     "nest_asyncio>=1.3.3;python_version<'3.14'",  # 1.6.0 breaks asyncio.timeout() inside nested asyncio.run on 3.14
     "nest-asyncio2>=1.7.4;python_version>='3.14'",  # maintained fork, same API (module nest_asyncio2)
     "numpy>=1.19.3,<3",  # 1.19.3 is the first version with 3.9 wheels
-    "pandas>=1.0,<3",
+    # pandas 2.3.3 is the newest <3 release: no cp315 wheel, and its sdist
+    # segfaults on CPython 3.15 in the np_datetime C extension; pandas 3.1.0
+    # is the first pandas release shipping cp315 wheels
+    "pandas>=1.0,<3;python_version<'3.15'",
+    "pandas>=3.1,<4;python_version>='3.15'",
     "pyarrow>=5.0.0",
     # pyarrow 21.0.0 has a windows-only compute.fill_null bug -- https://github.com/apache/arrow/issues/47234
     "pyarrow!=21.0.0;platform_system=='Windows'",
