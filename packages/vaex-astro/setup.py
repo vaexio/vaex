@@ -1,10 +1,12 @@
 import os
 from setuptools import setup
-from importlib.machinery import SourceFileLoader
 
 dirname = os.path.dirname(__file__)
 path_version = os.path.join(dirname, 'vaex/astro/_version.py')
-version = SourceFileLoader('version', path_version).load_module()
+version = {}
+with open(path_version) as f:
+    exec(f.read(), version)
+version = version['__version__']
 
 name        = 'vaex'
 author      = 'Maarten A. Breddels'
