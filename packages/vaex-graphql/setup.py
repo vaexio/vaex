@@ -12,7 +12,6 @@ name        = 'vaex'
 author      = 'Maarten A. Breddels'
 author_email= 'maartenbreddels@gmail.com'
 license     = 'MIT'
-version     = version.__version__
 url         = 'https://www.github.com/vaexio/vaex'
 # for now we leave graphene-tornado / graphene on v2
 # ref https://github.com/vaexio/vaex/pull/2356#issuecomment-2320707228

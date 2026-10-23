@@ -10,7 +10,6 @@ version = version['__version__']
 
 name        = 'vaex'
 license     = 'MIT'
-version     = version.__version__
 url         = 'https://www.github.com/vaexio/vaex'
 install_requires_contrib = ['vaex-core~=4.0']
 
