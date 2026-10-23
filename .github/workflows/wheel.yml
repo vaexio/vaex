@@ -32,7 +32,7 @@ jobs:
         with:
           python-version: "3.x"
 
-      - run: pip install cibuildwheel==3.3.1 # sync version with pypa/cibuildwheel below
+      - run: pip install cibuildwheel==4.3.4 # sync version with pypa/cibuildwheel below
 
       - id: set-matrix
         env:
@@ -40,9 +40,7 @@ jobs:
           CIBW_SKIP: >
             pp*
             cp314t-*
-            # no cp315 wheels yet: pybind11 cp315 support arrived in 3.1.0 which carries the
-            # keep_alive segfault we pinned around, and several deps (h5py/astropy/psutil/numexpr)
-            # lack cp315 wheels; revisit when the fixed pybind11 releases and deps catch up
+            cp315t-*
         # the supported python versions are parsed from vaex-core setup.py python_requires
         run: |
           MATRIX_INCLUDE=$(
@@ -87,7 +85,7 @@ jobs:
       if: runner.os == 'Linux'
       uses: docker/setup-qemu-action@v3
 
-    - uses: pypa/cibuildwheel@v3.3.1 # sync version with pip install cibuildwheel above
+    - uses: pypa/cibuildwheel@v4.3.4 # sync version with pip install cibuildwheel above
       with:
         only: ${{ matrix.only }}
         package-dir: packages/vaex-core/
@@ -99,6 +97,8 @@ jobs:
         #CIBW_BEFORE_BUILD_WINDOWS:
         CIBW_BUILD_VERBOSITY: 2
         CIBW_TEST_COMMAND: python -c "import vaex; print(vaex.from_arrays(x=[1,2]))"
+        # the cp315 test env cannot resolve h5py/numexpr (no cp315/abi3 wheels yet), so skip the smoke run there; the 3.15 matrix leg runs the full suite
+        CIBW_TEST_SKIP: cp315-*
         CIBW_MANYLINUX_X86_64_IMAGE: manylinux_2_28
         CIBW_MANYLINUX_AARCH64_IMAGE: manylinux_2_28
         CIBW_ENVIRONMENT_LINUX: 'CFLAGS="-Wl,-strip-all" CXXFLAGS="-Wl,-strip-all" PATH="$HOME/.cargo/bin:$PATH"'

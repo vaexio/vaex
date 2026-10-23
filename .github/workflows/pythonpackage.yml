@@ -24,6 +24,9 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
         python-version: ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
+        include:
+        - os: ubuntu-latest
+          python-version: "3.15" # ubuntu-only: h5py/numexpr have no cp315/abi3 wheels yet, so sdist builds need a fresh linux runner with build deps installed
 
     steps:
     - uses: actions/checkout@v2
@@ -55,8 +58,12 @@ jobs:
       run: brew install libomp
 
     - name: Copy dll (Windows-only)
-      if: (matrix.os == 'windows-latest')
+      if: matrix.os == 'windows-latest'
       uses: ./ci/actions/windll
+
+    - name: Install HDF5 dev headers (3.15-only) # needed to build h5py from sdist until it ships cp315 wheels
+      if: matrix.python-version == '3.15'
+      run: sudo apt-get update && sudo apt-get install -y libhdf5-dev
 
     - name: Install vaex
       run: uv pip install -v --system .[ci]
