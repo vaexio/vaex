@@ -29,6 +29,24 @@ scheme = 'ws'
 HERE = Path(__file__).parent
 
 
+def _arguments_are_borrowed():
+    obj = object()
+    return sys.getrefcount(obj) == 1
+
+
+if _arguments_are_borrowed():
+    # Since cpython 3.14 a local variable passed directly to a call is borrowed instead of
+    # referenced, so sys.getrefcount(local) no longer includes the temporary reference to the
+    # argument. Add it back, so that absolute reference counts mean the same on all python versions.
+    # Only valid for bare function-local arguments: non-local expressions such as getrefcount(L[0])
+    # overcount on 3.14. The `== 1` probe above means the call borrows the local; 2 means the call
+    # holds its own reference.
+    def getrefcount(obj):
+        return sys.getrefcount(obj) + 1
+else:
+    getrefcount = sys.getrefcount
+
+
 def encoding_roundtrip(name, obj):
     # encoding and decode
     encoding = vaex.encoding.Encoding()

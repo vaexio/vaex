@@ -1,7 +1,6 @@
 from setuptools import setup
 import sys
 import os
-from importlib.machinery import SourceFileLoader
 from setuptools import Extension
 import platform
 
@@ -14,16 +13,19 @@ if use_skbuild:
 on_rtd = os.environ.get("READTHEDOCS", None) == "True"
 
 dirname = os.path.dirname(__file__)
-path_version = os.path.join(dirname, "vaex/core/_version.py")
-version = SourceFileLoader("version", path_version).load_module()
+# load the version by exec'ing the file: SourceFileLoader().load_module() is
+# deprecated in cpython 3.14 (still present, but emits a DeprecationWarning)
+_version_ns: dict = {}
+with open(os.path.join(dirname, "vaex", "core", "_version.py")) as f:
+    exec(f.read(), _version_ns)
 
 name = "vaex"
 author = "Maarten A. Breddels"
 author_email = "maartenbreddels@gmail.com"
 license = "MIT"
-version = version.__version__
+version = _version_ns["__version__"]
 url = "https://www.github.com/maartenbreddels/vaex"
-setup_requires = ["numpy~=2.0"] # see vaex-core pyproject.toml
+setup_requires = ["numpy~=2.0"]  # see vaex-core pyproject.toml
 install_requires_core = [
     "aplus",
     "blake3",
@@ -32,12 +34,17 @@ install_requires_core = [
     "filelock",
     "frozendict!=2.2.0",
     "future",
-    "nest_asyncio>=1.3.3",
-    "numpy>=1.19.3,<3", # 1.19.3 is the first version with 3.9 wheels
-    "pandas>=1.0,<3",
+    "nest_asyncio>=1.3.3;python_version<'3.14'",  # 1.6.0 breaks asyncio.timeout() inside nested asyncio.run on 3.14
+    "nest-asyncio2>=1.7.4;python_version>='3.14'",  # maintained fork, same API (module nest_asyncio2)
+    "numpy>=1.19.3,<3",  # 1.19.3 is the first version with 3.9 wheels
+    # pandas 2.3.3 is the newest <3 release: no cp315 wheel, and its sdist
+    # segfaults on CPython 3.15 in the np_datetime C extension; pandas 3.1.0
+    # is the first pandas release shipping cp315 wheels
+    "pandas>=1.0,<3;python_version<'3.15'",
+    "pandas>=3.1,<4;python_version>='3.15'",
     "pyarrow>=5.0.0",
-    # windows only: pyarrow<21.0.0 -- https://github.com/apache/arrow/issues/47234
-    "pyarrow<21.0.0;platform_system=='Windows'",
+    # pyarrow 21.0.0 has a windows-only compute.fill_null bug -- https://github.com/apache/arrow/issues/47234
+    "pyarrow!=21.0.0;platform_system=='Windows'",
     "pydantic>=1.8.0",
     "pyyaml",
     "rich",
@@ -101,8 +108,8 @@ class get_pybind_include(object):
 USE_ABSL = False
 USE_TSL = True
 
-define_macros=[('NPY_NO_DEPRECATED_API', 'NPY_1_7_API_VERSION')]
-np_define_macros=[('NPY_NO_DEPRECATED_API', 'NPY_1_7_API_VERSION')]
+define_macros = [("NPY_NO_DEPRECATED_API", "NPY_1_7_API_VERSION")]
+np_define_macros = [("NPY_NO_DEPRECATED_API", "NPY_1_7_API_VERSION")]
 if USE_ABSL:
     define_macros += [("VAEX_USE_ABSL", None)]
 if USE_TSL:
@@ -133,7 +140,6 @@ if sys.platform == "darwin":
     extra_compile_args.append("-Wno-enum-constexpr-conversion")
 
 
-
 # on windows (Conda-forge builds), the dirname is an absolute path
 extension_vaexfast = Extension(
     "vaex.vaexfast",
@@ -141,7 +147,6 @@ extension_vaexfast = Extension(
     include_dirs=[get_numpy_include()],
     extra_compile_args=extra_compile_args,
     define_macros=np_define_macros,
-
 )
 extension_strings = Extension(
     "vaex.superstrings",
@@ -279,12 +284,17 @@ setup(
     zip_safe=False,
     # 3.9 is the oldest python version that the new numpy build system supports
     # ref https://github.com/scipy/oldest-supported-numpy/pull/86
-    python_requires=">=3.9,<3.13",
+    # numpy 2.1+ is needed for cpython 3.13, 2.3.x for 3.14; ~=2.0 lets the build
+    # resolver pick a compatible numpy per interpreter
+    python_requires=">=3.9,<3.16",
     classifiers=[
         "Programming Language :: Python :: 3.9",
         "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",
         "Programming Language :: Python :: 3.12",
+        "Programming Language :: Python :: 3.13",
+        "Programming Language :: Python :: 3.14",
+        "Programming Language :: Python :: 3.15",
     ],
     extras_require=extras_require_core,
     entry_points={

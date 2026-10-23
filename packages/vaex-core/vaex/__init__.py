@@ -31,7 +31,8 @@ A few strong features of vaex are:
 
 Follow the tutorial at https://docs.vaex.io/en/latest/tutorial.html to learn how to use vaex.
 
-"""  # -*- coding: utf-8 -*-
+"""
+# -*- coding: utf-8 -*-
 import logging as root_logging
 import os
 from typing import Dict, List
@@ -437,7 +438,11 @@ def from_pandas(df, name="pandas", copy_index=False, index_name="index"):
         # the first test is to support (partially) pandas 0.23
         if hasattr(pd.core.arrays, 'integer') and isinstance(values, pd.core.arrays.integer.IntegerArray):
             values = np.ma.array(values._data, mask=values._mask)
-        elif hasattr(pd.core.arrays, 'StringArray') and isinstance(values, pd.core.arrays.StringArray):
+        elif isinstance(values, tuple(t for t in (
+                getattr(pd.core.arrays, 'StringArray', None),
+                # pandas 3 made the default string dtype arrow-backed
+                getattr(pd.arrays, 'ArrowStringArray', None),
+        ) if t is not None)):
             values = pa.array(values)
         elif hasattr(pd.core.arrays, 'FloatingArray') and isinstance(values, pd.core.arrays.FloatingArray):
             values = np.ma.array(values._data, mask=values._mask)

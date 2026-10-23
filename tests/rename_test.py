@@ -112,3 +112,15 @@ def test_rename_function():
     df.rename('add', 'add_test')
     assert df.z.tolist() == [3, 6]
     assert 'add' not in df.functions
+
+
+# red only on >=3.14 (AttributeError ast.Str); on 3.9-3.13 the old code took the dead-free else branch
+def test_rename_column_used_in_expression():
+    # regression: ast.Str was removed in cpython 3.14, renaming a column referenced
+    # via df['...'] in an expression used to raise AttributeError
+    df = vaex.from_arrays(**{'a b': np.arange(3)})
+    df['c'] = df['a b'] + 1
+    df.rename('a b', 'cc')
+    assert df.c.tolist() == [1, 2, 3]
+    assert "cc" in df.virtual_columns['c']
+    assert "a b" not in df.virtual_columns['c']

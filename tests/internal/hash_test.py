@@ -5,6 +5,7 @@ import numpy as np
 import sys
 import pytest
 import pyarrow as pa
+from common import getrefcount
 
 @pytest.mark.parametrize('counter_cls', [counter_string]) #, counter_stringview])
 def test_counter_string(counter_cls):
@@ -512,12 +513,12 @@ def test_string_refs(nmaps):
     oset = ordered_set_string(nmaps)
     oset.update(strings, 0)
     strings = oset.key_array()
-    refs = sys.getrefcount(strings)
+    refs = getrefcount(strings)
     assert refs == 2
     assert set(strings.tolist()) == {'aap', 'noot', 'mies'}
 
     set_copy = ordered_set_string(strings, 0, 0, 0, 'fingerprint')
-    assert sys.getrefcount(strings) == refs + 1
+    assert getrefcount(strings) == refs + 1
     strings_copy = oset.key_array()
     # assert sys.getrefcount(strings) == 2
     assert set(strings_copy.tolist()) == {'aap', 'noot', 'mies'}

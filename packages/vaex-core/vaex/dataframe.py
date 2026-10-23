@@ -3342,6 +3342,16 @@ class DataFrame(object):
                 index = data.pop(index_name)
             else:
                 index = None
+            # pandas 3 rejects big-endian buffers (e.g. from hdf5 sources);
+            # normalize to native byte order before building the DataFrame
+            data = {
+                k: v.astype(v.dtype.newbyteorder('='), copy=False)
+                if isinstance(v, np.ndarray) and v.dtype.byteorder not in ('=', '|')
+                else v
+                for k, v in data.items()
+            }
+            if isinstance(index, np.ndarray) and index.dtype.byteorder not in ('=', '|'):
+                index = index.astype(index.dtype.newbyteorder('='), copy=False)
             df = pd.DataFrame(data=data, index=index)
             if index is not None:
                 df.index.name = index_name
@@ -4598,7 +4608,7 @@ class DataFrame(object):
             n = int(round(frac * len(self)))
         weights_values = None
         if weights is not None:
-            weights_values = self.evaluate(weights)
+            weights_values = vaex.array_types.to_numpy(self.evaluate(weights))
             weights_values = weights_values / self.sum(weights)
         indices = random_state.choice(len(self), n, replace=replace, p=weights_values)
         return self.take(indices)
@@ -7039,6 +7049,8 @@ class DataFrameLocal(DataFrame):
         :param parallel: {evaluate_parallel}
         :param kwargs: Extra keyword arguments to be passed on pandas.DataFrame.to_csv()
         """
+        import os
+
         import pandas as pd
         expressions = self.get_column_names()
         progressbar = vaex.utils.progressbars(progress, title="export(csv)")
@@ -7046,6 +7058,11 @@ class DataFrameLocal(DataFrame):
         n_samples = len(self)
         if chunk_size is None:
             chunk_size = len(self)
+        # pandas 3's to_csv mishandles os.PathLike objects that are not
+        # pathlib.Path (e.g. py.path.local from pytest's tmpdir): appending
+        # chunks then truncates the file instead; coerce to str first
+        if isinstance(path, os.PathLike):
+            path = os.fspath(path)
 
         # By default vaex does not expect a csv file to have index like column so this is turned of by default
         if 'index' not in kwargs:

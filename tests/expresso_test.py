@@ -1,6 +1,7 @@
 import pytest
 
 from vaex.expresso import parse_expression, node_to_string, simplify, translate, validate_expression
+from vaex.expresso import derivative, num
 import vaex
 
 
@@ -77,3 +78,35 @@ def test_validate():
 
 def test_unicode():
     validate_expression('实体 + 1', {'实体'})
+
+
+def test_num_returns_constant():
+    import ast as _ast
+    node = num(2)
+    assert isinstance(node, _ast.Constant)
+    assert node.value == 2
+
+
+def test_derivative_of_power():
+    # hits Derivative.visit_BinOp (Pow, number branch) and SimplifyExpression
+    assert derivative("x**2", "x") == "(2 * x)"
+
+
+def test_derivative_of_name():
+    # hits Derivative.visit_Name (number literal branch, n=1/0)
+    assert derivative("x", "x") == "1"
+    assert derivative("y", "x") == "0"
+
+
+def test_bool_not_folded():
+    assert simplify("a * False") == "(a * False)"
+    assert simplify("a * True") == "(a * True)"
+    assert simplify("a * 0") == "0"
+    assert simplify("a * 1") == "a"
+
+
+def test_unary_printing():
+    assert node_to_string(parse_expression("-x")) == "-x"
+    assert node_to_string(parse_expression("~x")) == "~x"
+    assert node_to_string(parse_expression("-(x+1)")) == "-((x + 1))"
+    assert node_to_string(parse_expression("-'abc'")) == "-'abc'"

@@ -5,7 +5,10 @@ import sys
 
 @contextlib.contextmanager
 def with_event_loop(event_loop=None):
-    loop_previous = asyncio.get_event_loop()
+    try:
+        loop_previous = asyncio.get_event_loop()
+    except RuntimeError:  # cpython >= 3.14 does not create a loop when none is set
+        loop_previous = None
     if event_loop is None:
         loop_new = asyncio.new_event_loop()
     else:
@@ -45,10 +48,23 @@ def just_run(coro):
     try:
         if had_loop:
             check_ipython()
-            import nest_asyncio
+            try:
+                # prefer the maintained fork: nest_asyncio 1.6.0 is broken on cpython >= 3.14 (same API),
+                # and it may still be installed alongside, so it cannot be tried first
+                import nest_asyncio2 as nest_asyncio
+            except ImportError:
+                import nest_asyncio
             nest_asyncio.apply()
             check_patch_tornado()
         return loop.run_until_complete(coro)
     finally:
-        if not had_loop:  # remove loop if we did not have one
-            asyncio.set_event_loop(None)
+        # NOTE: even when we created the loop above (had_loop == False), we keep
+        # the loop set as the thread's default loop rather than clearing it back
+        # to None. Clearing would hand every subsequent just_run call a fresh
+        # loop, while long-lived transport objects (e.g. the tornado websockets
+        # of the vaex server client) hold onto the loop of the call that created
+        # them; on cpython >= 3.14, which no longer auto-creates a sticky loop in
+        # get_event_loop, that orphans the websocket's reader loop and incoming
+        # replies are never processed, hanging requests forever. Keeping the loop
+        # set restores cpython <= 3.12 behaviour.
+        pass

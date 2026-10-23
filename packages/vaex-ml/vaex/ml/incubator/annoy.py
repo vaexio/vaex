@@ -3,12 +3,20 @@ import tempfile
 
 import traitlets
 import numpy as np
-import annoy
+try:
+    import annoy
+except ImportError:  # annoy is an optional dependency, see vaex-ml[annoy]
+    annoy = None
 
 import vaex
 import vaex.serialize
 from vaex.ml import state
 from .. import generate
+
+
+def _require_annoy():
+    if annoy is None:
+        raise ImportError('The annoy package is not installed, please install it using `pip install annoy` or `pip install vaex-ml[annoy]` to use ANNOYModel.')
 
 
 @vaex.serialize.register
@@ -29,6 +37,7 @@ class ANNOYModel(state.HasState):
         return np.array(result)
 
     def fit(self, dataframe):
+        _require_annoy()
         self.index_builder = annoy.AnnoyIndex(len(self.features), metric=self.metric)
         for i in range(len(dataframe)):
             self.index_builder.add_item(i, dataframe[self.features][i])
@@ -44,7 +53,7 @@ class ANNOYModel(state.HasState):
     def predict(self, dataframe, n_neighbours=None, search_k=None):
         search_k = search_k or self.search_k
         n_neighbours = n_neighbours or self.n_neighbours
-        result = np.zeros((len(dataframe), n_neighbours), dtype=np.int)
+        result = np.zeros((len(dataframe), n_neighbours), dtype=np.int64)
         for i in range(len(dataframe)):
             result[i] = self.index_builder.get_nns_by_vector(n=n_neighbours, search_k=search_k, vector=dataframe[self.features][i])
         return result
@@ -59,6 +68,7 @@ class ANNOYModel(state.HasState):
                     n_dimensions=len(self.features))
 
     def state_set(self, state, trusted=True):
+        _require_annoy()
         super(ANNOYModel, self).state_set(state['substate'])
         data = base64.decodebytes(state['tree_state'].encode('ascii'))
         n_dimensions = state['n_dimensions']

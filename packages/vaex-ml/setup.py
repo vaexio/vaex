@@ -1,31 +1,48 @@
 import os
-from importlib.machinery import SourceFileLoader
 from setuptools import setup
 
 dirname = os.path.dirname(__file__)
 path_version = os.path.join(dirname, 'vaex/ml/_version.py')
-version = SourceFileLoader('version', path_version).load_module()
+version = {}
+with open(path_version) as f:
+    exec(f.read(), version)
+version = version['__version__']
 
 name        = 'vaex'
 author      = 'Jovan Veljanoski'
 author_email= 'jovan.veljanoski@gmail.com'
 license     = 'MIT'
-version     = version.__version__
 url         = 'https://www.github.com/vaexio/vaex'
 install_requires_ml = [
       'vaex-core~=4.8',
       'numba',
       'traitlets',
       'jinja2',
-      'annoy',
       'scikit-learn',
       'xgboost',
       'lightgbm~=4.0',
-      'catboost>=1.2.8',
+      # catboost 1.2.10 ships no cp315 wheel; its sdist build needs a full
+      # yarn/rimraf node toolchain that CI (and users) don't have, so leave
+      # catboost uninstalled there (tests already importorskip catboost)
+      'catboost>=1.2.8;python_version<"3.15"',
 ]
 
-# https://stackoverflow.com/questions/79744362/import-tensorflow-statement-crashes-or-hangs-on-macos/79744363#79744363
-extras_require_ml = {'all': ['tensorflow~=2.18',"tensorflow<2.20.0;sys_platform=='darwin'"]}
+extras_require_ml = {
+    'all': [
+        # wheel facts as of TF 2.21.0 (recheck with new TF releases): cp313 wheels
+        # start at 2.20, (2.22.0rc0 is the only release with cp314 wheels), so on
+        # 3.14 no tensorflow entry on purpose: vaex-ml[all] leaves TF absent there
+        # until a stable release ships cp314 wheels
+        "tensorflow~=2.18;python_version<'3.13'",
+        "tensorflow>=2.20,<3;python_version=='3.13'",
+        # https://stackoverflow.com/questions/79744362/import-tensorflow-statement-crashes-or-hangs-on-macos/79744363#79744363
+        "tensorflow<2.20.0;sys_platform=='darwin' and python_version<'3.13'",
+        # annoy is unmaintained, ships only an sdist that fails to build on 3.13+;
+        # optional (use vaex-ml[annoy] to force it)
+        "annoy;python_version<'3.13'",
+    ],
+    'annoy': ['annoy'],
+}
 
 setup(name=name + '-ml',
       version=version,

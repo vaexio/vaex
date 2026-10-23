@@ -59,7 +59,10 @@ def test_model_selection(df, flush_guard):
     assert model.x.shape == 3
     assert model.grid.data.tolist() == [[1, 2, 3], [0, 2, 3]]
     assert model.grid.dims == ('selection', 'g1')
-    assert model.grid.coords['selection'].data.tolist() == [None, 'default']
+    # pandas>=3 coerces None to nan in string indexes (str dtype default)
+    coords = model.grid.coords['selection'].data.tolist()
+    coords = [None if v != v else v for v in coords]
+    assert coords == [None, 'default']
     assert model.grid.coords['g1'].data.tolist() == [0, 1, 2]
 
 

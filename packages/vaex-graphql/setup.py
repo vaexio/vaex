@@ -1,16 +1,17 @@
 import os
-from importlib.machinery import SourceFileLoader
 from setuptools import setup
 
 dirname = os.path.dirname(__file__)
 path_version = os.path.join(dirname, 'vaex/graphql/_version.py')
-version = SourceFileLoader('version', path_version).load_module()
+version = {}
+with open(path_version) as f:
+    exec(f.read(), version)
+version = version['__version__']
 
 name        = 'vaex'
 author      = 'Maarten A. Breddels'
 author_email= 'maartenbreddels@gmail.com'
 license     = 'MIT'
-version     = version.__version__
 url         = 'https://www.github.com/vaexio/vaex'
 # for now we leave graphene-tornado / graphene on v2
 # ref https://github.com/vaexio/vaex/pull/2356#issuecomment-2320707228
