@@ -72,9 +72,9 @@ def map_to_field(df, name):
 class Compare(graphene.InputObjectType):
     def filter(self, df, name):
         expression = vaex.expression.Expression(df, '(1==1)')
-        if self._eq:
+        if self._eq is not None:
             expression = expression & (df[name] == self._eq)
-        if self._neq:
+        if self._neq is not None:
             expression = expression & (df[name] != self._neq)
         return expression
 
@@ -108,7 +108,7 @@ class FloatCompare(NumberCompare):
     _gte = graphene.Field(graphene.Float)
     _lte = graphene.Field(graphene.Float)
 
-class BooleanCompare(NumberCompare):
+class BooleanCompare(Compare):
     _eq = graphene.Field(graphene.Boolean)
     _neq = graphene.Field(graphene.Boolean)
 
