@@ -133,7 +133,7 @@ def _get_kwargs(obj):
 @vaex.dataset.register
 class DatasetCsvLazy(DatasetFile):
     snake_name = "arrow-csv-lazy"
-    def __init__(self, path, chunk_size=10*MB, newline_readahead=1*MB, row_count=None, schema=None, read_options=None, parse_options=None, convert_options=None, schema_infer_fraction=0.001, fs=None, fs_options={}):
+    def __init__(self, path, chunk_size=10*MB, newline_readahead=1*MB, row_count=None, schema=None, read_options=None, parse_options=None, convert_options=None, schema_infer_fraction=0.001, fs=None, fs_options={}, sep=None):
         super().__init__(path, fs=fs, fs_options=fs_options)
         try:
             codec = pa.Codec.detect(self.path)
@@ -147,6 +147,8 @@ class DatasetCsvLazy(DatasetFile):
         self.chunk_size = parse_bytes(chunk_size)
         self.newline_readahead = parse_bytes(newline_readahead)
 
+        if sep is not None:
+            parse_options = _copy_or_create(pyarrow.csv.ParseOptions, parse_options, delimiter=sep)
 
         self.read_options = read_options
         self.parse_options = parse_options
@@ -212,7 +214,7 @@ class DatasetCsvLazy(DatasetFile):
             schema = pa.schema([(name, self._schema[name]) for name in columns])
             convert_options = _copy_or_create(pyarrow.csv.ConvertOptions, self.convert_options, column_types=schema, include_columns=columns)
         try:
-            table = pyarrow.csv.read_csv(file_like, read_options=read_options, convert_options=convert_options)
+            table = pyarrow.csv.read_csv(file_like, read_options=read_options, parse_options=self.parse_options, convert_options=convert_options)
         except pa.ArrowInvalid as e:
             import tempfile
             f = tempfile.NamedTemporaryFile(mode="wb", suffix=".csv")
