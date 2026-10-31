@@ -1,5 +1,12 @@
 from common import *
 
+
+def test_pandas_like_rename():
+    df = vaex.from_dict({'r': [1, 2], 's': [2,3]})
+    rename_dict = { "r": "x" }
+    df_renamed = df.pandas_rename(rename_dict)
+    assert df.r.tolist() == df_renamed.x.tolist()
+
 def test_rename(ds_filtered):
     ds = ds_filtered
     ds['r'] = ds.x
