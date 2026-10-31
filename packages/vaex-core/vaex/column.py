@@ -9,6 +9,7 @@ import pyarrow as pa
 import pyarrow.compute as pc
 
 import vaex
+import vaex.encoding
 import vaex.utils
 import vaex.cache
 from .array_types import supported_array_types, supported_arrow_array_types, string_types, is_string_type
