@@ -386,8 +386,7 @@ class StructOperations(collections.abc.Mapping):
 class Expression(with_metaclass(Meta)):
     """Expression class"""
     def __init__(self, ds, expression, ast=None, _selection=False):
-        import vaex.dataframe
-        self.ds : vaex.dataframe.DataFrame = ds
+        self._df = weakref.ref(ds)
         assert not isinstance(ds, Expression)
         if isinstance(expression, Expression):
             expression = expression.expression
@@ -494,8 +493,15 @@ class Expression(with_metaclass(Meta)):
 
     @property
     def df(self):
-        # lets gradually move to using .df
-        return self.ds
+        df = self._df()
+        if df is None:
+            raise RuntimeError("This expression has a weak ref to its dataframe, which is now garbage collected, please keep a reference to your dataframe while using this Expression")
+        return df
+
+    @property
+    def ds(self):
+        # alias
+        return self.df
 
     @property
     def dtype(self):
