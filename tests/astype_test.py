@@ -21,19 +21,64 @@ def test_astype_str():
     assert df.x.dtype == int
 
 
-def test_astype_to_str(array_factory):
-    df = vaex.from_arrays(x=array_factory([1, 2, None]))
-    assert df.x.astype('str').tolist() == ['1', '2', None]
+@pytest.fixture
+def nullable_ints(df_factory):
+    return df_factory(x=[1, 2, None])
 
 
-def test_astype_numeric(array_factory):
-    df = vaex.from_arrays(x=array_factory([1, 2, None]))
-    assert df.x.astype('float').tolist() == [1., 2., None]
-    assert df.x.astype('float32').tolist() == [1., 2., None]
-    assert df.x.astype('float64').tolist() == [1., 2., None]
-    assert df.x.astype('int8').tolist() == [1, 2, None]
-    assert df.x.astype('int').tolist() == [1, 2, None]
+@pytest.mark.parametrize('dtype', [str, 'str', 'string', pa.string()])
+def test_astype_to_str(nullable_ints, dtype):
+    assert nullable_ints.x.astype(dtype).tolist() == ['1', '2', None]
 
+
+@pytest.mark.parametrize(
+    'dtype',
+    [
+        'int',
+        'i1',
+        'u1',
+        'int8',
+        'uint8',
+        pa.int8(),
+        pa.uint8(),
+        'int16',
+        'int32',
+        'int64',
+    ]
+)
+def test_astype_integral(nullable_ints, dtype):
+    assert nullable_ints.x.astype(dtype).tolist() == [1, 2, None]
+
+
+@pytest.mark.parametrize(
+    'dtype',
+    [
+        'float',
+        'f4',
+        'f8',
+        'float32',
+        'float64',
+        pa.float32(),
+        pa.float64(),
+    ]
+)
+def test_astype_floating(nullable_ints, dtype):
+    assert nullable_ints.x.astype(dtype).tolist() == [1., 2., None]
+
+@pytest.mark.parametrize('dtype', [int, float, bool, np.int8, np.float32])
+def test_astype_numeric_fails(nullable_ints, dtype):
+    with pytest.raises((ValueError, TypeError)):
+        nullable_ints.x.astype(dtype).tolist()
+
+
+def test_astype_uint_string(df_factory_arrow, df_factory_arrow_chunked, df_factory_numpy):
+    # The string "uint" works for numpy but not arrow
+    x = [1, 2, None]
+    df_factory_numpy(x=x).x.astype("uint").tolist()
+    with pytest.raises(ValueError):
+        df_factory_arrow(x=x).x.astype("uint").tolist()
+    with pytest.raises(ValueError):
+        df_factory_arrow_chunked(x=x).x.astype("uint").tolist()
 
 
 def test_astype_dtype():
