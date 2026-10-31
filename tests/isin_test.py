@@ -5,7 +5,7 @@ import vaex
 
 
 @pytest.mark.parametrize("use_hashmap", [False, True])
-def test_isin(use_hashmap):
+def test_isin(df_factory, array_factory, use_hashmap):
     x = np.array([1.01, 2.02, 3.03])
     y = np.array([1, 3, 5])
     s = np.array(['dog', 'cat', 'mouse'])
@@ -13,15 +13,23 @@ def test_isin(use_hashmap):
     w = np.array([2, '1.1', None])
     m = np.ma.MaskedArray(data=[np.nan, 1, 1], mask=[True, True, False])
     n = np.array([-5, np.nan, 1])
-    df = vaex.from_arrays(x=x, y=y, s=s, sm=sm, w=w, m=m, n=n)
+    df = df_factory(x=x, y=y, s=s, sm=sm, w=w, m=m, n=n)
 
-    assert df.x.isin([1, 2.02, 5, 6], use_hashmap=use_hashmap).tolist() == [False, True, False]
-    assert df.y.isin([5, -1, 0], use_hashmap=use_hashmap).tolist() == [False, False, True]
-    assert df.s.isin(['elephant', 'dog'], use_hashmap=use_hashmap).tolist() == [True, False, False]
-    assert df.sm.isin(['cat', 'dog'], use_hashmap=use_hashmap).tolist() == [True, True, False]
-    assert df.w.isin([2, None], use_hashmap=use_hashmap).tolist() == [True, False, True]
-    assert df.m.isin([1, 2, 3], use_hashmap=use_hashmap).tolist() == [False, False, True]
-    assert df.n.isin([2, np.nan], use_hashmap=use_hashmap).tolist() == [False, True, False]
+    isin_x = array_factory([1, 2.02, 5, 6])
+    isin_y = array_factory([5, -1, 0])
+    isin_s = array_factory(['elephant', 'dog'])
+    isin_sm = array_factory(['cat', 'dog'])
+    isin_w = array_factory([2, None])
+    isin_m = array_factory([1, 2, 3])
+    isin_n = array_factory([2, np.nan])
+
+    assert df.x.isin(isin_x, use_hashmap=use_hashmap).tolist() == [False, True, False]
+    assert df.y.isin(isin_y, use_hashmap=use_hashmap).tolist() == [False, False, True]
+    assert df.s.isin(isin_s, use_hashmap=use_hashmap).tolist() == [True, False, False]
+    assert df.sm.isin(isin_sm, use_hashmap=use_hashmap).tolist() == [True, True, False]
+    assert df.w.isin(isin_w, use_hashmap=use_hashmap).tolist() == [True, False, True]
+    assert df.m.isin(isin_m, use_hashmap=use_hashmap).tolist() == [False, False, True]
+    assert df.n.isin(isin_n, use_hashmap=use_hashmap).tolist() == [False, True, False]
 
 
 def test_isin_object():
