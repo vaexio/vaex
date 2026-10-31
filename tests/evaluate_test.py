@@ -25,6 +25,26 @@ def test_evaluate_iterator(df_local, chunk_size, prefetch, parallel):
         assert total == z.sum()
 
 
+def test_evaluate_iterator_selection(df_local):
+    df = df_local
+    bool_expr = df.x > 9
+    with small_buffer(df):
+        df.select(bool_expr)
+        x = df[bool_expr].x.to_numpy()
+        z = df[bool_expr].z.to_numpy()
+        total = 0
+        for i1, i2, chunk in df.evaluate_iterator('x', selection=True, chunk_size=3, array_type='numpy-arrow'):
+            assert x[i1:i2].tolist() == chunk.tolist()
+            total += chunk.sum()
+        assert total == x.sum()
+
+        total = 0
+        for i1, i2, chunk in df.evaluate_iterator('z', selection=True, chunk_size=3, array_type='numpy-arrow'):
+            assert z[i1:i2].tolist() == chunk.tolist()
+            total += chunk.sum()
+        assert total == z.sum()
+
+
 @pytest.mark.parametrize("chunk_size", [2, 5])
 @pytest.mark.parametrize("parallel", [True, False])
 @pytest.mark.parametrize("array_type", ['numpy', 'list', 'xarray'])
