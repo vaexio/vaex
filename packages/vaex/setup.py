@@ -17,7 +17,7 @@ license = 'MIT'
 url = 'https://www.github.com/vaexio/vaex'
 
 install_requires = [
-      'vaex-core~=4.19.0',
+      'vaex-core~=4.20.0',
       'vaex-astro>=0.9.3,<0.11',
       'vaex-hdf5>=0.13.0,<0.16',
       'vaex-viz>=0.6.0,<0.7',
