@@ -6,6 +6,8 @@ on:
       - master
     tags:
       - "*"
+      # wheel.yml publishes vaex-core; this workflow publishes the pure python packages
+      - "!core-*"
   pull_request:
     branches:
     - master
