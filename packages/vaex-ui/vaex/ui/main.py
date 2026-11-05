@@ -1360,7 +1360,7 @@ class VaexApp(QtGui.QMainWindow):
             index += 1
             self.dataset_selector.add(dataset)
 
-            # for this dataset, keep opening plots (seperated by -) or add layers (seperated by +)
+            # for this dataset, keep opening plots (separated by -) or add layers (separated by +)
             plot = plot if hold_plot else None
             options = {}
             # if we find --<task> we don't plot but do sth else

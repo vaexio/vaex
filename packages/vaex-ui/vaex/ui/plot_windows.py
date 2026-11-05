@@ -1210,7 +1210,7 @@ class PlotDialog(QtGui.QWidget):
         logger.debug("waiting for promises %r to finish", promises)
 
     def on_error_or_cancel(self, error):
-        logger.exception("error occured: %r", error, exc_info=error)
+        logger.exception("error occurred: %r", error, exc_info=error)
         traceback.print_exc()
         # raise exception
         raise error

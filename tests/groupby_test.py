@@ -739,7 +739,7 @@ def test_groupby_sort_ascending(df_factory, ascending1, ascending2, assume_spars
 def test_row_limit_sparse():
     x = np.arange(100) % 10
     y = np.arange(100) % 11
-    # > 11 combinations, but not x and y seperately
+    # > 11 combinations, but not x and y separately
     # we should force a 'compress' phase to detect the row_limit
     df = vaex.from_arrays(x=x, y=y)
     with pytest.raises(vaex.RowLimitException, match='.* would have >= 11 unique combinations.*'):

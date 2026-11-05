@@ -990,7 +990,7 @@ def qt_exception(parent, exctype, value, traceback):
     # , platform.architecture(), platform.dist(), platform.linux_distribution(),
 
     report = info + "\n" + trace
-    text = """An unexpected error occured, you may press ok and continue, but the program might be unstable.
+    text = """An unexpected error occurred, you may press ok and continue, but the program might be unstable.
 
 """ + report
 
