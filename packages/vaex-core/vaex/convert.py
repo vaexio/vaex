@@ -166,7 +166,7 @@ def main(argv):
             if not args.quiet:
                 print("\noutput to %s" % os.path.abspath(args.output))
             df.close()
-        except:
+        except Exception:
             if not args.quiet:
                 print("\nfailed to write to%s" % os.path.abspath(args.output))
             if args.delete:

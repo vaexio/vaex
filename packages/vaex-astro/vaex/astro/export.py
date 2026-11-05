@@ -13,7 +13,7 @@ max_length = int(1e5)
 on_rtd = os.environ.get('READTHEDOCS', None) == 'True'
 try:
     import h5py
-except:
+except Exception:
     if not on_rtd:
         raise
 
@@ -65,7 +65,7 @@ def export_hdf5_v1(dataset, path, column_names=None, byteorder="=", shuffle=Fals
             else:
                 try:
                     array = h5file_output.require_dataset("/data/%s" % column_name, shape=shape, dtype=dtype.newbyteorder(byteorder))
-                except:
+                except Exception:
                     logging.exception("error creating dataset for %r, with type %r " % (column_name, dtype))
             array[0] = array[0]  # make sure the array really exists
         random_index_name = None
@@ -155,7 +155,7 @@ def export_hdf5(dataset, path, column_names=None, byteorder="=", shuffle=False, 
             else:
                 try:
                     array = h5column_output.require_dataset('data', shape=shape, dtype=dtype.newbyteorder(byteorder))
-                except:
+                except Exception:
                     logging.exception("error creating dataset for %r, with type %r " % (column_name, dtype))
             array[0] = array[0]  # make sure the array really exists
 

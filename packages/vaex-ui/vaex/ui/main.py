@@ -41,7 +41,7 @@ try:  # in Pyinstaller this doesn't work, and we can get away with not setting t
     import sip
     sip.setapi('QVariant', 2)
     sip.setapi('QString', 2)
-except:
+except Exception:
     pass
 darwin = "darwin" in platform.system().lower()
 frozen = getattr(sys, 'frozen', False)
@@ -877,7 +877,7 @@ class WidgetUsage(QtGui.QWidget):
             self.tool_text = "\n".join(self.tool_lines)
             painter.end()
             self.setToolTip(self.tool_text)
-        except:
+        except Exception:
             pass
 
 
@@ -1450,11 +1450,11 @@ class VaexApp(QtGui.QMainWindow):
         if self.samp:
             try:
                 self.samp.client.ping()
-            except:
+            except Exception:
                 print("oops, ping went wrong, disconnect detected")
                 try:
                     self.samp.disconnect()
-                except:
+                except Exception:
                     pass
                 self.samp = None
         self.action_samp_connect.setChecked(self.samp is not None)
@@ -1694,7 +1694,7 @@ class VaexApp(QtGui.QMainWindow):
             self.samp.client.disconnect()
             self.samp = None
         # self.action_samp_connect.setText("disconnect from SAMP HUB" if self.samp else "conncet to SAMP HUB")
-            # except:
+            # except Exception:
             #   dialog_exception(self, "Connecting to SAMP server", "Could not connect, make sure a SAMP HUB is running (for instance TOPCAT)")
 
     def _on_samp_notification(self, private_key, sender_id, mtype, params, extra):
@@ -1869,7 +1869,7 @@ class VaexApp(QtGui.QMainWindow):
             for dataset in self.dataset_selector.datasets:
                 if dataset.matches_url(id) or (dataset.samp_id == id):
                     yield dataset
-        except:
+        except Exception:
             logger.exception("problem")
 
     def onSampSend(self):
@@ -1903,7 +1903,7 @@ class VaexApp(QtGui.QMainWindow):
         print("loading table", url, table_id, name)
         try:
             self.load(url, table_id, name)
-        except:
+        except Exception:
             logger.exception("load table")
         return
 
@@ -1947,7 +1947,7 @@ class VaexApp(QtGui.QMainWindow):
             print("disconnect samp")
             try:
                 self.samp.client.disconnect()
-            except:
+            except Exception:
                 logger.exception("error disconnecting from SAMP hub")
         # event.accept()
         return

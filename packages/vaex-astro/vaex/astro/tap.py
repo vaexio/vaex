@@ -164,7 +164,7 @@ class DatasetTap(DatasetArrays):
         url = None
         try:
             url = urlparse(path)
-        except:
+        except Exception:
             return False
         if url.scheme:
             if url.scheme.startswith("tap+http"): # will also catch https

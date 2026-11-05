@@ -20,7 +20,7 @@ max_length = int(1e5)
 on_rtd = os.environ.get('READTHEDOCS', None) == 'True'
 try:
     import h5py
-except:
+except Exception:
     if not on_rtd:
         raise
 # from vaex.dataset import DatasetLocal

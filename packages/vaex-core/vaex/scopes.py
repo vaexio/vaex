@@ -198,6 +198,6 @@ class _BlockScope(ScopeBase):
                 raise KeyError("Unknown variables or column: %r" % (variable,))
 
             return self.values[variable]
-        except:
+        except Exception:
             # logger.exception("error in evaluating: %r" % variable)
             raise

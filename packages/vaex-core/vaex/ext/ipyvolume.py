@@ -42,7 +42,7 @@ class PlotDefault(PlotBase):
                 if self.vcount_limits is not None:
                     try:
                         vcount_min, vcount_max = self.vcount_limits
-                    except:
+                    except Exception:
                         vcount_min = self.vcount_limits
                 if vcount_min is not None:
                     ok &= (vcount > vcount_min)

@@ -35,7 +35,7 @@ class TaskHistogram(Task):
         try:
             self.size[0]
             shape1 = tuple(self.size)
-        except:
+        except Exception:
             pass
         shape = (self.subspace.executor.thread_pool.nthreads,) + shape1
         self.data = np.zeros(shape, dtype=self.dtype)

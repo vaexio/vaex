@@ -585,12 +585,12 @@ class _VaexColumn:
         buffers["data"] = self._get_data_buffer()
         try:
             buffers["validity"] = self._get_validity_buffer()
-        except:
+        except Exception:
             buffers["validity"] = None
 
         try:
             buffers["offsets"] = self._get_offsets_buffer()
-        except:
+        except Exception:
             buffers["offsets"] = None
 
         return buffers

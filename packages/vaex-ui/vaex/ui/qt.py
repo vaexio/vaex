@@ -480,14 +480,14 @@ class RangeOption(object):
             if self.combobox_min.lineEdit().text().strip():
                 try:
                     self.vmin = float(self.combobox_min.lineEdit().text())
-                except:
+                except Exception:
                     logger.exception("parsing vmin")
                     dialog_error(self.combobox_min, "Error parsing number", "Cannot parse number: %s" % self.combobox_min.lineEdit().text())
 
             if self.combobox_max.lineEdit().text().strip():
                 try:
                     self.vmax = float(self.combobox_max.lineEdit().text())
-                except:
+                except Exception:
                     logger.exception("parsing vmax")
                     dialog_error(self.combobox_max, "Error parsing number", "Cannot parse number: %s" % self.combobox_max.lineEdit().text())
             return (self.vmin, self.vmax) if self.vmin is not None and self.vmax is not None else None
@@ -985,7 +985,7 @@ def qt_exception(parent, exctype, value, traceback):
             if isinstance(f, collections.Callable):
                 try:
                     info += "%s: %r\n" % (attr, f())
-                except:
+                except Exception:
                     pass
     # , platform.architecture(), platform.dist(), platform.linux_distribution(),
 

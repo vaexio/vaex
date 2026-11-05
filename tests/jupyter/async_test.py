@@ -109,7 +109,7 @@ def test_debounced_non_reentrant_hammer():
             await asyncio.sleep(0.001/4)
         try:
             await future
-        except:
+        except Exception:
             pass
 
     asyncio.run(run())

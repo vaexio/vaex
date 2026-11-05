@@ -89,7 +89,7 @@ def update(_, selection=False):
 				rgba = create_image(job)
 			if not job.cancelled:
 				progress.description = "Done: %.1fs" % (time.time() - t0)
-		except:
+		except Exception:
 			if not job.cancelled:
 				progress.description = "error"
 			raise

@@ -15,11 +15,11 @@ def xyz(shape=128, limits=[-3, 3], spherical=False, sparse=True, centers=False):
     dim = 3
     try:
         shape[0]
-    except:
+    except Exception:
         shape = [shape] * dim
     try:
         limits[0][0]
-    except:
+    except Exception:
         limits = [limits] * dim
     if centers:
         v = [slice(vmin + (vmax - vmin) / float(N) / 2, vmax - (vmax - vmin) / float(N) / 4, (vmax - vmin) / float(N)) for (vmin, vmax), N in zip(limits, shape)]
@@ -106,7 +106,7 @@ class IpyvolumeBackend(BackendBase):
             if vcount_limits is not None:
                 try:
                     vcount_min, vcount_max = vcount_limits
-                except:
+                except Exception:
                     vcount_min = self.vcount_limits
             if vcount_min is not None:
                 ok &= (vcount > vcount_min)

@@ -117,13 +117,13 @@ def _try_unit(unit):
 		unit = astropy.units.Unit(str(unit))
 		if not isinstance(unit, astropy.units.UnrecognizedUnit):
 			return unit
-	except:
+	except Exception:
 		#logger.exception("could not parse unit: %r", unit)
 		pass
 	try:
 		unit_mangle = re.match(r".*\[(.*)\]", str(unit)).groups()[0]
 		unit = astropy.units.Unit(unit_mangle)
-	except:
+	except Exception:
 		pass#logger.exception("could not parse unit: %r", unit)
 	if isinstance(unit, six.string_types):
 		return None
