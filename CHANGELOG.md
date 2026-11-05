@@ -1,3 +1,30 @@
+# vaex 4.20.0
+
+## vaex-core 4.20.0
+
+   * Features
+      * Support Python 3.13 and 3.14, and ship wheels for Python 3.15 [#2492](https://github.com/vaexio/vaex/pull/2492)
+      * Work with pandas 3 on Python 3.15 [#2492](https://github.com/vaexio/vaex/pull/2492)
+
+   * Fixes
+      * Add a missing include for building with gcc-13 [#2450](https://github.com/vaexio/vaex/pull/2450)
+      * Publish the source package (sdist) to PyPI again [#2497](https://github.com/vaexio/vaex/pull/2497)
+
+## vaex-ml 0.19.1
+
+   * Fixes
+      * Install on Python 3.13 and newer: TensorFlow and catboost are optional where they have no wheels, and annoy is optional [#2492](https://github.com/vaexio/vaex/pull/2492)
+
+## vaex-viz 0.6.1
+
+   * Fixes
+      * Use real eigenvalues for covariance ellipses in scatter plots [#2492](https://github.com/vaexio/vaex/pull/2492)
+
+## vaex-jupyter 0.9.1
+
+   * Fixes
+      * Work with the Python 3.14 asyncio changes [#2492](https://github.com/vaexio/vaex/pull/2492)
+
 # vaex 4.15.0
 
 ## vaex-core 4.15.0
