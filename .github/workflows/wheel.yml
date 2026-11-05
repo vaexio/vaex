@@ -112,9 +112,38 @@ jobs:
         name: dist-${{ matrix.only }}
         path: packages/vaex-core/dist
 
+  build_sdist:
+    runs-on: ubuntu-24.04
+    name: Build sdist
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        submodules: true
+
+    - uses: actions/setup-python@v6
+      with:
+        python-version: '3.12'
+
+    - name: Build sdist
+      run: pipx run build --sdist
+      working-directory: packages/vaex-core/
+
+    # a file missing from MANIFEST.in only shows up when compiling from the sdist
+    - name: Compile and import the sdist
+      run: |
+        sudo bash bin/install_pcre.sh
+        python -m pip install packages/vaex-core/dist/*.tar.gz
+        cd /tmp && python -c "import vaex; print(vaex.from_arrays(x=[1,2]))"
+
+    - uses: actions/upload-artifact@v6
+      with:
+        name: dist-sdist
+        path: packages/vaex-core/dist
+
   publish:
     if: startsWith(github.ref, 'refs/tags')
-    needs: [build_wheels]
+    needs: [build_wheels, build_sdist]
     runs-on: ubuntu-24.04
 
     permissions:
