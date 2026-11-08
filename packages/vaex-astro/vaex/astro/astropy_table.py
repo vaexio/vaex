@@ -1,3 +1,5 @@
+import warnings
+
 import numpy as np
 
 from vaex.dataset import DatasetArrays
@@ -36,6 +38,9 @@ class DatasetAstropyTable(DatasetArrays):
                     if type.kind in ["i"]:
                         masked_array.data[masked_array.mask] = 0
                 columns[name] = self.table[name].data
+            elif column.ndim > 1:
+                warnings.warn(f"Skipping multidimensional column {name!r} when converting an Astropy table.",
+                              UserWarning, stacklevel=3)
             if type.kind in ["SU"]:
                 columns[name] = self.table[name].data
 
