@@ -1164,7 +1164,7 @@ class DataFrame(object):
         """
         @delayed
         def finish(var):
-            return var**0.5
+            return np.abs(var)**0.5
         return self._delay(delay, finish(self.var(expression, binby=binby, limits=limits, shape=shape, selection=selection, delay=True, progress=progress)))
 
     @docsubst
