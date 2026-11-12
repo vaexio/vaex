@@ -423,6 +423,12 @@ class AggregatorDescriptorVar(AggregatorDescriptorMulti):
         super(AggregatorDescriptorVar, self).__init__(name, expression, short_name, selection=selection, edges=edges)
         self.ddof = ddof
 
+    def __repr__(self):
+        representation = super().__repr__()
+        if self.ddof != 0:
+            representation = f'{representation[:-1]}, ddof={self.ddof!r})'
+        return representation
+
     def add_tasks(self, df, binners, progress):
         progressbar = vaex.utils.progressbars(progress, title=repr(self))
         expression_sum = expression = df[str(self.expressions[0])]
@@ -447,7 +453,9 @@ class AggregatorDescriptorVar(AggregatorDescriptorMulti):
             with np.errstate(divide='ignore', invalid='ignore'):
                 mean = sum / count
                 raw_moments2 = sum_moment/count
-                variance = (raw_moments2 - mean**2) #* count/(count-self.ddof)
+                variance = raw_moments2 - mean**2
+                if self.ddof != 0:
+                    variance = variance * count / (count - self.ddof)
             if dtype.kind != mean.dtype.kind:
                 # TODO: not sure why view does not work
                 variance = variance.astype(dtype)
@@ -577,12 +585,21 @@ def last(expression, order_expression=None, selection=None, edges=False):
 
 @register
 def std(expression, ddof=0, selection=None, edges=False):
-    '''Creates a standard deviation aggregation'''
+    '''Creates a standard deviation aggregation.
+
+    The variance is normalized by N - ddof, where N is the number of
+    non-missing, non-NaN values in each bin, after applying the selection.
+    '''
     return AggregatorDescriptorStd('std', [expression], 'std', ddof=ddof, selection=selection, edges=edges)
 
 @register
 def var(expression, ddof=0, selection=None, edges=False):
-    '''Creates a variance aggregation'''
+    '''Creates a variance aggregation.
+
+    The divisor is N - ddof, where N is the number of non-missing, non-NaN
+    values in each bin, after applying the selection. The default ddof=0
+    gives the population variance; ddof=1 gives the sample variance.
+    '''
     return AggregatorDescriptorVar('var', [expression], 'var', ddof=ddof, selection=selection, edges=edges)
 
 @register
