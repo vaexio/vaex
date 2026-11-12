@@ -748,3 +748,87 @@ def test_agg_nunique_selections(df_factory):
     assert dfg.result_int.tolist()[0] == df.x_int.nunique(selection='cond==True')
     assert dfg.result_str.tolist()[0] == df.x_str.nunique(selection='cond==True')
     assert dfg.result_float.tolist()[0] == df.x_float.nunique(selection='cond==True')
+
+
+@pytest.mark.parametrize("ddof", [0, 1, 2, 0.5, -1])
+@pytest.mark.parametrize("statistic", ["var", "std"])
+def test_agg_ddof(ddof, statistic):
+    groups = [[1., 3., 5.], [2., 6., 10., 14.]]
+    df = vaex.from_arrays(group=[0, 0, 0, 1, 1, 1, 1], value=sum(groups, []))
+    result = df.groupby("group", sort=True).agg({
+        "value": getattr(vaex.agg, statistic)("value", ddof=ddof),
+    })
+    expected = [getattr(np, statistic)(values, ddof=ddof) for values in groups]
+    np.testing.assert_allclose(result.value.values, expected)
+
+
+@pytest.mark.parametrize("missing", ["nan", "masked", "arrow"])
+def test_agg_ddof_missing(missing):
+    if missing == "nan":
+        values = np.array([1., 3., np.nan, np.nan, 2., 6., 10., np.nan])
+    elif missing == "masked":
+        values = np.ma.array([1., 3., 99., np.nan, 2., 6., 10., 99.],
+                             mask=[False, False, True, False, False, False, False, True])
+    else:
+        values = pa.array([1., 3., None, np.nan, 2., 6., 10., None])
+    df = vaex.from_arrays(group=[0, 0, 0, 0, 1, 1, 1, 1], value=values)
+    result = df.groupby("group", sort=True).agg({
+        "count": vaex.agg.count("value"),
+        "population": vaex.agg.var("value"),
+        "sample": vaex.agg.var("value", ddof=1),
+        "sample_std": vaex.agg.std("value", ddof=1),
+    })
+    assert result["count"].tolist() == [2, 3]
+    np.testing.assert_allclose(result.population.values, [1., 32. / 3.])
+    np.testing.assert_allclose(result["sample"].values, [2., 16.])
+    np.testing.assert_allclose(result.sample_std.values, [np.sqrt(2.), 4.])
+
+
+def test_agg_ddof_selection_delayed():
+    df = vaex.from_arrays(group=[0, 0, 0, 1, 1, 1, 2, 3],
+                          value=[1., 3., 99., 2., 6., 10., 99., 5.])
+    df.select("value < 9")
+    pending = df.groupby("group", sort=True).agg({
+        "count": vaex.agg.count("value", selection=True),
+        "population": vaex.agg.var("value", selection=True),
+        "sample": vaex.agg.var("value", ddof=1, selection=True),
+        "sample_std": vaex.agg.std("value", ddof=1, selection=True),
+    }, delay=True)
+    df.execute()
+    result = pending.get()
+    assert result["count"].tolist() == [2, 2, 0, 1]
+    np.testing.assert_allclose(result.population.values, [1., 4., np.nan, 0.])
+    np.testing.assert_allclose(result["sample"].values, [2., 8., np.nan, np.nan])
+    np.testing.assert_allclose(result.sample_std.values, [np.sqrt(2.), np.sqrt(8.), np.nan, np.nan])
+    filtered = df[df.value < 9].groupby("group", sort=True).agg({
+        "sample": vaex.agg.var("value", ddof=1),
+    })
+    np.testing.assert_allclose(filtered["sample"].values, [2., 8., np.nan])
+
+
+def test_agg_ddof_binby():
+    df = vaex.from_arrays(group=[0, 0, 1, 1], value=[1., 3., 2., 6.])
+    binner = vaex.groupby.Binner(df["group"], -0.5, 1.5, bins=2)
+    result = df.binby(binner, agg={
+        "population": vaex.agg.var("value"),
+        "sample": vaex.agg.var("value", ddof=1),
+        "sample_std": vaex.agg.std("value", ddof=1),
+    })
+    np.testing.assert_allclose(result.values, [[1., 4.], [2., 8.], [np.sqrt(2.), np.sqrt(8.)]])
+
+
+@pytest.mark.parametrize("statistic", ["var", "std"])
+def test_agg_ddof_identity(statistic):
+    aggregate = getattr(vaex.agg, statistic)
+    population = aggregate("value")
+    sample = aggregate("value", ddof=1)
+    assert repr(population) == repr(aggregate("value", ddof=0))
+    assert "ddof=1" in repr(sample)
+    assert vaex.cache.fingerprint(population) != vaex.cache.fingerprint(sample)
+    assert vaex.cache.fingerprint(sample) == vaex.cache.fingerprint(aggregate("value", ddof=1))
+    assert vaex.cache.fingerprint(population + 1) != vaex.cache.fingerprint(sample + 1)
+    df = vaex.from_arrays(group=[0, 0, 1, 1], value=[1., 3., 2., 6.])
+    population_df = df.groupby("group", sort=True).agg({"value": population})
+    sample_df = df.groupby("group", sort=True).agg({"value": sample})
+    assert population_df.dataset.fingerprint != sample_df.dataset.fingerprint
+    np.testing.assert_allclose(sample_df.value.values, population_df.value.values * (2 if statistic == "var" else np.sqrt(2)))
