@@ -11,6 +11,8 @@ import operator
 import six
 import collections
 import weakref
+import logging
+
 
 from future.utils import with_metaclass
 import numpy as np
@@ -40,6 +42,8 @@ try:
     collectionsAbc = collections.abc
 except AttributeError:
     collectionsAbc = collections
+
+logger = logging.getLogger('vaex.expression')
 
 
 # TODO: repeated from dataframe.py
@@ -1110,23 +1114,67 @@ class Expression(with_metaclass(Meta)):
     def clip(self, lower=None, upper=None):
         return self.ds.func.clip(self, lower, upper)
 
+    def jit(self, backend=None, verbose=False):
+        '''Just in time compile the expression.
+        
+        Note all expressions will succesfully compile, since not all function that Vaex provides
+        are available in the various backends, like Metal, Cuda or Numba.
+
+
+        If backend is not given, all backends are tried, until one succeeds.        
+
+        Backends, in order of higest to lowest priority:
+            * metal: Only on OSX, executes on the GPU, requires the ``pyobjc-framework-Metal`` package
+            * cuda: Uses an nVidia GPU, requires the ``cupy`` package.
+            * numba: Uses Numba f, requires the ``numba`` package
+            * pythran: Uses Pythran, requires the ``pythran`` package
+        that 
+        '''
+        backends = ['cuda', 'numba', 'pythran']
+        if vaex.utils.osname == "osx":
+            backends = ['metal'] + backends
+        failures = []
+        for backend in backends:
+            if verbose:
+                print(f"Try backend: {backend}")
+            f = getattr(self, f'jit_{backend}')
+            try:
+                return f(verbose=verbose)
+            except Exception as e:
+                if verbose:
+                    logger.exception(f'Failed with backend: {backend}')
+                failures.append((e, backend))
+        failures = "\n".join([f'\n-----{who}-----\n:' + vaex.utils.format_exception_trace(e) for e, who in failures])
+        raise RuntimeError(f'Cannot jit compile on backends {backends}')
+
+    def jit_opencl(self, verbose=False):
+        '''See :meth:`Expression.jit`'''
+        from .opencl import FunctionSerializableOpenCL
+        f = FunctionSerializableOpenCL.build(self.expression, df=self.ds, verbose=verbose, compile=self.ds.is_local())
+        function = self.ds.add_function('_jit', f, unique=True)
+        return function(*f.arguments)
+
     def jit_metal(self, verbose=False):
+        '''See :meth:`Expression.jit`'''
         from .metal import FunctionSerializableMetal
         f = FunctionSerializableMetal.build(self.expression, df=self.ds, verbose=verbose, compile=self.ds.is_local())
         function = self.ds.add_function('_jit', f, unique=True)
         return function(*f.arguments)
 
     def jit_numba(self, verbose=False):
+        '''See :meth:`Expression.jit`'''
         f = FunctionSerializableNumba.build(self.expression, df=self.ds, verbose=verbose, compile=self.ds.is_local())
         function = self.ds.add_function('_jit', f, unique=True)
         return function(*f.arguments)
 
     def jit_cuda(self, verbose=False):
+        '''See :meth:`Expression.jit`'''
         f = FunctionSerializableCuda.build(self.expression, df=self.ds, verbose=verbose, compile=self.ds.is_local())
         function = self.ds.add_function('_jit', f, unique=True)
         return function(*f.arguments)
 
     def jit_pythran(self, verbose=False):
+        '''See :meth:`Expression.jit`'''
         import logging
         logger = logging.getLogger('pythran')
         log_level = logger.getEffectiveLevel()
