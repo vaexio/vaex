@@ -14,3 +14,4 @@ def test_countna(df_factory):
     assert df.y.countna() == pandas_df.y.isna().sum()
     assert df.x.countnan() == 2
     assert df.y.countmissing() == 6
+    assert df.countna().to_dict() == {'y': 7, 'x': 3}
