@@ -599,7 +599,7 @@ class DataFrame(object):
                 keys = pa.array(self.category_labels(expression))
                 @delayed
                 def encode(codes):
-                    used_keys = keys.take(codes)
+                    used_keys = vaex.array_types.take(keys, codes)
                     return vaex.array_types.convert(used_keys, array_type)
                 codes = self[expression].index_values().unique(delay=True)
                 return self._delay(delay, encode(codes))
@@ -659,7 +659,7 @@ class DataFrame(object):
                     if isinstance(keys, (vaex.strings.StringList32, vaex.strings.StringList64)):
                         keys = vaex.strings.to_arrow(keys)
                         indices = np.delete(np.arange(len(keys)), deletes)
-                        keys = keys.take(indices)
+                        keys = vaex.array_types.take(keys, indices)
                     else:
                         keys = np.delete(keys, deletes)
                         if not dropmissing and hash_map_unique.has_null:

@@ -284,7 +284,7 @@ class Grouper(BinnerBase):
                         indices = pa.compute.sort_indices(self.bin_values, sort_keys=[("x", "ascending" if ascending else "descending")])
                         self.sort_indices = vaex.array_types.to_numpy(indices)
                         # the bin_values will still be pre sorted, maybe that is confusing (implementation detail)
-                        self.bin_values = pa.compute.take(self.bin_values, self.sort_indices)
+                        self.bin_values = vaex.array_types.take(self.bin_values, self.sort_indices)
                 else:
                     self.sort_indices = None
                 self.hashmap_unique = hashmap_unique
@@ -377,10 +377,10 @@ class GrouperCombined(Grouper):
                 if dtype.is_struct:
                     # collapse parent struct into our flat struct
                     for field, ar in zip(parent.bin_values.type, parent.bin_values.flatten()):
-                        bin_values[field.name] = ar.take(indices)
+                        bin_values[field.name] = vaex.array_types.take(ar, indices)
                         # bin_values[field.name] = pa.DictionaryArray.from_arrays(indices, ar)
                 else:
-                    bin_values[parent.label] = parent.bin_values.take(indices)
+                    bin_values[parent.label] = vaex.array_types.take(parent.bin_values, indices)
                     # bin_values[parent.label] = pa.DictionaryArray.from_arrays(indices, parent.bin_values)
             logger.info(f"extracing labels of parent groupers done")
             return pa.StructArray.from_arrays(bin_values.values(), bin_values.keys())
@@ -418,7 +418,7 @@ class GrouperCategory(BinnerBase):
         if self.sort:
             # not pre-sorting is faster
             sort_indices = pa.compute.sort_indices(self.bin_values, sort_keys=[("x", "ascending" if ascending else "descending")])
-            self.bin_values = pa.compute.take(self.bin_values, sort_indices)
+            self.bin_values = vaex.array_types.take((self.bin_values, sort_indices)
             if self.pre_sort:
                 # we will map from int to int
                 sort_indices = vaex.array_types.to_numpy(sort_indices)
@@ -481,7 +481,7 @@ class GrouperLimited(BinnerBase):
             values = pa.concat_arrays(values.chunks)
         if sort:
             indices = pa.compute.sort_indices(values, sort_keys=[("x", "ascending" if ascending else "descending")])
-            values = pa.compute.take(values, indices)
+            values = vaex.array_types.take(values, indices)
 
         if self.keep_other:
             self.bin_values = pa.array(vaex.array_types.tolist(values) + [other_value])
