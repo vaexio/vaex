@@ -99,7 +99,7 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
         self._freeze()
 
     def write_meta(self):
-        """ucds, descriptions and units are written as attributes in the hdf5 file, instead of a seperate file as
+        """ucds, descriptions and units are written as attributes in the hdf5 file, instead of a separate file as
          the default :func:`Dataset.write_meta`.
          """
         with h5py.File(self.path, "r+") as h5file_output:

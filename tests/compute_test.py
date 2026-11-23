@@ -55,7 +55,7 @@ def test_stay_same_type(x):
 
 def test_mix_string_and_numeric(x, s):
     df = vaex.from_arrays(x=x, s=s)
-    # TODO: Note that this is a seperate bug, it ignored the missing value
+    # TODO: Note that this is a separate bug, it ignored the missing value
     assert (df.s == 'a').tolist() == [True, False, False, False]
     assert (df.x == 1).tolist() == [False, True, False, None]
     assert ((df.s == 'a') | (df.x == 1)).tolist()[0] is True

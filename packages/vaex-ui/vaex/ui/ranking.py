@@ -608,7 +608,7 @@ class RankDialog(QtGui.QDialog):
         self.tab1d_button_layout.addWidget(self.button_actions)
 
         self.filter_line_edit = QtGui.QLineEdit(self)
-        self.filter_line_edit.setPlaceholderText("Enter space seperated search terms")
+        self.filter_line_edit.setPlaceholderText("Enter space separated search terms")
         self.filter_line_edit.textEdited.connect(functools.partial(self.onFilter, table=self.table1d))
 
         self.tab1dlayout.addWidget(self.filter_line_edit)
@@ -751,7 +751,7 @@ class RankDialog(QtGui.QDialog):
             self.selectionModel.currentChanged.connect(functools.partial(func, name="currentChanged"))
 
             self.filter_Nd_line_edit = QtGui.QLineEdit(self)
-            self.filter_Nd_line_edit.setPlaceholderText("Enter space seperated search terms")
+            self.filter_Nd_line_edit.setPlaceholderText("Enter space separated search terms")
             self.filter_Nd_line_edit.textEdited.connect(functools.partial(self.onFilter, table=self.tableNd))
             self.tabNdlayout.addWidget(self.filter_Nd_line_edit)
 

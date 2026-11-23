@@ -73,7 +73,7 @@ def test_cat_missing_values(lazy):
     ds = ds0.ordinal_encode('colors', ['red', 'green', 'blue'], lazy=lazy)
     assert ds.count(binby=ds.colors, edges=True).tolist() == [1, 2, 1, 1, 0]
 
-    # if we want missing values and non-categorized values to be reported seperately
+    # if we want missing values and non-categorized values to be reported separately
     # the following is expected
     # ds = ds0.ordinal_encode('colors', ['red', 'green'])
     # assert ds.count(binby=ds.colors, edges=True).tolist() == [1, 0, 1, 2, 0, 1]

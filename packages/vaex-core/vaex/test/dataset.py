@@ -395,13 +395,13 @@ class TestDataset(unittest.TestCase):
 		self.assertEqual(changes[1], ['index'], "mssing columns")
 
 	def test_ascii(self):
-		for seperator in " 	\t,":
+		for separator in " 	\t,":
 			for use_header in [True, False]:
-				#print(">>>", repr(seperator), use_header)
+				#print(">>>", repr(separator), use_header)
 				fn = tempfile.mktemp("asc")
 				with open(fn, "w") as f:
 					if use_header:
-						print(seperator.join(["x", "y"]), file=f)
+						print(separator.join(["x", "y"]), file=f)
 
 					# Scalar representation changed in numpy to to np.float64(0.0) for instance to
 					# avoid ambiguities
@@ -411,21 +411,21 @@ class TestDataset(unittest.TestCase):
 						_repr = repr
 
 					for x, y, name in zip(self.x, self.y, self.dataset.data.name):
-						print(seperator.join(map(_repr, [x, y])), file=f)
+						print(separator.join(map(_repr, [x, y])), file=f)
 				#with open(fn) as f:
 				#	print(f.read())
-				sep = seperator
-				if seperator == " ":
+				sep = separator
+				if separator == " ":
 					sep = None
 				if use_header:
-					ds = vx.from_ascii(fn, seperator=sep)
+					ds = vx.from_ascii(fn, separator=sep)
 				else:
-					ds = vx.from_ascii(fn, seperator=seperator, names="x y".split())
+					ds = vx.from_ascii(fn, separator=separator, names="x y".split())
 
 				np.testing.assert_array_almost_equal(ds.data.x, self.x)
 				np.testing.assert_array_almost_equal(ds.data.y, self.y)
 				#np.testing.assert_array_equal(ds.data.names, self.dataset.data.name)
-				#if seperator == ",":
+				#if separator == ",":
 				#	df = pd.read_csv(fn)
 				#	ds = vx.from_pandas(df)
 				#	np.testing.assert_array_almost_equal(ds.data.x, self.x)

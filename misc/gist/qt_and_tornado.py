@@ -86,7 +86,7 @@ class Window(QtGui.QMainWindow):
 		self.setStyleSheet("background-color: orange;")
 
 
-# run the tornado loop in a seperate thread
+# run the tornado loop in a separate thread
 thread = threading.Thread(target=lambda : tornado.ioloop.IOLoop.current().start())
 thread.setDaemon(True)
 thread.start()
