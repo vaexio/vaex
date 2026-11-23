@@ -218,7 +218,7 @@ def convert(x, type, default_type="numpy"):
         else:
             try:
                 return pa.array(x).tolist()
-            except:
+            except Exception:
                 return np.array(x).tolist()
     elif type is None:
         if isinstance(x, (list, tuple)):

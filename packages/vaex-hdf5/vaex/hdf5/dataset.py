@@ -28,7 +28,7 @@ dataset_type_map = {}
 on_rtd = os.environ.get('READTHEDOCS', None) == 'True'
 try:
     import h5py
-except:
+except Exception:
     if not on_rtd:
         raise
 
@@ -38,13 +38,13 @@ def _try_unit(unit):
         unit = astropy.units.Unit(str(unit))
         if not isinstance(unit, astropy.units.UnrecognizedUnit):
             return unit
-    except:
+    except Exception:
         # logger.exception("could not parse unit: %r", unit)
         pass
     try:
         unit_mangle = re.match(".*\[(.*)\]", str(unit)).groups()[0]
         unit = astropy.units.Unit(unit_mangle)
-    except:
+    except Exception:
         pass  # logger.exception("could not parse unit: %r", unit)
     if isinstance(unit, str):
         return None
@@ -348,7 +348,7 @@ class Hdf5MemoryMapped(DatasetMemoryMapped):
                         unitname = ensure_string(column.attrs["unit"])
                         if unitname and unitname != "None":
                             self.units[column_name] = _try_unit(unitname)
-                    except:
+                    except Exception:
                         logger.exception("error parsing unit: %s", column.attrs["unit"])
                 if "units" in column.attrs:  # Amuse case
                     unitname = ensure_string(column.attrs["units"])
@@ -447,7 +447,7 @@ class AmuseHdf5MemoryMapped(Hdf5MemoryMapped):
         h5file = None
         try:
             h5file = h5py.File(path, "r")
-        except:
+        except Exception:
             return False
         if h5file is not None:
             with h5file:
@@ -571,7 +571,7 @@ class Hdf5MemoryMappedGadget(DatasetMemoryMapped):
         h5file = None
         try:
             h5file = h5py.File(path, "r")
-        except:
+        except Exception:
             return False
         has_particles = False
         # for i in range(1,6):

@@ -141,7 +141,7 @@ class Promise(aplus.Promise):
             # print args
             try:
                 Promise.unhandled(*args)
-            except:
+            except Exception:
                 print("Error in unhandled handler")
                 traceback.print_exc()
         return self.then(None, failure)

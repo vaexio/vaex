@@ -34,7 +34,7 @@ has_py2app = False
 try:
 	import py2app.build_app
 	has_py2app = True
-except:
+except Exception:
 	pass
 
 if has_py2app:
@@ -120,7 +120,7 @@ if has_py2app and sys.argv[1] == "py2app":
 try:
 	import numpy
 	numdir = os.path.dirname(numpy.__file__)
-except:
+except Exception:
 	numdir = None
 
 if numdir is None:
@@ -200,7 +200,7 @@ import pip.download
 # older versions of pip don't use the pipsession..?
 try:
 	session = pip.download.PipSession()
-except:
+except Exception:
 	session = None
 # parse_requirements() returns generator of pip.req.InstallRequirement objects
 if session:

@@ -144,7 +144,7 @@ def _number(v):
         return v
     try:
         return float(v)
-    except:
+    except Exception:
         return v
 
 async def _compute_histogram(input: HistogramInput) -> HistogramOutput:
@@ -366,7 +366,7 @@ class Server(threading.Thread):
         self.started.set()
         try:
             self.server.run()
-        except:
+        except Exception:
             logger.exception("Oops, server stopped unexpectedly")
         finally:
             self.stopped.set()

@@ -168,7 +168,7 @@ class DispersionPlugin(vaex.ui.plugin.PluginLayer):
 					try:
 						covmatrix = [[sigmax**2, covxy], [covxy, sigmay**2]]
 						eigen_values, eigen_vectors = np.linalg.eig(covmatrix)
-					except:
+					except Exception:
 						pass
 					else:
 						scaling = 1./vmax * max_size

@@ -18,7 +18,7 @@ class UndoManager(object):
         self.actions_redo.insert(0, action)
         try:
             action.undo()
-        except:
+        except Exception:
             logger.exception("error executing action")
         logger.debug("history is  %r-%r" % (self.actions_undo, self.actions_redo))
 
@@ -36,7 +36,7 @@ class UndoManager(object):
         action = self.actions_redo.pop(0)
         try:
             action.do()
-        except:
+        except Exception:
             logger.exception("error executing action")
         self.actions_undo.append(action)
         logger.debug("history is  %r-%r" % (self.actions_undo, self.actions_redo))

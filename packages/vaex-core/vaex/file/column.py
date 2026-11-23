@@ -2,7 +2,7 @@ import ctypes
 fcntl = None
 try:
     import fcntl
-except:
+except Exception:
     pass
 import threading
 from ctypes import *

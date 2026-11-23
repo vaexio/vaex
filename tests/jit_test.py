@@ -3,7 +3,7 @@ import collections
 
 try:
     import cupy
-except:
+except Exception:
     cupy = None
 
 

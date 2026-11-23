@@ -22,7 +22,7 @@ class Storage(object):
         if os.path.exists(self.path):
             try:
                 self.all_options = json.load(open(self.path))
-            except:
+            except Exception:
                 logger.exception("error parsing settings from:" + self.path)
 
     def get_all(self, type_name, dataset):

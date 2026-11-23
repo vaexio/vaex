@@ -403,7 +403,7 @@ class PlotDialog(QtGui.QWidget):
                 if first_layer.state.output_units[axis] and unit:  # avoid unnecessary error msg'es
                     output_unit.to(unit)
                     unit = output_unit
-            except:
+            except Exception:
                 logger.exception("unit error")
             logger.debug("unit: %r", unit)
             if unit is not None:
@@ -2698,7 +2698,7 @@ class ScatterPlotDialog(PlotDialog):
                     axis = self.axes.xaxis if dim == 0 else self.axes.yaxis
                     axis.set_major_locator(ScaledLocator(dx=scale))
                     axis.set_major_formatter(ScaledFormatter(dx=scale))
-                except:
+                except Exception:
                     pass
 
         titles = [layer.state.title for layer in self.layers if layer.state.title]
@@ -2940,7 +2940,7 @@ class ScatterPlotMatrixDialog(PlotDialog):
             if weights_block is not None:
                 args = data_blocks, weights_block, self.counts, ranges
                 vaex.histogram.hist2d_weights(blockx, blocky, self.counts_weights, weights_block, *ranges)
-        except:
+        except Exception:
             raise
 
         if mask is not None:
@@ -3738,5 +3738,5 @@ from vaex.ui.layers import LayerTable
 import vaex.ui.layers
 try:
     from vaex.ui.main import VaexApp
-except:
+except Exception:
     pass

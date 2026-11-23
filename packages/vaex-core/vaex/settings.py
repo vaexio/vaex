@@ -15,7 +15,7 @@ from enum import Enum
 try:
     import dotenv
     has_dotenv = True
-except:
+except Exception:
     has_dotenv = False
 
 
@@ -36,7 +36,7 @@ from .minisettings import BaseSettings, Field
 #         try:
 #             import ast
 #             value = ast.literal_eval(value)
-#         except:
+#         except Exception:
 #             pass
 #         if isinstance(value, str):
 #             import dask

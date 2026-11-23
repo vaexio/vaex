@@ -101,7 +101,7 @@ class LocalExecutor(object):
 		result = None
 		try:
 			result = self.function(*args, **kwargs)
-		except:
+		except Exception:
 			info = "exception"
 			exc_info = traceback.format_exc()
 		return info, exc_info, result

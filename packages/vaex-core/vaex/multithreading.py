@@ -125,7 +125,7 @@ class ThreadPoolIndex(concurrent.futures.ThreadPoolExecutor):
             for value in iterator:
                 try:
                     pass
-                except:
+                except Exception:
                     pass
 
     def _map(self, callable, iterator):
