@@ -2413,6 +2413,17 @@ def to_string(x):
     '''Cast/convert to string, same as `expression.astype('str')`'''
     # don't change the dtype, otherwise for each block the dtype may be different (string length)
     ar = vaex.array_types.to_numpy(x)
+    if ar.dtype == object:
+        # vaex.strings.to_string (C++) has no overload for object dtype
+        # (mixed types, e.g. [123, 'test', None]); convert in Python,
+        # keeping None (and masked values) as null, like astype('str')
+        # does for other dtypes (see test_astype_to_str)
+        if np.ma.isMaskedArray(ar):
+            mask = np.ma.getmaskarray(ar)
+            values = [None if (m or v is None) else str(v) for v, m in zip(ar.data, mask)]
+        else:
+            values = [None if v is None else str(v) for v in ar]
+        return column.ColumnStringArrow.from_arrow(pa.array(values))
     if np.ma.isMaskedArray(ar):
         sl = vaex.strings.to_string(ar.data, ar.mask)
     else:
