@@ -314,6 +314,24 @@ def test_string_replace_regex(dfs, pattern, replacement, flags):
            dfs.s.str_pandas.replace(pattern, replacement, flags=flags, regex=True).tolist()
 
 
+def test_string_replace_regex_capture_group():
+    # https://github.com/vaexio/vaex/issues/1754
+    # pandas style \g<1> backreference in the replacement string
+    df = vaex.from_arrays(s=['a,b'])
+    assert df.s.str.replace(r'(\w+)', r'--\g<1>==', regex=True).tolist() == ['--a==,--b==']
+    assert df.s.str.replace(r'(\w+)', r'--\g<1>==', regex=True).tolist() == \
+        df.s.str_pandas.replace(r'(\w+)', r'--\g<1>==', regex=True).tolist()
+
+
+def test_string_replace_regex_named_group():
+    # https://github.com/vaexio/vaex/issues/1754
+    # pandas style \g<name> backreference in the replacement string
+    df = vaex.from_arrays(s=['a,b'])
+    assert df.s.str.replace(r'(?P<word>\w+)', r'--\g<word>==', regex=True).tolist() == ['--a==,--b==']
+    assert df.s.str.replace(r'(?P<word>\w+)', r'--\g<word>==', regex=True).tolist() == \
+        df.s.str_pandas.replace(r'(?P<word>\w+)', r'--\g<word>==', regex=True).tolist()
+
+
 @pytest.mark.xfail(reason='unicode not supported fully in regex')
 @pytest.mark.parametrize("pattern", [unicode_compat("VæX")])
 @pytest.mark.parametrize("replacement", ["?", unicode_compat("VæX")])

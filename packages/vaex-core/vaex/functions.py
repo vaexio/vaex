@@ -1,5 +1,6 @@
 import vaex.serialize
 import json
+import re
 import numpy as np
 import pyarrow as pa
 import pyarrow.compute as pc
@@ -1713,6 +1714,44 @@ def str_repeat(x, repeats):
     return column.ColumnStringArrow.from_string_sequence(sl)
 
 
+# Matches an escaped backslash (to be left alone) or a pandas-style
+# backreference \g<1> / \g<name> in a regex replacement string.
+_group_ref_re = re.compile(r'\\\\|\\g<(?P<name>[^>]+)>')
+
+
+def _pandas_replacement_to_pcre(repl, pattern):
+    """Translate pandas-style backreferences in a regex replacement string
+    to the PCRE syntax used by vaex's C++ string replace.
+
+    pandas (Python ``re``) accepts ``\\g<1>`` and ``\\g<name>``; PCRE's
+    ``GlobalReplace`` only understands ``\\1``. ``\\1``-style references are
+    left untouched, as are escaped backslashes.
+    """
+    try:
+        groupindex = re.compile(pattern).groupindex
+    except re.error:
+        groupindex = None  # PCRE-only pattern; leave repl untouched
+
+    def _translate(match):
+        token = match.group(0)
+        if token == '\\\\':
+            return token  # escaped backslash, keep as-is
+        name = match.group('name')
+        if name.isdigit():
+            number = int(name)
+            if 1 <= number <= 9:
+                return '\\' + name
+            return token  # \g<0> and \g<10>+ have no PCRE equivalent
+        if groupindex is None:
+            return token
+        number = groupindex.get(name)
+        if number is None or not 1 <= number <= 9:
+            return token
+        return '\\' + str(number)
+
+    return _group_ref_re.sub(_translate, repl)
+
+
 @register_function(scope='str')
 @auto_str_unwrap
 def str_replace(x, pat, repl, n=-1, flags=0, regex=False):
@@ -1747,7 +1786,18 @@ def str_replace(x, pat, repl, n=-1, flags=0, regex=False):
     2    is coming
     3          our
     4         way.
+
+    With ``regex=True`` capture groups can be referenced in the replacement
+    string pandas-style (``\\g<1>`` or ``\\g<name>``):
+
+    >>> df = vaex.from_arrays(s=['a,b'])
+    >>> df.s.str.replace(r'(\\w+)', r'--\\g<1>==', regex=True).tolist()
+    ['--a==,--b==']
     """
+    if regex:
+        # vaex uses PCRE for regex replace, which only understands \1 style
+        # backreferences; translate pandas style \g<1> / \g<name> for compatibility
+        repl = _pandas_replacement_to_pcre(repl, pat)
     sl = _to_string_sequence(x).replace(pat, repl, n, flags, regex)
     return column.ColumnStringArrow.from_string_sequence(sl)
     # TODO: we should be using arrow compute functions (since MB rewrote them in arrow)
