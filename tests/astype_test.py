@@ -26,6 +26,12 @@ def test_astype_to_str(array_factory):
     assert df.x.astype('str').tolist() == ['1', '2', None]
 
 
+def test_astype_object_to_str():
+    # https://github.com/vaexio/vaex/issues/1686
+    df = vaex.from_arrays(test=np.array([123, "test", None], dtype=object))
+    assert df['test'].astype('str').tolist() == ['123', 'test', None]
+
+
 def test_astype_numeric(array_factory):
     df = vaex.from_arrays(x=array_factory([1, 2, None]))
     assert df.x.astype('float').tolist() == [1., 2., None]
